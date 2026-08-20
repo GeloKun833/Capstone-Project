@@ -29,7 +29,6 @@ class QuarterlyGradeSyncService
                 'name' => 'Final Grade',
             ],
             [
-                'description' => 'Synced from quarterly grade entry',
                 'weight' => 100,
                 'is_active' => true,
             ]

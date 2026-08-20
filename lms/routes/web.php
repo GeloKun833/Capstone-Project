@@ -159,7 +159,7 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
         Route::post('teacher/update', 'updateRecordTeacher')->middleware(['auth', 'role:Admin'])->name('teacher/update'); // update record
         Route::post('teacher/delete', 'teacherDelete')->middleware(['auth', 'role:Admin'])->name('teacher/delete'); // delete record teacher
         Route::post('teacher/sync-users', 'syncTeacherUsers')->middleware(['auth', 'role:Admin'])->name('teacher/sync-users'); // sync teacher users
-        Route::get('teacher/sis/{user_id}', 'viewTIS')->middleware(['auth', 'role:Admin'])->name('teacher.sis'); // Teacher Information System
+        Route::get('teacher/sis/{user_id}', 'viewTIS')->middleware(['auth', 'role:Admin|Registrar'])->name('teacher.sis'); // Teacher Information System
     });
 
     // ----------------------- department -----------------------------//
@@ -394,7 +394,9 @@ Route::group(['middleware' => ['role:Student']], function () {
 });
 
 // Student Information System (SIS) route for admin and teachers
-Route::get('/student/sis/{user_id}', [App\Http\Controllers\StudentController::class, 'viewSIS'])->middleware(['auth', 'role:Admin|Teacher'])->name('student.sis');
+Route::get('/student/sis/{user_id}', [App\Http\Controllers\StudentController::class, 'viewSIS'])->middleware(['auth', 'role:Admin|Teacher|Registrar'])->name('student.sis');
+
+Route::get('/sis', [App\Http\Controllers\SisHubController::class, 'index'])->middleware(['auth', 'role:Admin|Registrar|Teacher'])->name('sis.hub');
 
 // Parent-only routes
 Route::group(['middleware' => ['role:Parent']], function () {
@@ -651,11 +653,12 @@ Route::group(['prefix' => 'student', 'middleware' => ['auth', 'role:Student']], 
 
 // Parent Routes
 Route::group(['prefix' => 'parent', 'middleware' => ['auth', 'role:Parent']], function () {
+    Route::get('/', [App\Http\Controllers\ParentController::class, 'index'])->name('parent.index');
+    Route::get('/child/{childId}', [App\Http\Controllers\ParentController::class, 'childHub'])->name('parent.child.hub');
     Route::get('/child/{childId}/profile', [App\Http\Controllers\ParentController::class, 'childProfile'])->name('parent.child.profile');
     Route::get('/child/{childId}/grades', [App\Http\Controllers\ParentController::class, 'childGrades'])->name('parent.child.grades');
     Route::get('/child/{childId}/attendance', [App\Http\Controllers\ParentController::class, 'childAttendance'])->name('parent.child.attendance');
     Route::get('/child/{childId}/activities', [App\Http\Controllers\ParentController::class, 'childActivities'])->name('parent.child.activities');
     Route::get('/schedule', [App\Http\Controllers\ClassScheduleController::class, 'index'])->name('parent.schedule');
-    Route::get('/test', function() { return 'Parent route working!'; })->name('parent.test');
 });
 

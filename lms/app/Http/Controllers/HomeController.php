@@ -918,27 +918,76 @@ class HomeController extends Controller
     }
 
     /**
-     * Display the current user's activity logs.
+     * Display activity logs. Admins can view all system activity or their own.
      */
-    public function activityLog()
+    public function activityLog(Request $request)
     {
         $user = auth()->user();
-        $activities = \Spatie\Activitylog\Models\Activity::where('causer_id', $user->id)
-            ->where('causer_type', get_class($user))
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
-        return view('dashboard.activity_log', compact('activities'));
+        $isAdmin = $user->role_name === 'Admin';
+        $scope = $request->get('scope', $isAdmin ? 'all' : 'mine');
+
+        if (!$isAdmin) {
+            $scope = 'mine';
+        }
+
+        if (!in_array($scope, ['all', 'mine'], true)) {
+            $scope = $isAdmin ? 'all' : 'mine';
+        }
+
+        $query = \Spatie\Activitylog\Models\Activity::query()
+            ->with('causer')
+            ->orderByDesc('created_at');
+
+        if ($scope === 'mine') {
+            $query->where('causer_id', $user->id)
+                ->where('causer_type', get_class($user));
+        } elseif ($request->filled('user_id')) {
+            $query->where('causer_id', $request->user_id)
+                ->where('causer_type', User::class);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($builder) use ($search) {
+                $builder->where('description', 'like', "%{$search}%")
+                    ->orWhere('event', 'like', "%{$search}%")
+                    ->orWhere('log_name', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $activities = $query
+            ->paginate($scope === 'all' ? 30 : 20)
+            ->withQueryString();
+
+        $users = $isAdmin
+            ? User::orderBy('name')->get(['id', 'name', 'role_name'])
+            : collect();
+
+        return view('dashboard.activity_log', compact(
+            'activities',
+            'scope',
+            'isAdmin',
+            'users'
+        ));
     }
 
-    public function adminActivityLog()
+    /**
+     * @deprecated Redirects to the unified activity log page.
+     */
+    public function adminActivityLog(Request $request)
     {
-        if (auth()->user()->role_name !== 'Admin') {
-            abort(403);
-        }
-        $activities = \Spatie\Activitylog\Models\Activity::with('causer')
-            ->orderBy('created_at', 'desc')
-            ->paginate(30);
-        return view('dashboard.admin_activity_log', compact('activities'));
+        return redirect()->route('activity.log', array_merge(
+            $request->query(),
+            ['scope' => 'all']
+        ));
     }
 
     /**

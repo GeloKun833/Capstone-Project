@@ -6,8 +6,10 @@ use Illuminate\Http\Request;
 use DB;
 use Hash;
 use Carbon\Carbon;
-use App\Models\User;
+use App\Models\ClassPost;
+use App\Models\ClassSchedule;
 use App\Models\Teacher;
+use App\Models\User;
 use Brian2694\Toastr\Facades\Toastr;
 
 class TeacherController extends Controller
@@ -246,11 +248,19 @@ class TeacherController extends Controller
         // Get grade levels
         $gradeLevels = $teacher->gradeLevels;
 
-        // Get class posts if any (assuming relationship exists)
-        $classPosts = [];
-        
-        // Get teaching schedule (if applicable)
-        $teachingSchedule = [];
+        // Get class posts and teaching schedule
+        $classPosts = ClassPost::with('subject')
+            ->where('teacher_id', $teacher->id)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        $teachingSchedule = ClassSchedule::with(['subject', 'section', 'room'])
+            ->where('teacher_id', $teacher->id)
+            ->where('is_active', true)
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
 
         return view('teacher.tis', compact(
             'user',

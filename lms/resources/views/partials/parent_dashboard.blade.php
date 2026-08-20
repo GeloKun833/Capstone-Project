@@ -177,6 +177,28 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="row g-3 mt-2">
+                                <div class="col-md-3 col-6">
+                                    <a href="{{ route('parent.child.hub', ['childId' => $parent['selectedChild']->id, 'tab' => 'overview']) }}" class="btn btn-light w-100">
+                                        <i class="fas fa-home me-1"></i> Child Portal
+                                    </a>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <a href="{{ route('parent.child.hub', ['childId' => $parent['selectedChild']->id, 'tab' => 'grades']) }}" class="btn btn-light w-100">
+                                        <i class="fas fa-clipboard-list me-1"></i> Grades
+                                    </a>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <a href="{{ route('parent.child.hub', ['childId' => $parent['selectedChild']->id, 'tab' => 'attendance']) }}" class="btn btn-light w-100">
+                                        <i class="fas fa-user-check me-1"></i> Attendance
+                                    </a>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <a href="{{ route('parent.child.hub', ['childId' => $parent['selectedChild']->id, 'tab' => 'feedback']) }}" class="btn btn-light w-100">
+                                        <i class="fas fa-comment-dots me-1"></i> Feedback
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -357,7 +379,7 @@
                         </div>
                         @if($parent['grades']->count() > 5)
                             <div class="text-center mt-3">
-                                <a href="#" class="btn btn-sm btn-outline-primary">
+                                <a href="{{ route('parent.child.hub', ['childId' => $parent['selectedChild']->id, 'tab' => 'grades']) }}" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-eye me-1"></i>View All Grades
                                 </a>
                             </div>
@@ -1296,7 +1318,7 @@
 <script>
 function switchChild(childId) {
     if (childId) {
-        window.location.href = '{{ route("dashboard") }}?child_id=' + childId;
+        window.location.href = '{{ url("/parent/child") }}/' + childId + '?tab=overview';
     }
 }
 </script>

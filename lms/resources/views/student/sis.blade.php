@@ -1,7 +1,6 @@
 @extends('layouts.master')
 @section('content')
-{{-- message --}}
-{!! Toastr::message() !!}
+
 
 <div class="page-wrapper">
     <div class="content container-fluid">
@@ -12,13 +11,13 @@
                     <h3 class="page-title"><i class="fas fa-user-graduate me-2"></i>Student Information System (SIS)</h3>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('list/users') }}">List Users</a></li>
+                        <li class="breadcrumb-item"><a href="{{ route('sis.hub') }}">Information Systems</a></li>
                         <li class="breadcrumb-item active">Student SIS</li>
                     </ul>
                 </div>
                 <div class="col-auto">
-                    <a href="{{ route('list/users') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-arrow-left me-2"></i>Back to Users
+                    <a href="{{ route('sis.hub') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Hub
                     </a>
                     <a href="{{ url('view/user/edit/'.$user->user_id) }}" class="btn btn-primary">
                         <i class="fas fa-edit me-2"></i>Edit User
@@ -224,6 +223,51 @@
                         @else
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>No active subject enrollments found.
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- Quarterly Grades -->
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-table me-2"></i>Quarterly Grades</h5>
+                    </div>
+                    <div class="card-body">
+                        @if($quarterlyGrades->count() > 0)
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Subject</th>
+                                            <th>Academic Year</th>
+                                            <th class="text-center">Q1</th>
+                                            <th class="text-center">Q2</th>
+                                            <th class="text-center">Q3</th>
+                                            <th class="text-center">Q4</th>
+                                            <th class="text-center">Final</th>
+                                            <th class="text-center">Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($quarterlyGrades as $qg)
+                                            <tr>
+                                                <td>{{ $qg->subject->subject_name ?? 'N/A' }}</td>
+                                                <td>{{ $qg->academicYear->name ?? 'N/A' }}</td>
+                                                <td class="text-center">{{ $qg->quarter_1 !== null ? number_format($qg->quarter_1, 2) : '—' }}</td>
+                                                <td class="text-center">{{ $qg->quarter_2 !== null ? number_format($qg->quarter_2, 2) : '—' }}</td>
+                                                <td class="text-center">{{ $qg->quarter_3 !== null ? number_format($qg->quarter_3, 2) : '—' }}</td>
+                                                <td class="text-center">{{ $qg->quarter_4 !== null ? number_format($qg->quarter_4, 2) : '—' }}</td>
+                                                <td class="text-center"><strong>{{ $qg->final_grade !== null ? number_format($qg->final_grade, 2) : '—' }}</strong></td>
+                                                <td class="text-center">{{ $qg->remarks ?? '—' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle me-2"></i>No quarterly grades recorded yet.
                             </div>
                         @endif
                     </div>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Student;
+use App\Services\StudentSisService;
 use Illuminate\Http\Request;
 use Brian2694\Toastr\Facades\Toastr;
 
@@ -421,7 +422,8 @@ class StudentController extends Controller
         
         // Get all subjects the student is enrolled in or assigned to
         $allSubjects = collect();
-        
+        $quarterlyGrades = collect();
+
         if ($currentAcademicYear) {
             // Get subjects from enrollments
             $enrolledSubjects = $student->enrollments()
@@ -451,6 +453,10 @@ class StudentController extends Controller
                 ->with(['subject', 'teacher', 'academicYear'])
                 ->get()
                 ->keyBy('subject_id');
+
+            // Include subjects that already have quarterly grades entered by teachers
+            $gradedSubjects = \App\Models\Subject::whereIn('id', $existingGrades->keys())->get();
+            $allSubjects = $allSubjects->merge($gradedSubjects)->unique('id')->sortBy('subject_name');
             
             // Create a collection with all subjects and their grades (if any)
             $quarterlyGrades = $allSubjects->map(function($subject) use ($existingGrades, $student, $currentAcademicYear) {
@@ -553,86 +559,10 @@ class StudentController extends Controller
     /**
      * View Student Information System (SIS) - Comprehensive student profile
      */
-    public function viewSIS($user_id)
+    public function viewSIS($user_id, StudentSisService $sisService)
     {
-        // Find user and student
-        $user = \App\Models\User::where('user_id', $user_id)->firstOrFail();
-        $student = \App\Models\Student::where('user_id', $user_id)->with([
-            'enrollments.subject',
-            'enrollments.academicYear',
-            'enrollments.semester',
-            'grades.subject',
-            'attendances',
-            'enrollmentApplication',
-            'promotions.fromAcademicYear',
-            'promotions.toAcademicYear',
-            'promotions.promoter'
-        ])->firstOrFail();
+        $data = $sisService->buildProfile($user_id);
 
-        // Get current enrollments
-        $currentEnrollments = $student->enrollments()
-            ->with(['subject', 'academicYear', 'semester'])
-            ->where('status', 'active')
-            ->get();
-
-        // Get all grades with subjects
-        $grades = \App\Models\Grade::where('student_id', $student->id)
-            ->with(['subject', 'academicYear', 'semester'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        // Calculate GPA
-        $gpaRecords = \App\Models\StudentGpa::where('student_id', $student->id)
-            ->with(['academicYear', 'semester'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        $currentGPA = $gpaRecords->first();
-
-        // Get attendance summary
-        $totalAttendance = \App\Models\Attendance::where('student_id', $student->id)->count();
-        $presentCount = \App\Models\Attendance::where('student_id', $student->id)
-            ->where('status', 'present')->count();
-        $absentCount = \App\Models\Attendance::where('student_id', $student->id)
-            ->where('status', 'absent')->count();
-        $attendancePercentage = $totalAttendance > 0 ? round(($presentCount / $totalAttendance) * 100, 1) : 0;
-
-        // Get section assignment
-        $sectionAssignment = DB::table('student_section_assignments')
-            ->join('sections', 'student_section_assignments.section_id', '=', 'sections.id')
-            ->join('academic_years', 'student_section_assignments.academic_year_id', '=', 'academic_years.id')
-            ->join('semesters', 'student_section_assignments.semester_id', '=', 'semesters.id')
-            ->where('student_section_assignments.student_id', $student->id)
-            ->select('sections.*', 'academic_years.name as academic_year_name', 'semesters.name as semester_name')
-            ->first();
-
-        // Get promotion history
-        $promotionHistory = \App\Models\StudentPromotion::where('student_id', $student->id)
-            ->with(['fromAcademicYear', 'toAcademicYear', 'promoter'])
-            ->orderBy('promotion_date', 'desc')
-            ->get();
-
-        // Get enrollment documents
-        $enrollmentDocuments = [];
-        if ($student->enrollment_application_id) {
-            $enrollmentDocuments = \App\Models\EnrollmentDocument::where('enrollment_application_id', $student->enrollment_application_id)
-                ->get();
-        }
-
-        return view('student.sis', compact(
-            'user',
-            'student',
-            'currentEnrollments',
-            'grades',
-            'gpaRecords',
-            'currentGPA',
-            'totalAttendance',
-            'presentCount',
-            'absentCount',
-            'attendancePercentage',
-            'sectionAssignment',
-            'promotionHistory',
-            'enrollmentDocuments'
-        ));
+        return view('student.sis', $data);
     }
 }

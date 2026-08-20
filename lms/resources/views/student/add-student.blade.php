@@ -17,8 +17,7 @@
                     </div>
                 </div>
             </div>
-            {{-- message --}}
-            {!! Toastr::message() !!}
+
             <div class="row">
                 <div class="col-sm-12">
                     <div class="card comman-shadow">

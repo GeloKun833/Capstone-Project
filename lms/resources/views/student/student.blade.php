@@ -16,8 +16,7 @@
                     </div>
                 </div>
             </div>
-            {{-- message --}}
-            {!! Toastr::message() !!}
+
             <div class="student-group-form">
                 <form method="GET" action="{{ route('student/list') }}">
                     <div class="row">
@@ -138,6 +137,11 @@
                                             <td>110 Sen Sok Steet,PP</td>
                                             <td class="text-end">
                                                 <div class="actions">
+                                                    @if(!empty($list->user_id))
+                                                        <a href="{{ route('student.sis', $list->user_id) }}" class="btn btn-sm bg-success-light" title="View Student Information System">
+                                                            <i class="fas fa-database me-1"></i>SIS
+                                                        </a>
+                                                    @endif
                                                     <a href="{{ url('student/edit/'.$list->id) }}" class="btn btn-sm bg-danger-light">
                                                         <i class="far fa-edit me-2"></i>
                                                     </a>

@@ -33,6 +33,10 @@ class GradingController extends Controller
     public function gradeEntryForm(Request $request)
     {
         $teacher = Auth::user()->teacher;
+
+        if (!$teacher) {
+            abort(403, 'Teacher profile not found. Please contact the administrator.');
+        }
         
         // Get selected subject and academic year from request
         $selectedSubjectId = $request->get('subject_id');
@@ -102,6 +106,13 @@ class GradingController extends Controller
     public function loadStudents(Request $request)
     {
         $teacher = Auth::user()->teacher;
+
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Teacher profile not found. Please contact the administrator.',
+            ], 403);
+        }
         
         // Make section_id optional for new workflow
         $request->validate([
@@ -118,6 +129,7 @@ class GradingController extends Controller
         $academicYearId = $request->academic_year_id;
         $semesterId = $request->semester_id;
         $componentId = $request->component_id;
+        $studentId = $request->student_id;
         
         // Verify that the subject is assigned to this teacher
         $subjectAssigned = Subject::whereHas('classSchedules', function($query) use ($teacher, $subjectId) {
@@ -343,6 +355,13 @@ class GradingController extends Controller
 
         $teacher = Auth::user()->teacher;
         $subjectId = $request->subject_id;
+
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Teacher profile not found. Please contact the administrator.',
+            ], 403);
+        }
         
         // Verify that the subject is assigned to this teacher
         $subjectAssigned = Subject::whereHas('classSchedules', function($query) use ($teacher, $subjectId) {
@@ -416,10 +435,18 @@ class GradingController extends Controller
             }
 
             if ($savedCount > 0 && $semesterId) {
-                $affectedStudentIds = $syncService->syncBatch($savedQuarterlyGrades, $semesterId);
-                $this->calculateGpaForStudents($affectedStudentIds, $request->academic_year_id, $semesterId);
-                $this->checkGradeAlerts($subjectId, $request->academic_year_id, $semesterId);
-                $this->updateRankings($request->academic_year_id, $semesterId);
+                try {
+                    $affectedStudentIds = $syncService->syncBatch($savedQuarterlyGrades, $semesterId);
+                    $this->calculateGpaForStudents($affectedStudentIds, $request->academic_year_id, $semesterId);
+                    $this->checkGradeAlerts($subjectId, $request->academic_year_id, $semesterId);
+                    $this->updateRankings($request->academic_year_id, $semesterId);
+                } catch (\Exception $syncException) {
+                    Log::warning('Quarterly grades saved but post-save sync failed', [
+                        'error' => $syncException->getMessage(),
+                        'subject_id' => $subjectId,
+                        'academic_year_id' => $request->academic_year_id,
+                    ]);
+                }
             }
 
             DB::commit();

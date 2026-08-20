@@ -1,6 +1,6 @@
 @extends('layouts.master')
 @section('content')
-{!! Toastr::message() !!}
+
 <div class="page-wrapper">
     <div class="content container-fluid">
         <div class="page-header"><h3 class="page-title">Grade Details</h3></div>

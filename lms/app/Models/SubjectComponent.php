@@ -11,8 +11,8 @@ class SubjectComponent extends Model
 
     protected $fillable = [
         'name',
-        'description',
         'weight',
+        'passing_score',
         'subject_id',
         'is_active',
     ];

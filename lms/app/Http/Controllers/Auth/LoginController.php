@@ -71,7 +71,7 @@ class LoginController extends Controller
             $email     = $request->email;
             $password  = $request->password;
 
-            if (Auth::attempt(['email'=>$email,'password'=>$password])) {
+            if (Auth::attempt(['email' => $email, 'password' => $password], $request->boolean('remember'))) {
                 /** get session */
                 $user = Auth::User();
                 Session::put('name', $user->name);

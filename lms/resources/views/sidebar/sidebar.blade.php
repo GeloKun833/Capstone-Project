@@ -21,8 +21,8 @@
                             <li><a href="{{ route('student/list') }}"><i class="fas fa-user-graduate"></i> <span>Students</span></a></li>
                             <li><a href="{{ route('enrollments.index') }}"><i class="fas fa-list"></i> <span>Enrollments</span></a></li>
                             <li><a href="{{ route('enrollment.registrar.index') }}"><i class="fas fa-file-alt"></i> <span>Enrollment Applications</span></a></li>
-                            <li><a href="{{ route('activity.log') }}"><i class="fas fa-history"></i> <span>My Activity Log</span></a></li>
-                            <li><a href="{{ route('admin.activity.log') }}"><i class="fas fa-clipboard-list"></i> <span>System Activity Log</span></a></li>
+                            <li><a href="{{ route('activity.log') }}"><i class="fas fa-history"></i> <span>Activity Log</span></a></li>
+                            <li><a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a></li>
                         </ul>   
                     </li>
                     
@@ -77,6 +77,7 @@
                             <li><a href="{{ route('enrollment.registrar.statistics') }}"><i class="fas fa-chart-bar"></i> <span>Statistics</span></a></li>
                             <li><a href="{{ route('enrollment.registrar.archive') }}"><i class="fas fa-archive"></i> <span>Archive</span></a></li>
                             <li><a href="{{ route('enrollment.portal.index') }}" target="_blank"><i class="fas fa-external-link-alt"></i> <span>Portal View</span></a></li>
+                            <li><a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a></li>
                         </ul>   
                     </li>
                 @endif
@@ -112,6 +113,10 @@
                     
                     <li class="submenu">
                         <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
+                    </li>
+
+                    <li class="submenu">
+                        <a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a>
                     </li>
                     
                     <li class="submenu">
@@ -223,26 +228,30 @@
                     @php
                         $parent = auth()->user();
                         $children = \App\Models\Student::where('parent_email', $parent->email)->get();
-                        $selectedChild = $children->first();
                     @endphp
                     
                     <li class="submenu">
                         <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
-                    
+
                     <li class="submenu">
-                        <a href="#"><i class="fas fa-user"></i> <span>Child Information</span> <span class="menu-arrow"></span></a>
+                        <a href="{{ route('parent.index') }}"><i class="fas fa-home"></i> <span>Parent Portal</span></a>
+                    </li>
+                    
+                    @if($children->count() > 0)
+                    <li class="submenu">
+                        <a href="#"><i class="fas fa-user-graduate"></i> <span>My Children</span> <span class="menu-arrow"></span></a>
                         <ul>
-                            @forelse($children as $child)
-                                <li><a href="{{ route('parent.child.profile', $child->id) }}"><i class="fas fa-user"></i> <span>{{ $child->first_name }} — Profile</span></a></li>
-                                <li><a href="{{ route('parent.child.grades', $child->id) }}"><i class="fas fa-clipboard-list"></i> <span>{{ $child->first_name }} — Grades</span></a></li>
-                                <li><a href="{{ route('parent.child.attendance', $child->id) }}"><i class="fas fa-user-check"></i> <span>{{ $child->first_name }} — Attendance</span></a></li>
-                                <li><a href="{{ route('parent.child.activities', $child->id) }}"><i class="fas fa-tasks"></i> <span>{{ $child->first_name }} — Activities</span></a></li>
-                            @empty
-                                <li><a href="#"><i class="fas fa-info-circle"></i> <span>No children linked</span></a></li>
-                            @endforelse
+                            @foreach($children as $child)
+                                <li>
+                                    <a href="{{ route('parent.child.hub', ['childId' => $child->id, 'tab' => 'overview']) }}">
+                                        <i class="fas fa-user"></i> <span>{{ $child->full_name }}</span>
+                                    </a>
+                                </li>
+                            @endforeach
                         </ul>
                     </li>
+                    @endif
                     
                     <li class="submenu">
                         <a href="{{ route('parent.schedule') }}"><i class="fas fa-calendar-alt"></i> <span>Class Schedule</span></a>

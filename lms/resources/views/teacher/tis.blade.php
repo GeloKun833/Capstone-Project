@@ -1,7 +1,6 @@
 @extends('layouts.master')
 @section('content')
-{{-- message --}}
-{!! Toastr::message() !!}
+
 
 <div class="page-wrapper">
     <div class="content container-fluid">
@@ -12,12 +11,16 @@
                     <h3 class="page-title">Teacher Information System (TIS)</h3>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="{{ route('sis.hub') }}">Information Systems</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('teacher/list/page') }}">Teachers</a></li>
                         <li class="breadcrumb-item active">{{ $teacher->full_name }}</li>
                     </ul>
                 </div>
                 <div class="col-12 col-sm-6">
                     <div class="float-end">
+                        <a href="{{ route('sis.hub') }}" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-database me-2"></i>Information Systems
+                        </a>
                         <a href="{{ route('teacher/list/page') }}" class="btn btn-primary">
                             <i class="fas fa-arrow-left me-2"></i>Back to List
                         </a>
@@ -200,6 +203,77 @@
                     </div>
                 </div>
                 @endif
+
+                {{-- Teaching Schedule --}}
+                <div class="card mb-3">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Teaching Schedule ({{ $teachingSchedule->count() }})</h5>
+                    </div>
+                    <div class="card-body">
+                        @if($teachingSchedule->isNotEmpty())
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Day</th>
+                                            <th>Time</th>
+                                            <th>Subject</th>
+                                            <th>Section</th>
+                                            <th>Room</th>
+                                            <th>Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($teachingSchedule as $schedule)
+                                        <tr>
+                                            <td>{{ ucfirst($schedule->day_of_week) }}</td>
+                                            <td>{{ $schedule->time_range }}</td>
+                                            <td><strong>{{ $schedule->subject->subject_name ?? 'N/A' }}</strong></td>
+                                            <td>{{ $schedule->section->name ?? 'N/A' }}</td>
+                                            <td>{{ $schedule->room->name ?? 'N/A' }}</td>
+                                            <td>{{ $schedule->class_type_display }}</td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle me-2"></i>No active class schedules assigned yet.
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- Recent Class Posts --}}
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-bullhorn me-2"></i>Recent Class Posts ({{ $classPosts->count() }})</h5>
+                    </div>
+                    <div class="card-body">
+                        @if($classPosts->isNotEmpty())
+                            @foreach($classPosts as $post)
+                                <div class="border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="mb-0">{{ $post->title }}</h6>
+                                        <small class="text-muted">{{ $post->created_at?->format('M d, Y') }}</small>
+                                    </div>
+                                    <p class="text-muted small mb-2">
+                                        <span class="badge bg-secondary me-1">{{ ucfirst($post->type ?? 'announcement') }}</span>
+                                        @if($post->subject)
+                                            {{ $post->subject->subject_name }}
+                                        @endif
+                                    </p>
+                                    <p class="mb-0">{{ \Illuminate\Support\Str::limit(strip_tags($post->content), 200) }}</p>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle me-2"></i>No class posts published yet.
+                            </div>
+                        @endif
+                    </div>
+                </div>
 
                 {{-- Quick Actions --}}
                 <div class="card">

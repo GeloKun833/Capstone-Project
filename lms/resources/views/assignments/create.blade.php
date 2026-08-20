@@ -1,7 +1,6 @@
 @extends('layouts.master')
 @section('content')
-{{-- message --}}
-{!! Toastr::message() !!}
+
 
 {{-- Additional Success Notification --}}
 @if(session('success'))

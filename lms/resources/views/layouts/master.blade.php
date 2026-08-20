@@ -156,6 +156,7 @@
         <div class="sidebar-overlay"></div>
 		{{-- content page --}}
         @yield('content')
+        {!! Toastr::message() !!}
         <footer>
             <div class="footer-content">
                 <div class="footer-left">
