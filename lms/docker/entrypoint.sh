@@ -26,7 +26,6 @@ php artisan storage:link --force || true
 
 php artisan config:cache
 php artisan route:cache || true
-php artisan view:cache || true
 
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     php artisan migrate --force

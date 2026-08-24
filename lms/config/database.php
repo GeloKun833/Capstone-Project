@@ -2,6 +2,23 @@
 
 use Illuminate\Support\Str;
 
+$mysqlSslOptions = [];
+
+if (extension_loaded('pdo_mysql')) {
+    $caPath = env('MYSQL_ATTR_SSL_CA');
+    if (!empty($caPath)) {
+        $mysqlSslOptions[PDO::MYSQL_ATTR_SSL_CA] = $caPath;
+    }
+
+    $verifySsl = env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT');
+    if ($verifySsl !== null && $verifySsl !== '') {
+        $mysqlSslOptions[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = filter_var(
+            $verifySsl,
+            FILTER_VALIDATE_BOOLEAN
+        );
+    }
+}
+
 return [
 
     /*
@@ -58,9 +75,7 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            'options' => $mysqlSslOptions,
         ],
 
         'pgsql' => [
