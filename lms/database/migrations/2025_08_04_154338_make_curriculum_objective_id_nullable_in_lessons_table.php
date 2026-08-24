@@ -1,42 +1,45 @@
 <?php
 
+use App\Support\SchemaForeign;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::table('lessons', function (Blueprint $table) {
-            // Drop the foreign key constraint first
-            $table->dropForeign(['curriculum_objective_id']);
-            
-            // Make the column nullable
-            $table->foreignId('curriculum_objective_id')->nullable()->change();
-            
-            // Re-add the foreign key constraint with nullable
-            $table->foreign('curriculum_objective_id')->references('id')->on('curriculum_objectives')->onDelete('set null');
-        });
+        if (!Schema::hasTable('lessons') || !Schema::hasColumn('lessons', 'curriculum_objective_id')) {
+            return;
+        }
+
+        try {
+            Schema::table('lessons', function ($table) {
+                $table->dropForeign(['curriculum_objective_id']);
+            });
+        } catch (\Throwable $e) {
+            // Foreign key may not exist on a fresh cloud database.
+        }
+
+        DB::statement('ALTER TABLE lessons MODIFY curriculum_objective_id BIGINT UNSIGNED NULL');
+        SchemaForeign::ensure('lessons', 'curriculum_objective_id', 'curriculum_objectives', 'set null');
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::table('lessons', function (Blueprint $table) {
-            // Drop the foreign key constraint
-            $table->dropForeign(['curriculum_objective_id']);
-            
-            // Make the column required again
-            $table->foreignId('curriculum_objective_id')->nullable(false)->change();
-            
-            // Re-add the foreign key constraint
-            $table->foreign('curriculum_objective_id')->references('id')->on('curriculum_objectives')->onDelete('cascade');
-        });
+        if (!Schema::hasTable('lessons') || !Schema::hasColumn('lessons', 'curriculum_objective_id')) {
+            return;
+        }
+
+        try {
+            Schema::table('lessons', function ($table) {
+                $table->dropForeign(['curriculum_objective_id']);
+            });
+        } catch (\Throwable $e) {
+            // Ignore missing foreign key.
+        }
+
+        DB::statement('ALTER TABLE lessons MODIFY curriculum_objective_id BIGINT UNSIGNED NOT NULL');
+        SchemaForeign::ensure('lessons', 'curriculum_objective_id', 'curriculum_objectives');
     }
 };

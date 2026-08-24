@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('enrollment_applications') || Schema::hasColumn('enrollment_applications', 'enrollment_type')) {
+            return;
+        }
+
         Schema::table('enrollment_applications', function (Blueprint $table) {
             $table->enum('enrollment_type', ['parent', 'student'])->default('parent')->after('application_number');
         });

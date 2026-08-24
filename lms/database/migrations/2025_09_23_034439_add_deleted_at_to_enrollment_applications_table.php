@@ -6,21 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (!Schema::hasTable('enrollment_applications') || Schema::hasColumn('enrollment_applications', 'deleted_at')) {
+            return;
+        }
+
         Schema::table('enrollment_applications', function (Blueprint $table) {
             $table->softDeletes();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        if (!Schema::hasTable('enrollment_applications') || !Schema::hasColumn('enrollment_applications', 'deleted_at')) {
+            return;
+        }
+
         Schema::table('enrollment_applications', function (Blueprint $table) {
             $table->dropSoftDeletes();
         });

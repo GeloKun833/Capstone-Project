@@ -11,18 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('enrollment_applications')) {
+            return;
+        }
+
         Schema::table('enrollment_applications', function (Blueprint $table) {
-            $table->enum('student_category', ['new_student', 'old_student', 'transferee'])
-                ->default('new_student')
-                ->after('enrollment_type')
-                ->comment('Student type: new, old (returning), or transferee');
-            
-            $table->foreignId('existing_student_id')
-                ->nullable()
-                ->after('student_category')
-                ->constrained('students')
-                ->onDelete('set null')
-                ->comment('For old students re-enrolling - links to their existing student record');
+            if (!Schema::hasColumn('enrollment_applications', 'student_category')) {
+                $table->enum('student_category', ['new_student', 'old_student', 'transferee'])
+                    ->default('new_student')
+                    ->comment('Student type: new, old (returning), or transferee');
+            }
+            if (!Schema::hasColumn('enrollment_applications', 'existing_student_id')) {
+                $table->foreignId('existing_student_id')
+                    ->nullable()
+                    ->constrained('students')
+                    ->onDelete('set null')
+                    ->comment('For old students re-enrolling - links to their existing student record');
+            }
         });
     }
 

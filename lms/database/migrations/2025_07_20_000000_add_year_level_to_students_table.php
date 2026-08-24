@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('students') || Schema::hasColumn('students', 'year_level')) {
+            return;
+        }
+
         Schema::table('students', function (Blueprint $table) {
             $table->string('year_level')->nullable()->after('class');
         });

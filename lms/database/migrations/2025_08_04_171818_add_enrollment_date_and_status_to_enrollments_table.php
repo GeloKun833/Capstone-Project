@@ -11,9 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('enrollments')) {
+            return;
+        }
+
         Schema::table('enrollments', function (Blueprint $table) {
-            $table->timestamp('enrollment_date')->nullable()->after('semester_id');
-            $table->enum('status', ['active', 'inactive', 'completed', 'dropped'])->default('active')->after('enrollment_date');
+            if (!Schema::hasColumn('enrollments', 'enrollment_date')) {
+                $table->timestamp('enrollment_date')->nullable()->after('semester_id');
+            }
+            if (!Schema::hasColumn('enrollments', 'status')) {
+                $table->enum('status', ['active', 'inactive', 'completed', 'dropped'])->default('active');
+            }
         });
     }
 
