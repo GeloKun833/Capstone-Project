@@ -1,21 +1,23 @@
 <?php
 
+use App\Support\SchemaForeign;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('grade_alerts')) {
+            return;
+        }
+
         Schema::create('grade_alerts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('student_id');
             $table->unsignedBigInteger('subject_id')->nullable();
-            $table->string('alert_type'); // 'low_grade', 'performance_drop', 'at_risk'
+            $table->string('alert_type');
             $table->text('message');
             $table->decimal('threshold_value', 5, 2)->nullable();
             $table->decimal('current_value', 5, 2)->nullable();
@@ -26,19 +28,16 @@ return new class extends Migration
             $table->unsignedBigInteger('semester_id')->nullable();
             $table->timestamps();
 
-            $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
-            $table->foreign('subject_id')->references('id')->on('subjects')->onDelete('set null');
-            $table->foreign('resolved_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('academic_year_id')->references('id')->on('academic_years')->onDelete('set null');
-            $table->foreign('semester_id')->references('id')->on('semesters')->onDelete('set null');
+            SchemaForeign::add($table, 'student_id', 'students');
+            SchemaForeign::add($table, 'subject_id', 'subjects', 'set null');
+            SchemaForeign::add($table, 'resolved_by', 'users', 'set null');
+            SchemaForeign::add($table, 'academic_year_id', 'academic_years', 'set null');
+            SchemaForeign::add($table, 'semester_id', 'semesters', 'set null');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('grade_alerts');
     }
-}; 
+};
