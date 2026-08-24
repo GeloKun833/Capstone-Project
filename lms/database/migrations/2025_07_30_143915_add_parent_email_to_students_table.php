@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('students', 'parent_email')) {
+            return;
+        }
+
         Schema::table('students', function (Blueprint $table) {
             $table->string('parent_email')->nullable()->after('email');
             $table->index('parent_email');
