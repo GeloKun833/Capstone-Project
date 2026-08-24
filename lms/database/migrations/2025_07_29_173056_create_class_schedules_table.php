@@ -20,6 +20,7 @@ return new class extends Migration
             $table->enum('day_of_week', ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
             $table->time('start_time');
             $table->time('end_time');
+            $table->enum('class_type', ['lecture', 'laboratory', 'tutorial', 'exam', 'other'])->default('lecture');
             $table->string('color')->default('#3d5ee1');
             $table->boolean('is_active')->default(true);
             $table->text('notes')->nullable();
