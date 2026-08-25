@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
@@ -36,9 +37,15 @@ class NotificationController extends Controller
      */
     public function getUnreadCount()
     {
-        $count = Auth::user()->unreadNotifications()->count();
-        
-        return response()->json(['count' => $count]);
+        $user = Auth::user();
+        $header = Cache::remember('header.notifs.'.$user->id, 90, function () use ($user) {
+            return [
+                'headerUnreadCount' => $user->unreadNotifications()->count(),
+                'headerNotifications' => $user->notifications()->latest()->limit(5)->get(),
+            ];
+        });
+
+        return response()->json(['count' => $header['headerUnreadCount'] ?? 0]);
     }
 
     /**

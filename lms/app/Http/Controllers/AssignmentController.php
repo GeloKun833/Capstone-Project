@@ -10,6 +10,7 @@ use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -77,8 +78,8 @@ class AssignmentController extends Controller
         }
 
         $assignments = $query->orderBy('created_at', 'desc')->paginate(15);
-        $subjects = Subject::all();
-        $sections = Section::all();
+        $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
+        $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
 
         return view('assignments.index', compact('assignments', 'subjects', 'sections'));
     }

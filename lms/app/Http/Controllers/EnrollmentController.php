@@ -13,7 +13,7 @@ use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Support\SafeSchema;
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -33,9 +33,9 @@ class EnrollmentController extends Controller
         $perPage = 15;
         $page = max(1, (int) request('page', 1));
 
-        $hasEnrollmentStatus = Schema::hasColumn('enrollments', 'status');
-        $hasEnrollmentDate = Schema::hasColumn('enrollments', 'enrollment_date');
-        $hasStudentEnrollmentStatus = Schema::hasColumn('students', 'enrollment_status');
+        $hasEnrollmentStatus = SafeSchema::columnExists('enrollments', 'status');
+        $hasEnrollmentDate = SafeSchema::columnExists('enrollments', 'enrollment_date');
+        $hasStudentEnrollmentStatus = SafeSchema::columnExists('students', 'enrollment_status');
 
         $statusExpr = $hasEnrollmentStatus ? 'e.status' : "'active'";
         $dateExpr = $hasEnrollmentDate ? 'e.enrollment_date' : 'e.created_at';
@@ -76,7 +76,7 @@ class EnrollmentController extends Controller
                 s.created_at as created_at
             ";
 
-        $portal = Schema::hasColumn('students', 'enrollment_application_id')
+        $portal = SafeSchema::columnExists('students', 'enrollment_application_id')
             ? DB::table('students as s')->whereNotNull('s.enrollment_application_id')->selectRaw($portalSelect)
             : DB::table('students as s')->whereRaw('1 = 0')->selectRaw($portalSelect);
 

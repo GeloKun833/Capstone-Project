@@ -69,11 +69,25 @@ class Activity extends Model
 
     public function getSubmissionCountAttribute()
     {
+        if (array_key_exists('submissions_count', $this->attributes)) {
+            return (int) $this->attributes['submissions_count'];
+        }
+        if ($this->relationLoaded('submissions')) {
+            return $this->submissions->count();
+        }
+
         return $this->submissions()->count();
     }
 
     public function getGradedCountAttribute()
     {
+        if (array_key_exists('graded_submissions_count', $this->attributes)) {
+            return (int) $this->attributes['graded_submissions_count'];
+        }
+        if ($this->relationLoaded('submissions')) {
+            return $this->submissions->where('status', 'graded')->count();
+        }
+
         return $this->submissions()->where('status', 'graded')->count();
     }
 } 

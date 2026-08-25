@@ -1,36 +1,38 @@
-<x-guest-layout>
-    <x-auth-card>
-        <x-slot name="logo">
-            <a href="/">
-                <x-application-logo class="w-20 h-20 fill-current text-gray-500" />
-            </a>
-        </x-slot>
+@extends('layouts.app')
 
-        <div class="mb-4 text-sm text-gray-600">
-            {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
+@section('content')
+<div class="auth-shell">
+    <div class="auth-form-panel">
+        <div class="login-card">
+            <header class="login-card__header">
+                <h1 class="login-card__title">Confirm password</h1>
+                <p class="login-card__subtitle">This is a secure area. Please confirm your password before continuing.</p>
+            </header>
+
+            <form method="POST" action="{{ route('password.confirm') }}" class="login-form">
+                @csrf
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input id="password" type="password"
+                           class="form-control @error('password') is-invalid @enderror"
+                           name="password" required autocomplete="current-password">
+                    @error('password')
+                        <span class="invalid-feedback" role="alert">{{ $message }}</span>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <button class="btn-sign-in" type="submit">Confirm password</button>
+                </div>
+
+                @if (Route::has('password.request'))
+                    <p class="login-card__footer">
+                        <a href="{{ route('password.request') }}" class="form-link">Forgot your password?</a>
+                    </p>
+                @endif
+            </form>
         </div>
-
-        <!-- Validation Errors -->
-        <x-auth-validation-errors class="mb-4" :errors="$errors" />
-
-        <form method="POST" action="{{ route('password.confirm') }}">
-            @csrf
-
-            <!-- Password -->
-            <div>
-                <x-label for="password" :value="__('Password')" />
-
-                <x-input id="password" class="block mt-1 w-full"
-                                type="password"
-                                name="password"
-                                required autocomplete="current-password" />
-            </div>
-
-            <div class="flex justify-end mt-4">
-                <x-button>
-                    {{ __('Confirm') }}
-                </x-button>
-            </div>
-        </form>
-    </x-auth-card>
-</x-guest-layout>
+    </div>
+</div>
+@endsection

@@ -10,6 +10,7 @@ use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -89,12 +90,12 @@ class ClassPostController extends Controller
                 $subjects = $teacher->subjects()->get();
                 $sections = $teacher->sections()->get();
             } else {
-                $subjects = Subject::all();
-                $sections = Section::all();
+                $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
+                $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
             }
         } else {
-            $subjects = Subject::all();
-            $sections = Section::all();
+            $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
+            $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
         }
 
         return view('class-posts.index', compact('posts', 'subjects', 'sections'));

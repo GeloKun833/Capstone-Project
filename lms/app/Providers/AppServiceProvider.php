@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Observers\UserObserver;
 use App\Support\PageAssets;
 use App\Support\SafeSchema;
+use App\Support\SidebarMenu;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -41,6 +42,19 @@ class AppServiceProvider extends ServiceProvider
         // Register User Observer for automatic role-specific record creation
         User::observe(UserObserver::class);
 
+        View::composer('sidebar.sidebar', function ($view) {
+            try {
+                $view->with(SidebarMenu::forUser(auth()->user()));
+            } catch (\Throwable $e) {
+                Log::warning('Sidebar menu skipped: '.$e->getMessage());
+                $view->with([
+                    'sidebarParentUsers' => collect(),
+                    'sidebarEnrollments' => collect(),
+                    'sidebarChildren' => collect(),
+                ]);
+            }
+        });
+
         // Share header notifications once per request (avoids duplicate queries in layout)
         View::composer('layouts.master', function ($view) {
             $empty = [
@@ -56,13 +70,20 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                $user = auth()->user();
+                $cacheKey = 'header.notifs.'.$user->id;
+                $cached = Cache::get($cacheKey);
+                if (is_array($cached)) {
+                    $view->with($cached);
+                    return;
+                }
+
                 if (!SafeSchema::tableExists('notifications')) {
                     $view->with($empty);
                     return;
                 }
 
-                $user = auth()->user();
-                $header = Cache::remember('header.notifs.'.$user->id, 20, function () use ($user) {
+                $header = Cache::remember($cacheKey, 90, function () use ($user) {
                     return [
                         'headerUnreadCount' => $user->unreadNotifications()->count(),
                         'headerNotifications' => $user->notifications()->latest()->limit(5)->get(),

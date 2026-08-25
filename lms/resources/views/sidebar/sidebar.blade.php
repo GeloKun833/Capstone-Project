@@ -140,28 +140,7 @@
                         <a href="#"><i class="fas fa-comment"></i> <span>Message</span> <span class="menu-arrow"></span></a>
                         <ul>
                             @php
-                                $teacher = auth()->user()->teacher;
-                                // Get subject IDs assigned to this teacher through class schedules
-                                $assignedSubjectIds = \App\Models\ClassSchedule::where('teacher_id', $teacher->id)
-                                    ->pluck('subject_id')
-                                    ->unique();
-                                
-                                // Get students enrolled in those subjects
-                                $assignedStudentIds = \App\Models\Enrollment::whereIn('subject_id', $assignedSubjectIds)
-                                    ->pluck('student_id')
-                                    ->unique();
-                                
-                                // Get parent emails from those students
-                                $parentEmails = \App\Models\Student::whereIn('id', $assignedStudentIds)
-                                    ->whereNotNull('parent_email')
-                                    ->pluck('parent_email')
-                                    ->unique();
-                                
-                                // Get parent users
-                                $parentUsers = \App\Models\User::whereIn('email', $parentEmails)
-                                    ->where('role_name', 'Parent')
-                                    ->orderBy('name')
-                                    ->get();
+                                $parentUsers = $sidebarParentUsers ?? collect();
                             @endphp
                             @if($parentUsers->count() > 0)
                                 @foreach($parentUsers as $parent)
@@ -189,9 +168,7 @@
                         <a href="#"><i class="fas fa-graduation-cap"></i> <span>My Classes</span> <span class="menu-arrow"></span></a>
                         <ul>
                             @php
-                                $user = auth()->user();
-                                $student = $user->student;
-                                $enrollments = $student ? $student->enrollments()->with(['subject'])->where('status', 'active')->get() : collect();
+                                $enrollments = $sidebarEnrollments ?? collect();
                             @endphp
                             @foreach($enrollments as $enrollment)
                                 <li>
@@ -226,8 +203,7 @@
                 {{-- PARENT SIDEBAR --}}
                 @if (Session::get('role_name') === 'Parent')
                     @php
-                        $parent = auth()->user();
-                        $children = \App\Models\Student::where('parent_email', $parent->email)->get();
+                        $children = $sidebarChildren ?? collect();
                     @endphp
                     
                     <li class="submenu">

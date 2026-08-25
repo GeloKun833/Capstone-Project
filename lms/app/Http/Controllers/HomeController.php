@@ -621,7 +621,9 @@ class HomeController extends Controller
             }
         }
 
-        return Cache::remember('student.dashboard.'.$student->id, 90, function () use ($student) {
+        return Cache::remember('student.dashboard.v2.'.$student->id, 90, function () use ($student) {
+        $student->load(['sections', 'enrollmentApplication.documents']);
+
         $enrollments = $student->enrollments()
             ->with(['subject', 'academicYear', 'semester'])
             ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
@@ -641,7 +643,7 @@ class HomeController extends Controller
     private function loadParentData()
     {
         return Cache::remember(
-            'parent.dashboard.'.auth()->id().'.'.request()->input('child_id', 'first').'.'.request()->input('date', now()->toDateString()),
+            'parent.dashboard.v2.'.auth()->id().'.'.request()->input('child_id', 'first').'.'.request()->input('date', now()->toDateString()),
             30,
             function () {
         try {
@@ -653,7 +655,7 @@ class HomeController extends Controller
 
             // Get all children linked to this parent (with sections and adviser)
             $children = Student::where('parent_email', $parent->email)
-                ->with(['sections.adviser'])
+                ->with(['sections.adviser', 'enrollmentApplication.documents'])
                 ->get();
             
             if ($children->isEmpty()) {

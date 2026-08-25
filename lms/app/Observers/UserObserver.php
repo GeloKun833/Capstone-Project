@@ -2,8 +2,11 @@
 
 namespace App\Observers;
 
+use App\Auth\CachedEloquentUserProvider;
 use App\Models\User;
 use App\Models\Teacher;
+use App\Support\SidebarMenu;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class UserObserver
@@ -47,6 +50,10 @@ class UserObserver
      */
     public function updated(User $user): void
     {
+        Cache::forget(CachedEloquentUserProvider::cacheKey($user->id));
+        Cache::forget('header.notifs.'.$user->id);
+        SidebarMenu::forgetForUser($user);
+
         // Sync updated user information to teacher record
         try {
             if ($user->role_name === 'Teacher') {
@@ -69,7 +76,9 @@ class UserObserver
      */
     public function deleted(User $user): void
     {
-        //
+        Cache::forget(CachedEloquentUserProvider::cacheKey($user->id));
+        Cache::forget('header.notifs.'.$user->id);
+        SidebarMenu::forgetForUser($user);
     }
 
     /**

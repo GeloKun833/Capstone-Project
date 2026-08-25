@@ -21,7 +21,15 @@ class ActivityController extends Controller
             }
         }
 
-        $activities = $lesson->activities()->orderBy('due_date', 'asc')->get();
+        $activities = $lesson->activities()
+            ->withCount([
+                'submissions',
+                'submissions as graded_submissions_count' => function ($query) {
+                    $query->where('status', 'graded');
+                },
+            ])
+            ->orderBy('due_date', 'asc')
+            ->get();
 
         return view('activities.index', compact('lesson', 'activities'));
     }

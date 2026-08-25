@@ -33,12 +33,18 @@ class EventServiceProvider extends ServiceProvider
         parent::boot();
 
         Event::listen(Login::class, function ($event) {
+            if (!$event->user) {
+                return;
+            }
             activity()
                 ->causedBy($event->user)
                 ->performedOn($event->user)
                 ->log('logged in');
         });
         Event::listen(Logout::class, function ($event) {
+            if (!$event->user) {
+                return;
+            }
             activity()
                 ->causedBy($event->user)
                 ->performedOn($event->user)

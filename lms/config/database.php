@@ -3,6 +3,7 @@
 use Illuminate\Support\Str;
 
 $mysqlSslOptions = [];
+$mysqlPdoOptions = [];
 
 if (extension_loaded('pdo_mysql')) {
     $caPath = env('MYSQL_ATTR_SSL_CA');
@@ -16,6 +17,26 @@ if (extension_loaded('pdo_mysql')) {
             $verifySsl,
             FILTER_VALIDATE_BOOLEAN
         );
+    }
+
+    $dbHost = env('DB_HOST', '127.0.0.1');
+    $databaseUrl = env('DATABASE_URL');
+    if (!empty($databaseUrl)) {
+        $parsedHost = parse_url($databaseUrl, PHP_URL_HOST);
+        if (!empty($parsedHost)) {
+            $dbHost = $parsedHost;
+        }
+    }
+    $persistentEnv = env('DB_PERSISTENT');
+    $usePersistent = $persistentEnv === null
+        ? ! in_array($dbHost, ['127.0.0.1', 'localhost', '::1'], true)
+        : filter_var($persistentEnv, FILTER_VALIDATE_BOOLEAN);
+
+    $mysqlPdoOptions = $mysqlSslOptions + [
+        PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 10),
+    ];
+    if ($usePersistent) {
+        $mysqlPdoOptions[PDO::ATTR_PERSISTENT] = true;
     }
 }
 
@@ -76,9 +97,7 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql')
-                ? array_filter($mysqlSslOptions + [
-                    PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 10),
-                ], fn ($value) => $value !== null)
+                ? array_filter($mysqlPdoOptions, fn ($value) => $value !== null)
                 : $mysqlSslOptions,
         ],
 
