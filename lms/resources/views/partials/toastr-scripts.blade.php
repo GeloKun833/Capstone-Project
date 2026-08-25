@@ -22,22 +22,34 @@
         if (typeof toastr === 'undefined') {
             return;
         }
-        @if(session()->has('success'))
+        @php
+            $flashKeys = array_merge(
+                (array) session()->get('_flash.old', []),
+                (array) session()->get('_flash.new', [])
+            );
+            $accountStatuses = ['active', 'inactive', 'disable', 'disabled', 'pending', 'blocked'];
+            $statusToast = session('status');
+            $showStatusToast = in_array('status', $flashKeys, true)
+                && filled($statusToast)
+                && ! in_array(strtolower(trim((string) $statusToast)), $accountStatuses, true)
+                && ! in_array('success', $flashKeys, true);
+        @endphp
+        @if(in_array('success', $flashKeys, true))
             toastr.success(@json(session('success')), 'Success');
         @endif
-        @if(session()->has('error'))
+        @if(in_array('error', $flashKeys, true))
             toastr.error(@json(session('error')), 'Error');
         @endif
-        @if(session()->has('warning'))
+        @if(in_array('warning', $flashKeys, true))
             toastr.warning(@json(session('warning')), 'Warning');
         @endif
-        @if(session()->has('info'))
+        @if(in_array('info', $flashKeys, true))
             toastr.info(@json(session('info')), 'Info');
         @endif
-        @if(session()->has('status') && !session()->has('success'))
-            toastr.success(@json(session('status')), 'Success');
+        @if($showStatusToast)
+            toastr.success(@json($statusToast), 'Success');
         @endif
-        @if(isset($errors) && $errors->any() && !session()->has('error'))
+        @if(isset($errors) && $errors->any() && ! in_array('error', $flashKeys, true))
             toastr.error(@json($errors->first()), 'Validation');
         @endif
     })();
