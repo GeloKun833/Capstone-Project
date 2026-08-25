@@ -6,9 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Enrollment Portal') — Panorama Montessori School</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ URL::to('assets/plugins/bootstrap/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ URL::to('assets/plugins/fontawesome/css/all.min.css') }}">
     <link rel="stylesheet" href="{{ URL::to('assets/css/toastr.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/enrollment-portal.css') }}">
     @yield('styles')
@@ -116,7 +115,7 @@
         <i class="fas fa-plus"></i>
     </a>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ URL::to('assets/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/jquery-3.6.0.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/toastr.min.js') }}"></script>
     <script src="{{ asset('assets/js/enrollment-portal.js') }}"></script>

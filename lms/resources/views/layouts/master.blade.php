@@ -9,15 +9,18 @@
     <link rel="shortcut icon" href="{{ URL::to('assets/img/favicon.png') }}">
     <link rel="preload" href="{{ URL::to('assets/css/style.css') }}" as="style">
     <link rel="stylesheet" href="{{ URL::to('assets/plugins/bootstrap/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ URL::to('assets/plugins/feather/feather.css') }}">
-    <link rel="stylesheet" href="{{ URL::to('assets/plugins/icons/flags/flags.css') }}">
-    <link rel="stylesheet" href="{{ URL::to('assets/css/bootstrap-datetimepicker.min.css') }}">
     <link rel="stylesheet" href="{{ URL::to('assets/plugins/fontawesome/css/all.min.css') }}">
-    <link rel="stylesheet" href="{{ URL::to('assets/plugins/simple-calendar/simple-calendar.css') }}">
-    <link rel="stylesheet" href="{{ URL::to('assets/plugins/datatables/datatables.min.css') }}">
-    <link rel="stylesheet" href="{{ URL::to('assets/plugins/select2/css/select2.min.css') }}">
     <link rel="stylesheet" href="{{ URL::to('assets/css/style.css') }}">
     <link rel="stylesheet" href="{{ URL::to('assets/css/toastr.min.css') }}">
+    @if($loadFormPlugins ?? true)
+        <link rel="stylesheet" href="{{ URL::to('assets/plugins/feather/feather.css') }}">
+        <link rel="stylesheet" href="{{ URL::to('assets/css/bootstrap-datetimepicker.min.css') }}">
+        <link rel="stylesheet" href="{{ URL::to('assets/plugins/datatables/datatables.min.css') }}">
+        <link rel="stylesheet" href="{{ URL::to('assets/plugins/select2/css/select2.min.css') }}">
+    @endif
+    @if($loadCalendar ?? false)
+        <link rel="stylesheet" href="{{ URL::to('assets/plugins/simple-calendar/simple-calendar.css') }}">
+    @endif
     @stack('styles')
 </head>
 <body>
@@ -177,19 +180,25 @@
     <script src="{{ URL::to('assets/js/jquery-3.6.0.min.js') }}"></script>
     <script src="{{ URL::to('assets/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/toastr.min.js') }}"></script>
-    <script src="{{ URL::to('assets/js/feather.min.js') }}"></script>
     <script src="{{ URL::to('assets/plugins/slimscroll/jquery.slimscroll.min.js') }}"></script>
-    @if(request()->routeIs('home', 'dashboard'))
+    @if($loadFormPlugins ?? true)
+        <script src="{{ URL::to('assets/js/feather.min.js') }}"></script>
+        <script src="{{ URL::to('assets/plugins/moment/moment.min.js') }}"></script>
+        <script src="{{ URL::to('assets/js/bootstrap-datetimepicker.min.js') }}"></script>
+        <script src="{{ URL::to('assets/plugins/datatables/datatables.min.js') }}"></script>
+        <script src="{{ URL::to('assets/plugins/select2/js/select2.min.js') }}"></script>
+    @endif
+    @if($loadCharts ?? false)
         <script src="{{ URL::to('assets/plugins/apexchart/apexcharts.min.js') }}"></script>
         <script src="{{ URL::to('assets/plugins/apexchart/chart-data.js') }}"></script>
     @endif
-    <script src="{{ URL::to('assets/plugins/simple-calendar/jquery.simple-calendar.js') }}"></script>
-    <script src="{{ URL::to('assets/js/calander.js') }}"></script>
-    <script src="{{ URL::to('assets/js/circle-progress.min.js') }}"></script>
-    <script src="{{ URL::to('assets/plugins/moment/moment.min.js') }}"></script>
-    <script src="{{ URL::to('assets/js/bootstrap-datetimepicker.min.js') }}"></script>
-    <script src="{{ URL::to('assets/plugins/datatables/datatables.min.js') }}"></script>
-    <script src="{{ URL::to('assets/plugins/select2/js/select2.min.js') }}"></script>
+    @if($loadCalendar ?? false)
+        <script src="{{ URL::to('assets/plugins/simple-calendar/jquery.simple-calendar.js') }}"></script>
+        <script src="{{ URL::to('assets/js/calander.js') }}"></script>
+    @endif
+    @if($loadCircleProgress ?? false)
+        <script src="{{ URL::to('assets/js/circle-progress.min.js') }}"></script>
+    @endif
     <script src="{{ URL::to('assets/js/script.js') }}"></script>
     @yield('script')
     @stack('scripts')
@@ -432,9 +441,11 @@
     </style>
     <script>
         $(document).ready(function() {
-            $('.select2s-hidden-accessible').select2({
-                closeOnSelect: false
-            });
+            if ($.fn.select2) {
+                $('.select2s-hidden-accessible').select2({
+                    closeOnSelect: false
+                });
+            }
             
             // Footer responsive behavior based on sidebar state
             function updateFooterState() {

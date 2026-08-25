@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Closure;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -44,6 +45,24 @@ class SafeSchema
             });
         } catch (\Throwable $e) {
             // Index already exists under another name, or the engine rejected it.
+        }
+    }
+
+    public static function tableExists(string $table): bool
+    {
+        try {
+            return Cache::remember('schema.table.'.$table, 3600, fn () => Schema::hasTable($table));
+        } catch (\Throwable $e) {
+            return Schema::hasTable($table);
+        }
+    }
+
+    public static function columnExists(string $table, string $column): bool
+    {
+        try {
+            return Cache::remember('schema.column.'.$table.'.'.$column, 3600, fn () => Schema::hasColumn($table, $column));
+        } catch (\Throwable $e) {
+            return Schema::hasColumn($table, $column);
         }
     }
 }

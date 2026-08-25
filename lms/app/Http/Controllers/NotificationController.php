@@ -15,6 +15,7 @@ class NotificationController extends Controller
     {
         $notification = Auth::user()->notifications()->findOrFail($id);
         $notification->markAsRead();
+        \Illuminate\Support\Facades\Cache::forget('header.notifs.'.Auth::id());
         
         return response()->json(['success' => true]);
     }
@@ -25,6 +26,7 @@ class NotificationController extends Controller
     public function markAllAsRead()
     {
         Auth::user()->unreadNotifications->markAsRead();
+        \Illuminate\Support\Facades\Cache::forget('header.notifs.'.Auth::id());
         
         return response()->json(['success' => true]);
     }

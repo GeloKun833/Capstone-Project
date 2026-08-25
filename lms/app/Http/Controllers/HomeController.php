@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
+use App\Support\SafeSchema;
 use App\Models\User;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -138,7 +138,7 @@ class HomeController extends Controller
         }
         
         // Get teacher's subjects with enrollments
-        $hasEnrollmentStatus = Schema::hasColumn('enrollments', 'status');
+        $hasEnrollmentStatus = SafeSchema::columnExists('enrollments', 'status');
         $teacherSubjects = $teacher->subjects()
             ->withCount(['enrollments as enrollments_count' => function ($query) use ($hasEnrollmentStatus) {
                 if ($hasEnrollmentStatus) {
@@ -277,7 +277,7 @@ class HomeController extends Controller
     private function loadAdminData()
     {
         try {
-            return Cache::remember('admin.dashboard.data', 120, function () {
+            return Cache::remember('admin.dashboard.data', 180, function () {
                 return $this->queryAdminDashboardData();
             });
         } catch (\Throwable $e) {
@@ -312,7 +312,7 @@ class HomeController extends Controller
 
     private function queryAdminDashboardData(): array
     {
-        $enrollmentCountSql = Schema::hasColumn('enrollments', 'status')
+        $enrollmentCountSql = SafeSchema::columnExists('enrollments', 'status')
             ? "(SELECT COUNT(*) FROM enrollments WHERE status = 'active')"
             : '(SELECT COUNT(*) FROM enrollments)';
 
@@ -324,8 +324,12 @@ class HomeController extends Controller
                 (SELECT COUNT(*) FROM sections) AS total_sections,
                 {$enrollmentCountSql} AS total_enrollments,
                 (SELECT COUNT(*) FROM attendances) AS total_attendance,
+                (SELECT SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) FROM attendances) AS present_count,
+                (SELECT SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) FROM attendances) AS absent_count,
                 (SELECT COUNT(*) FROM grades) AS total_grades,
-                (SELECT COUNT(*) FROM announcements) AS total_announcements
+                (SELECT COUNT(*) FROM announcements) AS total_announcements,
+                (SELECT COUNT(*) FROM students WHERE gender IN ('Male', 'male')) AS male_students,
+                (SELECT COUNT(*) FROM students WHERE gender IN ('Female', 'female')) AS female_students
         ");
 
         $totalStudents = (int) ($counts->total_students ?? 0);
@@ -336,11 +340,23 @@ class HomeController extends Controller
         $totalAttendance = (int) ($counts->total_attendance ?? 0);
         $totalGrades = (int) ($counts->total_grades ?? 0);
         $totalAnnouncements = (int) ($counts->total_announcements ?? 0);
+        $maleStudents = (int) ($counts->male_students ?? 0);
+        $femaleStudents = (int) ($counts->female_students ?? 0);
+
+        $attendanceStats = (object) [
+            'total_records' => $totalAttendance,
+            'present_count' => (int) ($counts->present_count ?? 0),
+            'absent_count' => (int) ($counts->absent_count ?? 0),
+        ];
+
+        $attendancePercentage = $totalAttendance > 0
+            ? round(($attendanceStats->present_count / $totalAttendance) * 100, 1)
+            : 0;
 
         $recentEnrollmentQuery = \App\Models\Enrollment::with(['student', 'subject'])
             ->orderByDesc('created_at')
             ->take(5);
-        if (Schema::hasColumn('enrollments', 'status')) {
+        if (SafeSchema::columnExists('enrollments', 'status')) {
             $recentEnrollmentQuery->where('status', 'active');
         }
         $recentEnrollments = $recentEnrollmentQuery->get();
@@ -350,29 +366,12 @@ class HomeController extends Controller
             ->take(5)
             ->get();
 
-        $topStudents = \App\Models\StudentGpa::with(['student', 'academicYear', 'semester'])
+        $topStudents = \App\Models\StudentGpa::with(['student:id,first_name,last_name,admission_id', 'academicYear:id,name', 'semester:id,name'])
             ->orderByDesc('gpa')
             ->take(5)
             ->get();
 
-        $attendanceStats = \App\Models\Attendance::selectRaw('
-            COUNT(*) as total_records,
-            SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
-            SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
-        ')->first();
-
-        $attendancePercentage = ($attendanceStats && $attendanceStats->total_records > 0)
-            ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
-            : 0;
-
-        $genderCounts = \App\Models\Student::selectRaw('gender, COUNT(*) as total')
-            ->groupBy('gender')
-            ->pluck('total', 'gender');
-
-        $maleStudents = (int) ($genderCounts['Male'] ?? $genderCounts['male'] ?? 0);
-        $femaleStudents = (int) ($genderCounts['Female'] ?? $genderCounts['female'] ?? 0);
-
-        $recentEvents = \App\Models\CalendarEvent::with(['subject', 'teacher'])
+        $recentEvents = \App\Models\CalendarEvent::with(['subject:id,subject_name', 'teacher:id,full_name'])
             ->where('start_time', '>=', now())
             ->orderBy('start_time')
             ->take(5)
@@ -514,14 +513,15 @@ class HomeController extends Controller
                 'attendancePercentage' => 0
             ];
         }
-        
+
+        return Cache::remember('teacher.dashboard.'.$teacher->id, 90, function () use ($teacher) {
         // Get teacher's subjects with sections, grouped by grade level
         $subjectCollection = $teacher->subjects()
             ->with(['sections'])
             ->get();
         $subjectIds = $subjectCollection->pluck('id');
         $teacherSubjects = $subjectCollection->groupBy('class')->sortKeys();
-        $hasEnrollmentStatus = Schema::hasColumn('enrollments', 'status');
+        $hasEnrollmentStatus = SafeSchema::columnExists('enrollments', 'status');
 
         // Get total classes (sections where teacher is adviser)
         $totalClasses = Section::where('adviser_id', $teacher->id)->count();
@@ -596,6 +596,7 @@ class HomeController extends Controller
             'attendanceStats',
             'attendancePercentage'
         );
+        });
     }
 
     /**
@@ -619,18 +620,19 @@ class HomeController extends Controller
                 ];
             }
         }
-        
-        // Get student's enrollments with related data
+
+        return Cache::remember('student.dashboard.'.$student->id, 90, function () use ($student) {
         $enrollments = $student->enrollments()
             ->with(['subject', 'academicYear', 'semester'])
-            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+            ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->get();
-        
+
         return [
             'student' => $student,
             'enrollments' => $enrollments,
             'hasStudent' => true
         ];
+        });
     }
 
     /**
@@ -638,6 +640,10 @@ class HomeController extends Controller
      */
     private function loadParentData()
     {
+        return Cache::remember(
+            'parent.dashboard.'.auth()->id().'.'.request()->input('child_id', 'first').'.'.request()->input('date', now()->toDateString()),
+            30,
+            function () {
         try {
             $parent = auth()->user();
             
@@ -679,7 +685,7 @@ class HomeController extends Controller
             $currentSemester = \App\Models\Semester::latest()->first();
 
             $enrolledSubjectIds = \App\Models\Enrollment::where('student_id', $selectedChild->id)
-                ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+                ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->pluck('subject_id');
 
             $grades = $this->getChildGrades($selectedChild, $currentAcademicYear, $currentSemester);
@@ -697,7 +703,7 @@ class HomeController extends Controller
                 ')->first();
 
             $enrollments = \App\Models\Enrollment::where('student_id', $selectedChild->id)
-                ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+                ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->with(['subject', 'academicYear', 'semester'])
                 ->get();
 
@@ -748,6 +754,8 @@ class HomeController extends Controller
                 'error' => 'An error occurred while loading the dashboard.'
             ];
         }
+            }
+        );
     }
 
 
@@ -793,7 +801,7 @@ class HomeController extends Controller
         }
 
         $enrolledSubjectIds = $enrolledSubjectIds ?? \App\Models\Enrollment::where('student_id', $child->id)
-            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+            ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->pluck('subject_id');
 
         if ($enrolledSubjectIds->isEmpty()) {
@@ -819,7 +827,7 @@ class HomeController extends Controller
         }
 
         $enrolledSubjectIds = $enrolledSubjectIds ?? \App\Models\Enrollment::where('student_id', $child->id)
-            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+            ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->pluck('subject_id');
 
         if ($enrolledSubjectIds->isEmpty()) {
@@ -847,7 +855,7 @@ class HomeController extends Controller
         }
 
         $enrolledSubjectIds = $enrolledSubjectIds ?? \App\Models\Enrollment::where('student_id', $child->id)
-            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+            ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->pluck('subject_id');
 
         if ($enrolledSubjectIds->isEmpty()) {
@@ -1052,6 +1060,7 @@ class HomeController extends Controller
      */
     private function loadRegistrarData()
     {
+        return Cache::remember('registrar.dashboard.data', 90, function () {
         $applicationsByStatus = \App\Models\EnrollmentApplication::selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
@@ -1100,5 +1109,6 @@ class HomeController extends Controller
             'lastMonthApplications',
             'growthPercentage'
         );
+        });
     }
 }

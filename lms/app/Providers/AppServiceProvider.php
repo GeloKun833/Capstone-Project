@@ -3,13 +3,15 @@
 namespace App\Providers;
 
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use App\Models\User;
 use App\Observers\UserObserver;
+use App\Support\PageAssets;
+use App\Support\SafeSchema;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -46,22 +48,27 @@ class AppServiceProvider extends ServiceProvider
                 'headerNotifications' => collect(),
             ];
 
+            $view->with(PageAssets::flags());
+
             try {
                 if (!auth()->check()) {
                     $view->with($empty);
                     return;
                 }
 
-                if (!Schema::hasTable('notifications')) {
+                if (!SafeSchema::tableExists('notifications')) {
                     $view->with($empty);
                     return;
                 }
 
                 $user = auth()->user();
-                $view->with([
-                    'headerUnreadCount' => $user->unreadNotifications()->count(),
-                    'headerNotifications' => $user->notifications()->latest()->limit(5)->get(),
-                ]);
+                $header = Cache::remember('header.notifs.'.$user->id, 20, function () use ($user) {
+                    return [
+                        'headerUnreadCount' => $user->unreadNotifications()->count(),
+                        'headerNotifications' => $user->notifications()->latest()->limit(5)->get(),
+                    ];
+                });
+                $view->with($header);
             } catch (\Throwable $e) {
                 Log::warning('Header notifications skipped: '.$e->getMessage());
                 $view->with($empty);
