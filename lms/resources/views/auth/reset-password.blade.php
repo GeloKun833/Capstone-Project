@@ -1,7 +1,5 @@
 @extends('layouts.app')
 @section('content')
-{{-- message --}}
-{!! Toastr::message() !!}
 
 <div class="glass-form">
     <div class="school-logo-top">

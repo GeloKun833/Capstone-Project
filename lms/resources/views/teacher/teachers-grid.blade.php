@@ -55,6 +55,9 @@
                                     </div>
                                     @endforeach
                                 </div>
+                                @if(method_exists($teacherGrid, 'links'))
+                                    <div class="d-flex justify-content-center mt-3">{{ $teacherGrid->links() }}</div>
+                                @endif
                             </div>
                         </div>
                     </div>

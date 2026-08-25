@@ -55,8 +55,8 @@ class AttendanceController extends Controller
             })->get();
         } else {
             // Admin view
-            $subjects = Subject::all();
-            $sections = Section::all();
+            $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
+            $sections = Section::select('id', 'name')->orderBy('name')->get();
         }
         
         $subjectId = $request->input('subject_id');
@@ -243,8 +243,8 @@ class AttendanceController extends Controller
             }
         } else {
             // Admin view - show all
-            $subjects = Subject::all();
-            $sections = Section::all();
+            $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
+            $sections = Section::select('id', 'name')->orderBy('name')->get();
             $subjectId = $request->input('subject_id');
             $sectionId = $request->input('section_id');
             $date = $request->input('date', now()->toDateString());
@@ -317,8 +317,10 @@ class AttendanceController extends Controller
         }
 
         // Get children (you'll need to implement the relationship between parents and students)
-        $children = Student::where('parent_email', $parent->email)->get();
-        $subjects = Subject::all();
+        $children = Student::where('parent_email', $parent->email)
+            ->select('id', 'first_name', 'last_name', 'email')
+            ->get();
+        $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
         $selectedStudent = null;
         $attendances = collect();
         $summary = [];

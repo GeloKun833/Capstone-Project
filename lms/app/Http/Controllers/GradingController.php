@@ -647,10 +647,10 @@ class GradingController extends Controller
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
 
-        $students = Student::all();
-        $subjects = Subject::all();
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
+        $students = Student::select('id', 'first_name', 'last_name')->orderBy('last_name')->get();
+        $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
+        $academicYears = AcademicYear::select('id', 'name')->orderByDesc('id')->get();
+        $semesters = Semester::select('id', 'name')->orderByDesc('id')->get();
 
         $performanceData = null;
         $trendData = null;
@@ -778,7 +778,7 @@ class GradingController extends Controller
     // Grade Alerts Management
     public function gradeAlerts(Request $request)
     {
-        $students = Student::all();
+        $students = Student::select('id', 'first_name', 'last_name')->orderBy('last_name')->get();
         
         $alerts = GradeAlert::with(['student', 'subject', 'academicYear', 'semester'])
             ->where('is_resolved', false)

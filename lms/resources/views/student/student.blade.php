@@ -161,6 +161,9 @@
                                         @endforeach
                                     </tbody>
                                 </table>
+                                @if(method_exists($studentList, 'links'))
+                                    <div class="d-flex justify-content-center mt-3">{{ $studentList->links() }}</div>
+                                @endif
                             </div>
                         </div>
                     </div>

@@ -203,8 +203,10 @@ class UserManagementController extends Controller
         $columnSortOrder = $order_arr[0]['dir']; // asc or desc
         $searchValue     = $search_arr['value']; // Search value
 
-        $users =  DB::table('users');
-        
+        $users = DB::table('users');
+
+        $totalRecords = (clone $users)->count();
+
         // Apply custom search filters
         if (!empty($searchId)) {
             $users->where('user_id', 'like', '%' . $searchId . '%');
@@ -215,8 +217,6 @@ class UserManagementController extends Controller
         if (!empty($searchPhone)) {
             $users->where('phone_number', 'like', '%' . $searchPhone . '%');
         }
-
-        $totalRecords = $users->count();
 
         // Apply DataTable search
         if (!empty($searchValue)) {
@@ -230,7 +230,7 @@ class UserManagementController extends Controller
             });
         }
 
-        $totalRecordsWithFilter = $users->count();
+        $totalRecordsWithFilter = (clone $users)->count();
 
         if ($columnName == 'name') {
             $columnName = 'name';
@@ -239,6 +239,7 @@ class UserManagementController extends Controller
         $records = $users->orderBy($columnName, $columnSortOrder)
             ->skip($start)
             ->take($rowPerPage)
+            ->select('id', 'user_id', 'name', 'email', 'position', 'phone_number', 'join_date', 'status', 'avatar', 'role_name')
             ->get();
         $data_arr = [];
         

@@ -5,16 +5,10 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use Carbon\Carbon;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Brian2694\Toastr\Facades\Toastr;
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\Http;
-use App\Rules\MatchOldPassword;
 
 class LoginController extends Controller
 {
@@ -64,16 +58,15 @@ class LoginController extends Controller
             'email'    => 'required|string',
             'password' => 'required|string',
         ]);
-        
-        DB::beginTransaction();
+
         try {
-            
-            $email     = $request->email;
-            $password  = $request->password;
+            $email    = $request->email;
+            $password = $request->password;
 
             if (Auth::attempt(['email' => $email, 'password' => $password], $request->boolean('remember'))) {
-                /** get session */
-                $user = Auth::User();
+                $request->session()->regenerate();
+
+                $user = Auth::user();
                 Session::put('name', $user->name);
                 Session::put('email', $user->email);
                 Session::put('user_id', $user->user_id);
@@ -85,35 +78,24 @@ class LoginController extends Controller
                 Session::put('position', $user->position);
                 Session::put('department', $user->department);
                 Toastr::success('Login successfully :)','Success');
-                return redirect()->route('dashboard');
-            } else {
-                Toastr::error('fail, WRONG USERNAME OR PASSWORD :)','Error');
-                return redirect('login');
+                return redirect()->intended(route('dashboard'));
             }
-           
-        } catch(\Exception $e) {
-            DB::rollback();
-            Toastr::error('fail, LOGIN :)','Error');
+
+            Toastr::error('fail, WRONG USERNAME OR PASSWORD :)','Error');
+            return redirect('login');
+        } catch (\Exception $e) {
+            \Log::error('Login failed: '.$e->getMessage());
+            Toastr::error('Unable to complete the operation. Please try again.','Error');
             return redirect()->back();
         }
     }
 
     /** logout */
-    public function logout( Request $request)
+    public function logout(Request $request)
     {
         Auth::logout();
-        // forget login session
-        $request->session()->forget('name');
-        $request->session()->forget('email');
-        $request->session()->forget('user_id');
-        $request->session()->forget('join_date');
-        $request->session()->forget('phone_number');
-        $request->session()->forget('status');
-        $request->session()->forget('role_name');
-        $request->session()->forget('avatar');
-        $request->session()->forget('position');
-        $request->session()->forget('department');
-        $request->session()->flush();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         Toastr::success('Logout successfully :)','Success');
         return redirect('login');

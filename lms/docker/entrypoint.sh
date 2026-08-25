@@ -24,6 +24,7 @@ fi
 php artisan package:discover --ansi || true
 php artisan storage:link --force || true
 
+# Cache config and routes. View cache is skipped because optional Breeze stubs can fail compile.
 php artisan config:cache
 php artisan route:cache || true
 

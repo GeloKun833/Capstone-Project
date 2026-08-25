@@ -104,8 +104,11 @@ class SectionController extends Controller
     public function assignStudentsForm($id)
     {
         $section = \App\Models\Section::findOrFail($id);
-        $students = \App\Models\Student::all();
-        $assigned = $section->students->pluck('id')->toArray();
+        $students = \App\Models\Student::select('id', 'first_name', 'last_name', 'class')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+        $assigned = $section->students()->pluck('students.id')->toArray();
         return view('sections.assign_students', compact('section', 'students', 'assigned'));
     }
 

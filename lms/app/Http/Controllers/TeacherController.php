@@ -52,7 +52,7 @@ class TeacherController extends Controller
             });
         }
         
-        $listTeacher = $query->get();
+        $listTeacher = $query->paginate(20)->withQueryString();
         return view('teacher.list-teachers',compact('listTeacher'));
     }
 
@@ -63,7 +63,8 @@ class TeacherController extends Controller
             ->whereHas('user', function($query) {
                 $query->where('role_name', 'Teacher');
             })
-            ->get();
+            ->paginate(20)
+            ->withQueryString();
         return view('teacher.teachers-grid',compact('teacherGrid'));
     }
 

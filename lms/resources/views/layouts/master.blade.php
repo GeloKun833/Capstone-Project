@@ -156,7 +156,6 @@
         <div class="sidebar-overlay"></div>
 		{{-- content page --}}
         @yield('content')
-        {!! Toastr::message() !!}
         <footer>
             <div class="footer-content">
                 <div class="footer-left">
@@ -194,6 +193,7 @@
     <script src="{{ URL::to('assets/js/script.js') }}"></script>
     @yield('script')
     @stack('scripts')
+    @include('partials.toastr-scripts')
     
     <style>
     /* Footer styling */

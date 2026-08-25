@@ -13,8 +13,10 @@ use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class EnrollmentController extends Controller
 {
@@ -28,69 +30,74 @@ class EnrollmentController extends Controller
      */
     public function index()
     {
-        // Get enrollments from the old system
-        $enrollments = Enrollment::with(['student', 'subject', 'academicYear', 'semester'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        // Get students from the new enrollment portal system
-        $portalStudents = Student::whereNotNull('enrollment_application_id')
-            ->with(['user', 'enrollmentApplication'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        // Combine both types of enrollments
-        $allEnrollments = collect();
-        
-        // Add old system enrollments
-        foreach ($enrollments as $enrollment) {
-            $allEnrollments->push([
-                'id' => $enrollment->id,
-                'type' => 'enrollment',
-                'student_name' => $enrollment->student->first_name . ' ' . $enrollment->student->last_name ?? 'N/A',
-                'student_email' => $enrollment->student->email ?? 'N/A',
-                'subject_name' => $enrollment->subject->subject_name ?? 'N/A',
-                'section_name' => $enrollment->section->name ?? 'N/A',
-                'academic_year' => $enrollment->academicYear->name ?? 'N/A',
-                'semester' => $enrollment->semester->name ?? 'N/A',
-                'status' => $enrollment->status,
-                'enrollment_date' => $enrollment->enrollment_date,
-                'created_at' => $enrollment->created_at,
-            ]);
-        }
-        
-        // Add portal students
-        foreach ($portalStudents as $student) {
-            $allEnrollments->push([
-                'id' => $student->id,
-                'type' => 'portal_student',
-                'student_name' => $student->first_name . ' ' . $student->last_name,
-                'student_email' => $student->email,
-                'subject_name' => 'Portal Enrollment',
-                'section_name' => 'Auto-Assigned',
-                'academic_year' => 'Current',
-                'semester' => 'Current',
-                'status' => $student->enrollment_status ?? 'active',
-                'enrollment_date' => $student->created_at,
-                'created_at' => $student->created_at,
-            ]);
-        }
-        
-        // Sort by creation date and paginate
-        $allEnrollments = $allEnrollments->sortByDesc('created_at')->values();
         $perPage = 15;
-        $currentPage = request()->get('page', 1);
-        $offset = ($currentPage - 1) * $perPage;
-        $items = $allEnrollments->slice($offset, $perPage)->values();
-        
-        $paginatedEnrollments = new \Illuminate\Pagination\LengthAwarePaginator(
+        $page = max(1, (int) request('page', 1));
+
+        $hasEnrollmentStatus = Schema::hasColumn('enrollments', 'status');
+        $hasEnrollmentDate = Schema::hasColumn('enrollments', 'enrollment_date');
+        $hasStudentEnrollmentStatus = Schema::hasColumn('students', 'enrollment_status');
+
+        $statusExpr = $hasEnrollmentStatus ? 'e.status' : "'active'";
+        $dateExpr = $hasEnrollmentDate ? 'e.enrollment_date' : 'e.created_at';
+        $portalStatusExpr = $hasStudentEnrollmentStatus
+            ? "COALESCE(s.enrollment_status, 'active')"
+            : "'active'";
+
+        $legacy = DB::table('enrollments as e')
+            ->leftJoin('students as s', 's.id', '=', 'e.student_id')
+            ->leftJoin('subjects as sub', 'sub.id', '=', 'e.subject_id')
+            ->leftJoin('academic_years as ay', 'ay.id', '=', 'e.academic_year_id')
+            ->leftJoin('semesters as sem', 'sem.id', '=', 'e.semester_id')
+            ->selectRaw("
+                e.id as id,
+                'enrollment' as type,
+                TRIM(CONCAT(COALESCE(s.first_name, ''), ' ', COALESCE(s.last_name, ''))) as student_name,
+                COALESCE(s.email, 'N/A') as student_email,
+                COALESCE(sub.subject_name, 'N/A') as subject_name,
+                'N/A' as section_name,
+                COALESCE(ay.name, 'N/A') as academic_year,
+                COALESCE(sem.name, 'N/A') as semester,
+                {$statusExpr} as status,
+                {$dateExpr} as enrollment_date,
+                e.created_at as created_at
+            ");
+
+        $portalSelect = "
+                s.id as id,
+                'portal_student' as type,
+                TRIM(CONCAT(COALESCE(s.first_name, ''), ' ', COALESCE(s.last_name, ''))) as student_name,
+                COALESCE(s.email, 'N/A') as student_email,
+                'Portal Enrollment' as subject_name,
+                'Auto-Assigned' as section_name,
+                'Current' as academic_year,
+                'Current' as semester,
+                {$portalStatusExpr} as status,
+                s.created_at as enrollment_date,
+                s.created_at as created_at
+            ";
+
+        $portal = Schema::hasColumn('students', 'enrollment_application_id')
+            ? DB::table('students as s')->whereNotNull('s.enrollment_application_id')->selectRaw($portalSelect)
+            : DB::table('students as s')->whereRaw('1 = 0')->selectRaw($portalSelect);
+
+        $union = $legacy->unionAll($portal);
+
+        $total = DB::query()->fromSub($union, 'combined_enrollments')->count();
+        $items = DB::query()->fromSub($union, 'combined_enrollments')
+            ->orderByDesc('created_at')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get()
+            ->map(fn ($row) => (array) $row);
+
+        $paginatedEnrollments = new LengthAwarePaginator(
             $items,
-            $allEnrollments->count(),
+            $total,
             $perPage,
-            $currentPage,
-            ['path' => request()->url(), 'pageName' => 'page']
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()]
         );
-        
+
         return view('enrollments.index', compact('paginatedEnrollments'));
     }
 
@@ -153,8 +160,9 @@ class EnrollmentController extends Controller
             
         } catch (\Exception $e) {
             DB::rollback();
-            Toastr::error('Failed to create user: ' . $e->getMessage(), 'Error');
-            return back()->withInput();
+            \Log::error('Failed to create enrollment user: '.$e->getMessage());
+            Toastr::error('Unable to complete the operation. Please try again.', 'Error');
+            return back()->withInput()->with('error', 'Unable to complete the operation. Please try again.');
         }
     }
 

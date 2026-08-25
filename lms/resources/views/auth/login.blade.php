@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('content')
-{!! Toastr::message() !!}
 
 <div class="auth-shell">
     {{-- Login form panel --}}

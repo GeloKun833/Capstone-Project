@@ -79,17 +79,30 @@ class MessageController extends Controller
 
         // Get recipients based on user role
         if ($user->role_name === 'Teacher') {
-            // Teachers can message parents and students
-            $recipients = User::whereIn('role_name', ['Parent', 'Student'])->get();
-            $students = Student::all();
+            $recipients = User::whereIn('role_name', ['Parent', 'Student'])
+                ->select('id', 'name', 'email', 'role_name')
+                ->orderBy('name')
+                ->get();
+            $students = Student::select('id', 'first_name', 'last_name', 'email')
+                ->orderBy('last_name')
+                ->get();
         } elseif ($user->role_name === 'Parent') {
-            // Parents can message teachers
-            $recipients = User::where('role_name', 'Teacher')->get();
-            $students = Student::where('parent_email', $user->email)->get();
+            $recipients = User::where('role_name', 'Teacher')
+                ->select('id', 'name', 'email', 'role_name')
+                ->orderBy('name')
+                ->get();
+            $students = Student::where('parent_email', $user->email)
+                ->select('id', 'first_name', 'last_name', 'email')
+                ->orderBy('last_name')
+                ->get();
         } elseif ($user->role_name === 'Admin') {
-            // Admins can message everyone
-            $recipients = User::where('id', '!=', $user->id)->get();
-            $students = Student::all();
+            $recipients = User::where('id', '!=', $user->id)
+                ->select('id', 'name', 'email', 'role_name')
+                ->orderBy('name')
+                ->get();
+            $students = Student::select('id', 'first_name', 'last_name', 'email')
+                ->orderBy('last_name')
+                ->get();
         }
 
         return view('messages.create', compact('recipients', 'students'));

@@ -41,7 +41,7 @@ class StudentController extends Controller
         if ($year = request('search_year_level')) {
             $query->where('year_level', 'like', "%$year%");
         }
-        $studentList = $query->get();
+        $studentList = $query->latest('id')->paginate(20)->withQueryString();
         return view('student.student',compact('studentList', 'showingArchived'));
     }
 
@@ -75,7 +75,7 @@ class StudentController extends Controller
         if ($year = request('search_year_level')) {
             $query->where('year_level', 'like', "%$year%");
         }
-        $studentList = $query->get();
+        $studentList = $query->latest('id')->paginate(20)->withQueryString();
         return view('student.student-grid',compact('studentList', 'showingArchived'));
     }
 
@@ -356,20 +356,6 @@ class StudentController extends Controller
             'enrollment_id' => $enrollmentId,
             'subject_id' => $enrollment->subject_id,
             'lessons_found' => $onlineClasses->count(),
-            'lessons_data' => $onlineClasses->toArray()
-        ]);
-        
-        // Additional debugging - check if lessons exist at all
-        $allLessons = \App\Models\Lesson::all();
-        $publishedLessons = \App\Models\Lesson::where('status', 'published')->get();
-        $activeLessons = \App\Models\Lesson::where('is_active', true)->get();
-        
-        Log::info('Additional debugging - Lessons overview', [
-            'total_lessons_in_db' => $allLessons->count(),
-            'published_lessons' => $publishedLessons->count(),
-            'active_lessons' => $activeLessons->count(),
-            'all_lessons_status' => $allLessons->pluck('status')->toArray(),
-            'all_lessons_subject_ids' => $allLessons->pluck('subject_id')->toArray()
         ]);
         
         // Get class posts for this subject

@@ -75,7 +75,11 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => $mysqlSslOptions,
+            'options' => extension_loaded('pdo_mysql')
+                ? array_filter($mysqlSslOptions + [
+                    PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 10),
+                ], fn ($value) => $value !== null)
+                : $mysqlSslOptions,
         ],
 
         'pgsql' => [

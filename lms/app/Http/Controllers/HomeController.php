@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use App\Models\User;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -73,11 +76,16 @@ class HomeController extends Controller
                 $currentGPA = $gpaRecords->first();
 
                 // Get attendance summary
-                $totalAttendance = \App\Models\Attendance::where('student_id', $student->id)->count();
-                $presentCount = \App\Models\Attendance::where('student_id', $student->id)
-                    ->where('status', 'present')->count();
-                $absentCount = \App\Models\Attendance::where('student_id', $student->id)
-                    ->where('status', 'absent')->count();
+                $attendanceRow = \App\Models\Attendance::where('student_id', $student->id)
+                    ->selectRaw('
+                        COUNT(*) as total_records,
+                        SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
+                        SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
+                    ')
+                    ->first();
+                $totalAttendance = (int) ($attendanceRow->total_records ?? 0);
+                $presentCount = (int) ($attendanceRow->present_count ?? 0);
+                $absentCount = (int) ($attendanceRow->absent_count ?? 0);
                 $attendancePercentage = $totalAttendance > 0 ? round(($presentCount / $totalAttendance) * 100, 1) : 0;
 
                 // Get section assignment
@@ -130,29 +138,25 @@ class HomeController extends Controller
         }
         
         // Get teacher's subjects with enrollments
+        $hasEnrollmentStatus = Schema::hasColumn('enrollments', 'status');
         $teacherSubjects = $teacher->subjects()
-            ->with(['enrollments' => function($query) {
-                $query->where('status', 'active')->with(['student', 'academicYear', 'semester']);
+            ->withCount(['enrollments as enrollments_count' => function ($query) use ($hasEnrollmentStatus) {
+                if ($hasEnrollmentStatus) {
+                    $query->where('status', 'active');
+                }
             }])
-            ->get()
-            ->map(function($subject) {
-                $subject->enrollments_count = $subject->enrollments ? $subject->enrollments->count() : 0;
-                return $subject;
-            });
-        
+            ->get();
+
         // Get teacher's sections (where teacher is adviser)
         $teacherSections = Section::where('adviser_id', $teacher->id)
-            ->with(['students'])
-            ->get()
-            ->map(function($section) {
-                $section->students_count = $section->students->count();
-                return $section;
-            });
-        
-        // Get attendance statistics for teacher's subjects
+            ->withCount('students')
+            ->get();
+
+        // Get attendance statistics for teacher's subjects in one query
         $attendanceStats = collect();
-        foreach ($teacherSubjects as $subject) {
-            $stats = \App\Models\Attendance::where('subject_id', $subject->id)
+        $subjectIds = $teacherSubjects->pluck('id');
+        if ($subjectIds->isNotEmpty()) {
+            $attendanceStats = \App\Models\Attendance::whereIn('subject_id', $subjectIds)
                 ->selectRaw('
                     subject_id,
                     COUNT(*) as total_records,
@@ -160,24 +164,23 @@ class HomeController extends Controller
                     SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
                 ')
                 ->groupBy('subject_id')
-                ->first();
-            
-            if ($stats) {
-                $attendanceStats->put($subject->id, $stats);
-            }
+                ->get()
+                ->keyBy('subject_id');
         }
-        
+
         // Get recent enrollments for teacher's subjects
         $recentEnrollments = collect();
-        if ($teacherSubjects->count() > 0) {
-            $recentEnrollments = \App\Models\Enrollment::whereIn('subject_id', $teacherSubjects->pluck('id'))
-                ->where('status', 'active')
-                ->whereHas('student')  // Only get enrollments with valid students
-                ->whereHas('subject')  // Only get enrollments with valid subjects
+        if ($subjectIds->isNotEmpty()) {
+            $recentQuery = \App\Models\Enrollment::whereIn('subject_id', $subjectIds)
+                ->whereHas('student')
+                ->whereHas('subject')
                 ->with(['student', 'subject'])
                 ->orderBy('created_at', 'desc')
-                ->take(10)
-                ->get();
+                ->take(10);
+            if ($hasEnrollmentStatus) {
+                $recentQuery->where('status', 'active');
+            }
+            $recentEnrollments = $recentQuery->get();
         }
         
         return view('teacher.classes', compact('teacher', 'teacherSubjects', 'teacherSections', 'attendanceStats', 'recentEnrollments'));
@@ -234,18 +237,35 @@ class HomeController extends Controller
         ];
 
         // Load data based on user role
-        if ($user->role_name === User::ROLE_ADMIN) {
-            $data['admin'] = $this->loadAdminData();
-        } elseif ($user->role_name === User::ROLE_TEACHER) {
-            $data['teacher'] = $this->loadTeacherData();
-        } elseif ($user->role_name === User::ROLE_STUDENT) {
-            $data['student'] = $this->loadStudentData();
-        } elseif ($user->role_name === User::ROLE_PARENT) {
-            $data['parent'] = $this->loadParentData();
-        } elseif ($user->role_name === User::ROLE_REGISTRAR) {
-            $data['registrar'] = $this->loadRegistrarData();
-        } else {
+        if (!in_array($user->role_name, [
+            User::ROLE_ADMIN,
+            User::ROLE_TEACHER,
+            User::ROLE_STUDENT,
+            User::ROLE_PARENT,
+            User::ROLE_REGISTRAR,
+        ], true)) {
             abort(403);
+        }
+
+        try {
+            if ($user->role_name === User::ROLE_ADMIN) {
+                $data['admin'] = $this->loadAdminData();
+            } elseif ($user->role_name === User::ROLE_TEACHER) {
+                $data['teacher'] = $this->loadTeacherData();
+            } elseif ($user->role_name === User::ROLE_STUDENT) {
+                $data['student'] = $this->loadStudentData();
+            } elseif ($user->role_name === User::ROLE_PARENT) {
+                $data['parent'] = $this->loadParentData();
+            } elseif ($user->role_name === User::ROLE_REGISTRAR) {
+                $data['registrar'] = $this->loadRegistrarData();
+            }
+        } catch (\Throwable $e) {
+            Log::error('Dashboard load failed: '.$e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'role' => $user->role_name ?? null,
+            ]);
+            $data['admin'] = $data['admin'] ?? $this->emptyAdminDashboard();
+            $data['dashboard_error'] = 'Some dashboard statistics could not be loaded.';
         }
 
         return view('dashboard', $data);
@@ -256,79 +276,131 @@ class HomeController extends Controller
      */
     private function loadAdminData()
     {
-        return \Illuminate\Support\Facades\Cache::remember('admin.dashboard.data', 120, function () {
-            $totalStudents = \App\Models\Student::count();
-            $totalTeachers = \App\Models\Teacher::count();
-            $totalSubjects = \App\Models\Subject::count();
-            $totalSections = \App\Models\Section::count();
-            $totalEnrollments = \App\Models\Enrollment::where('status', 'active')->count();
-            $totalAttendance = \App\Models\Attendance::count();
-            $totalGrades = \App\Models\Grade::count();
-            $totalAnnouncements = \App\Models\Announcement::count();
+        try {
+            return Cache::remember('admin.dashboard.data', 120, function () {
+                return $this->queryAdminDashboardData();
+            });
+        } catch (\Throwable $e) {
+            Log::error('Admin dashboard failed: '.$e->getMessage());
+            return $this->emptyAdminDashboard();
+        }
+    }
 
-            $recentEnrollments = \App\Models\Enrollment::with(['student', 'subject'])
-                ->where('status', 'active')
-                ->orderByDesc('created_at')
-                ->take(5)
-                ->get();
+    private function emptyAdminDashboard(): array
+    {
+        return [
+            'totalStudents' => 0,
+            'totalTeachers' => 0,
+            'totalSubjects' => 0,
+            'totalSections' => 0,
+            'totalEnrollments' => 0,
+            'totalAttendance' => 0,
+            'totalGrades' => 0,
+            'totalAnnouncements' => 0,
+            'recentEnrollments' => collect(),
+            'recentAnnouncements' => collect(),
+            'topStudents' => collect(),
+            'attendanceStats' => (object) ['total_records' => 0, 'present_count' => 0, 'absent_count' => 0],
+            'attendancePercentage' => 0,
+            'maleStudents' => 0,
+            'femaleStudents' => 0,
+            'recentEvents' => collect(),
+            'performanceData' => ['months' => [], 'teacherData' => [], 'studentData' => []],
+            'studentsChartData' => ['labels' => [], 'boysData' => [], 'girlsData' => []],
+        ];
+    }
 
-            $recentAnnouncements = \App\Models\Announcement::with(['creator'])
-                ->orderByDesc('created_at')
-                ->take(5)
-                ->get();
+    private function queryAdminDashboardData(): array
+    {
+        $enrollmentCountSql = Schema::hasColumn('enrollments', 'status')
+            ? "(SELECT COUNT(*) FROM enrollments WHERE status = 'active')"
+            : '(SELECT COUNT(*) FROM enrollments)';
 
-            $topStudents = \App\Models\StudentGpa::with(['student', 'academicYear', 'semester'])
-                ->orderByDesc('gpa')
-                ->take(5)
-                ->get();
+        $counts = DB::selectOne("
+            SELECT
+                (SELECT COUNT(*) FROM students) AS total_students,
+                (SELECT COUNT(*) FROM teachers) AS total_teachers,
+                (SELECT COUNT(*) FROM subjects) AS total_subjects,
+                (SELECT COUNT(*) FROM sections) AS total_sections,
+                {$enrollmentCountSql} AS total_enrollments,
+                (SELECT COUNT(*) FROM attendances) AS total_attendance,
+                (SELECT COUNT(*) FROM grades) AS total_grades,
+                (SELECT COUNT(*) FROM announcements) AS total_announcements
+        ");
 
-            $attendanceStats = \App\Models\Attendance::selectRaw('
-                COUNT(*) as total_records,
-                SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
-                SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
-            ')->first();
+        $totalStudents = (int) ($counts->total_students ?? 0);
+        $totalTeachers = (int) ($counts->total_teachers ?? 0);
+        $totalSubjects = (int) ($counts->total_subjects ?? 0);
+        $totalSections = (int) ($counts->total_sections ?? 0);
+        $totalEnrollments = (int) ($counts->total_enrollments ?? 0);
+        $totalAttendance = (int) ($counts->total_attendance ?? 0);
+        $totalGrades = (int) ($counts->total_grades ?? 0);
+        $totalAnnouncements = (int) ($counts->total_announcements ?? 0);
 
-            $attendancePercentage = ($attendanceStats && $attendanceStats->total_records > 0)
-                ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
-                : 0;
+        $recentEnrollmentQuery = \App\Models\Enrollment::with(['student', 'subject'])
+            ->orderByDesc('created_at')
+            ->take(5);
+        if (Schema::hasColumn('enrollments', 'status')) {
+            $recentEnrollmentQuery->where('status', 'active');
+        }
+        $recentEnrollments = $recentEnrollmentQuery->get();
 
-            $genderCounts = \App\Models\Student::selectRaw('gender, COUNT(*) as total')
-                ->groupBy('gender')
-                ->pluck('total', 'gender');
+        $recentAnnouncements = \App\Models\Announcement::with(['creator'])
+            ->orderByDesc('created_at')
+            ->take(5)
+            ->get();
 
-            $maleStudents = (int) ($genderCounts['Male'] ?? $genderCounts['male'] ?? 0);
-            $femaleStudents = (int) ($genderCounts['Female'] ?? $genderCounts['female'] ?? 0);
+        $topStudents = \App\Models\StudentGpa::with(['student', 'academicYear', 'semester'])
+            ->orderByDesc('gpa')
+            ->take(5)
+            ->get();
 
-            $recentEvents = \App\Models\CalendarEvent::with(['subject', 'teacher'])
-                ->where('start_time', '>=', now())
-                ->orderBy('start_time')
-                ->take(5)
-                ->get();
+        $attendanceStats = \App\Models\Attendance::selectRaw('
+            COUNT(*) as total_records,
+            SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
+            SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
+        ')->first();
 
-            $performanceData = $this->getStudentPerformanceChartData();
-            $studentsChartData = $this->getStudentsByGradeLevelChartData();
+        $attendancePercentage = ($attendanceStats && $attendanceStats->total_records > 0)
+            ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
+            : 0;
 
-            return compact(
-                'totalStudents',
-                'totalTeachers',
-                'totalSubjects',
-                'totalSections',
-                'totalEnrollments',
-                'totalAttendance',
-                'totalGrades',
-                'totalAnnouncements',
-                'recentEnrollments',
-                'recentAnnouncements',
-                'topStudents',
-                'attendanceStats',
-                'attendancePercentage',
-                'maleStudents',
-                'femaleStudents',
-                'recentEvents',
-                'performanceData',
-                'studentsChartData'
-            );
-        });
+        $genderCounts = \App\Models\Student::selectRaw('gender, COUNT(*) as total')
+            ->groupBy('gender')
+            ->pluck('total', 'gender');
+
+        $maleStudents = (int) ($genderCounts['Male'] ?? $genderCounts['male'] ?? 0);
+        $femaleStudents = (int) ($genderCounts['Female'] ?? $genderCounts['female'] ?? 0);
+
+        $recentEvents = \App\Models\CalendarEvent::with(['subject', 'teacher'])
+            ->where('start_time', '>=', now())
+            ->orderBy('start_time')
+            ->take(5)
+            ->get();
+
+        $performanceData = $this->getStudentPerformanceChartData();
+        $studentsChartData = $this->getStudentsByGradeLevelChartData();
+
+        return compact(
+            'totalStudents',
+            'totalTeachers',
+            'totalSubjects',
+            'totalSections',
+            'totalEnrollments',
+            'totalAttendance',
+            'totalGrades',
+            'totalAnnouncements',
+            'recentEnrollments',
+            'recentAnnouncements',
+            'topStudents',
+            'attendanceStats',
+            'attendancePercentage',
+            'maleStudents',
+            'femaleStudents',
+            'recentEvents',
+            'performanceData',
+            'studentsChartData'
+        );
     }
     
     /**
@@ -444,83 +516,69 @@ class HomeController extends Controller
         }
         
         // Get teacher's subjects with sections, grouped by grade level
-        $teacherSubjects = $teacher->subjects()
+        $subjectCollection = $teacher->subjects()
             ->with(['sections'])
-            ->get()
-            ->groupBy('class') // Group by grade level (class field)
-            ->sortKeys(); // Sort by grade level
-        
+            ->get();
+        $subjectIds = $subjectCollection->pluck('id');
+        $teacherSubjects = $subjectCollection->groupBy('class')->sortKeys();
+        $hasEnrollmentStatus = Schema::hasColumn('enrollments', 'status');
+
         // Get total classes (sections where teacher is adviser)
         $totalClasses = Section::where('adviser_id', $teacher->id)->count();
-        
+
         // Get total students across all teacher's subjects
-        $totalStudents = Enrollment::whereIn('subject_id', $teacherSubjects->pluck('id'))
-            ->where('status', 'active')
-            ->distinct('student_id')
-            ->count('student_id');
-        
+        $totalStudents = $subjectIds->isEmpty()
+            ? 0
+            : Enrollment::whereIn('subject_id', $subjectIds)
+                ->when($hasEnrollmentStatus, fn ($q) => $q->where('status', 'active'))
+                ->distinct('student_id')
+                ->count('student_id');
+
         // Get total lessons (subjects taught by teacher)
         $totalLessons = $teacherSubjects->count();
-        
-        // Get total hours (calculate from calendar events or use a default)
-        $totalHours = CalendarEvent::where('teacher_id', $teacher->id)
-            ->where('start_time', '>=', now()->startOfMonth())
-            ->where('start_time', '<=', now()->endOfMonth())
-            ->count();
-        
-        // Get upcoming lessons (calendar events)
-        $upcomingLessons = CalendarEvent::with(['subject'])
-            ->where('teacher_id', $teacher->id)
-            ->where('start_time', '>=', now())
-            ->orderBy('start_time', 'asc')
-            ->take(5)
-            ->get();
-        
-        // Get semester progress (calculate based on completed vs total events)
-        $totalEventsThisMonth = CalendarEvent::where('teacher_id', $teacher->id)
-            ->where('start_time', '>=', now()->startOfMonth())
-            ->where('start_time', '<=', now()->endOfMonth())
-            ->count();
-        
-        $completedEventsThisMonth = CalendarEvent::where('teacher_id', $teacher->id)
-            ->where('start_time', '>=', now()->startOfMonth())
-            ->where('start_time', '<=', now()->endOfMonth())
-            ->where('start_time', '<=', now())
-            ->count();
-        
-        $semesterProgress = $totalEventsThisMonth > 0 
-            ? round(($completedEventsThisMonth / $totalEventsThisMonth) * 100, 1)
-            : 0;
-        
-        // Get teaching history (recent calendar events)
-        $teachingHistory = CalendarEvent::with(['subject'])
-            ->where('teacher_id', $teacher->id)
-            ->where('start_time', '<=', now())
-            ->orderBy('start_time', 'desc')
-            ->take(10)
-            ->get();
-        
-        // Get upcoming events for calendar
+
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
+        $eventStats = CalendarEvent::where('teacher_id', $teacher->id)
+            ->whereBetween('start_time', [$monthStart, $monthEnd])
+            ->selectRaw('COUNT(*) as total, SUM(CASE WHEN start_time <= ? THEN 1 ELSE 0 END) as completed', [now()])
+            ->first();
+        $totalHours = (int) ($eventStats->total ?? 0);
+        $totalEventsThisMonth = $totalHours;
+        $completedEventsThisMonth = (int) ($eventStats->completed ?? 0);
+
         $upcomingEvents = CalendarEvent::with(['subject'])
             ->where('teacher_id', $teacher->id)
             ->where('start_time', '>=', now())
             ->orderBy('start_time', 'asc')
             ->take(10)
             ->get();
-        
-        // Get attendance statistics for teacher's students
-        $attendanceStats = Attendance::whereIn('subject_id', $teacherSubjects->pluck('id'))
-            ->selectRaw('
-                COUNT(*) as total_records,
-                SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
-                SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
-            ')->first();
-        
-        $attendancePercentage = $attendanceStats->total_records > 0 
+        $upcomingLessons = $upcomingEvents->take(5);
+
+        $semesterProgress = $totalEventsThisMonth > 0
+            ? round(($completedEventsThisMonth / $totalEventsThisMonth) * 100, 1)
+            : 0;
+
+        $teachingHistory = CalendarEvent::with(['subject'])
+            ->where('teacher_id', $teacher->id)
+            ->where('start_time', '<=', now())
+            ->orderBy('start_time', 'desc')
+            ->take(10)
+            ->get();
+
+        $attendanceStats = $subjectIds->isEmpty()
+            ? (object) ['total_records' => 0, 'present_count' => 0, 'absent_count' => 0]
+            : Attendance::whereIn('subject_id', $subjectIds)
+                ->selectRaw('
+                    COUNT(*) as total_records,
+                    SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
+                    SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
+                ')->first();
+
+        $attendancePercentage = ($attendanceStats && $attendanceStats->total_records > 0)
             ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
             : 0;
-        
-        // Get teacher's assigned sections (both as adviser and as subject teacher)
+
         $teacherSections = $teacher->sections()->get();
         
         return compact(
@@ -565,7 +623,7 @@ class HomeController extends Controller
         // Get student's enrollments with related data
         $enrollments = $student->enrollments()
             ->with(['subject', 'academicYear', 'semester'])
-            ->where('status', 'active')
+            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->get();
         
         return [
@@ -620,45 +678,37 @@ class HomeController extends Controller
             $currentAcademicYear = \App\Models\AcademicYear::latest()->first();
             $currentSemester = \App\Models\Semester::latest()->first();
 
-            // Get grades for selected child
+            $enrolledSubjectIds = \App\Models\Enrollment::where('student_id', $selectedChild->id)
+                ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+                ->pluck('subject_id');
+
             $grades = $this->getChildGrades($selectedChild, $currentAcademicYear, $currentSemester);
-            
-            // Get attendance for selected child
             $attendance = $this->getChildAttendance($selectedChild, request());
-            
-            // Get lessons and activities for selected child
-            $lessons = $this->getChildLessons($selectedChild, $currentAcademicYear, $currentSemester);
-            $activities = $this->getChildActivities($selectedChild, $currentAcademicYear, $currentSemester);
-            
-            // Get submissions for selected child
-            $submissions = $this->getChildSubmissions($selectedChild, $currentAcademicYear, $currentSemester);
-            
-            // Get performance insights
+            $lessons = $this->getChildLessons($selectedChild, $currentAcademicYear, $currentSemester, $enrolledSubjectIds);
+            $activities = $this->getChildActivities($selectedChild, $currentAcademicYear, $currentSemester, $enrolledSubjectIds);
+            $submissions = $this->getChildSubmissions($selectedChild, $currentAcademicYear, $currentSemester, $enrolledSubjectIds);
             $performanceInsights = $this->getPerformanceInsights($selectedChild, $currentAcademicYear, $currentSemester);
-            
-            // Get attendance statistics
+
             $attendanceStats = \App\Models\Attendance::where('student_id', $selectedChild->id)
                 ->selectRaw('
                     COUNT(*) as total_records,
                     SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
                     SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
                 ')->first();
-            
-            // Get enrollments for selected child
+
             $enrollments = \App\Models\Enrollment::where('student_id', $selectedChild->id)
-                ->where('status', 'active')
+                ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->with(['subject', 'academicYear', 'semester'])
                 ->get();
-            
-            // Get upcoming events for selected child
-            $upcomingEvents = \App\Models\CalendarEvent::whereHas('subject', function($q) use ($selectedChild) {
-                $q->whereHas('enrollments', function($enrollmentQ) use ($selectedChild) {
-                    $enrollmentQ->where('student_id', $selectedChild->id);
-                });
-            })->where('start_time', '>=', now())
-            ->orderBy('start_time', 'asc')
-            ->take(5)
-            ->get();
+
+            $upcomingEvents = collect();
+            if ($enrolledSubjectIds->isNotEmpty()) {
+                $upcomingEvents = \App\Models\CalendarEvent::whereIn('subject_id', $enrolledSubjectIds)
+                    ->where('start_time', '>=', now())
+                    ->orderBy('start_time', 'asc')
+                    ->take(5)
+                    ->get();
+            }
 
             return compact(
                 'children',
@@ -736,16 +786,19 @@ class HomeController extends Controller
     /**
      * Get child lessons for parent dashboard
      */
-    private function getChildLessons($child, $academicYear, $semester)
+    private function getChildLessons($child, $academicYear, $semester, $enrolledSubjectIds = null)
     {
         if (!$academicYear || !$semester) {
             return collect();
         }
 
-        // Get subjects the child is enrolled in
-        $enrolledSubjectIds = \App\Models\Enrollment::where('student_id', $child->id)
-            ->where('status', 'active')
+        $enrolledSubjectIds = $enrolledSubjectIds ?? \App\Models\Enrollment::where('student_id', $child->id)
+            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->pluck('subject_id');
+
+        if ($enrolledSubjectIds->isEmpty()) {
+            return collect();
+        }
 
         return \App\Models\Lesson::with(['subject'])
             ->whereIn('subject_id', $enrolledSubjectIds)
@@ -759,18 +812,20 @@ class HomeController extends Controller
     /**
      * Get child activities for parent dashboard
      */
-    private function getChildActivities($child, $academicYear, $semester)
+    private function getChildActivities($child, $academicYear, $semester, $enrolledSubjectIds = null)
     {
         if (!$academicYear || !$semester) {
             return collect();
         }
 
-        // Get subjects the child is enrolled in
-        $enrolledSubjectIds = \App\Models\Enrollment::where('student_id', $child->id)
-            ->where('status', 'active')
+        $enrolledSubjectIds = $enrolledSubjectIds ?? \App\Models\Enrollment::where('student_id', $child->id)
+            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->pluck('subject_id');
 
-        // Get activities that belong to lessons of enrolled subjects
+        if ($enrolledSubjectIds->isEmpty()) {
+            return collect();
+        }
+
         return \App\Models\Activity::with(['lesson.subject'])
             ->whereHas('lesson', function($query) use ($enrolledSubjectIds, $academicYear, $semester) {
                 $query->whereIn('subject_id', $enrolledSubjectIds)
@@ -785,18 +840,20 @@ class HomeController extends Controller
     /**
      * Get child submissions for parent dashboard
      */
-    private function getChildSubmissions($child, $academicYear, $semester)
+    private function getChildSubmissions($child, $academicYear, $semester, $enrolledSubjectIds = null)
     {
         if (!$academicYear || !$semester) {
             return collect();
         }
 
-        // Get subjects the child is enrolled in
-        $enrolledSubjectIds = \App\Models\Enrollment::where('student_id', $child->id)
-            ->where('status', 'active')
+        $enrolledSubjectIds = $enrolledSubjectIds ?? \App\Models\Enrollment::where('student_id', $child->id)
+            ->when(Schema::hasColumn('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
             ->pluck('subject_id');
 
-        // Get submissions that belong to activities of lessons of enrolled subjects
+        if ($enrolledSubjectIds->isEmpty()) {
+            return collect();
+        }
+
         return \App\Models\ActivitySubmission::with(['activity.lesson.subject'])
             ->where('student_id', $child->id)
             ->whereHas('activity.lesson', function($query) use ($enrolledSubjectIds, $academicYear, $semester) {
@@ -995,43 +1052,40 @@ class HomeController extends Controller
      */
     private function loadRegistrarData()
     {
-        // Get enrollment application statistics
-        $totalApplications = \App\Models\EnrollmentApplication::count();
-        $pendingApplications = \App\Models\EnrollmentApplication::where('status', 'pending')->count();
-        $approvedApplications = \App\Models\EnrollmentApplication::where('status', 'approved')->count();
-        $rejectedApplications = \App\Models\EnrollmentApplication::where('status', 'rejected')->count();
-        $underReviewApplications = \App\Models\EnrollmentApplication::where('status', 'under_review')->count();
-        $needsDocumentsApplications = \App\Models\EnrollmentApplication::where('status', 'needs_documents')->count();
-        
-        // Get recent applications
+        $applicationsByStatus = \App\Models\EnrollmentApplication::selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $pendingApplications = (int) ($applicationsByStatus['pending'] ?? 0);
+        $approvedApplications = (int) ($applicationsByStatus['approved'] ?? 0);
+        $rejectedApplications = (int) ($applicationsByStatus['rejected'] ?? 0);
+        $underReviewApplications = (int) ($applicationsByStatus['under_review'] ?? 0);
+        $needsDocumentsApplications = (int) ($applicationsByStatus['needs_documents'] ?? 0);
+        $totalApplications = (int) $applicationsByStatus->sum();
+
         $recentApplications = \App\Models\EnrollmentApplication::orderBy('created_at', 'desc')->take(5)->get();
-        
-        // Get applications by grade level
+
         $applicationsByGrade = \App\Models\EnrollmentApplication::selectRaw('grade_level_applying_for, COUNT(*) as count')
             ->groupBy('grade_level_applying_for')
             ->orderBy('count', 'desc')
             ->get();
-            
-        // Get applications by status
-        $applicationsByStatus = \App\Models\EnrollmentApplication::selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->get();
-            
-        // Get this month's applications
+
         $thisMonthApplications = \App\Models\EnrollmentApplication::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-            
-        // Get last month's applications for comparison
+
         $lastMonthApplications = \App\Models\EnrollmentApplication::whereMonth('created_at', now()->subMonth()->month)
             ->whereYear('created_at', now()->subMonth()->year)
             ->count();
-            
-        // Calculate growth percentage
-        $growthPercentage = $lastMonthApplications > 0 
+
+        $growthPercentage = $lastMonthApplications > 0
             ? round((($thisMonthApplications - $lastMonthApplications) / $lastMonthApplications) * 100, 1)
             : 0;
-            
+
+        $applicationsByStatus = $applicationsByStatus->map(function ($count, $status) {
+            return (object) ['status' => $status, 'count' => $count];
+        })->values();
+
         return compact(
             'totalApplications',
             'pendingApplications',
