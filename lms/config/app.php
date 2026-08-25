@@ -187,4 +187,8 @@ return [
         // 'Example' => App\Facades\Example::class,
     ])->toArray(),
 
+    'seed_admin' => filter_var(env('SEED_ADMIN', false), FILTER_VALIDATE_BOOLEAN),
+    'admin_email' => env('ADMIN_EMAIL', 'admin@panorama.edu'),
+    'admin_password' => env('ADMIN_PASSWORD'),
+
 ];
