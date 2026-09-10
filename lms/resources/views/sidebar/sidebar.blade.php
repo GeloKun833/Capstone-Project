@@ -8,10 +8,10 @@
 
                 {{-- ADMIN SIDEBAR --}}
                 @if (Session::get('role_name') === 'Admin')
-                    <li class="submenu">
+                    <li>
                         <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-users-cog"></i> <span>User Management</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -23,10 +23,9 @@
                             <li><a href="{{ route('enrollment.registrar.index') }}"><i class="fas fa-file-alt"></i> <span>Enrollment Applications</span></a></li>
                             <li><a href="{{ route('activity.log') }}"><i class="fas fa-history"></i> <span>Activity Log</span></a></li>
                             <li><a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a></li>
-                        </ul>   
+                        </ul>
                     </li>
-                    
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-graduation-cap"></i> <span>Academic Management</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -36,9 +35,9 @@
                             <li><a href="{{ route('semesters.index') }}"><i class="fas fa-calendar-week"></i> <span>Semesters</span></a></li>
                             <li><a href="{{ route('curriculum.index') }}"><i class="fas fa-book"></i> <span>Curriculum</span></a></li>
                             <li><a href="{{ route('promotions.index') }}"><i class="fas fa-user-graduate"></i> <span>Student Promotions</span></a></li>
-                        </ul>   
+                        </ul>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-calendar-alt"></i> <span>Calendar & Events</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -46,7 +45,7 @@
                             <li><a href="{{ route('calendar.create') }}"><i class="fas fa-plus"></i> <span>Create Event</span></a></li>
                         </ul>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-chart-line"></i> <span>Analytics & Settings</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -58,18 +57,18 @@
                             <li><a href="{{ route('admin.backup.index') }}"><i class="fas fa-database"></i> <span>Backup & Recovery</span></a></li>
                         </ul>
                     </li>
-                    
-                    <li class="submenu">
+
+                    <li>
                         <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
                 @endif
 
-                {{-- REGISTRAR-ONLY SIDEBAR (Limited Access) --}}
+                {{-- REGISTRAR-ONLY SIDEBAR --}}
                 @if (Session::get('role_name') === 'Registrar')
-                    <li class="submenu">
+                    <li>
                         <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-file-alt"></i> <span>Enrollment Management</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -78,16 +77,16 @@
                             <li><a href="{{ route('enrollment.registrar.archive') }}"><i class="fas fa-archive"></i> <span>Archive</span></a></li>
                             <li><a href="{{ route('enrollment.portal.index') }}" target="_blank"><i class="fas fa-external-link-alt"></i> <span>Portal View</span></a></li>
                             <li><a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a></li>
-                        </ul>   
+                        </ul>
                     </li>
                 @endif
 
                 {{-- TEACHER SIDEBAR --}}
                 @if (Session::get('role_name') === 'Teacher')
-                    <li class="submenu">
+                    <li>
                         <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-graduation-cap"></i> <span>Teaching & Learning</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -98,7 +97,7 @@
                             <li><a href="{{ route('teacher.subjects') }}"><i class="fas fa-book"></i> <span>My Subjects</span></a></li>
                         </ul>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-tasks"></i> <span>Assignments & Grading</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -110,15 +109,15 @@
                             <li><a href="{{ route('teacher.grading.grade-alerts') }}"><i class="fas fa-exclamation-triangle"></i> <span>Grade Alerts</span></a></li>
                         </ul>
                     </li>
-                    
-                    <li class="submenu">
+
+                    <li>
                         <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
 
-                    <li class="submenu">
+                    <li>
                         <a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-bullhorn"></i> <span>Class Management</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -127,7 +126,7 @@
                             <li><a href="{{ route('attendance.index') }}"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a></li>
                         </ul>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-calendar"></i> <span>Calendar & Events</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -135,7 +134,7 @@
                             <li><a href="{{ route('calendar.create') }}"><i class="fas fa-plus"></i> <span>Create Event</span></a></li>
                         </ul>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-comment"></i> <span>Message</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -146,7 +145,7 @@
                                 @foreach($parentUsers as $parent)
                                     <li>
                                         <a href="{{ route('chat.index') }}?receiver_id={{ $parent->id }}">
-                                            <i class="fas fa-user-friends"></i> 
+                                            <i class="fas fa-user-friends"></i>
                                             <span>{{ $parent->name }}</span>
                                         </a>
                                     </li>
@@ -160,10 +159,10 @@
 
                 {{-- STUDENT SIDEBAR --}}
                 @if (Session::get('role_name') === 'Student')
-                    <li class="submenu">
+                    <li>
                         <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-graduation-cap"></i> <span>My Classes</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -173,7 +172,7 @@
                             @foreach($enrollments as $enrollment)
                                 <li>
                                     <a href="{{ route('student.class.detail', $enrollment->id) }}">
-                                        <i class="fas fa-book"></i> 
+                                        <i class="fas fa-book"></i>
                                         <span>{{ $enrollment->subject->subject_name ?? ($enrollment->subject->subject_code ?? 'Subject ' . $enrollment->subject->id) }}</span>
                                     </a>
                                 </li>
@@ -183,7 +182,7 @@
                             @endif
                         </ul>
                     </li>
-                    
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-chart-line"></i> <span>Academic Records</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -205,15 +204,15 @@
                     @php
                         $children = $sidebarChildren ?? collect();
                     @endphp
-                    
-                    <li class="submenu">
+
+                    <li>
                         <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
 
-                    <li class="submenu">
+                    <li>
                         <a href="{{ route('parent.index') }}"><i class="fas fa-home"></i> <span>Parent Portal</span></a>
                     </li>
-                    
+
                     @if($children->count() > 0)
                     <li class="submenu">
                         <a href="#"><i class="fas fa-user-graduate"></i> <span>My Children</span> <span class="menu-arrow"></span></a>
@@ -228,10 +227,11 @@
                         </ul>
                     </li>
                     @endif
-                    
-                    <li class="submenu">
+
+                    <li>
                         <a href="{{ route('parent.schedule') }}"><i class="fas fa-calendar-alt"></i> <span>Class Schedule</span></a>
                     </li>
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-comments"></i> <span>Communication</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -246,91 +246,51 @@
     </div>
 </div>
 
+@push('scripts')
 <script>
-$(document).ready(function() {
-    console.log('🔧 Initializing custom sidebar menu handler...');
-    
-    // IMPORTANT: Remove ALL existing event handlers to prevent conflicts
-    $('#sidebar-menu a').off('click');
-    $('#sidebar-menu .submenu a').off('click');
-    $('#sidebar-menu .submenu ul li a').off('click');
-    
-    console.log('✅ Removed default event handlers');
-    
-    // Custom submenu handler - more robust and prevents flickering
-    $('#sidebar-menu .submenu > a').on('click', function(e) {
-        var $this = $(this);
-        var $parent = $this.parent('li.submenu');
-        var $submenu = $this.next('ul');
-        
-        console.log('🖱️ Clicked menu:', $this.find('span').first().text());
-        
-        // Check if this link has a submenu
-        if ($submenu.length > 0) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            
-            var isOpen = $submenu.is(':visible');
-            console.log('📊 Menu state - isOpen:', isOpen);
-            
-            // Close all other submenus at the same level
-            $parent.siblings('.submenu').each(function() {
-                var $sibling = $(this);
-                $sibling.removeClass('active');
-                $sibling.find('> a').removeClass('subdrop');
-                $sibling.find('> ul').stop(true, true).slideUp(250);
-            });
-            
-            // Toggle current submenu
-            if (isOpen) {
-                console.log('➖ Closing menu');
-                $parent.removeClass('active');
-                $this.removeClass('subdrop');
-                $submenu.stop(true, true).slideUp(250);
-            } else {
-                console.log('➕ Opening menu');
-                $parent.addClass('active');
-                $this.addClass('subdrop');
-                $submenu.stop(true, true).slideDown(250);
-            }
-            
-            return false;
-        } else {
-            console.log('🔗 No submenu, allowing navigation');
-            return true;
+(function ($) {
+    'use strict';
+
+    function normalizePath(url) {
+        if (!url || url === '#' || url.indexOf('javascript:') === 0) {
+            return '';
         }
-    });
-    
-    // Prevent child menu items from triggering parent handlers
-    $('#sidebar-menu .submenu ul li a').on('click', function(e) {
-        e.stopPropagation();
-        console.log('🔗 Child menu item clicked, navigating...');
-        // Allow normal navigation
-    });
-    
-    // Auto-expand and highlight current page menu
-    var currentUrl = window.location.pathname;
-    console.log('🔍 Current URL:', currentUrl);
-    
-    $('#sidebar-menu .submenu ul li a').each(function() {
-        var linkPath = $(this).attr('href');
-        if (linkPath) {
-            // Remove domain and query string for comparison
-            var cleanLinkPath = linkPath.split('?')[0];
-            if (currentUrl.indexOf(cleanLinkPath) !== -1 || cleanLinkPath.indexOf(currentUrl) !== -1) {
-                console.log('✨ Found current page menu item:', $(this).text().trim());
+        try {
+            var path = url.split('?')[0];
+            if (path.indexOf('http') === 0) {
+                path = new URL(path).pathname;
+            }
+            return path.replace(/\/+$/, '') || '/';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    $(function () {
+        var currentPath = normalizePath(window.location.pathname);
+
+        // Highlight current page + open its parent submenu
+        $('#sidebar-menu a').each(function () {
+            var href = $(this).attr('href');
+            var linkPath = normalizePath(href);
+            if (!linkPath) {
+                return;
+            }
+
+            if (currentPath === linkPath || (linkPath !== '/' && currentPath.indexOf(linkPath) === 0)) {
                 $(this).addClass('active');
-                var $parentSubmenu = $(this).closest('.submenu');
-                $parentSubmenu.addClass('active');
-                $parentSubmenu.find('> a').addClass('subdrop active');
-                $parentSubmenu.find('> ul').css('display', 'block');
+                var $submenu = $(this).closest('li.submenu');
+                if ($submenu.length) {
+                    $submenu.addClass('active');
+                    $submenu.children('a').addClass('subdrop active');
+                    $submenu.children('ul').show();
+                }
             }
-        }
+        });
     });
-    
-    console.log('✅ Sidebar menu initialized successfully');
-});
+})(jQuery);
 </script>
+@endpush
 
 <style>
 .sidebar-menu .divider {
@@ -340,9 +300,12 @@ $(document).ready(function() {
     border: none;
 }
 
-/* Enhanced submenu styling */
-.submenu ul {
-    display: none !important;
+.sidebar-menu > ul > li > a {
+    cursor: pointer;
+}
+
+.submenu > ul {
+    display: none;
     background: rgba(0, 0, 0, 0.1);
     border-left: 3px solid rgba(255, 255, 255, 0.2);
 }
@@ -363,10 +326,9 @@ $(document).ready(function() {
     transition: transform 0.2s ease;
 }
 
-/* When submenu is being shown, override display none */
 .submenu > a.subdrop + ul,
 .submenu.active > ul {
-    display: block !important;
+    display: block;
 }
 
 .submenu ul li a {
@@ -380,7 +342,8 @@ $(document).ready(function() {
     padding-left: 55px;
 }
 
-.submenu ul li a.active {
+.submenu ul li a.active,
+.sidebar-menu > ul > li > a.active {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
     font-weight: 500;
@@ -392,7 +355,6 @@ $(document).ready(function() {
     text-align: center;
 }
 
-/* Prevent layout shift during animation */
 .submenu {
     overflow: hidden;
 }

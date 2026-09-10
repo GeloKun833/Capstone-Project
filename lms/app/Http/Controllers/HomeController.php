@@ -277,7 +277,7 @@ class HomeController extends Controller
     private function loadAdminData()
     {
         try {
-            return Cache::remember('admin.dashboard.data', 180, function () {
+            return Cache::remember('admin.dashboard.data.v3', 180, function () {
                 return $this->queryAdminDashboardData();
             });
         } catch (\Throwable $e) {
@@ -300,13 +300,34 @@ class HomeController extends Controller
             'recentEnrollments' => collect(),
             'recentAnnouncements' => collect(),
             'topStudents' => collect(),
-            'attendanceStats' => (object) ['total_records' => 0, 'present_count' => 0, 'absent_count' => 0],
+            'attendanceStats' => (object) [
+                'total_records' => 0,
+                'present_count' => 0,
+                'absent_count' => 0,
+                'late_count' => 0,
+            ],
             'attendancePercentage' => 0,
+            'attendanceBreakdown' => [
+                'present' => 0,
+                'absent' => 0,
+                'late' => 0,
+            ],
             'maleStudents' => 0,
             'femaleStudents' => 0,
             'recentEvents' => collect(),
-            'performanceData' => ['months' => [], 'teacherData' => [], 'studentData' => []],
-            'studentsChartData' => ['labels' => [], 'boysData' => [], 'girlsData' => []],
+            'recentActivities' => [],
+            'performanceData' => [
+                'labels' => [],
+                'averages' => [],
+                'mode' => 'empty',
+                'title' => 'Academic Performance Overview',
+            ],
+            'studentsChartData' => [
+                'labels' => [],
+                'totals' => [],
+                'boysData' => [],
+                'girlsData' => [],
+            ],
         ];
     }
 
@@ -316,9 +337,13 @@ class HomeController extends Controller
             ? "(SELECT COUNT(*) FROM enrollments WHERE status = 'active')"
             : '(SELECT COUNT(*) FROM enrollments)';
 
+        $studentDeletedClause = SafeSchema::columnExists('students', 'deleted_at')
+            ? 'WHERE deleted_at IS NULL'
+            : '';
+
         $counts = DB::selectOne("
             SELECT
-                (SELECT COUNT(*) FROM students) AS total_students,
+                (SELECT COUNT(*) FROM students {$studentDeletedClause}) AS total_students,
                 (SELECT COUNT(*) FROM teachers) AS total_teachers,
                 (SELECT COUNT(*) FROM subjects) AS total_subjects,
                 (SELECT COUNT(*) FROM sections) AS total_sections,
@@ -326,10 +351,11 @@ class HomeController extends Controller
                 (SELECT COUNT(*) FROM attendances) AS total_attendance,
                 (SELECT SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) FROM attendances) AS present_count,
                 (SELECT SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) FROM attendances) AS absent_count,
+                (SELECT SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) FROM attendances) AS late_count,
                 (SELECT COUNT(*) FROM grades) AS total_grades,
                 (SELECT COUNT(*) FROM announcements) AS total_announcements,
-                (SELECT COUNT(*) FROM students WHERE gender IN ('Male', 'male')) AS male_students,
-                (SELECT COUNT(*) FROM students WHERE gender IN ('Female', 'female')) AS female_students
+                (SELECT COUNT(*) FROM students WHERE gender IN ('Male', 'male') ".($studentDeletedClause ? 'AND deleted_at IS NULL' : '').") AS male_students,
+                (SELECT COUNT(*) FROM students WHERE gender IN ('Female', 'female') ".($studentDeletedClause ? 'AND deleted_at IS NULL' : '').") AS female_students
         ");
 
         $totalStudents = (int) ($counts->total_students ?? 0);
@@ -342,16 +368,26 @@ class HomeController extends Controller
         $totalAnnouncements = (int) ($counts->total_announcements ?? 0);
         $maleStudents = (int) ($counts->male_students ?? 0);
         $femaleStudents = (int) ($counts->female_students ?? 0);
+        $presentCount = (int) ($counts->present_count ?? 0);
+        $absentCount = (int) ($counts->absent_count ?? 0);
+        $lateCount = (int) ($counts->late_count ?? 0);
 
         $attendanceStats = (object) [
             'total_records' => $totalAttendance,
-            'present_count' => (int) ($counts->present_count ?? 0),
-            'absent_count' => (int) ($counts->absent_count ?? 0),
+            'present_count' => $presentCount,
+            'absent_count' => $absentCount,
+            'late_count' => $lateCount,
         ];
 
         $attendancePercentage = $totalAttendance > 0
-            ? round(($attendanceStats->present_count / $totalAttendance) * 100, 1)
+            ? round(($presentCount / $totalAttendance) * 100, 1)
             : 0;
+
+        $attendanceBreakdown = [
+            'present' => $totalAttendance > 0 ? round(($presentCount / $totalAttendance) * 100, 1) : 0,
+            'absent' => $totalAttendance > 0 ? round(($absentCount / $totalAttendance) * 100, 1) : 0,
+            'late' => $totalAttendance > 0 ? round(($lateCount / $totalAttendance) * 100, 1) : 0,
+        ];
 
         $recentEnrollmentQuery = \App\Models\Enrollment::with(['student', 'subject'])
             ->orderByDesc('created_at')
@@ -377,8 +413,9 @@ class HomeController extends Controller
             ->take(5)
             ->get();
 
-        $performanceData = $this->getStudentPerformanceChartData();
+        $performanceData = $this->getAcademicPerformanceOverview();
         $studentsChartData = $this->getStudentsByGradeLevelChartData();
+        $recentActivities = $this->buildAdminRecentActivities($recentEnrollments, $recentAnnouncements);
 
         return compact(
             'totalStudents',
@@ -394,56 +431,104 @@ class HomeController extends Controller
             'topStudents',
             'attendanceStats',
             'attendancePercentage',
+            'attendanceBreakdown',
             'maleStudents',
             'femaleStudents',
             'recentEvents',
+            'recentActivities',
             'performanceData',
             'studentsChartData'
         );
     }
-    
+
     /**
-     * Get student performance chart data (Teacher vs Student average grades)
-     * Single grouped query instead of 6 monthly queries.
+     * Real grade averages only — no fabricated "expected" series.
+     * Prefer year level; fall back to subject when year-level averages are unavailable.
      */
-    private function getStudentPerformanceChartData()
+    private function getAcademicPerformanceOverview(): array
     {
+        $empty = [
+            'labels' => [],
+            'averages' => [],
+            'mode' => 'empty',
+            'title' => 'Academic Performance Overview',
+        ];
+
         try {
-            $start = now()->subMonths(5)->startOfMonth();
-            $rows = \App\Models\Grade::query()
-                ->where('created_at', '>=', $start)
-                ->selectRaw('YEAR(created_at) as y, MONTH(created_at) as m, AVG(percentage) as avg_pct')
-                ->groupBy('y', 'm')
+            $deletedClause = SafeSchema::columnExists('students', 'deleted_at')
+                ? 'AND students.deleted_at IS NULL'
+                : '';
+
+            $rows = DB::table('grades')
+                ->join('students', 'grades.student_id', '=', 'students.id')
+                ->whereNotNull('grades.percentage')
+                ->whereRaw('1=1 '.$deletedClause)
+                ->selectRaw('students.year_level as label, ROUND(AVG(grades.percentage), 1) as avg_pct, COUNT(*) as grade_count')
+                ->groupBy('students.year_level')
+                ->havingRaw('COUNT(*) > 0')
                 ->get()
-                ->keyBy(fn ($r) => sprintf('%04d-%02d', $r->y, $r->m));
+                ->filter(fn ($row) => filled($row->label));
 
-            $months = [];
-            $teacherData = [];
-            $studentData = [];
+            $gradeOrder = [
+                'Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4',
+                'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
+            ];
 
-            for ($i = 5; $i >= 0; $i--) {
-                $month = now()->subMonths($i);
-                $key = $month->format('Y-m');
-                $months[] = $month->format('M Y');
-                $avg = isset($rows[$key]) ? round((float) $rows[$key]->avg_pct, 1) : 0;
-                $studentData[] = $avg;
-                $teacherData[] = $avg > 0 ? min(round($avg * 1.1, 1), 100) : 85;
+            if ($rows->isNotEmpty()) {
+                $map = $rows->keyBy('label');
+                $labels = [];
+                $averages = [];
+
+                foreach ($gradeOrder as $level) {
+                    if (isset($map[$level])) {
+                        $labels[] = $level;
+                        $averages[] = (float) $map[$level]->avg_pct;
+                    }
+                }
+
+                foreach ($map as $label => $row) {
+                    if (! in_array($label, $labels, true)) {
+                        $labels[] = $label;
+                        $averages[] = (float) $row->avg_pct;
+                    }
+                }
+
+                return [
+                    'labels' => $labels,
+                    'averages' => $averages,
+                    'mode' => 'year_level',
+                    'title' => 'Average Grade by Level',
+                ];
             }
 
-            return compact('months', 'teacherData', 'studentData');
-        } catch (\Exception $e) {
-            \Log::error('Chart data error: ' . $e->getMessage());
+            $bySubject = DB::table('grades')
+                ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
+                ->whereNotNull('grades.percentage')
+                ->selectRaw('subjects.subject_name as label, ROUND(AVG(grades.percentage), 1) as avg_pct, COUNT(*) as grade_count')
+                ->groupBy('subjects.subject_name')
+                ->havingRaw('COUNT(*) > 0')
+                ->orderByDesc('avg_pct')
+                ->limit(10)
+                ->get();
+
+            if ($bySubject->isEmpty()) {
+                return $empty;
+            }
+
             return [
-                'months' => [],
-                'teacherData' => [],
-                'studentData' => [],
+                'labels' => $bySubject->pluck('label')->values()->all(),
+                'averages' => $bySubject->pluck('avg_pct')->map(fn ($v) => (float) $v)->values()->all(),
+                'mode' => 'subject',
+                'title' => 'Average Grade by Subject',
             ];
+        } catch (\Exception $e) {
+            Log::error('Academic performance chart error: '.$e->getMessage());
+            return $empty;
         }
     }
-    
+
     /**
-     * Get students by grade level chart data (Boys vs Girls)
-     * One grouped query instead of 24 count queries.
+     * Student counts by grade level (totals + gender when available).
      */
     private function getStudentsByGradeLevelChartData()
     {
@@ -468,28 +553,92 @@ class HomeController extends Controller
             $labels = [];
             $boysData = [];
             $girlsData = [];
+            $totals = [];
 
             foreach ($gradeLevels as $gradeLevel) {
                 $boys = $map[$gradeLevel]['male'] ?? 0;
                 $girls = $map[$gradeLevel]['female'] ?? 0;
-                if ($boys > 0 || $girls > 0) {
+                $total = $boys + $girls;
+                if ($total > 0) {
                     $labels[] = $gradeLevel;
                     $boysData[] = $boys;
                     $girlsData[] = $girls;
+                    $totals[] = $total;
                 }
             }
 
-            return compact('labels', 'boysData', 'girlsData');
+            return compact('labels', 'boysData', 'girlsData', 'totals');
         } catch (\Exception $e) {
-            \Log::error('Student chart data error: ' . $e->getMessage());
+            Log::error('Student chart data error: '.$e->getMessage());
             return [
                 'labels' => [],
                 'boysData' => [],
                 'girlsData' => [],
+                'totals' => [],
             ];
         }
     }
 
+    /**
+     * Build a lightweight activity feed from activity_log, with enrollment/announcement fallback.
+     */
+    private function buildAdminRecentActivities($recentEnrollments, $recentAnnouncements): array
+    {
+        $items = collect();
+
+        try {
+            if (SafeSchema::tableExists('activity_log')) {
+                $logs = \Spatie\Activitylog\Models\Activity::query()
+                    ->with('causer')
+                    ->orderByDesc('created_at')
+                    ->take(8)
+                    ->get();
+
+                foreach ($logs as $log) {
+                    $items->push([
+                        'title' => ucfirst(trim((string) ($log->description ?: $log->event ?: 'System activity'))),
+                        'meta' => optional($log->causer)->name ?? ($log->log_name ?: 'System'),
+                        'at' => optional($log->created_at)?->toIso8601String(),
+                        'icon' => 'fa-history',
+                        'tone' => 'neutral',
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fall through to enrollment/announcement feed
+        }
+
+        if ($items->isEmpty()) {
+            foreach ($recentEnrollments as $enrollment) {
+                $studentName = trim(($enrollment->student->first_name ?? '').' '.($enrollment->student->last_name ?? ''));
+                $items->push([
+                    'title' => 'New student enrollment',
+                    'meta' => trim(($studentName ?: 'Student').' · '.($enrollment->subject->subject_name ?? 'Subject')),
+                    'at' => optional($enrollment->created_at)?->toIso8601String(),
+                    'icon' => 'fa-user-graduate',
+                    'tone' => 'success',
+                ]);
+            }
+
+            foreach ($recentAnnouncements as $announcement) {
+                $items->push([
+                    'title' => 'Announcement posted',
+                    'meta' => $announcement->title ?? (optional($announcement->creator)->name ?? 'Administrator'),
+                    'at' => optional($announcement->created_at)?->toIso8601String(),
+                    'icon' => 'fa-bullhorn',
+                    'tone' => 'info',
+                ]);
+            }
+        }
+
+        return $items
+            ->filter(fn ($item) => ! empty($item['at']))
+            ->sortByDesc('at')
+            ->take(8)
+            ->values()
+            ->all();
+    }
+    
     /**
      * Load teacher dashboard data
      */

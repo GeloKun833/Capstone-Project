@@ -16,6 +16,7 @@ class OptimizePerformance extends Command
     {
         if ($this->option('clear')) {
             Cache::forget('admin.dashboard.data');
+            Cache::forget('admin.dashboard.data.v3');
             Artisan::call('optimize:clear');
             $this->info(Artisan::output());
             $this->info('Performance caches cleared.');
@@ -23,6 +24,7 @@ class OptimizePerformance extends Command
         }
 
         Cache::forget('admin.dashboard.data');
+        Cache::forget('admin.dashboard.data.v3');
         Artisan::call('config:clear');
         Artisan::call('event:cache');
 

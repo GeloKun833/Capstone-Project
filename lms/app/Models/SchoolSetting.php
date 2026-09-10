@@ -42,9 +42,14 @@ class SchoolSetting extends Model
         
         if (!$settings) {
             $settings = self::create([
-                'website_name' => 'Panorama Montessori School',
-                'email' => 'info@panoramamontessori.edu',
-                'phone' => '+1234567890',
+                'website_name' => 'Panorama Montessori School Inc Sta Rosa Campus',
+                'email' => 'panoramamontessorischool1985@gmail.com',
+                'phone' => '(049302) 9290',
+                'facebook_url' => 'https://www.facebook.com/pms.starosacampus',
+                'address_line_1' => 'Panorama Ville, Brgy. Dita',
+                'city' => 'City of Santa Rosa',
+                'state_province' => 'Laguna',
+                'country' => 'Philippines',
             ]);
         }
         

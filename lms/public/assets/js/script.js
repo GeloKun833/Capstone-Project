@@ -10,17 +10,25 @@
     function init() {
         var $this = Sidemenu;
         $('#sidebar-menu a').on('click', function(e) {
-            if ($(this).parent().hasClass('submenu')) {
-                e.preventDefault();
+            var $link = $(this);
+            var $submenu = $link.next('ul');
+            var isSubmenuToggle = $link.parent().hasClass('submenu') && $submenu.length > 0;
+
+            // Only block navigation when this link actually opens a nested submenu.
+            // Leaf links (Dashboard, Reports, etc.) must navigate normally.
+            if (!isSubmenuToggle) {
+                return;
             }
-            if (!$(this).hasClass('subdrop')) {
-                $('ul', $(this).parents('ul:first')).slideUp(350);
-                $('a', $(this).parents('ul:first')).removeClass('subdrop');
-                $(this).next('ul').slideDown(350);
-                $(this).addClass('subdrop');
-            } else if ($(this).hasClass('subdrop')) {
-                $(this).removeClass('subdrop');
-                $(this).next('ul').slideUp(350);
+
+            e.preventDefault();
+            if (!$link.hasClass('subdrop')) {
+                $('ul', $link.parents('ul:first')).slideUp(350);
+                $('a', $link.parents('ul:first')).removeClass('subdrop');
+                $submenu.slideDown(350);
+                $link.addClass('subdrop');
+            } else {
+                $link.removeClass('subdrop');
+                $submenu.slideUp(350);
             }
         });
         $('#sidebar-menu ul li.submenu a.active').parents('li:last').children('a:first').addClass('active').trigger('click');
