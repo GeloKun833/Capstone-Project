@@ -6,6 +6,8 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -13,9 +15,9 @@ use Spatie\Permission\Traits\HasRoles;
 use App\Models\Message;
 use App\Models\ClassPostComment;
 
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordContract
 {
-    use HasApiTokens, HasFactory, Notifiable, LogsActivity, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, LogsActivity, HasRoles, CanResetPassword;
 
     /**
      * The attributes that are mass assignable.
@@ -26,6 +28,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'user_id',
         'name',
         'email',
+        'date_of_birth',
         'join_date',
         'phone_number',
         'status',

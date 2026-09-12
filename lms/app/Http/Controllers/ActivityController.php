@@ -168,6 +168,26 @@ class ActivityController extends Controller
             }
         }
 
+        $existingCount = $activity->rubrics()->count();
+        $remaining = max(0, 100 - (int) $activity->rubrics()->sum('weight'));
+
+        // First / only category → always 100%
+        if ($existingCount === 0) {
+            $request->merge(['weight' => 100]);
+        } elseif ($remaining <= 0) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'Rubric weights already total 100%. Edit or delete an existing category before adding another.'
+            );
+        } else {
+            // Default leftover weight if teacher left it blank/invalid for multi-category
+            $weight = (int) $request->input('weight', $remaining);
+            if ($weight < 1 || $weight > $remaining) {
+                $weight = $remaining;
+            }
+            $request->merge(['weight' => $weight]);
+        }
+
         $request->validate([
             'category_name' => 'required|string|max:255',
             'description' => 'required|string|max:1000',
@@ -175,16 +195,17 @@ class ActivityController extends Controller
             'weight' => 'required|integer|min:1|max:100',
         ]);
 
-        // Check if total weight exceeds 100%
-        $currentTotalWeight = $activity->rubrics()->sum('weight');
-        if (($currentTotalWeight + $request->weight) > 100) {
-            return redirect()->back()->with('error', 'Total weight cannot exceed 100%. Current total: ' . $currentTotalWeight . '%');
-        }
-
-        $activity->rubrics()->create($request->all());
+        $activity->rubrics()->create($request->only([
+            'category_name',
+            'description',
+            'max_score',
+            'weight',
+        ]));
 
         return redirect()->route('lessons.activities.rubric', [$lesson, $activity])
-            ->with('success', 'Rubric category added successfully!');
+            ->with('success', $existingCount === 0
+                ? 'Rubric category added at 100% weight (single category).'
+                : 'Rubric category added successfully!');
     }
 
     public function editRubric(Lesson $lesson, Activity $activity, ActivityRubric $rubric)
@@ -210,6 +231,21 @@ class ActivityController extends Controller
             }
         }
 
+        $otherCount = $activity->rubrics()->where('id', '!=', $rubric->id)->count();
+        $otherWeight = (int) $activity->rubrics()->where('id', '!=', $rubric->id)->sum('weight');
+        $remaining = max(0, 100 - $otherWeight);
+
+        // Sole category → always 100%
+        if ($otherCount === 0) {
+            $request->merge(['weight' => 100]);
+        } else {
+            $weight = (int) $request->input('weight', $remaining);
+            if ($weight < 1 || $weight > $remaining) {
+                $weight = $remaining > 0 ? $remaining : 1;
+            }
+            $request->merge(['weight' => $weight]);
+        }
+
         $request->validate([
             'category_name' => 'required|string|max:255',
             'description' => 'required|string|max:1000',
@@ -217,13 +253,12 @@ class ActivityController extends Controller
             'weight' => 'required|integer|min:1|max:100',
         ]);
 
-        // Check if total weight exceeds 100% (excluding current rubric)
-        $currentTotalWeight = $activity->rubrics()->where('id', '!=', $rubric->id)->sum('weight');
-        if (($currentTotalWeight + $request->weight) > 100) {
-            return redirect()->back()->with('error', 'Total weight cannot exceed 100%. Current total: ' . $currentTotalWeight . '%');
-        }
-
-        $rubric->update($request->all());
+        $rubric->update($request->only([
+            'category_name',
+            'description',
+            'max_score',
+            'weight',
+        ]));
 
         return redirect()->route('lessons.activities.rubric', [$lesson, $activity])
             ->with('success', 'Rubric category updated successfully!');
@@ -246,6 +281,12 @@ class ActivityController extends Controller
 
         $rubric->delete();
 
+        // If only one category remains, force it to 100%
+        $remaining = $activity->rubrics()->get();
+        if ($remaining->count() === 1) {
+            $remaining->first()->update(['weight' => 100]);
+        }
+
         return redirect()->route('lessons.activities.rubric', [$lesson, $activity])
             ->with('success', 'Rubric category deleted successfully!');
     }
@@ -263,6 +304,8 @@ class ActivityController extends Controller
         }
 
         $existingSubmission = $activity->submissions()->where('student_id', $student->id)->first();
+
+        $lesson->loadMissing(['subject', 'section']);
 
         return view('activities.student-show', compact('lesson', 'activity', 'existingSubmission'));
     }

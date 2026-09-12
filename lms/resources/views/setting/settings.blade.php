@@ -24,6 +24,11 @@
                             <i class="fas fa-cog me-2"></i>General Settings
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('setting.access-limits') }}">
+                            <i class="fas fa-user-lock me-2"></i>Access Control
+                        </a>
+                    </li>
                 </ul>
             </div>
 

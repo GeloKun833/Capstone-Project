@@ -8,14 +8,9 @@
                 <div class="row align-items-center">
                     <div class="col">
                         <h3 class="page-title">Grade Submission</h3>
-                        <ul class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('lessons.index') }}">Lesson Planner</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('lessons.show', $lesson) }}">{{ $lesson->title }}</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('lessons.activities.index', $lesson) }}">Activities</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('lessons.activities.submissions', [$lesson, $activity]) }}">Submissions</a></li>
-                            <li class="breadcrumb-item active">Grade: {{ $submission->student->first_name }} {{ $submission->student->last_name }}</li>
-                        </ul>
+                        <p class="text-muted mb-0">
+                            {{ $activity->title }} · {{ $submission->student->first_name }} {{ $submission->student->last_name }}
+                        </p>
                     </div>
                     <div class="col-auto text-end float-end ms-auto download-grp">
                         <a href="{{ route('lessons.activities.submissions', [$lesson, $activity]) }}" class="btn btn-outline-primary me-2">
@@ -73,14 +68,13 @@
                 </div>
             </div>
 
-            <!-- Rubric Grading Form -->
+            <!-- Grading Form -->
             <div class="row">
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title">Rubric Grading</h5>
-                            
                             @if($rubrics->count() > 0)
+                                <h5 class="card-title">Rubric Grading</h5>
                                 <form id="gradingForm" action="{{ route('lessons.activities.store-grade', [$lesson, $activity, $submission]) }}" method="POST">
                                     @csrf
                                     
@@ -138,7 +132,6 @@
                                         </table>
                                     </div>
 
-                                    <!-- Grade Summary -->
                                     <div class="row mt-4">
                                         <div class="col-md-6">
                                             <div class="card bg-light">
@@ -165,18 +158,68 @@
                                         </div>
                                     </div>
 
-                                    <!-- Hidden fields for calculated values -->
                                     <input type="hidden" name="total_score" id="hiddenTotalScore" value="0">
                                     <input type="hidden" name="max_possible_score" id="hiddenMaxPossible" value="0">
                                     <input type="hidden" name="percentage" id="hiddenPercentage" value="0">
                                     <input type="hidden" name="letter_grade" id="hiddenLetterGrade" value="">
                                 </form>
                             @else
-                                <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                    No rubric categories have been set up for this activity. 
-                                    <a href="{{ route('lessons.activities.rubric', [$lesson, $activity]) }}" class="alert-link">Set up rubrics first</a>.
-                                </div>
+                                <h5 class="card-title">Quick Grade</h5>
+                                <p class="text-muted">Enter the score directly. Rubric setup is optional.</p>
+
+                                <form id="gradingForm" action="{{ route('lessons.activities.store-grade', [$lesson, $activity, $submission]) }}" method="POST">
+                                    @csrf
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group mb-3">
+                                                <label class="form-label" for="total_score">Score <span class="text-danger">*</span></label>
+                                                <input type="number"
+                                                       step="0.01"
+                                                       min="0"
+                                                       class="form-control @error('total_score') is-invalid @enderror"
+                                                       id="total_score"
+                                                       name="total_score"
+                                                       value="{{ old('total_score', $submission->total_score ?? '') }}"
+                                                       required
+                                                       oninput="updateSimpleGrade()">
+                                                @error('total_score')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group mb-3">
+                                                <label class="form-label" for="max_possible_score">Max Score <span class="text-danger">*</span></label>
+                                                <input type="number"
+                                                       step="0.01"
+                                                       min="1"
+                                                       class="form-control @error('max_possible_score') is-invalid @enderror"
+                                                       id="max_possible_score"
+                                                       name="max_possible_score"
+                                                       value="{{ old('max_possible_score', $submission->max_possible_score ?? 100) }}"
+                                                       required
+                                                       oninput="updateSimpleGrade()">
+                                                @error('max_possible_score')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card bg-light h-100">
+                                                <div class="card-body">
+                                                    <p class="mb-1"><strong>Percentage:</strong> <span id="simplePercentage">0%</span></p>
+                                                    <p class="mb-0"><strong>Letter Grade:</strong> <span id="simpleLetterGrade" class="badge bg-secondary">-</span></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group mt-3">
+                                        <label class="form-label" for="feedback">Teacher Feedback (optional)</label>
+                                        <textarea class="form-control" id="feedback" name="feedback" rows="4" placeholder="Provide constructive feedback to the student...">{{ old('feedback', $submission->feedback) }}</textarea>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            Want detailed criteria later?
+                                            <a href="{{ route('lessons.activities.rubric', [$lesson, $activity]) }}">Set up rubrics</a> (optional).
+                                        </small>
+                                    </div>
+                                </form>
                             @endif
                         </div>
                     </div>
@@ -184,7 +227,7 @@
             </div>
 
             <!-- Grade History (if previously graded) -->
-            @if($submission->status === 'graded')
+            @if($submission->status === 'graded' && $submission->max_possible_score)
                 <div class="row mt-4">
                     <div class="col-12">
                         <div class="card">
@@ -195,13 +238,13 @@
                                         <p><strong>Previous Score:</strong> {{ $submission->total_score }}/{{ $submission->max_possible_score }}</p>
                                     </div>
                                     <div class="col-md-3">
-                                        <p><strong>Previous Percentage:</strong> {{ number_format(($submission->total_score / $submission->max_possible_score) * 100, 1) }}%</p>
+                                        <p><strong>Previous Percentage:</strong> {{ number_format($submission->percentage ?? 0, 1) }}%</p>
                                     </div>
                                     <div class="col-md-3">
                                         <p><strong>Previous Grade:</strong> <span class="badge bg-{{ $submission->letter_grade_color }}">{{ $submission->letter_grade }}</span></p>
                                     </div>
                                     <div class="col-md-3">
-                                        <p><strong>Graded On:</strong> {{ $submission->graded_at->format('M d, Y H:i') }}</p>
+                                        <p><strong>Graded On:</strong> {{ optional($submission->graded_at)->format('M d, Y H:i') ?? 'N/A' }}</p>
                                     </div>
                                 </div>
                                 @if($submission->feedback)
@@ -262,50 +305,82 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
-    calculateTotal();
-    
-    // Validate score inputs
-    $('.score-input').on('input', function() {
-        let value = parseInt($(this).val());
-        let max = parseInt($(this).data('max'));
-        
-        if (value > max) {
-            $(this).val(max);
-        } else if (value < 0) {
-            $(this).val(0);
-        }
-        
+    if ($('.score-input').length) {
         calculateTotal();
-    });
+        $('.score-input').on('input', function() {
+            let value = parseFloat($(this).val());
+            let max = parseFloat($(this).data('max'));
+            if (value > max) {
+                $(this).val(max);
+            } else if (value < 0) {
+                $(this).val(0);
+            }
+            calculateTotal();
+        });
+    } else {
+        updateSimpleGrade();
+    }
 });
+
+function updateSimpleGrade() {
+    let score = parseFloat($('#total_score').val()) || 0;
+    let max = parseFloat($('#max_possible_score').val()) || 0;
+    let percentage = max > 0 ? (score / max) * 100 : 0;
+    let letterGrade = getLetterGrade(percentage);
+
+    $('#simplePercentage').text(percentage.toFixed(1) + '%');
+    $('#simpleLetterGrade').text(letterGrade).removeClass().addClass('badge bg-' + getLetterGradeColor(letterGrade));
+}
 
 function calculateTotal() {
     let totalScore = 0;
     let totalWeight = 0;
     let maxPossible = 0;
-    
+    let weightedPct = 0;
+
     $('.score-input').each(function() {
-        let score = parseInt($(this).val()) || 0;
-        let max = parseInt($(this).data('max'));
-        let weight = parseInt($(this).data('weight'));
-        
+        let score = parseFloat($(this).val()) || 0;
+        let max = parseFloat($(this).data('max')) || 0;
+        let weight = parseFloat($(this).data('weight')) || 0;
+
         totalScore += score;
         totalWeight += weight;
         maxPossible += max;
+
+        if (max > 0 && weight > 0) {
+            weightedPct += (score / max) * weight;
+        }
     });
-    
-    let percentage = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
+
+    // If weights don't total 100, treat them as relative proportions
+    let percentage;
+    if (totalWeight > 0 && totalWeight !== 100) {
+        percentage = (weightedPct / totalWeight) * 100;
+    } else if (totalWeight === 100) {
+        percentage = weightedPct;
+    } else {
+        percentage = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
+    }
+
     let letterGrade = getLetterGrade(percentage);
-    
-    // Update display
+
     $('#totalScore').text(totalScore);
     $('#totalWeight').text(totalWeight);
     $('#rawScore').text(totalScore);
     $('#maxPossible').text(maxPossible);
     $('#percentage').text(percentage.toFixed(1) + '%');
     $('#letterGrade').text(letterGrade).removeClass().addClass('badge bg-' + getLetterGradeColor(letterGrade));
-    
-    // Update hidden fields
+
+    let weightNote = totalWeight === 100
+        ? ''
+        : (totalWeight > 0
+            ? ' <small class="text-muted">(normalized from ' + totalWeight + '%)</small>'
+            : '');
+    $('#totalWeight').closest('strong').find('small').remove();
+    if (weightNote) {
+        $('#totalWeight').parent().append(weightNote);
+    }
+
     $('#hiddenTotalScore').val(totalScore);
     $('#hiddenMaxPossible').val(maxPossible);
     $('#hiddenPercentage').val(percentage.toFixed(1));
@@ -338,21 +413,38 @@ function getLetterGradeColor(letterGrade) {
 }
 
 function saveGrade() {
-    // Validate form
-    let totalWeight = parseInt($('#totalWeight').text());
-    if (totalWeight !== 100) {
-        alert('Total weight must equal 100%. Current total: ' + totalWeight + '%');
-        return;
+    if ($('.score-input').length) {
+        let hasScore = false;
+        $('.score-input').each(function() {
+            if ($(this).val() !== '' && $(this).val() !== null) {
+                hasScore = true;
+            }
+        });
+        if (!hasScore) {
+            alert('Please enter at least one rubric score.');
+            return;
+        }
+        calculateTotal();
+    } else {
+        let score = parseFloat($('#total_score').val());
+        let max = parseFloat($('#max_possible_score').val());
+        if (isNaN(score) || isNaN(max) || max < 1) {
+            alert('Please enter a valid score and max score.');
+            return;
+        }
+        if (score > max) {
+            alert('Score cannot be higher than the maximum score.');
+            return;
+        }
     }
-    
-    let feedback = $('#feedback').val().trim();
+
+    let feedback = ($('#feedback').val() || '').trim();
     if (!feedback) {
         if (!confirm('No feedback provided. Continue anyway?')) {
             return;
         }
     }
-    
-    // Submit form
+
     $('#gradingForm').submit();
 }
 </script>

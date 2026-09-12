@@ -178,11 +178,6 @@
                                                         <a href="{{ route('lessons.activities.edit', [$lesson, $activity]) }}" class="btn btn-sm bg-danger-light" title="Edit">
                                                             <i class="far fa-edit"></i>
                                                         </a>
-                                                        @if($activity->allows_submission)
-                                                            <a href="{{ route('lessons.activities.rubric', [$lesson, $activity]) }}" class="btn btn-sm bg-danger-light" title="Rubric">
-                                                                <i class="fas fa-list-check"></i>
-                                                            </a>
-                                                        @endif
                                                         <form action="{{ route('lessons.activities.destroy', [$lesson, $activity]) }}" method="POST" style="display:inline-block;">
                                                             @csrf
                                                             @method('DELETE')

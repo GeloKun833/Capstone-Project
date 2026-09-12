@@ -524,12 +524,14 @@
                                     </div>
                                     <div class="meta-item">
                                         <i class="fas fa-id-card"></i>
-                                        <span>Student #{{ $student->admission_id ?? 'N/A' }}</span>
+                                        <span>Student #{{ $studentNumber }}</span>
                                     </div>
-                                    <div class="meta-item">
-                                        <i class="fas fa-users"></i>
-                                        <span>{{ $student->section ?? '4IT-B' }}</span>
-                                    </div>
+                                    @if(!empty($sectionLabel))
+                                        <div class="meta-item">
+                                            <i class="fas fa-users"></i>
+                                            <span>{{ $sectionLabel }}</span>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -585,6 +587,18 @@
             <div class="modern-tabs">
                 <div class="tabs-container">
                     <div class="tabs-wrapper">
+                        <button class="tab-button {{ $activeTab === 'lessons' ? 'active' : '' }}" 
+                                data-tab="lessons"
+                                onclick="switchTab('lessons')">
+                            <div class="tab-icon">
+                                <i class="fas fa-book-open"></i>
+                            </div>
+                            <div class="tab-text">
+                                <span class="tab-title">Lessons</span>
+                                <span class="tab-subtitle">Class materials</span>
+                            </div>
+                        </button>
+
                         <button class="tab-button {{ $activeTab === 'assignments' ? 'active' : '' }}" 
                                 data-tab="assignments"
                                 onclick="switchTab('assignments')">
@@ -663,6 +677,70 @@
 
             <!-- Modern Tab Content -->
             <div class="tab-content-container">
+                <!-- Lessons Tab -->
+                <div class="tab-panel {{ $activeTab === 'lessons' ? 'active' : '' }}"
+                     id="lessons-panel"
+                     style="display: {{ $activeTab === 'lessons' ? 'block' : 'none' }}">
+                    @if(($onlineClasses ?? collect())->count() > 0)
+                        <div class="assignments-list">
+                            @foreach($onlineClasses as $lesson)
+                                <div class="assignment-card">
+                                    <div class="assignment-header">
+                                        <div class="assignment-title">
+                                            <h5>{{ $lesson->title }}</h5>
+                                            <span class="assignment-code">Lesson #{{ $lesson->id }}</span>
+                                        </div>
+                                        <div class="assignment-status">
+                                            <span class="badge {{ $lesson->status === 'completed' ? 'bg-info' : 'bg-success' }}">
+                                                {{ ucfirst($lesson->status) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="assignment-body">
+                                        <p class="mb-2">{{ \Illuminate\Support\Str::limit($lesson->description, 160) }}</p>
+                                        <div class="assignment-details">
+                                            <div class="detail-item">
+                                                <i class="fas fa-user text-primary"></i>
+                                                <span>{{ optional($lesson->teacher)->full_name ?? optional($lesson->teacher)->name ?? 'Teacher' }}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <i class="fas fa-users text-info"></i>
+                                                <span>{{ optional($lesson->section)->name ?? 'Section' }}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <i class="fas fa-calendar text-warning"></i>
+                                                <span>{{ optional($lesson->lesson_date)->format('M d, Y') ?? 'N/A' }}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <i class="fas fa-tasks text-success"></i>
+                                                <span>{{ $lesson->activities->count() }} activities</span>
+                                            </div>
+                                        </div>
+                                        <div class="assignment-actions mt-3">
+                                            <a href="{{ route('student.lessons.show', [$enrollment->id, $lesson->id]) }}" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-eye"></i> View Lesson
+                                            </a>
+                                            @if($lesson->file_url)
+                                                <a href="{{ $lesson->file_url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                                    <i class="fas fa-download"></i> Materials
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="empty-state">
+                            <div class="empty-icon">
+                                <i class="fas fa-book-open"></i>
+                            </div>
+                            <h4>No Lessons Found</h4>
+                            <p>There are no published lessons for this class yet.</p>
+                        </div>
+                    @endif
+                </div>
+
                 <!-- Assignments Tab -->
                 <div class="tab-panel {{ $activeTab === 'assignments' ? 'active' : '' }}" 
                      id="assignments-panel"

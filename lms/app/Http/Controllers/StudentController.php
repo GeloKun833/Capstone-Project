@@ -323,68 +323,163 @@ class StudentController extends Controller
         if (!$enrollment) {
             return redirect()->back()->with('error', 'Class not found or access denied.');
         }
-        
-        // Get assignments for this specific subject
-        $assignments = \App\Models\Assignment::with(['teacher', 'subject', 'section'])
+
+        // Display identifiers (never use fake fallbacks like "4IT-B")
+        $studentNumber = $student->admission_id
+            ?: ($student->roll ?: ('STU' . $student->id));
+
+        $sectionQuery = $student->sections()->orderBy('sections.name');
+        if ($enrollment->academic_year_id) {
+            $sectionQuery->wherePivot('academic_year_id', $enrollment->academic_year_id);
+        }
+        if ($enrollment->semester_id) {
+            $sectionQuery->wherePivot('semester_id', $enrollment->semester_id);
+        }
+        $classSection = $sectionQuery->first()
+            ?: $student->sections()->orderBy('sections.name')->first();
+
+        // Prefer assigned section name; otherwise subject grade/class label
+        $sectionLabel = $classSection
+            ? trim($classSection->name . ($classSection->grade_level ? ' (' . $classSection->grade_level . ')' : ''))
+            : ($enrollment->subject->class ?? null);
+
+        // Get assignments for this specific subject (published)
+        $assignmentsQuery = \App\Models\Assignment::with(['teacher', 'subject', 'section'])
             ->where('subject_id', $enrollment->subject_id)
             ->where('status', 'published')
-            ->where('is_active', true)
-            ->orderBy('due_date', 'asc')
-            ->get();
-        
-        // Get quizzes/exams (using Activity model) for this subject
-        $quizzes = \App\Models\Activity::with(['lesson.teacher', 'lesson.subject', 'lesson.section'])
-            ->whereHas('lesson', function($query) use ($enrollment) {
-                $query->where('subject_id', $enrollment->subject_id)
-                      ->where('is_active', true);
-            })
-            ->where('is_active', true)
-            ->orderBy('due_date', 'asc')
-            ->get();
-        
-        // Get online classes (using Lesson model) for this subject
-        $onlineClasses = \App\Models\Lesson::with(['teacher', 'subject', 'section'])
+            ->where('is_active', true);
+
+        // Get online classes / lessons for this subject
+        $onlineClassesQuery = \App\Models\Lesson::with(['teacher', 'subject', 'section', 'activities'])
             ->where('subject_id', $enrollment->subject_id)
             ->where('is_active', true)
-            ->whereIn('status', ['published', 'completed'])
-            ->orderBy('lesson_date', 'desc')
-            ->get();
-        
+            ->whereIn('status', ['published', 'completed']);
+
+        // Prefer lessons/assignments for the student's assigned section(s),
+        // but still show subject-level items so published lessons are visible.
+        $studentSectionIds = $student->sections()->pluck('sections.id')->filter()->unique()->values();
+        if ($studentSectionIds->isNotEmpty()) {
+            $assignmentsQuery->where(function ($q) use ($studentSectionIds) {
+                $q->whereIn('section_id', $studentSectionIds)
+                    ->orWhereNull('section_id');
+            });
+            $onlineClassesQuery->where(function ($q) use ($studentSectionIds) {
+                $q->whereIn('section_id', $studentSectionIds)
+                    ->orWhereNull('section_id');
+            });
+        }
+
+        $assignments = $assignmentsQuery->orderBy('due_date', 'asc')->get();
+
+        // If section filter hid everything but subject lessons exist, fall back to subject lessons
+        $onlineClasses = $onlineClassesQuery->orderBy('lesson_date', 'desc')->get();
+        if ($onlineClasses->isEmpty() && $studentSectionIds->isNotEmpty()) {
+            $onlineClasses = \App\Models\Lesson::with(['teacher', 'subject', 'section', 'activities'])
+                ->where('subject_id', $enrollment->subject_id)
+                ->where('is_active', true)
+                ->whereIn('status', ['published', 'completed'])
+                ->orderBy('lesson_date', 'desc')
+                ->get();
+        }
+
+        // Get quizzes/exams (using Activity model) for this subject's lessons
+        $lessonIds = $onlineClasses->pluck('id');
+        $quizzes = collect();
+        if ($lessonIds->isNotEmpty()) {
+            $quizzes = \App\Models\Activity::with(['lesson.teacher', 'lesson.subject', 'lesson.section'])
+                ->whereIn('lesson_id', $lessonIds)
+                ->where('is_active', true)
+                ->orderBy('due_date', 'asc')
+                ->get();
+        }
+
         // Debug logging
         Log::info('Student class detail - Lessons query', [
             'student_id' => $student->id,
             'enrollment_id' => $enrollmentId,
             'subject_id' => $enrollment->subject_id,
+            'student_section_ids' => $studentSectionIds->all(),
             'lessons_found' => $onlineClasses->count(),
         ]);
-        
+
         // Get class posts for this subject
         $classPosts = \App\Models\ClassPost::with(['teacher', 'subject', 'section'])
             ->where('subject_id', $enrollment->subject_id)
             ->where('is_active', true)
             ->orderBy('created_at', 'desc')
             ->get();
-        
+
         // Get grades for this subject
         $grades = $student->grades()
             ->where('subject_id', $enrollment->subject_id)
             ->with(['teacher', 'component', 'academicYear', 'semester'])
             ->orderBy('created_at', 'desc')
             ->get();
-        
+
         // Get the active tab from request
-        $activeTab = request('tab', 'assignments');
-        
+        $activeTab = request('tab', 'lessons');
+
         return view('student.class-detail', compact(
-            'student', 
-            'enrollment', 
-            'activeTab', 
-            'assignments', 
+            'student',
+            'enrollment',
+            'activeTab',
+            'assignments',
             'quizzes',
             'onlineClasses',
-            'classPosts', 
-            'grades'
+            'classPosts',
+            'grades',
+            'studentNumber',
+            'sectionLabel',
+            'classSection'
         ));
+    }
+
+    /**
+     * Student view of a published lesson for an enrolled class.
+     */
+    public function lessonShow($enrollmentId, $lessonId)
+    {
+        $user = auth()->user();
+        $student = $user->student;
+
+        if (!$student) {
+            return redirect()->back()->with('error', 'Student profile not found.');
+        }
+
+        $enrollment = $student->enrollments()
+            ->with(['subject'])
+            ->where('id', $enrollmentId)
+            ->where('status', 'active')
+            ->first();
+
+        if (!$enrollment) {
+            return redirect()->back()->with('error', 'Class not found or access denied.');
+        }
+
+        $lesson = \App\Models\Lesson::with(['teacher', 'subject', 'section', 'academicYear', 'semester', 'activities'])
+            ->where('id', $lessonId)
+            ->where('subject_id', $enrollment->subject_id)
+            ->where('is_active', true)
+            ->whereIn('status', ['published', 'completed'])
+            ->first();
+
+        if (!$lesson) {
+            return redirect()
+                ->route('student.class.detail', ['enrollmentId' => $enrollmentId, 'tab' => 'lessons'])
+                ->with('error', 'Lesson not found or not available for this class.');
+        }
+
+        $activityIds = $lesson->activities->pluck('id');
+        $mySubmissions = collect();
+        if ($activityIds->isNotEmpty()) {
+            $mySubmissions = \App\Models\ActivitySubmission::query()
+                ->where('student_id', $student->id)
+                ->whereIn('activity_id', $activityIds)
+                ->get()
+                ->keyBy('activity_id');
+        }
+
+        return view('student.lesson-show', compact('student', 'enrollment', 'lesson', 'mySubmissions'));
     }
 
     /** student grades page */

@@ -271,10 +271,17 @@
                             <label for="description">Description <span class="text-danger">*</span></label>
                             <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="weightGroup">
                             <label for="weight">Weight (%) <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="weight" name="weight" min="1" max="100" required>
-                            <small class="text-muted">This should be a percentage of the total grade</small>
+                            <input type="number" class="form-control" id="weight" name="weight" min="1" max="100"
+                                   value="{{ ($activity->rubrics->count() ?? 0) === 0 ? 100 : max(1, 100 - ($activity->rubrics->sum('weight') ?? 0)) }}"
+                                   @if(($activity->rubrics->count() ?? 0) === 0) readonly @endif
+                                   required>
+                            @if(($activity->rubrics->count() ?? 0) === 0)
+                                <small class="text-muted">Single category is automatically set to <strong>100%</strong>.</small>
+                            @else
+                                <small class="text-muted">Remaining to 100%: {{ max(0, 100 - ($activity->rubrics->sum('weight') ?? 0)) }}%.</small>
+                            @endif
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -319,6 +326,7 @@
                         <div class="form-group">
                             <label for="edit_weight">Weight (%) <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="edit_weight" name="weight" min="1" max="100" required>
+                            <small class="text-muted" id="editWeightHelp">Adjust so all categories total 100%.</small>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -392,12 +400,21 @@ $(document).ready(function() {
 });
 
 function editRubric(rubricId) {
+    const rubricCount = {{ $activity->rubrics->count() ?? 0 }};
     // Fetch rubric data and populate modal
     $.get(`/lessons/{{ $lesson->id }}/activities/{{ $activity->id }}/rubric/${rubricId}/edit`, function(data) {
         $('#edit_category_name').val(data.category_name);
         $('#edit_max_score').val(data.max_score);
         $('#edit_description').val(data.description);
-        $('#edit_weight').val(data.weight);
+
+        if (rubricCount <= 1) {
+            $('#edit_weight').val(100).prop('readonly', true);
+            $('#editWeightHelp').html('Single category is automatically set to <strong>100%</strong>.');
+        } else {
+            $('#edit_weight').val(data.weight).prop('readonly', false);
+            $('#editWeightHelp').text('Adjust so all categories total 100%.');
+        }
+
         $('#editRubricForm').attr('action', `/lessons/{{ $lesson->id }}/activities/{{ $activity->id }}/rubric/${rubricId}`);
         $('#editRubricModal').modal('show');
     });

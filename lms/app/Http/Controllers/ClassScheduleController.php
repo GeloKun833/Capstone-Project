@@ -277,11 +277,79 @@ class ClassScheduleController extends Controller
             ->paginate(20);
         
         // Get filter data
-        $sections = \App\Models\Section::all();
-        $teachers = \App\Models\Teacher::all();
+        $sections = \App\Models\Section::orderBy('grade_level')->orderBy('name')->get();
+        $teachers = \App\Models\Teacher::orderBy('full_name')->get();
         $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         
         return view('admin.schedules.index', compact('schedules', 'sections', 'teachers', 'days'));
+    }
+
+    /**
+     * JSON: sections + subjects assigned to a teacher (for cascading schedule form).
+     */
+    public function teacherAssignments(\App\Models\Teacher $teacher)
+    {
+        $teacher->load(['subjects', 'sections', 'gradeLevels']);
+
+        $sections = $teacher->sections
+            ->sortBy(['grade_level', 'name'])
+            ->values()
+            ->map(function ($section) {
+                return [
+                    'id' => $section->id,
+                    'name' => $section->name,
+                    'grade_level' => $section->grade_level,
+                    'label' => $section->name . ' (' . ($section->grade_level ?: 'N/A') . ')',
+                ];
+            });
+
+        // Fallback: sections by assigned grade levels if no section_teacher rows
+        if ($sections->isEmpty()) {
+            $grades = $teacher->gradeLevels->pluck('grade_level')->filter()->unique()->values();
+            if ($grades->isNotEmpty()) {
+                $expanded = collect();
+                foreach ($grades as $grade) {
+                    foreach (\App\Services\GradeSubjectCatalogService::gradeAliases($grade) as $alias) {
+                        $expanded->push($alias);
+                    }
+                }
+                $sections = \App\Models\Section::query()
+                    ->whereIn('grade_level', $expanded->unique()->all())
+                    ->orderBy('grade_level')
+                    ->orderBy('name')
+                    ->get()
+                    ->map(function ($section) {
+                        return [
+                            'id' => $section->id,
+                            'name' => $section->name,
+                            'grade_level' => $section->grade_level,
+                            'label' => $section->name . ' (' . ($section->grade_level ?: 'N/A') . ')',
+                        ];
+                    });
+            }
+        }
+
+        $subjects = $teacher->subjects
+            ->sortBy(['class', 'subject_name'])
+            ->values()
+            ->map(function ($subject) {
+                return [
+                    'id' => $subject->id,
+                    'subject_name' => $subject->subject_name,
+                    'class' => $subject->class,
+                    'label' => $subject->subject_name . ' (' . ($subject->class ?: 'N/A') . ')',
+                ];
+            });
+
+        return response()->json([
+            'teacher' => [
+                'id' => $teacher->id,
+                'name' => $teacher->full_name,
+            ],
+            'sections' => $sections,
+            'subjects' => $subjects,
+            'grade_levels' => $teacher->gradeLevels->pluck('grade_level')->values(),
+        ]);
     }
 
     /**
@@ -289,12 +357,10 @@ class ClassScheduleController extends Controller
      */
     public function create()
     {
-        $subjects = \App\Models\Subject::all();
-        $sections = \App\Models\Section::all();
-        $teachers = \App\Models\Teacher::all();
-        $rooms = \App\Models\Room::all();
-        
-        return view('admin.schedules.create', compact('subjects', 'sections', 'teachers', 'rooms'));
+        $teachers = \App\Models\Teacher::orderBy('full_name')->get();
+        $rooms = \App\Models\Room::orderBy('room_name')->get();
+
+        return view('admin.schedules.create', compact('teachers', 'rooms'));
     }
 
     /**
@@ -314,14 +380,21 @@ class ClassScheduleController extends Controller
             'color' => 'nullable|string|max:7',
             'notes' => 'nullable|string|max:500',
         ]);
+
+        $assignmentError = $this->validateTeacherAssignment(
+            (int) $validated['teacher_id'],
+            (int) $validated['section_id'],
+            (int) $validated['subject_id']
+        );
+        if ($assignmentError) {
+            return redirect()->back()->withInput()->withErrors(['teacher_id' => $assignmentError]);
+        }
         
         $validated['is_active'] = true;
         $validated['color'] = $validated['color'] ?? '#3d5ee1';
         
-        // Create the schedule
         $schedule = ClassSchedule::create($validated);
         
-        // Log for debugging
         Log::info('Schedule created by admin', [
             'schedule_id' => $schedule->id,
             'section_id' => $schedule->section_id,
@@ -351,12 +424,11 @@ class ClassScheduleController extends Controller
      */
     public function edit(ClassSchedule $schedule)
     {
-        $subjects = \App\Models\Subject::all();
-        $sections = \App\Models\Section::all();
-        $teachers = \App\Models\Teacher::all();
-        $rooms = \App\Models\Room::all();
-        
-        return view('admin.schedules.edit', compact('schedule', 'subjects', 'sections', 'teachers', 'rooms'));
+        $schedule->load(['subject', 'section', 'teacher', 'room']);
+        $teachers = \App\Models\Teacher::orderBy('full_name')->get();
+        $rooms = \App\Models\Room::orderBy('room_name')->get();
+
+        return view('admin.schedules.edit', compact('schedule', 'teachers', 'rooms'));
     }
 
     /**
@@ -374,14 +446,63 @@ class ClassScheduleController extends Controller
             'end_time' => 'required|date_format:H:i|after:start_time',
             'class_type' => 'required|in:lecture,laboratory,tutorial,exam,other',
             'color' => 'nullable|string|max:7',
-            'is_active' => 'boolean',
+            'is_active' => 'nullable|boolean',
             'notes' => 'nullable|string|max:500',
         ]);
+
+        $assignmentError = $this->validateTeacherAssignment(
+            (int) $validated['teacher_id'],
+            (int) $validated['section_id'],
+            (int) $validated['subject_id']
+        );
+        if ($assignmentError) {
+            return redirect()->back()->withInput()->withErrors(['teacher_id' => $assignmentError]);
+        }
+
+        $validated['is_active'] = $request->boolean('is_active');
         
         $schedule->update($validated);
         
         return redirect()->route('admin.schedules.index')
             ->with('success', 'Class schedule updated successfully!');
+    }
+
+    /**
+     * Ensure selected section/subject belong to the teacher assignments.
+     */
+    protected function validateTeacherAssignment(int $teacherId, int $sectionId, int $subjectId): ?string
+    {
+        $teacher = \App\Models\Teacher::with(['subjects', 'sections', 'gradeLevels'])->find($teacherId);
+        if (!$teacher) {
+            return 'Selected teacher was not found.';
+        }
+
+        $hasSubject = $teacher->subjects->contains('id', $subjectId);
+        if (!$hasSubject) {
+            return 'Selected subject is not assigned to this teacher. Assign it under Classes & Subjects first.';
+        }
+
+        $hasSection = $teacher->sections->contains('id', $sectionId);
+        if (!$hasSection) {
+            // allow grade-level fallback
+            $section = \App\Models\Section::find($sectionId);
+            $grades = $teacher->gradeLevels->pluck('grade_level')->filter()->all();
+            $allowed = false;
+            if ($section && !empty($grades)) {
+                foreach ($grades as $grade) {
+                    $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($grade);
+                    if (in_array($section->grade_level, $aliases, true)) {
+                        $allowed = true;
+                        break;
+                    }
+                }
+            }
+            if (!$allowed) {
+                return 'Selected section is not assigned to this teacher. Assign the section (or grade level) first.';
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -451,13 +572,18 @@ class ClassScheduleController extends Controller
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
         
-        // Get all schedules for this teacher
+        // All active schedules for this teacher
+        $dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         $weeklySchedule = ClassSchedule::where('teacher_id', $teacher->id)
             ->where('is_active', true)
             ->with(['subject', 'section', 'room'])
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
             ->get()
+            ->sortBy(function ($schedule) use ($dayOrder) {
+                $dayIndex = array_search($schedule->day_of_week, $dayOrder, true);
+                $dayIndex = $dayIndex === false ? 99 : $dayIndex;
+                $minutes = \Carbon\Carbon::parse($schedule->start_time)->secondsSinceMidnight();
+                return ($dayIndex * 100000) + $minutes;
+            })
             ->groupBy('day_of_week');
         
         return view('schedule.teacher-schedule', compact('teacher', 'weeklySchedule'));

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\SchoolSetting;
+use App\Services\GradeSubjectCatalogService;
+use App\Services\SystemAccessLimitService;
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
@@ -17,6 +19,76 @@ class Setting extends Controller
     {
         $settings = SchoolSetting::getSettings();
         return view('setting.settings', compact('settings'));
+    }
+
+    /**
+     * Limited access / load-control settings (Admin only).
+     */
+    public function accessLimits(SystemAccessLimitService $accessLimits)
+    {
+        $settings = SchoolSetting::getSettings();
+        $grades = GradeSubjectCatalogService::gradeLevels();
+        $preview = $accessLimits->preview();
+
+        return view('setting.access-limits', compact('settings', 'grades', 'preview'));
+    }
+
+    /**
+     * Save limited access / load-control settings.
+     */
+    public function updateAccessLimits(Request $request, SystemAccessLimitService $accessLimits)
+    {
+        $request->validate([
+            'access_limits_enabled' => 'nullable|boolean',
+            'max_teachers' => 'nullable|integer|min:0|max:5000',
+            'max_students_per_grade' => 'nullable|integer|min:0|max:5000',
+            'max_parents_per_grade' => 'nullable|integer|min:0|max:5000',
+            'access_allowed_grades' => 'nullable|array',
+            'access_allowed_grades.*' => 'string',
+            'access_limits_message' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $settings = SchoolSetting::getSettings();
+            $settings->access_limits_enabled = $request->boolean('access_limits_enabled');
+
+            // Empty string from form => null (unlimited). "0" => block all of that role.
+            $settings->max_teachers = $this->nullableQuota($request->input('max_teachers'));
+            $settings->max_students_per_grade = $this->nullableQuota($request->input('max_students_per_grade'));
+            $settings->max_parents_per_grade = $this->nullableQuota($request->input('max_parents_per_grade'));
+
+            $selectedGrades = $request->input('access_allowed_grades', []);
+            $validGrades = array_values(array_intersect(
+                GradeSubjectCatalogService::gradeLevels(),
+                is_array($selectedGrades) ? $selectedGrades : []
+            ));
+            $settings->access_allowed_grades = !empty($validGrades) ? $validGrades : null;
+            $settings->access_limits_message = $request->input('access_limits_message');
+            $settings->save();
+
+            $accessLimits->clearCache();
+
+            Toastr::success(
+                $settings->access_limits_enabled
+                    ? 'Limited access mode is ON. Only the configured quotas can use the system.'
+                    : 'Limited access mode is OFF. All active users can use the system.',
+                'Success'
+            );
+
+            return redirect()->route('setting.access-limits');
+        } catch (\Exception $e) {
+            Toastr::error('Failed to update access limits: ' . $e->getMessage(), 'Error');
+            return redirect()->back()->withInput();
+        }
+    }
+
+    protected function nullableQuota($value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /**

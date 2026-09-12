@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Providers\RouteServiceProvider;
+use App\Services\SystemAccessLimitService;
+use Brian2694\Toastr\Facades\Toastr;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Http\Request;
-use Brian2694\Toastr\Facades\Toastr;
 
 class LoginController extends Controller
 {
@@ -67,6 +68,15 @@ class LoginController extends Controller
                 $request->session()->regenerate();
 
                 $user = Auth::user();
+                $accessLimits = app(SystemAccessLimitService::class);
+                if (!$accessLimits->isAllowed($user)) {
+                    Auth::logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+                    Toastr::error($accessLimits->message(), 'Limited Access');
+                    return redirect()->route('login')->with('error', $accessLimits->message());
+                }
+
                 Session::put('name', $user->name);
                 Session::put('email', $user->email);
                 Session::put('user_id', $user->user_id);

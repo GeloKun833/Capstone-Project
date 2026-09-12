@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\User;
-use App\Models\Teacher;
+use App\Notifications\NewMessageNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
@@ -18,46 +18,56 @@ class ChatController extends Controller
     }
 
     /**
-     * Display the messenger-style chat interface
+     * Who each role may chat with.
+     * Admin: Teachers + Registrars only.
      */
-    public function index()
+    protected function allowedRolesFor(User $user): array
     {
-        $user = Auth::user();
-        
-        // Get all users the current user can chat with
-        if ($user->role_name === 'Admin') {
-            $contacts = User::whereIn('role_name', ['Teacher', 'Admin', 'Student', 'Parent'])
-                ->where('id', '!=', $user->id)
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get();
-        } elseif ($user->role_name === 'Teacher') {
-            $contacts = User::whereIn('role_name', ['Admin', 'Teacher', 'Student', 'Parent'])
-                ->where('id', '!=', $user->id)
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get();
-        } elseif ($user->role_name === 'Student') {
-            $contacts = User::whereIn('role_name', ['Admin', 'Teacher'])
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get();
-        } elseif ($user->role_name === 'Parent') {
-            $contacts = User::whereIn('role_name', ['Admin', 'Teacher'])
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get();
-        } else {
-            $contacts = collect();
+        return match ($user->role_name) {
+            'Admin' => ['Teacher', 'Registrar'],
+            'Registrar' => ['Admin', 'Teacher'],
+            'Teacher' => ['Admin', 'Registrar', 'Teacher', 'Student', 'Parent'],
+            'Student' => ['Teacher'],
+            'Parent' => ['Teacher'],
+            default => [],
+        };
+    }
+
+    protected function activeContactsQuery(User $user)
+    {
+        $roles = $this->allowedRolesFor($user);
+
+        return User::query()
+            ->whereIn('role_name', $roles)
+            ->where('id', '!=', $user->id)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->orderBy('role_name')
+            ->orderBy('name');
+    }
+
+    protected function canChatWith(User $user, User $other): bool
+    {
+        if ($user->id === $other->id) {
+            return false;
         }
 
-        // Get conversations with last message and unread count
-        $conversations = $contacts->map(function($contact) use ($user) {
-            $lastMessage = Message::where(function($q) use ($user, $contact) {
+        return in_array($other->role_name, $this->allowedRolesFor($user), true);
+    }
+
+    /**
+     * Display the messenger-style chat interface
+     */
+    public function index(Request $request)
+    {
+        $user = Auth::user();
+        $contacts = $this->activeContactsQuery($user)->get();
+
+        $conversations = $contacts->map(function ($contact) use ($user) {
+            $lastMessage = Message::where(function ($q) use ($user, $contact) {
                 $q->where('sender_id', $user->id)->where('recipient_id', $contact->id);
-            })->orWhere(function($q) use ($user, $contact) {
+            })->orWhere(function ($q) use ($user, $contact) {
                 $q->where('sender_id', $contact->id)->where('recipient_id', $user->id);
-            })->orderBy('created_at', 'desc')->first();
+            })->orderByDesc('created_at')->first();
 
             $unreadCount = Message::where('sender_id', $contact->id)
                 ->where('recipient_id', $user->id)
@@ -68,43 +78,56 @@ class ChatController extends Controller
                 'user' => $contact,
                 'last_message' => $lastMessage,
                 'unread_count' => $unreadCount,
-                'last_message_time' => $lastMessage ? $lastMessage->created_at : null
+                'last_message_time' => $lastMessage?->created_at,
             ];
-        })->sortByDesc('last_message_time')->values();
+        })->sortByDesc(function ($row) {
+            return optional($row['last_message_time'])->timestamp ?? 0;
+        })->values();
 
-        return view('chat.index', compact('conversations'));
+        $grouped = $conversations->groupBy(fn ($row) => $row['user']->role_name);
+
+        $receiverId = (int) $request->query('receiver_id', 0);
+        if ($receiverId && !$contacts->contains('id', $receiverId)) {
+            $receiverId = 0;
+        }
+
+        return view('chat.index', compact('conversations', 'grouped', 'receiverId'));
     }
 
-    /**
-     * Get conversation messages with a specific user
-     */
     public function getConversation($userId)
     {
         $user = Auth::user();
         $contact = User::findOrFail($userId);
 
-        // Get all messages between these two users
-        $messages = Message::where(function($q) use ($user, $userId) {
+        if (!$this->canChatWith($user, $contact)) {
+            return response()->json(['message' => 'You are not allowed to chat with this user.'], 403);
+        }
+
+        $messages = Message::where(function ($q) use ($user, $userId) {
             $q->where('sender_id', $user->id)->where('recipient_id', $userId);
-        })->orWhere(function($q) use ($user, $userId) {
+        })->orWhere(function ($q) use ($user, $userId) {
             $q->where('sender_id', $userId)->where('recipient_id', $user->id);
         })
-        ->with(['sender', 'recipient'])
-        ->orderBy('created_at', 'asc')
-        ->get();
+            ->with(['sender', 'recipient'])
+            ->orderBy('created_at', 'asc')
+            ->get();
 
-        // Mark received messages as read
         Message::where('sender_id', $userId)
             ->where('recipient_id', $user->id)
             ->where('is_read', false)
             ->update([
                 'is_read' => true,
-                'read_at' => now()
+                'read_at' => now(),
             ]);
 
         return response()->json([
-            'contact' => $contact,
-            'messages' => $messages->map(function($message) use ($user) {
+            'contact' => [
+                'id' => $contact->id,
+                'name' => $contact->name,
+                'role_name' => $contact->role_name,
+                'avatar' => $contact->avatar ?? 'default-avatar.png',
+            ],
+            'messages' => $messages->map(function ($message) use ($user) {
                 return [
                     'id' => $message->id,
                     'content' => $message->content,
@@ -115,34 +138,51 @@ class ChatController extends Controller
                     'created_at_human' => $message->created_at->diffForHumans(),
                     'is_read' => $message->is_read,
                     'sender_name' => $message->sender->name,
-                    'sender_avatar' => $message->sender->avatar ?? 'default-avatar.png'
+                    'sender_avatar' => $message->sender->avatar ?? 'default-avatar.png',
                 ];
-            })
+            }),
         ]);
     }
 
-    /**
-     * Send a message
-     */
     public function sendMessage(Request $request)
     {
         $request->validate([
             'recipient_id' => 'required|exists:users,id',
-            'content' => 'required|string|max:5000'
+            'content' => 'required|string|max:5000',
         ]);
 
         $user = Auth::user();
+        $recipient = User::findOrFail($request->recipient_id);
+
+        if (!$this->canChatWith($user, $recipient)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not allowed to chat with this user.',
+            ], 403);
+        }
 
         try {
             $message = Message::create([
                 'sender_id' => $user->id,
-                'recipient_id' => $request->recipient_id,
+                'recipient_id' => $recipient->id,
                 'content' => $request->content,
-                'subject' => 'Chat Message', // Default subject for chat messages
+                'subject' => 'Chat Message',
                 'type' => 'general',
                 'priority' => 'normal',
-                'is_read' => false
+                'is_read' => false,
             ]);
+
+            $message->load('sender');
+
+            try {
+                $recipient->notify(new NewMessageNotification($message));
+                Cache::forget('header.notifs.' . $recipient->id);
+            } catch (\Throwable $e) {
+                Log::warning('Chat notification failed: ' . $e->getMessage(), [
+                    'message_id' => $message->id,
+                    'recipient_id' => $recipient->id,
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -156,27 +196,23 @@ class ChatController extends Controller
                     'created_at_human' => $message->created_at->diffForHumans(),
                     'is_read' => false,
                     'sender_name' => $user->name,
-                    'sender_avatar' => $user->avatar ?? 'default-avatar.png'
-                ]
+                    'sender_avatar' => $user->avatar ?? 'default-avatar.png',
+                ],
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send message: ' . $e->getMessage()
+                'message' => 'Failed to send message: ' . $e->getMessage(),
             ], 500);
         }
     }
 
-    /**
-     * Delete a message
-     */
     public function deleteMessage($messageId)
     {
         try {
             $message = Message::findOrFail($messageId);
             $user = Auth::user();
 
-            // Only allow sender or recipient to delete
             if ($message->sender_id == $user->id || $message->recipient_id == $user->id) {
                 $message->delete();
                 return response()->json(['success' => true, 'message' => 'Message deleted']);
@@ -188,9 +224,6 @@ class ChatController extends Controller
         }
     }
 
-    /**
-     * Get unread message count
-     */
     public function getUnreadCount()
     {
         $user = Auth::user();
@@ -201,40 +234,21 @@ class ChatController extends Controller
         return response()->json(['count' => $count]);
     }
 
-    /**
-     * Search contacts
-     */
     public function searchContacts(Request $request)
     {
         $user = Auth::user();
-        $search = $request->get('search', '');
+        $search = trim((string) $request->get('search', ''));
 
-        if ($user->role_name === 'Admin') {
-            $contacts = User::whereIn('role_name', ['Teacher', 'Admin', 'Student', 'Parent'])
-                ->where('id', '!=', $user->id)
-                ->where('status', 'active')
-                ->where(function($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%");
-                })
-                ->limit(10)
-                ->get();
-        } elseif (in_array($user->role_name, ['Teacher', 'Student', 'Parent'])) {
-            $roles = $user->role_name === 'Teacher'
-                ? ['Admin', 'Teacher', 'Student', 'Parent']
-                : ['Admin', 'Teacher'];
-            $contacts = User::whereIn('role_name', $roles)
-                ->where('id', '!=', $user->id)
-                ->where('status', 'active')
-                ->where(function($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%");
-                })
-                ->limit(10)
-                ->get();
-        } else {
-            $contacts = collect();
+        $query = $this->activeContactsQuery($user);
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
         }
+
+        $contacts = $query->limit(20)->get(['id', 'name', 'email', 'role_name', 'avatar']);
 
         return response()->json(['contacts' => $contacts]);
     }

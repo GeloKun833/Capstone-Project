@@ -27,10 +27,21 @@ class SchoolSetting extends Model
         'twitter_url',
         'linkedin_url',
         'instagram_url',
+        'access_limits_enabled',
+        'max_teachers',
+        'max_students_per_grade',
+        'max_parents_per_grade',
+        'access_allowed_grades',
+        'access_limits_message',
     ];
 
     protected $casts = [
         'rtl_enabled' => 'boolean',
+        'access_limits_enabled' => 'boolean',
+        'access_allowed_grades' => 'array',
+        'max_teachers' => 'integer',
+        'max_students_per_grade' => 'integer',
+        'max_parents_per_grade' => 'integer',
     ];
 
     /**

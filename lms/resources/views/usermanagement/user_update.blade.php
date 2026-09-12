@@ -7,7 +7,7 @@
                     <div class="col">
                         <h3 class="page-title">Edit User</h3>
                         <ul class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="time-table.html">Users</a></li>
+                            <li class="breadcrumb-item"><a href="{{ route('list/users') }}">Users</a></li>
                             <li class="breadcrumb-item active">Edit User</li>
                         </ul>
                     </div>
@@ -74,11 +74,19 @@
                                     
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Profile <span class="login-danger">*</span></label>
-                                            <input type="file" class="form-control" name="avatar" value="{{ $users->avatar }}">
-                                            <div class="user-img" style="margin-top: -25px;">
-                                                <img class="rounded-circle" src="{{ URL::to('/images/'. $users->avatar) }}">
-                                            </div>
+                                            <label>Profile Image</label>
+                                            <input type="file" class="form-control @error('avatar') is-invalid @enderror"
+                                                   name="avatar" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp">
+                                            <small class="form-text text-muted">Optional. JPG, PNG, GIF, or WEBP. Max 2MB.</small>
+                                            @error('avatar')
+                                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                                            @enderror
+                                            @if(!empty($users->avatar))
+                                                <div class="user-img mt-2">
+                                                    <img class="rounded-circle" src="{{ URL::to('/images/'. $users->avatar) }}"
+                                                         alt="Current profile" style="width:64px;height:64px;object-fit:cover;">
+                                                </div>
+                                            @endif
                                         </div>
                                         <input type="hidden" name="hidden_avatar" value="{{ $users->avatar }}">
                                     </div>
@@ -97,10 +105,32 @@
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Updated Date <span class="login-danger">*</span></label>
+                                            <label>Updated Date</label>
                                             <input type="text" class="form-control" name="updated_at" value="{{ $users->updated_at }}" readonly>
                                         </div>
                                     </div>
+
+                                    <div class="col-12">
+                                        <h5 class="form-title"><span>Reset Password (Admin)</span></h5>
+                                        <p class="text-muted small">Optional. Use this if the user forgot their password and cannot use email reset. Leave blank to keep the current password.</p>
+                                    </div>
+                                    <div class="col-12 col-sm-6">
+                                        <div class="form-group local-forms">
+                                            <label>New Password</label>
+                                            <input type="password" class="form-control @error('new_password') is-invalid @enderror"
+                                                   name="new_password" autocomplete="new-password" placeholder="Leave blank to keep current">
+                                            @error('new_password')
+                                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-sm-6">
+                                        <div class="form-group local-forms">
+                                            <label>Confirm New Password</label>
+                                            <input type="password" class="form-control" name="new_password_confirmation" autocomplete="new-password" placeholder="Confirm new password">
+                                        </div>
+                                    </div>
+
                                     <div class="col-12">
                                         <div class="student-submit">
                                             <button type="submit" class="btn btn-primary">Update</button>

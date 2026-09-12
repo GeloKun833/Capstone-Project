@@ -134,7 +134,7 @@
                                         <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
                                             <i class="fas fa-users fa-lg"></i>
                                         </div>
-                                        <h4 class="mb-0">{{ $lesson->section->students->count() ?? 0 }}</h4>
+                                        <h4 class="mb-0">{{ $studentCount ?? ($lesson->section->enrolledStudentsCount() ?? 0) }}</h4>
                                         <small class="text-muted">Students</small>
                                     </div>
                                 </div>
@@ -290,11 +290,6 @@
                                                             <a href="{{ route('lessons.activities.edit', [$lesson, $activity]) }}" class="btn btn-sm bg-danger-light" title="Edit">
                                                                 <i class="far fa-edit"></i>
                                                             </a>
-                                                            @if($activity->allows_submission)
-                                                                <a href="{{ route('lessons.activities.rubric', [$lesson, $activity]) }}" class="btn btn-sm bg-danger-light" title="Rubric">
-                                                                    <i class="fas fa-list-check"></i>
-                                                                </a>
-                                                            @endif
                                                         </div>
                                                     </td>
                                                 </tr>

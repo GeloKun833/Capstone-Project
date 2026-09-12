@@ -16,6 +16,8 @@ use App\Models\Enrollment;
 use App\Models\CalendarEvent;
 use App\Models\Attendance;
 use App\Models\Subject;
+use App\Models\ClassSchedule;
+use App\Services\GradeSubjectCatalogService;
 
 class HomeController extends Controller
 {
@@ -132,87 +134,180 @@ class HomeController extends Controller
     {
         $user = auth()->user();
         $teacher = $user->teacher;
-        
+
         if (!$teacher) {
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
-        
-        // Get teacher's subjects with enrollments
-        $hasEnrollmentStatus = SafeSchema::columnExists('enrollments', 'status');
-        $teacherSubjects = $teacher->subjects()
-            ->withCount(['enrollments as enrollments_count' => function ($query) use ($hasEnrollmentStatus) {
-                if ($hasEnrollmentStatus) {
-                    $query->where('status', 'active');
+
+        $teacher->load(['subjects', 'sections', 'gradeLevels']);
+
+        $assignedSubjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
+        $assignedSections = $teacher->sections->sortBy(['grade_level', 'name'])->values();
+
+        // Fallback sections from grade-level assignment (same logic as admin schedules)
+        if ($assignedSections->isEmpty() && $teacher->gradeLevels->isNotEmpty()) {
+            $expanded = collect();
+            foreach ($teacher->gradeLevels->pluck('grade_level')->filter()->unique() as $grade) {
+                foreach (GradeSubjectCatalogService::gradeAliases($grade) as $alias) {
+                    $expanded->push($alias);
                 }
-            }])
-            ->get();
-
-        // Get teacher's sections (where teacher is adviser)
-        $teacherSections = Section::where('adviser_id', $teacher->id)
-            ->withCount('students')
-            ->get();
-
-        // Get attendance statistics for teacher's subjects in one query
-        $attendanceStats = collect();
-        $subjectIds = $teacherSubjects->pluck('id');
-        if ($subjectIds->isNotEmpty()) {
-            $attendanceStats = \App\Models\Attendance::whereIn('subject_id', $subjectIds)
-                ->selectRaw('
-                    subject_id,
-                    COUNT(*) as total_records,
-                    SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
-                    SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
-                ')
-                ->groupBy('subject_id')
-                ->get()
-                ->keyBy('subject_id');
-        }
-
-        // Get recent enrollments for teacher's subjects
-        $recentEnrollments = collect();
-        if ($subjectIds->isNotEmpty()) {
-            $recentQuery = \App\Models\Enrollment::whereIn('subject_id', $subjectIds)
-                ->whereHas('student')
-                ->whereHas('subject')
-                ->with(['student', 'subject'])
-                ->orderBy('created_at', 'desc')
-                ->take(10);
-            if ($hasEnrollmentStatus) {
-                $recentQuery->where('status', 'active');
             }
-            $recentEnrollments = $recentQuery->get();
+            $assignedSections = Section::query()
+                ->whereIn('grade_level', $expanded->unique()->all())
+                ->orderBy('grade_level')
+                ->orderBy('name')
+                ->get();
         }
-        
-        return view('teacher.classes', compact('teacher', 'teacherSubjects', 'teacherSections', 'attendanceStats', 'recentEnrollments'));
+
+        $sectionIds = $assignedSections->pluck('id');
+        $studentCounts = collect();
+        if ($sectionIds->isNotEmpty()) {
+            $studentCounts = DB::table('section_student')
+                ->whereIn('section_id', $sectionIds)
+                ->selectRaw('section_id, COUNT(*) as students_count')
+                ->groupBy('section_id')
+                ->pluck('students_count', 'section_id');
+        }
+
+        $schedules = ClassSchedule::query()
+            ->where('teacher_id', $teacher->id)
+            ->where('is_active', true)
+            ->with(['subject', 'section', 'room'])
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
+
+        $assignments = collect();
+
+        $pushAssignment = function (
+            $subject,
+            $section,
+            string $source,
+            $scheduleGroup = null
+        ) use (&$assignments, $studentCounts, $teacher) {
+            if (!$subject) {
+                return;
+            }
+
+            $key = $subject->id . ':' . ($section?->id ?? 'none');
+            if ($assignments->has($key)) {
+                if ($scheduleGroup) {
+                    $existing = $assignments->get($key);
+                    if ($existing['schedules']->isEmpty()) {
+                        $existing['schedules'] = $scheduleGroup->values();
+                        $days = $existing['schedules']->pluck('day_of_week')->unique()->filter()->map(fn ($d) => ucfirst($d))->values();
+                        $existing['schedule_summary'] = $days->isNotEmpty() ? $days->implode(', ') : 'No schedule yet';
+                        $assignments->put($key, $existing);
+                    }
+                }
+                return;
+            }
+
+            $scheduleList = $scheduleGroup ? $scheduleGroup->values() : collect();
+            $days = $scheduleList->pluck('day_of_week')->unique()->filter()->map(fn ($d) => ucfirst($d))->values();
+
+            $assignments->put($key, [
+                'key' => $key,
+                'subject' => $subject,
+                'section' => $section,
+                'source' => $source,
+                'students_count' => $section ? (int) ($studentCounts[$section->id] ?? 0) : 0,
+                'schedules' => $scheduleList,
+                'schedule_summary' => $days->isNotEmpty()
+                    ? $days->implode(', ')
+                    : 'No schedule yet',
+                'is_adviser' => $section && (int) $section->adviser_id === (int) $teacher->id,
+            ]);
+        };
+
+        // 1) Active class schedules created by admin
+        foreach ($schedules->groupBy(fn ($s) => $s->subject_id . ':' . $s->section_id) as $group) {
+            $first = $group->first();
+            $pushAssignment($first->subject, $first->section, 'schedule', $group);
+        }
+
+        // 2) section_subject links where teacher is assigned to both subject and section
+        $subjectIds = $assignedSubjects->pluck('id');
+        if ($subjectIds->isNotEmpty() && $sectionIds->isNotEmpty()) {
+            $links = DB::table('section_subject')
+                ->whereIn('subject_id', $subjectIds)
+                ->whereIn('section_id', $sectionIds)
+                ->get();
+
+            $subjectsById = $assignedSubjects->keyBy('id');
+            $sectionsById = $assignedSections->keyBy('id');
+
+            foreach ($links as $link) {
+                $pushAssignment(
+                    $subjectsById->get($link->subject_id),
+                    $sectionsById->get($link->section_id),
+                    'section_subject'
+                );
+            }
+        }
+
+        // 3) Grade-matched subject × section from Classes & Subjects assignment
+        if ($assignedSubjects->isNotEmpty() && $assignedSections->isNotEmpty()) {
+            foreach ($assignedSubjects as $subject) {
+                $subjectAliases = GradeSubjectCatalogService::gradeAliases($subject->class);
+                foreach ($assignedSections as $section) {
+                    $sectionAliases = GradeSubjectCatalogService::gradeAliases($section->grade_level);
+                    $gradesMatch = empty($subjectAliases)
+                        || empty($sectionAliases)
+                        || count(array_intersect($subjectAliases, $sectionAliases)) > 0
+                        || strcasecmp((string) $subject->class, (string) $section->grade_level) === 0;
+
+                    if ($gradesMatch) {
+                        $pushAssignment($subject, $section, 'assignment');
+                    }
+                }
+            }
+        }
+
+        // 4) Subjects assigned without a matching section yet
+        if ($assignments->isEmpty() && $assignedSubjects->isNotEmpty()) {
+            foreach ($assignedSubjects as $subject) {
+                $pushAssignment($subject, null, 'subject_only');
+            }
+        }
+
+        $assignments = $assignments->values()->sortBy(function ($row) {
+            return strtolower(
+                ($row['section']->grade_level ?? '') . ' ' .
+                ($row['section']->name ?? '') . ' ' .
+                ($row['subject']->subject_name ?? '')
+            );
+        })->values();
+
+        // Homeroom / adviser sections (separate from teaching load)
+        $adviserSections = Section::where('adviser_id', $teacher->id)
+            ->withCount('students')
+            ->orderBy('grade_level')
+            ->orderBy('name')
+            ->get();
+
+        $stats = [
+            'subjects' => $assignedSubjects->count(),
+            'sections' => $assignedSections->count(),
+            'classes' => $assignments->count(),
+            'students' => (int) $assignments->sum('students_count'),
+            'scheduled' => $assignments->filter(fn ($a) => $a['schedules']->isNotEmpty())->count(),
+        ];
+
+        return view('teacher.classes', compact(
+            'teacher',
+            'assignments',
+            'assignedSubjects',
+            'assignedSections',
+            'adviserSections',
+            'stats'
+        ));
     }
 
     public function teacherSubjects()
     {
-        $user = auth()->user();
-        $teacher = $user->teacher;
-        
-        if (!$teacher) {
-            return redirect()->back()->with('error', 'Teacher profile not found.');
-        }
-        
-        // Get teacher's subjects with detailed information
-        $teacherSubjects = $teacher->subjects()
-            ->with(['enrollments' => function($query) {
-                $query->where('status', 'active')->with(['student', 'academicYear', 'semester']);
-            }])
-            ->get();
-        
-        // Get statistics
-        $totalSubjects = $teacherSubjects->count();
-        $totalStudents = $teacherSubjects->sum(function($subject) {
-            return $subject->enrollments->count();
-        });
-        
-        // Since subjects don't have direct sections relationship, we'll calculate this differently
-        // Get sections where this teacher is the adviser
-        $teacherSections = Section::where('adviser_id', $teacher->id)->count();
-        
-        return view('teacher.subjects', compact('teacher', 'teacherSubjects', 'totalSubjects', 'totalStudents', 'teacherSections'));
+        // Merged into My Classes & Subjects
+        return redirect()->route('teacher.classes');
     }
 
     /**

@@ -112,9 +112,11 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 
     // ------------------------ setting -------------------------------//
     Route::controller(Setting::class)->group(function () {
-        Route::get('setting/page', 'index')->middleware('auth')->name('setting/page');
-        Route::post('setting/update', 'updateSettings')->middleware('auth')->name('setting/update');
-        Route::post('setting/delete-file', 'deleteFile')->middleware('auth')->name('setting/delete-file');
+        Route::get('setting/page', 'index')->middleware(['auth', 'role:Admin'])->name('setting/page');
+        Route::post('setting/update', 'updateSettings')->middleware(['auth', 'role:Admin'])->name('setting/update');
+        Route::post('setting/delete-file', 'deleteFile')->middleware(['auth', 'role:Admin'])->name('setting/delete-file');
+        Route::get('setting/access-limits', 'accessLimits')->middleware(['auth', 'role:Admin'])->name('setting.access-limits');
+        Route::post('setting/access-limits', 'updateAccessLimits')->middleware(['auth', 'role:Admin'])->name('setting.access-limits.update');
     });
 
     // ------------------------ backup (admin) -------------------------------//
@@ -244,6 +246,7 @@ Route::group(['prefix' => 'reports', 'as' => 'reports.', 'middleware' => ['auth'
     Route::get('/class-list/{sectionId}', [App\Http\Controllers\ReportController::class, 'generateClassList'])->name('class-list');
     Route::get('/grade-slip/{studentId}', [App\Http\Controllers\ReportController::class, 'generateGradeSlip'])->name('grade-slip');
     Route::get('/progress-summary/{studentId}', [App\Http\Controllers\ReportController::class, 'generateProgressSummary'])->name('progress-summary');
+    Route::get('/bulk/{type}', [App\Http\Controllers\ReportController::class, 'generateBulk'])->name('bulk');
 });
 
 // Admin-only routes
@@ -254,6 +257,7 @@ Route::group(['middleware' => ['role:Admin']], function () {
         Route::get('/', [App\Http\Controllers\ClassScheduleController::class, 'adminIndex'])->name('index');
         Route::get('create', [App\Http\Controllers\ClassScheduleController::class, 'create'])->name('create');
         Route::post('store', [App\Http\Controllers\ClassScheduleController::class, 'store'])->name('store');
+        Route::get('teacher/{teacher}/assignments', [App\Http\Controllers\ClassScheduleController::class, 'teacherAssignments'])->name('teacher-assignments');
         Route::get('{schedule}/edit', [App\Http\Controllers\ClassScheduleController::class, 'edit'])->name('edit');
         Route::put('{schedule}', [App\Http\Controllers\ClassScheduleController::class, 'update'])->name('update');
         Route::delete('{schedule}', [App\Http\Controllers\ClassScheduleController::class, 'destroy'])->name('destroy');
@@ -385,15 +389,16 @@ Route::group(['middleware' => ['role:Student']], function () {
     Route::get('/my-classes', [App\Http\Controllers\StudentController::class, 'myClasses'])->name('student.my-classes');
     // Class detail route
     Route::get('/class/{enrollmentId}', [App\Http\Controllers\StudentController::class, 'classDetail'])->name('student.class.detail');
+    Route::get('/class/{enrollmentId}/lessons/{lesson}', [App\Http\Controllers\StudentController::class, 'lessonShow'])->name('student.lessons.show');
     // Student grades route
     Route::get('/grades', [App\Http\Controllers\StudentController::class, 'grades'])->name('student.grades');
     // Student attendance route
     Route::get('/attendance', [App\Http\Controllers\StudentController::class, 'attendance'])->name('student.attendance');
-    // Lesson activity submission routes
-    Route::get('/lessons/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'studentShow'])->name('student.activities.show');
-    Route::post('/lessons/{lesson}/activities/{activity}/submit', [App\Http\Controllers\SubmissionController::class, 'store'])->name('student.activities.submit');
-    Route::get('/lessons/{lesson}/activities/{activity}/submissions/{submission}', [App\Http\Controllers\SubmissionController::class, 'show'])->name('student.activities.view-submission');
-    Route::get('/lessons/{lesson}/activities/{activity}/submissions/{submission}/grade', [App\Http\Controllers\SubmissionController::class, 'viewGrade'])->name('student.activities.view-grade');
+    // Lesson activity submission routes (student-prefixed to avoid clashing with teacher lesson routes)
+    Route::get('/student/lessons/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'studentShow'])->name('student.activities.show');
+    Route::post('/student/lessons/{lesson}/activities/{activity}/submit', [App\Http\Controllers\SubmissionController::class, 'store'])->name('student.activities.submit');
+    Route::get('/student/lessons/{lesson}/activities/{activity}/submissions/{submission}', [App\Http\Controllers\SubmissionController::class, 'show'])->name('student.activities.view-submission');
+    Route::get('/student/lessons/{lesson}/activities/{activity}/submissions/{submission}/grade', [App\Http\Controllers\SubmissionController::class, 'viewGrade'])->name('student.activities.view-grade');
     // Study recommendations
     Route::get('/recommendations', [App\Http\Controllers\LessonRecommendationController::class, 'myRecommendations'])->name('student.recommendations');
 });
@@ -538,22 +543,6 @@ Route::group(['prefix' => 'announcements', 'middleware' => ['auth']], function (
     Route::put('/{announcement}', [App\Http\Controllers\AnnouncementController::class, 'update'])->name('announcements.update');
     Route::delete('/{announcement}', [App\Http\Controllers\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
     Route::patch('/{announcement}/toggle-pin', [App\Http\Controllers\AnnouncementController::class, 'togglePin'])->name('announcements.toggle-pin');
-});
-
-Route::group(['prefix' => 'messages', 'middleware' => ['auth']], function () {
-    Route::get('/', [App\Http\Controllers\MessageController::class, 'index'])->name('messages.index');
-    Route::get('/sent', [App\Http\Controllers\MessageController::class, 'sent'])->name('messages.sent');
-    Route::get('/archived', [App\Http\Controllers\MessageController::class, 'archived'])->name('messages.archived');
-    Route::get('/create', [App\Http\Controllers\MessageController::class, 'create'])->name('messages.create');
-    Route::post('/', [App\Http\Controllers\MessageController::class, 'store'])->name('messages.store');
-    Route::get('/{message}', [App\Http\Controllers\MessageController::class, 'show'])->name('messages.show');
-    Route::delete('/{message}', [App\Http\Controllers\MessageController::class, 'destroy'])->name('messages.destroy');
-    Route::patch('/{message}/read', [App\Http\Controllers\MessageController::class, 'markAsRead'])->name('messages.mark-read');
-    Route::patch('/{message}/unread', [App\Http\Controllers\MessageController::class, 'markAsUnread'])->name('messages.mark-unread');
-    Route::patch('/{message}/archive', [App\Http\Controllers\MessageController::class, 'archive'])->name('messages.archive');
-    Route::patch('/{message}/unarchive', [App\Http\Controllers\MessageController::class, 'unarchive'])->name('messages.unarchive');
-    Route::get('/conversation/{userId}', [App\Http\Controllers\MessageController::class, 'conversation'])->name('messages.conversation');
-    Route::get('/unread-count', [App\Http\Controllers\MessageController::class, 'getUnreadCount'])->name('messages.unread-count');
 });
 
 // Chat Routes (Messenger-style chat)

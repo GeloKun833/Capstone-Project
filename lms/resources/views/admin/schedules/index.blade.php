@@ -34,7 +34,7 @@
                                     <option value="">All Sections</option>
                                     @foreach($sections as $section)
                                         <option value="{{ $section->id }}" {{ request('section_id') == $section->id ? 'selected' : '' }}>
-                                            {{ $section->name }}
+                                            {{ $section->name }}@if($section->grade_level) ({{ $section->grade_level }})@endif
                                         </option>
                                     @endforeach
                                 </select>
@@ -115,8 +115,16 @@
                                                     <span style="width: 30px; height: 30px; border-radius: 50%; background: {{ $schedule->color }}; display: inline-block;"></span>
                                                     <a>{{ $schedule->subject->subject_name ?? 'N/A' }}</a>
                                                 </h2>
+                                                @if($schedule->subject?->class)
+                                                    <small class="text-muted">{{ $schedule->subject->class }}</small>
+                                                @endif
                                             </td>
-                                            <td>{{ $schedule->section->name ?? 'N/A' }}</td>
+                                            <td>
+                                                <div>{{ $schedule->section->name ?? 'N/A' }}</div>
+                                                @if($schedule->section?->grade_level)
+                                                    <small class="text-muted">{{ $schedule->section->grade_level }}</small>
+                                                @endif
+                                            </td>
                                             <td>{{ $schedule->teacher->full_name ?? 'N/A' }}</td>
                                             <td>{{ $schedule->room->room_name ?? 'TBD' }}</td>
                                             <td>

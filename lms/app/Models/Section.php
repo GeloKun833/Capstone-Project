@@ -28,6 +28,27 @@ class Section extends Model
     }
 
     /**
+     * Students assigned via modern enrollment section placement.
+     */
+    public function assignedStudents()
+    {
+        return $this->belongsToMany(Student::class, 'student_section_assignments', 'section_id', 'student_id')
+            ->withPivot('academic_year_id', 'semester_id', 'assigned_date')
+            ->withTimestamps();
+    }
+
+    /**
+     * Unique student count across legacy + modern section links.
+     */
+    public function enrolledStudentsCount(): int
+    {
+        $legacy = $this->students()->pluck('students.id');
+        $modern = $this->assignedStudents()->pluck('students.id');
+
+        return $legacy->merge($modern)->unique()->count();
+    }
+
+    /**
      * Get the class schedules for this section
      */
     public function classSchedules()

@@ -47,13 +47,56 @@ class ReportController extends Controller
      */
     public function index()
     {
+        $gradeLevels = \App\Services\GradeSubjectCatalogService::gradeLevels();
 
-        $students = Student::orderBy('last_name')->get();
-        $sections = Section::orderBy('name')->get();
+        $students = Student::query()
+            ->with('sections')
+            ->orderBy('year_level')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $sections = Section::query()
+            ->orderBy('grade_level')
+            ->orderBy('name')
+            ->get(['id', 'name', 'grade_level']);
+
+        $studentsPayload = $students->map(function ($s) {
+            $sectionIds = $s->sections->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+            // Also include legacy section_student pivot if present
+            if (empty($sectionIds) && method_exists($s, 'sections')) {
+                // already loaded above
+            }
+
+            return [
+                'id' => $s->id,
+                'name' => trim($s->last_name . ', ' . $s->first_name . ($s->middle_name ? ' ' . $s->middle_name : '')),
+                'grade' => $s->year_level ?: ($s->class ?: ($s->sections->first()->grade_level ?? 'Unassigned')),
+                'section' => $s->section ?: ($s->sections->first()->name ?? null),
+                'section_ids' => $sectionIds,
+            ];
+        })->values();
+
+        $sectionsPayload = $sections->map(function ($sec) {
+            return [
+                'id' => $sec->id,
+                'name' => $sec->name,
+                'grade' => $sec->grade_level ?: 'Unassigned',
+            ];
+        })->values();
+
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
         $semesters = Semester::orderBy('name')->get();
 
-        return view('reports.index', compact('students', 'sections', 'academicYears', 'semesters'));
+        return view('reports.index', compact(
+            'students',
+            'sections',
+            'studentsPayload',
+            'sectionsPayload',
+            'gradeLevels',
+            'academicYears',
+            'semesters'
+        ));
     }
 
     /**
@@ -151,7 +194,7 @@ class ReportController extends Controller
                 'academicYearId',
                 'semesterId'
             ));
-            $filename = 'transcript_' . $student->last_name . '_' . $student->first_name . '_' . date('Y-m-d') . '.pdf';
+            $filename = 'transcript_' . $this->safeName($student->last_name . '_' . $student->first_name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
         } else {
             $exportData = [];
@@ -166,7 +209,7 @@ class ReportController extends Controller
                     ];
                 }
             }
-            $filename = 'transcript_' . $student->last_name . '_' . date('Y-m-d') . '.xlsx';
+            $filename = 'transcript_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
             return Excel::download(new class($exportData) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
                 public function __construct(private array $data) {}
                 public function array(): array { return $this->data; }
@@ -238,7 +281,7 @@ class ReportController extends Controller
                 'academicYear', 
                 'semester'
             ));
-            $filename = 'class_list_' . $section->name . '_' . date('Y-m-d') . '.pdf';
+            $filename = 'class_list_' . $this->safeName($section->name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
         } else {
             $exportData = $students->values()->map(function ($student, $index) {
@@ -252,7 +295,7 @@ class ReportController extends Controller
                     $student->email ?? '',
                 ];
             })->all();
-            $filename = 'class_list_' . $section->name . '_' . date('Y-m-d') . '.xlsx';
+            $filename = 'class_list_' . $this->safeName($section->name) . '_' . date('Y-m-d') . '.xlsx';
             return Excel::download(new ClassListExport($exportData, $section->name), $filename);
         }
     }
@@ -346,7 +389,7 @@ class ReportController extends Controller
                 'academicYear',
                 'semester'
             ));
-            $filename = 'grade_slip_' . $student->last_name . '_' . $student->first_name . '_' . date('Y-m-d') . '.pdf';
+            $filename = 'grade_slip_' . $this->safeName($student->last_name . '_' . $student->first_name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
         } else {
             $exportData = [];
@@ -362,7 +405,7 @@ class ReportController extends Controller
                     ];
                 }
             }
-            $filename = 'grade_slip_' . $student->last_name . '_' . date('Y-m-d') . '.xlsx';
+            $filename = 'grade_slip_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
             return Excel::download(new GradeSlipExport($exportData), $filename);
         }
     }
@@ -488,7 +531,7 @@ class ReportController extends Controller
                 'academicYear',
                 'semester'
             ));
-            $filename = 'progress_summary_' . $student->last_name . '_' . $student->first_name . '_' . date('Y-m-d') . '.pdf';
+            $filename = 'progress_report_' . $this->safeName($student->last_name . '_' . $student->first_name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
         } else {
             $exportData = [];
@@ -502,9 +545,155 @@ class ReportController extends Controller
             }
             $exportData[] = ['Overall GPA', '', $overallGpaValue, GradeNarrativeHelper::overallNarrative($overallGpaValue)];
             $exportData[] = ['Attendance', '', $attendanceSummary['percentage'] . '%', GradeNarrativeHelper::attendanceNarrative($attendanceSummary['percentage'])];
-            $filename = 'progress_summary_' . $student->last_name . '_' . date('Y-m-d') . '.xlsx';
+            $filename = 'progress_report_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
             return Excel::download(new ProgressSummaryExport($exportData), $filename);
         }
+    }
+
+    /**
+     * Bulk download reports by grade level and/or section (ZIP of PDFs).
+     * Types: transcript | grade-slip | progress-summary | class-list
+     */
+    public function generateBulk(Request $request, string $type)
+    {
+        $user = Auth::user();
+        if (!in_array($user->role_name, ['Admin', 'Teacher'], true)) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $type = strtolower($type);
+        if (!in_array($type, ['transcript', 'grade-slip', 'progress-summary', 'class-list'], true)) {
+            abort(404);
+        }
+
+        $gradeLevel = trim((string) $request->get('grade_level', ''));
+        $sectionId = $request->get('section_id');
+        $academicYearId = $request->get('academic_year_id');
+        $semesterId = $request->get('semester_id');
+        $format = $request->get('format', 'pdf');
+
+        if ($gradeLevel === '' && !$sectionId) {
+            return redirect()->route('reports.index')
+                ->with('error', 'Please select a grade level or section for bulk download.');
+        }
+
+        if (!class_exists(\ZipArchive::class)) {
+            return redirect()->route('reports.index')
+                ->with('error', 'ZIP extension is not available on this server.');
+        }
+
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
+        $tmpZip = tempnam(sys_get_temp_dir(), 'reports_zip_');
+        $zipPath = $tmpZip . '.zip';
+        @unlink($tmpZip);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return redirect()->route('reports.index')->with('error', 'Could not create ZIP archive.');
+        }
+
+        $added = 0;
+
+        if ($type === 'class-list') {
+            $sectionsQuery = Section::query()->orderBy('name');
+            if ($sectionId) {
+                $sectionsQuery->where('id', $sectionId);
+            } elseif ($gradeLevel !== '') {
+                $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
+                $sectionsQuery->where(function ($q) use ($gradeLevel, $aliases) {
+                    $q->where('grade_level', $gradeLevel);
+                    if (!empty($aliases)) {
+                        $q->orWhereIn('grade_level', $aliases);
+                    }
+                });
+            }
+
+            foreach ($sectionsQuery->get() as $section) {
+                $subRequest = new Request([
+                    'academic_year_id' => $academicYearId,
+                    'semester_id' => $semesterId,
+                    'format' => 'pdf',
+                ]);
+                $response = $this->generateClassList($subRequest, $section->id);
+                $binary = $response->getContent();
+                $name = 'class_list_' . $this->safeName($section->name) . '.pdf';
+                $zip->addFromString($name, $binary);
+                $added++;
+            }
+        } else {
+            $students = $this->studentsForScope($gradeLevel, $sectionId);
+            if ($students->isEmpty()) {
+                $zip->close();
+                @unlink($zipPath);
+                return redirect()->route('reports.index')
+                    ->with('error', 'No students found for the selected grade/section.');
+            }
+
+            foreach ($students as $student) {
+                $subRequest = new Request([
+                    'academic_year_id' => $academicYearId,
+                    'semester_id' => $semesterId,
+                    'format' => 'pdf',
+                ]);
+
+                $response = match ($type) {
+                    'transcript' => $this->generateTranscript($subRequest, $student->id),
+                    'grade-slip' => $this->generateGradeSlip($subRequest, $student->id),
+                    default => $this->generateProgressSummary($subRequest, $student->id),
+                };
+
+                $prefix = match ($type) {
+                    'transcript' => 'transcript',
+                    'grade-slip' => 'grade_slip',
+                    default => 'progress_report',
+                };
+                $name = $prefix . '_' . $this->safeName($student->last_name . '_' . $student->first_name) . '.pdf';
+                $zip->addFromString($name, $response->getContent());
+                $added++;
+            }
+        }
+
+        $zip->close();
+
+        if ($added === 0) {
+            @unlink($zipPath);
+            return redirect()->route('reports.index')->with('error', 'Nothing to download for the selected filters.');
+        }
+
+        $label = $sectionId
+            ? ('section_' . $sectionId)
+            : ('grade_' . $this->safeName($gradeLevel));
+        $downloadName = 'bulk_' . $this->safeName($type) . '_' . $label . '_' . date('Y-m-d') . '.zip';
+
+        return response()->download($zipPath, $downloadName)->deleteFileAfterSend(true);
+    }
+
+    protected function studentsForScope(string $gradeLevel, $sectionId)
+    {
+        $query = Student::query()->orderBy('last_name')->orderBy('first_name');
+
+        if ($sectionId) {
+            $query->whereHas('sections', function ($q) use ($sectionId) {
+                $q->where('sections.id', $sectionId);
+            });
+        } elseif ($gradeLevel !== '') {
+            $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
+            $labels = !empty($aliases) ? $aliases : [$gradeLevel];
+            $query->where(function ($q) use ($labels) {
+                $q->whereIn('year_level', $labels)->orWhereIn('class', $labels);
+            });
+        }
+
+        return $query->get();
+    }
+
+    protected function safeName(?string $value): string
+    {
+        $value = preg_replace('/[^A-Za-z0-9_\-]+/', '_', (string) $value);
+        $value = trim($value, '_');
+        return $value !== '' ? $value : 'file';
     }
 
     /**

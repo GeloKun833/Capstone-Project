@@ -74,9 +74,13 @@ class UserManagementController extends Controller
     /** user view */
     public function userView($id)
     {
-        $users = User::where('user_id',$id)->first();
-        $role  = DB::table('role_type_users')->get();
-        return view('usermanagement.user_update',compact('users','role'));
+        $users = User::where('user_id', $id)->first();
+        if (!$users) {
+            Toastr::error('User not found.', 'Error');
+            return redirect()->route('list/users');
+        }
+        $role = DB::table('role_type_users')->get();
+        return view('usermanagement.user_update', compact('users', 'role'));
     }
 
     /** user Update */
@@ -84,60 +88,99 @@ class UserManagementController extends Controller
     {
         DB::beginTransaction();
         try {
-            if (Session::get('role_name') === 'Admin' || Session::get('role_name') === 'Super Admin')
-            {
-                $user_id       = $request->user_id;
-                $name          = $request->name;
-                $email         = $request->email;
-                $role_name     = $request->role_name;
-                $position      = $request->position;
-                $phone         = $request->phone_number;
-                $date_of_birth = $request->date_of_birth;
-                $department    = $request->department;
-                $status        = $request->status;
-
-                $image_name = $request->hidden_avatar;
-                $image = $request->file('avatar');
-
-                if($image_name =='photo_defaults.jpg') {
-                    if ($image != '') {
-                        $image_name = rand() . '.' . $image->getClientOriginalExtension();
-                        $image->move(public_path('/images/'), $image_name);
-                    }
-                } else {
-                    
-                    if($image != '') {
-                        unlink('images/'.$image_name);
-                        $image_name = rand() . '.' . $image->getClientOriginalExtension();
-                        $image->move(public_path('/images/'), $image_name);
-                    }
-                }
-            
-                $update = [
-                    'user_id'       => $user_id,
-                    'name'          => $name,
-                    'role_name'     => $role_name,
-                    'email'         => $email,
-                    'position'      => $position,
-                    'phone_number'  => $phone,
-                    'date_of_birth' => $date_of_birth,
-                    'department'    => $department,
-                    'status'        => $status,
-                    'avatar'        => $image_name,
-                ];
-
-                User::where('user_id',$request->user_id)->update($update);
-            } else {
-                Toastr::error('User update fail :)','Error');
+            if (!in_array(Session::get('role_name'), ['Admin', 'Super Admin'], true)) {
+                DB::rollBack();
+                Toastr::error('You are not allowed to update users.', 'Error');
+                return redirect()->back();
             }
-            DB::commit();
-            Toastr::success('User updated successfully :)','Success');
-            return redirect()->back();
 
-        } catch(\Exception $e){
-            DB::rollback();
-            Toastr::error('User update fail :)','Error');
+            $request->validate([
+                'user_id' => 'required|string',
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'phone_number' => 'nullable|string|max:50',
+                'date_of_birth' => 'nullable|string|max:50',
+                'status' => 'required|string|max:50',
+                'role_name' => 'required|string|max:50',
+                'position' => 'nullable|string|max:100',
+                'department' => 'nullable|string|max:100',
+                'avatar' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:2048',
+                'hidden_avatar' => 'nullable|string|max:255',
+                'new_password' => 'nullable|string|min:8|confirmed',
+            ]);
+
+            $user = User::where('user_id', $request->user_id)->first();
+            if (!$user) {
+                DB::rollBack();
+                Toastr::error('User not found.', 'Error');
+                return redirect()->back();
+            }
+
+            $imageName = $user->avatar ?: 'photo_defaults.jpg';
+            $uploaded = $request->file('avatar');
+
+            if ($uploaded && $uploaded->isValid()) {
+                $newName = time() . '_' . uniqid() . '.' . strtolower($uploaded->getClientOriginalExtension());
+                $destination = public_path('images');
+
+                if (!is_dir($destination)) {
+                    mkdir($destination, 0755, true);
+                }
+
+                $uploaded->move($destination, $newName);
+
+                // Remove old custom avatar safely (never delete the default image)
+                $oldName = $request->input('hidden_avatar', $user->avatar);
+                if (
+                    $oldName
+                    && $oldName !== 'photo_defaults.jpg'
+                    && $oldName !== $newName
+                    && is_file(public_path('images/' . $oldName))
+                ) {
+                    @unlink(public_path('images/' . $oldName));
+                }
+
+                $imageName = $newName;
+            }
+
+            // Empty DOB from form should be null (avoids SQL date errors)
+            $dob = trim((string) $request->input('date_of_birth', ''));
+            if ($dob === '') {
+                $dob = null;
+            }
+
+            $payload = [
+                'name' => $request->name,
+                'role_name' => $request->role_name,
+                'email' => $request->email,
+                'position' => $request->position,
+                'phone_number' => $request->phone_number,
+                'date_of_birth' => $dob,
+                'department' => $request->department,
+                'status' => $request->status,
+                'avatar' => $imageName,
+            ];
+
+            if ($request->filled('new_password')) {
+                $payload['password'] = \Illuminate\Support\Facades\Hash::make($request->new_password);
+            }
+
+            $user->update($payload);
+
+            DB::commit();
+            Toastr::success('User updated successfully.', 'Success');
             return redirect()->back();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('User update failed: ' . $e->getMessage(), [
+                'user_id' => $request->user_id ?? null,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            Toastr::error('User update failed: ' . $e->getMessage(), 'Error');
+            return redirect()->back()->withInput();
         }
     }
 

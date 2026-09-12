@@ -126,39 +126,64 @@ class SubmissionController extends Controller
             }
         }
 
-        $request->validate([
-            'scores' => 'required|array',
-            'scores.*' => 'required|integer|min:0',
-            'feedback' => 'nullable|string|max:2000',
-            'total_score' => 'required|integer|min:0',
-            'max_possible_score' => 'required|integer|min:1',
-            'percentage' => 'required|numeric|min:0|max:100',
-            'letter_grade' => 'required|string|max:2',
-        ]);
+        $hasRubrics = $activity->rubrics()->where('is_active', true)->exists();
+
+        if ($hasRubrics) {
+            $request->validate([
+                'scores' => 'required|array',
+                'scores.*' => 'required|numeric|min:0',
+                'feedback' => 'nullable|string|max:2000',
+                'total_score' => 'required|numeric|min:0',
+                'max_possible_score' => 'required|numeric|min:1',
+                'percentage' => 'required|numeric|min:0|max:100',
+                'letter_grade' => 'required|string|max:5',
+            ]);
+        } else {
+            $request->validate([
+                'total_score' => 'required|numeric|min:0',
+                'max_possible_score' => 'required|numeric|min:1',
+                'feedback' => 'nullable|string|max:2000',
+            ]);
+        }
 
         try {
             DB::beginTransaction();
 
-            // Delete existing grades for this submission
-            ActivityGrade::where('submission_id', $submission->id)->delete();
+            if ($hasRubrics) {
+                ActivityGrade::where('submission_id', $submission->id)->delete();
 
-            // Create new grades
-            foreach ($request->scores as $rubricId => $score) {
-                ActivityGrade::create([
-                    'submission_id' => $submission->id,
-                    'rubric_id' => $rubricId,
-                    'score' => $score,
-                    'graded_by' => Auth::id(),
-                    'graded_at' => now(),
-                ]);
+                foreach ($request->scores as $rubricId => $score) {
+                    ActivityGrade::create([
+                        'submission_id' => $submission->id,
+                        'rubric_id' => $rubricId,
+                        'score' => $score,
+                        'graded_by' => Auth::id(),
+                        'graded_at' => now(),
+                    ]);
+                }
+
+                $totalScore = (float) $request->total_score;
+                $maxPossible = (float) $request->max_possible_score;
+                $percentage = (float) $request->percentage;
+                $letterGrade = $request->letter_grade;
+            } else {
+                $totalScore = (float) $request->total_score;
+                $maxPossible = (float) $request->max_possible_score;
+                if ($totalScore > $maxPossible) {
+                    DB::rollBack();
+                    return redirect()->back()->withInput()->withErrors([
+                        'total_score' => 'Score cannot be higher than the maximum score.',
+                    ]);
+                }
+                $percentage = $maxPossible > 0 ? round(($totalScore / $maxPossible) * 100, 1) : 0;
+                $letterGrade = $this->letterGradeFromPercentage($percentage);
             }
 
-            // Update submission
             $submission->update([
-                'total_score' => $request->total_score,
-                'max_possible_score' => $request->max_possible_score,
-                'percentage' => $request->percentage,
-                'letter_grade' => $request->letter_grade,
+                'total_score' => $totalScore,
+                'max_possible_score' => $maxPossible,
+                'percentage' => $percentage,
+                'letter_grade' => $letterGrade,
                 'feedback' => $request->feedback,
                 'status' => 'graded',
                 'graded_at' => now(),
@@ -169,11 +194,37 @@ class SubmissionController extends Controller
 
             return redirect()->route('lessons.activities.submissions', [$lesson, $activity])
                 ->with('success', 'Grade saved successfully!');
-
         } catch (\Exception $e) {
             DB::rollback();
-            return redirect()->back()->with('error', 'Error saving grade: ' . $e->getMessage());
+            return redirect()->back()->withInput()->with('error', 'Error saving grade: ' . $e->getMessage());
         }
+    }
+
+    protected function letterGradeFromPercentage(float $percentage): string
+    {
+        if ($percentage >= 90) {
+            return 'A';
+        }
+        if ($percentage >= 85) {
+            return 'B+';
+        }
+        if ($percentage >= 80) {
+            return 'B';
+        }
+        if ($percentage >= 75) {
+            return 'C+';
+        }
+        if ($percentage >= 70) {
+            return 'C';
+        }
+        if ($percentage >= 65) {
+            return 'D+';
+        }
+        if ($percentage >= 60) {
+            return 'D';
+        }
+
+        return 'F';
     }
 
     public function viewGrade(Lesson $lesson, Activity $activity, ActivitySubmission $submission)

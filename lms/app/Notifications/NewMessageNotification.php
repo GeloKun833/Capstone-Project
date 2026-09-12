@@ -2,75 +2,56 @@
 
 namespace App\Notifications;
 
+use App\Models\Message;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use App\Models\Message;
 
-class NewMessageNotification extends Notification implements ShouldQueue
+class NewMessageNotification extends Notification
 {
     use Queueable;
 
-    public $message;
+    public Message $message;
 
-    /**
-     * Create a new notification instance.
-     */
     public function __construct(Message $message)
     {
         $this->message = $message;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        // Database only so chat alerts always reach the bell even without a mail queue
+        return ['database'];
     }
 
-    /**
-     * Get the mail representation of the notification.
-     */
     public function toMail(object $notifiable): MailMessage
     {
-        $studentInfo = '';
-        if ($this->message->student) {
-            $studentInfo = ' regarding student: ' . $this->message->student->full_name;
-        }
-
         return (new MailMessage)
-                    ->subject('New Message: ' . $this->message->subject)
-                    ->greeting('Hello ' . $notifiable->name . '!')
-                    ->line('You have received a new message from ' . $this->message->sender->name . $studentInfo . '.')
-                    ->line('**Subject:** ' . $this->message->subject)
-                    ->line('**Message:** ' . substr($this->message->content, 0, 100) . '...')
-                    ->line('**Type:** ' . ucfirst($this->message->type))
-                    ->line('**Priority:** ' . ucfirst($this->message->priority))
-                    ->action('View Message', url('/messages/' . $this->message->id))
-                    ->line('Thank you for using our LMS system!');
+            ->subject('New chat message from ' . ($this->message->sender->name ?? 'someone'))
+            ->greeting('Hello ' . ($notifiable->name ?? 'there') . '!')
+            ->line('You have a new chat message.')
+            ->line(\Illuminate\Support\Str::limit(strip_tags($this->message->content), 200))
+            ->action('Open Chat', url('/chat?receiver_id=' . $this->message->sender_id))
+            ->line('Thank you for using our LMS system!');
     }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(object $notifiable): array
     {
+        $senderName = optional($this->message->sender)->name ?? 'Someone';
+        $excerpt = \Illuminate\Support\Str::limit(trim(strip_tags($this->message->content)), 140);
+
         return [
             'message_id' => $this->message->id,
-            'subject' => $this->message->subject,
-            'content' => substr($this->message->content, 0, 100) . '...',
-            'sender_name' => $this->message->sender->name,
+            'title' => 'New message from ' . $senderName,
+            'message' => $excerpt,
+            'content' => $this->message->content,
+            'sender_name' => $senderName,
             'sender_id' => $this->message->sender_id,
-            'type' => $this->message->type,
-            'priority' => $this->message->priority,
-            'student_name' => $this->message->student ? $this->message->student->full_name : null,
-            'created_at' => $this->message->created_at->format('M d, Y H:i'),
+            'type' => 'chat',
+            'priority' => $this->message->priority ?? 'normal',
+            'icon' => 'fas fa-comments',
+            'url' => url('/chat?receiver_id=' . $this->message->sender_id),
+            'created_at' => optional($this->message->created_at)?->format('M d, Y H:i'),
         ];
     }
 }

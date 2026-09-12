@@ -17,6 +17,10 @@
                 <p class="login-card__subtitle">Sign in to your LMS account to continue</p>
             </header>
 
+            @if (session('status'))
+                <div class="alert alert-success" role="alert">{{ session('status') }}</div>
+            @endif
+
             <form action="{{ route('login') }}" method="POST" class="login-form" id="login-form" novalidate>
                 @csrf
 

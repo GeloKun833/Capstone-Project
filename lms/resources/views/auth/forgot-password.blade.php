@@ -1,45 +1,58 @@
 @extends('layouts.app')
 @section('content')
 
-<div class="glass-form">
-    <div class="school-logo-top">
-        <img src="{{ URL::to('assets/img/Logo.jpg') }}" alt="School Logo">
-        <h1 class="school-name">Panorama Montessori School</h1>
-        <p class="school-motto">Nurturing Minds, Building Futures</p>
+<div class="auth-shell">
+    <div class="auth-form-panel">
+        <div class="login-card">
+            <header class="login-card__header">
+                <img src="{{ URL::to('assets/img/Logo.jpg') }}" alt="School logo" class="login-card__logo" width="72" height="72">
+                <h1 class="login-card__title">Forgot password?</h1>
+                <p class="login-card__subtitle">Enter your account email and we will send a reset link. Works for Teacher, Registrar, Student, Parent, and Admin.</p>
+            </header>
+
+            @if (session('status'))
+                <div class="alert alert-success" role="alert">{{ session('status') }}</div>
+            @endif
+
+            <form action="{{ route('password.email') }}" method="POST" class="login-form">
+                @csrf
+                <div class="form-group">
+                    <label for="email" class="form-label">Email address <span class="login-danger">*</span></label>
+                    <div class="input-field">
+                        <span class="input-field__icon"><i class="fas fa-envelope"></i></span>
+                        <input type="email" id="email" name="email"
+                               class="form-control @error('email') is-invalid @enderror"
+                               value="{{ old('email') }}" placeholder="you@school.edu" required autofocus>
+                    </div>
+                    @error('email')
+                        <span class="invalid-feedback" role="alert">{{ $message }}</span>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <button class="btn-sign-in" type="submit">
+                        <span class="btn-sign-in__text">
+                            <i class="fas fa-paper-plane"></i> Send reset link
+                        </span>
+                    </button>
+                </div>
+
+                <p class="login-card__footer">
+                    <a href="{{ route('login') }}" class="form-link">Back to sign in</a>
+                </p>
+                <p class="login-card__footer text-muted small mt-2 mb-0">
+                    If email is not configured on the server, ask an Admin to reset your password from User Management.
+                </p>
+            </form>
+        </div>
     </div>
-    
-    <div class="text-center mb-4">
-        <h2 style="color: white; font-size: 1.8rem; margin-bottom: 10px;">Forgot Password?</h2>
-        <p style="color: rgba(255, 255, 255, 0.9); font-size: 1rem;">
-            Enter your email address and we'll send you a link to reset your password.
-        </p>
-    </div>
-    
-    <form action="{{ route('password.email') }}" method="POST">
-        @csrf
-        <div class="form-group">
-            <label>Email Address <span class="login-danger">*</span></label>
-            <input type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" placeholder="Enter your email address" required>
-            <span class="profile-views"><i class="fas fa-envelope"></i></span>
-            @error('email')
-                <span class="invalid-feedback" role="alert">
-                    <strong>{{ $message }}</strong>
-                </span>
-            @enderror
+
+    <aside class="auth-brand-panel" aria-label="School information">
+        <div class="auth-brand-panel__content">
+            <p class="auth-brand-panel__eyebrow">Password Recovery</p>
+            <h2 class="auth-brand-panel__name">Panorama Montessori School INC.</h2>
+            <p class="auth-brand-panel__address">Use the email registered to your LMS account.</p>
         </div>
-        
-        <div class="form-group">
-            <button class="btn btn-primary" type="submit">
-                <i class="fas fa-paper-plane me-2"></i>Send Reset Link
-            </button>
-        </div>
-        
-        <div class="text-center">
-            <p style="color: rgba(255, 255, 255, 0.9); margin-bottom: 0;">
-                Remember your password? 
-                <a href="{{ route('login') }}" style="color: white; text-decoration: none; font-weight: 600;">Sign in here</a>
-            </p>
-        </div>
-    </form>
+    </aside>
 </div>
 @endsection

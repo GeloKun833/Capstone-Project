@@ -33,7 +33,7 @@
                         </button>
                     <button type="button" class="btn btn-primary ams-cal-btn ms-2" id="btnOpenCreateEvent">
                         <i class="fas fa-plus"></i> Create Event
-                    </button>
+                        </button>
                     </div>
                 </div>
             </div>

@@ -46,7 +46,6 @@
                         <ul>
                             <li><a href="{{ route('analytics.admin-dashboard') }}"><i class="fas fa-chart-bar"></i> <span>School Analytics</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
-                            <li><a href="{{ route('messages.index') }}"><i class="fas fa-envelope"></i> <span>Messages</span></a></li>
                             <li><a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
                             <li><a href="{{ route('setting/page') }}"><i class="fas fa-cog"></i> <span>System Settings</span></a></li>
                             <li><a href="{{ route('admin.backup.index') }}"><i class="fas fa-database"></i> <span>Backup & Recovery</span></a></li>
@@ -82,6 +81,10 @@
                             <li><a href="{{ route('subject/add/page') }}"><i class="fas fa-plus"></i> <span>Add Subject</span></a></li>
                         </ul>
                     </li>
+
+                    <li>
+                        <a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a>
+                    </li>
                 @endif
 
                 {{-- TEACHER SIDEBAR --}}
@@ -96,8 +99,7 @@
                             <li><a href="{{ route('teacher.my-schedule') }}"><i class="fas fa-calendar-alt"></i> <span>My Schedule</span></a></li>
                             <li><a href="{{ route('lessons.index') }}"><i class="fas fa-list"></i> <span>My Lessons</span></a></li>
                             <li><a href="{{ route('lessons.create') }}"><i class="fas fa-plus"></i> <span>Create Lesson</span></a></li>
-                            <li><a href="{{ route('teacher.classes') }}"><i class="fas fa-users"></i> <span>My Classes</span></a></li>
-                            <li><a href="{{ route('teacher.subjects') }}"><i class="fas fa-book"></i> <span>My Subjects</span></a></li>
+                            <li><a href="{{ route('teacher.classes') }}"><i class="fas fa-chalkboard-teacher"></i> <span>My Classes & Subjects</span></a></li>
                         </ul>
                     </li>
 
@@ -134,25 +136,8 @@
                         <a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a>
                     </li>
 
-                    <li class="submenu">
-                        <a href="#"><i class="fas fa-comment"></i> <span>Message</span> <span class="menu-arrow"></span></a>
-                        <ul>
-                            @php
-                                $parentUsers = $sidebarParentUsers ?? collect();
-                            @endphp
-                            @if($parentUsers->count() > 0)
-                                @foreach($parentUsers as $parent)
-                                    <li>
-                                        <a href="{{ route('chat.index') }}?receiver_id={{ $parent->id }}">
-                                            <i class="fas fa-user-friends"></i>
-                                            <span>{{ $parent->name }}</span>
-                                        </a>
-                                    </li>
-                                @endforeach
-                            @else
-                                <li><a href="#"><i class="fas fa-info-circle"></i> <span>No parents available</span></a></li>
-                            @endif
-                        </ul>
+                    <li>
+                        <a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a>
                     </li>
                 @endif
 
@@ -196,7 +181,6 @@
                             <li><a href="{{ route('student.recommendations') }}"><i class="fas fa-lightbulb"></i> <span>Study Recommendations</span></a></li>
                             <li><a href="{{ route('analytics.student-dashboard') }}"><i class="fas fa-chart-line"></i> <span>My Analytics</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
-                            <li><a href="{{ route('messages.index') }}"><i class="fas fa-envelope"></i> <span>Messages</span></a></li>
                             <li><a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
                         </ul>
                     </li>
@@ -243,7 +227,6 @@
                         <a href="#"><i class="fas fa-comments"></i> <span>Communication</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
-                            <li><a href="{{ route('messages.index') }}"><i class="fas fa-envelope"></i> <span>Messages</span></a></li>
                             <li><a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
                         </ul>
                     </li>

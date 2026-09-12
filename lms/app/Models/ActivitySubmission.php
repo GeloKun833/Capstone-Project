@@ -17,15 +17,25 @@ class ActivitySubmission extends Model
         'comments',
         'status',
         'submitted_at',
-        'is_active'
+        'is_active',
+        'total_score',
+        'max_possible_score',
+        'percentage',
+        'letter_grade',
+        'feedback',
+        'graded_by',
+        'graded_at',
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
+        'graded_at' => 'datetime',
         'is_active' => 'boolean',
+        'total_score' => 'float',
+        'max_possible_score' => 'float',
+        'percentage' => 'float',
     ];
 
-    // Relationships
     public function student()
     {
         return $this->belongsTo(Student::class);
@@ -41,7 +51,11 @@ class ActivitySubmission extends Model
         return $this->hasMany(ActivityGrade::class, 'submission_id');
     }
 
-    // Scopes
+    public function gradedBy()
+    {
+        return $this->belongsTo(User::class, 'graded_by');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
@@ -77,30 +91,24 @@ class ActivitySubmission extends Model
         return $query->where('status', 'late');
     }
 
-    // Accessors
     public function getFileUrlAttribute()
     {
         return $this->file_path ? asset('storage/' . $this->file_path) : null;
     }
 
-    public function getTotalScoreAttribute()
-    {
-        return $this->grades()->sum('score');
-    }
-
-    public function getMaxScoreAttribute()
-    {
-        return $this->activity->rubrics()->sum('max_score');
-    }
-
-    public function getPercentageAttribute()
-    {
-        $maxScore = $this->max_score;
-        return $maxScore > 0 ? round(($this->total_score / $maxScore) * 100, 2) : 0;
-    }
-
     public function getIsLateAttribute()
     {
-        return $this->submitted_at && $this->submitted_at->gt($this->activity->due_date);
+        return $this->submitted_at && $this->activity && $this->submitted_at->gt($this->activity->due_date);
     }
-} 
+
+    public function getLetterGradeColorAttribute()
+    {
+        return match ($this->letter_grade) {
+            'A', 'B+' => 'success',
+            'B', 'C+' => 'primary',
+            'C', 'D+' => 'warning',
+            'D', 'F' => 'danger',
+            default => 'secondary',
+        };
+    }
+}

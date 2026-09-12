@@ -10,10 +10,14 @@ use App\Models\CurriculumObjective;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\Teacher;
+use App\Models\ClassSchedule;
+use App\Services\GradeSubjectCatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class LessonController extends Controller
 {
@@ -73,39 +77,68 @@ class LessonController extends Controller
 
     public function create()
     {
-        $subjects = Subject::all();
-        $sections = Section::all();
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
+        $teacher = Auth::user()->teacher;
+        if (!$teacher) {
+            return redirect()->route('lessons.index')
+                ->with('error', 'Teacher profile not found. Please contact admin.');
+        }
 
-        return view('lessons.create', compact(
-            'subjects',
-            'sections',
-            'academicYears',
-            'semesters'
-        ));
+        $assignmentOptions = $this->teacherAssignmentOptions($teacher);
+        $academicYears = AcademicYear::orderByDesc('id')->get();
+        $semesters = Semester::orderBy('name')->get();
+
+        return view('lessons.create', array_merge($assignmentOptions, [
+            'academicYears' => $academicYears,
+            'semesters' => $semesters,
+        ]));
     }
 
     public function store(Request $request)
     {
         try {
-            $request->validate([
-                'title' => 'required|string|max:255',
-                'description' => 'required|string',
-                'subject_id' => 'required|exists:subjects,id',
-                'section_id' => 'required|exists:sections,id',
-                'academic_year_id' => 'required|exists:academic_years,id',
-                'semester_id' => 'required|exists:semesters,id',
-                'lesson_date' => 'required|date',
-                'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx|max:10240',
-            ]);
-
-            $data = $request->all();
             $teacher = Auth::user()->teacher;
             if (!$teacher) {
                 Log::error('Lesson creation failed: Teacher profile not found.', ['user_id' => Auth::id()]);
                 return redirect()->back()->withInput()->with('error', 'Teacher profile not found. Please contact admin.');
             }
+
+            $allowed = $this->teacherAssignmentOptions($teacher);
+            $allowedSubjectIds = $allowed['subjects']->pluck('id')->all();
+            $allowedSectionIds = $allowed['sections']->pluck('id')->all();
+            $subjectsBySection = $allowed['subjectsBySection'];
+
+            $request->validate([
+                'section_id' => ['required', Rule::in($allowedSectionIds)],
+                'subject_id' => ['required', Rule::in($allowedSubjectIds)],
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'semester_id' => 'required|exists:semesters,id',
+                'lesson_date' => 'required|date',
+                'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx|max:10240',
+            ], [
+                'subject_id.in' => 'Select a subject assigned to you by Admin.',
+                'section_id.in' => 'Select a section assigned to you by Admin.',
+            ]);
+
+            $subjectId = (int) $request->subject_id;
+            $sectionId = (int) $request->section_id;
+            $validSubjects = array_map('intval', $subjectsBySection[$sectionId] ?? []);
+            if (! in_array($subjectId, $validSubjects, true)) {
+                return redirect()->back()->withInput()->withErrors([
+                    'subject_id' => 'That subject is not linked to the selected section in your teaching assignment.',
+                ]);
+            }
+
+            $data = $request->only([
+                'title',
+                'description',
+                'subject_id',
+                'section_id',
+                'academic_year_id',
+                'semester_id',
+                'lesson_date',
+            ]);
             $data['teacher_id'] = $teacher->id;
             $data['is_active'] = true;
             $data['status'] = 'published';
@@ -131,6 +164,8 @@ class LessonController extends Controller
             ]);
             return redirect()->route('lessons.index')
                 ->with('success', 'Lesson created successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Lesson creation error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return redirect()->back()->withInput()->with('error', 'Failed to create lesson: ' . $e->getMessage());
@@ -140,8 +175,9 @@ class LessonController extends Controller
     public function show(Lesson $lesson)
     {
         $lesson->load(['teacher', 'subject', 'section', 'academicYear', 'semester', 'activities']);
-        
-        return view('lessons.show', compact('lesson'));
+        $studentCount = $lesson->section ? $lesson->section->enrolledStudentsCount() : 0;
+
+        return view('lessons.show', compact('lesson', 'studentCount'));
     }
 
     public function edit(Lesson $lesson)
@@ -283,5 +319,110 @@ class LessonController extends Controller
             Log::error('Lesson complete error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return redirect()->back()->with('error', 'Failed to mark lesson as completed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Subjects/sections assigned to the teacher by Admin (+ schedule pairs).
+     *
+     * @return array{
+     *   subjects:\Illuminate\Support\Collection,
+     *   sections:\Illuminate\Support\Collection,
+     *   assignmentMap:array<int,array<int>>,
+     *   subjectsBySection:array<int,array<int>>
+     * }
+     */
+    protected function teacherAssignmentOptions(Teacher $teacher): array
+    {
+        $teacher->load(['subjects', 'sections', 'gradeLevels']);
+
+        $subjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
+        $sections = $teacher->sections->sortBy(['grade_level', 'name'])->values();
+
+        if ($sections->isEmpty() && $teacher->gradeLevels->isNotEmpty()) {
+            $expanded = collect();
+            foreach ($teacher->gradeLevels->pluck('grade_level')->filter()->unique() as $grade) {
+                foreach (GradeSubjectCatalogService::gradeAliases($grade) as $alias) {
+                    $expanded->push($alias);
+                }
+            }
+            $sections = Section::query()
+                ->whereIn('grade_level', $expanded->unique()->all())
+                ->orderBy('grade_level')
+                ->orderBy('name')
+                ->get();
+        }
+
+        $map = []; // subject_id => [section_ids]
+        $subjectsBySection = []; // section_id => [subject_ids]
+
+        $addPair = function (int $subjectId, int $sectionId) use (&$map, &$subjectsBySection) {
+            if (!isset($map[$subjectId])) {
+                $map[$subjectId] = [];
+            }
+            if (!in_array($sectionId, $map[$subjectId], true)) {
+                $map[$subjectId][] = $sectionId;
+            }
+
+            if (!isset($subjectsBySection[$sectionId])) {
+                $subjectsBySection[$sectionId] = [];
+            }
+            if (!in_array($subjectId, $subjectsBySection[$sectionId], true)) {
+                $subjectsBySection[$sectionId][] = $subjectId;
+            }
+        };
+
+        ClassSchedule::query()
+            ->where('teacher_id', $teacher->id)
+            ->where('is_active', true)
+            ->get(['subject_id', 'section_id'])
+            ->each(function ($row) use ($addPair) {
+                if ($row->subject_id && $row->section_id) {
+                    $addPair((int) $row->subject_id, (int) $row->section_id);
+                }
+            });
+
+        $subjectIds = $subjects->pluck('id');
+        $sectionIds = $sections->pluck('id');
+
+        if ($subjectIds->isNotEmpty() && $sectionIds->isNotEmpty()) {
+            DB::table('section_subject')
+                ->whereIn('subject_id', $subjectIds)
+                ->whereIn('section_id', $sectionIds)
+                ->get()
+                ->each(function ($row) use ($addPair) {
+                    $addPair((int) $row->subject_id, (int) $row->section_id);
+                });
+
+            // Strict grade match only — never mix Nursery with Grade 1, etc.
+            foreach ($subjects as $subject) {
+                $subjectGrade = trim((string) $subject->class);
+                if ($subjectGrade === '') {
+                    continue;
+                }
+                $subjectAliases = GradeSubjectCatalogService::gradeAliases($subjectGrade);
+
+                foreach ($sections as $section) {
+                    $sectionGrade = trim((string) $section->grade_level);
+                    if ($sectionGrade === '') {
+                        continue;
+                    }
+                    $sectionAliases = GradeSubjectCatalogService::gradeAliases($sectionGrade);
+
+                    $gradesMatch = count(array_intersect($subjectAliases, $sectionAliases)) > 0
+                        || strcasecmp($subjectGrade, $sectionGrade) === 0;
+
+                    if ($gradesMatch) {
+                        $addPair((int) $subject->id, (int) $section->id);
+                    }
+                }
+            }
+        }
+
+        return [
+            'subjects' => $subjects,
+            'sections' => $sections,
+            'assignmentMap' => $map,
+            'subjectsBySection' => $subjectsBySection,
+        ];
     }
 } 

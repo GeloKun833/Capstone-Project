@@ -4,9 +4,9 @@
 <div class="page-wrapper">
     <div class="content container-fluid">
         <div class="page-header">
-            <div class="row">
-                <div class="col-sm-12">
-                    <h3 class="page-title">Reports & Document Generation</h3>
+            <div class="row align-items-center">
+                <div class="col">
+                    <h3 class="page-title">Reports &amp; Documents</h3>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
                         <li class="breadcrumb-item active">Reports</li>
@@ -15,66 +15,63 @@
             </div>
         </div>
 
-        <div class="row">
-            <!-- Transcript Report -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card">
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
+        <div class="alert alert-light border mb-4">
+            <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
+            For many students, use <strong>Entire grade</strong> or <strong>Entire section</strong> to download a ZIP of PDFs.
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
                     <div class="card-body text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-file-alt fa-3x text-primary"></i>
-                        </div>
+                        <i class="fas fa-file-alt fa-3x text-primary mb-3"></i>
                         <h5 class="card-title">Student Transcript</h5>
-                        <p class="text-muted">Generate comprehensive academic transcript</p>
+                        <p class="text-muted small">Academic history — one student or bulk by grade/section</p>
                         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#transcriptModal">
-                            Generate Transcript
+                            <i class="fas fa-download me-1"></i> Generate / Download
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Class List Report -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
                     <div class="card-body text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-users fa-3x text-success"></i>
-                        </div>
+                        <i class="fas fa-users fa-3x text-success mb-3"></i>
                         <h5 class="card-title">Class List</h5>
-                        <p class="text-muted">Generate section roster/class list</p>
+                        <p class="text-muted small">Section roster — filter by grade, then section</p>
                         <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#classListModal">
-                            Generate Class List
+                            <i class="fas fa-download me-1"></i> Generate / Download
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Grade Slip Report -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
                     <div class="card-body text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-clipboard-list fa-3x text-warning"></i>
-                        </div>
+                        <i class="fas fa-clipboard-list fa-3x text-warning mb-3"></i>
                         <h5 class="card-title">Grade Slip</h5>
-                        <p class="text-muted">Generate individual grade slip</p>
+                        <p class="text-muted small">Period grades — one student or bulk ZIP by grade</p>
                         <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
-                            Generate Grade Slip
+                            <i class="fas fa-download me-1"></i> Generate / Download
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Progress Summary Report -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
                     <div class="card-body text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-chart-line fa-3x text-info"></i>
-                        </div>
-                        <h5 class="card-title">Progress Summary</h5>
-                        <p class="text-muted">Generate student progress summary</p>
+                        <i class="fas fa-chart-line fa-3x text-info mb-3"></i>
+                        <h5 class="card-title">Progress Report</h5>
+                        <p class="text-muted small">Performance summary — one student or bulk by grade</p>
                         <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
-                            Generate Summary
+                            <i class="fas fa-download me-1"></i> Generate / Download
                         </button>
                     </div>
                 </div>
@@ -83,54 +80,85 @@
     </div>
 </div>
 
+@php
+    $ayOptions = $academicYears;
+    $semOptions = $semesters;
+@endphp
+
+{{-- Shared filter partials via repeated markup for clarity --}}
+
 <!-- Transcript Modal -->
 <div class="modal fade" id="transcriptModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Generate Student Transcript</h5>
+                <h5 class="modal-title">Download Student Transcript</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ route('reports.transcript', ['studentId' => 'STUDENT_ID']) }}" method="GET" id="transcriptForm">
+            <form class="report-form" data-type="transcript" data-single-base="{{ url('/reports/transcript') }}" data-bulk-url="{{ route('reports.bulk', ['type' => 'transcript']) }}">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Student</label>
-                        <select name="student_id" class="form-select" required>
-                            <option value="">Select Student</option>
-                            @foreach($students as $student)
-                                <option value="{{ $student->id }}">{{ $student->last_name }}, {{ $student->first_name }} - {{ $student->year_level }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Academic Year (Optional)</label>
-                        <select name="academic_year_id" class="form-select">
-                            <option value="">All Academic Years</option>
-                            @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Semester (Optional)</label>
-                        <select name="semester_id" class="form-select">
-                            <option value="">All Semesters</option>
-                            @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Format</label>
-                        <select name="format" class="form-select">
-                            <option value="pdf">PDF</option>
-                            <option value="excel">Excel (Coming Soon)</option>
-                        </select>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                @foreach($gradeLevels as $grade)
+                                    <option value="{{ $grade }}">{{ $grade }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select section-select">
+                                <option value="">All sections in grade</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One student</option>
+                                <option value="section">Entire section (ZIP)</option>
+                                <option value="grade">Entire grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 student-wrap">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <select class="form-select student-select" name="student_id">
+                                <option value="">Select student</option>
+                            </select>
+                            <small class="text-muted student-count"></small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">All years</option>
+                                @foreach($ayOptions as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">All semesters</option>
+                                @foreach($semOptions as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Generate Transcript</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
@@ -139,52 +167,68 @@
 
 <!-- Class List Modal -->
 <div class="modal fade" id="classListModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Generate Class List</h5>
+                <h5 class="modal-title">Download Class List</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ route('reports.class-list', ['sectionId' => 'SECTION_ID']) }}" method="GET" id="classListForm">
+            <form class="report-form" data-type="class-list" data-single-base="{{ url('/reports/class-list') }}" data-bulk-url="{{ route('reports.bulk', ['type' => 'class-list']) }}">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Section</label>
-                        <select name="section_id" class="form-select" required>
-                            <option value="">Select Section</option>
-                            @foreach($sections as $section)
-                                <option value="{{ $section->id }}">{{ $section->name }} - {{ $section->grade_level }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Academic Year (Optional)</label>
-                        <select name="academic_year_id" class="form-select">
-                            <option value="">Current Academic Year</option>
-                            @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Semester (Optional)</label>
-                        <select name="semester_id" class="form-select">
-                            <option value="">Current Semester</option>
-                            @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Format</label>
-                        <select name="format" class="form-select">
-                            <option value="pdf">PDF</option>
-                            <option value="excel">Excel (Coming Soon)</option>
-                        </select>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                @foreach($gradeLevels as $grade)
+                                    <option value="{{ $grade }}">{{ $grade }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One section</option>
+                                <option value="grade">All sections in grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 section-wrap">
+                            <label class="form-label">Section <span class="text-danger">*</span></label>
+                            <select class="form-select section-select" name="section_id">
+                                <option value="">Select section</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">Current</option>
+                                @foreach($ayOptions as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">Current</option>
+                                @foreach($semOptions as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">Generate Class List</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
@@ -193,180 +237,358 @@
 
 <!-- Grade Slip Modal -->
 <div class="modal fade" id="gradeSlipModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Generate Grade Slip</h5>
+                <h5 class="modal-title">Download Grade Slip</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ route('reports.grade-slip', ['studentId' => 'STUDENT_ID']) }}" method="GET" id="gradeSlipForm">
+            <form class="report-form" data-type="grade-slip" data-single-base="{{ url('/reports/grade-slip') }}" data-bulk-url="{{ route('reports.bulk', ['type' => 'grade-slip']) }}">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Student</label>
-                        <select name="student_id" class="form-select" required>
-                            <option value="">Select Student</option>
-                            @foreach($students as $student)
-                                <option value="{{ $student->id }}">{{ $student->last_name }}, {{ $student->first_name }} - {{ $student->year_level }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Academic Year</label>
-                        <select name="academic_year_id" class="form-select">
-                            <option value="">Current Academic Year</option>
-                            @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Semester</label>
-                        <select name="semester_id" class="form-select">
-                            <option value="">Current Semester</option>
-                            @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Format</label>
-                        <select name="format" class="form-select">
-                            <option value="pdf">PDF</option>
-                            <option value="excel">Excel (Coming Soon)</option>
-                        </select>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                @foreach($gradeLevels as $grade)
+                                    <option value="{{ $grade }}">{{ $grade }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select section-select">
+                                <option value="">All sections in grade</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One student</option>
+                                <option value="section">Entire section (ZIP)</option>
+                                <option value="grade">Entire grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 student-wrap">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <select class="form-select student-select" name="student_id">
+                                <option value="">Select student</option>
+                            </select>
+                            <small class="text-muted student-count"></small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">Current</option>
+                                @foreach($ayOptions as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">Current</option>
+                                @foreach($semOptions as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning">Generate Grade Slip</button>
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Progress Summary Modal -->
+<!-- Progress Report Modal -->
 <div class="modal fade" id="progressSummaryModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Generate Progress Summary</h5>
+                <h5 class="modal-title">Download Progress Report</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ route('reports.progress-summary', ['studentId' => 'STUDENT_ID']) }}" method="GET" id="progressSummaryForm">
+            <form class="report-form" data-type="progress-summary" data-single-base="{{ url('/reports/progress-summary') }}" data-bulk-url="{{ route('reports.bulk', ['type' => 'progress-summary']) }}">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Student</label>
-                        <select name="student_id" class="form-select" required>
-                            <option value="">Select Student</option>
-                            @foreach($students as $student)
-                                <option value="{{ $student->id }}">{{ $student->last_name }}, {{ $student->first_name }} - {{ $student->year_level }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Academic Year</label>
-                        <select name="academic_year_id" class="form-select">
-                            <option value="">Current Academic Year</option>
-                            @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Semester</label>
-                        <select name="semester_id" class="form-select">
-                            <option value="">Current Semester</option>
-                            @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Format</label>
-                        <select name="format" class="form-select">
-                            <option value="pdf">PDF</option>
-                            <option value="excel">Excel (Coming Soon)</option>
-                        </select>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                @foreach($gradeLevels as $grade)
+                                    <option value="{{ $grade }}">{{ $grade }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select section-select">
+                                <option value="">All sections in grade</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One student</option>
+                                <option value="section">Entire section (ZIP)</option>
+                                <option value="grade">Entire grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 student-wrap">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <select class="form-select student-select" name="student_id">
+                                <option value="">Select student</option>
+                            </select>
+                            <small class="text-muted student-count"></small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">Current</option>
+                                @foreach($ayOptions as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">Current</option>
+                                @foreach($semOptions as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info">Generate Summary</button>
+                    <button type="submit" class="btn btn-info"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+@push('styles')
+<style>
+    .report-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .report-card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,.08); }
+</style>
+@endpush
+
+@push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Transcript form handler
-    document.getElementById('transcriptForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const studentId = this.querySelector('[name="student_id"]').value;
-        if (!studentId) {
-            alert('Please select a student');
-            return;
-        }
-        const form = this.cloneNode(true);
-        form.action = form.action.replace('STUDENT_ID', studentId);
-        form.removeAttribute('id');
-        form.style.display = 'none';
-        document.body.appendChild(form);
-        form.submit();
-    });
+(function () {
+    const students = @json($studentsPayload);
+    const sections = @json($sectionsPayload);
 
-    // Class list form handler
-    document.getElementById('classListForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const sectionId = this.querySelector('[name="section_id"]').value;
-        if (!sectionId) {
-            alert('Please select a section');
-            return;
-        }
-        const form = this.cloneNode(true);
-        form.action = form.action.replace('SECTION_ID', sectionId);
-        form.removeAttribute('id');
-        form.style.display = 'none';
-        document.body.appendChild(form);
-        form.submit();
-    });
+    function fillSections(form, grade) {
+        const select = form.querySelector('.section-select');
+        if (!select) return;
+        const keepAll = form.dataset.type !== 'class-list';
+        const current = select.value;
+        select.innerHTML = keepAll
+            ? '<option value="">All sections in grade</option>'
+            : '<option value="">Select section</option>';
 
-    // Grade slip form handler
-    document.getElementById('gradeSlipForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const studentId = this.querySelector('[name="student_id"]').value;
-        if (!studentId) {
-            alert('Please select a student');
-            return;
-        }
-        const form = this.cloneNode(true);
-        form.action = form.action.replace('STUDENT_ID', studentId);
-        form.removeAttribute('id');
-        form.style.display = 'none';
-        document.body.appendChild(form);
-        form.submit();
-    });
+        sections
+            .filter(function (s) { return !grade || s.grade === grade; })
+            .forEach(function (s) {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name + (s.grade ? ' (' + s.grade + ')' : '');
+                select.appendChild(opt);
+            });
 
-    // Progress summary form handler
-    document.getElementById('progressSummaryForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const studentId = this.querySelector('[name="student_id"]').value;
-        if (!studentId) {
-            alert('Please select a student');
-            return;
+        if ([...select.options].some(function (o) { return o.value === current; })) {
+            select.value = current;
         }
-        const form = this.cloneNode(true);
-        form.action = form.action.replace('STUDENT_ID', studentId);
-        form.removeAttribute('id');
-        form.style.display = 'none';
-        document.body.appendChild(form);
-        form.submit();
+    }
+
+    function fillStudents(form) {
+        const studentSelect = form.querySelector('.student-select');
+        const countEl = form.querySelector('.student-count');
+        if (!studentSelect) return;
+
+        const grade = (form.querySelector('.grade-select')?.value || '').trim();
+        const sectionId = (form.querySelector('.section-select')?.value || '').trim();
+
+        let list = students.filter(function (st) {
+            const stGrade = (st.grade || '').trim();
+            const ids = (st.section_ids || []).map(String);
+
+            // If a section is chosen, prefer students assigned to that section
+            if (sectionId) {
+                if (ids.includes(String(sectionId))) {
+                    return true;
+                }
+                // fallback: denormalized section name + grade match
+                const sectionMeta = sections.find(function (s) { return String(s.id) === String(sectionId); });
+                const sectionName = sectionMeta ? sectionMeta.name : '';
+                if (sectionName && st.section && st.section === sectionName) {
+                    return !grade || stGrade === grade || stGrade === (sectionMeta.grade || '');
+                }
+                return false;
+            }
+
+            // Grade only: match year_level/class OR any section under that grade
+            if (grade) {
+                if (stGrade === grade) return true;
+                const gradeSectionIds = sections
+                    .filter(function (s) { return s.grade === grade; })
+                    .map(function (s) { return String(s.id); });
+                return ids.some(function (id) { return gradeSectionIds.includes(id); });
+            }
+
+            return true;
+        });
+
+        // Stable sort by name
+        list = list.slice().sort(function (a, b) {
+            return String(a.name).localeCompare(String(b.name));
+        });
+
+        studentSelect.innerHTML = '<option value="">Select student</option>';
+        list.forEach(function (st) {
+            const opt = document.createElement('option');
+            opt.value = st.id;
+            opt.textContent = st.name + (st.grade ? ' — ' + st.grade : '');
+            studentSelect.appendChild(opt);
+        });
+
+        if (countEl) {
+            countEl.textContent = list.length
+                ? (list.length + ' student(s) available')
+                : 'No enrolled students found for this grade/section';
+        }
+    }
+
+    function syncScopeUI(form) {
+        const scope = form.querySelector('.scope-select')?.value || 'single';
+        const studentWrap = form.querySelector('.student-wrap');
+        const sectionWrap = form.querySelector('.section-wrap');
+        const sectionSelect = form.querySelector('.section-select');
+        const formatNote = form.querySelector('.bulk-format-note');
+        const formatSelect = form.querySelector('[name="format"]');
+        const type = form.dataset.type;
+
+        if (studentWrap) {
+            studentWrap.classList.toggle('d-none', scope !== 'single');
+            const studentSelect = form.querySelector('.student-select');
+            if (studentSelect) studentSelect.required = scope === 'single';
+        }
+
+        if (type === 'class-list') {
+            if (sectionWrap) sectionWrap.classList.toggle('d-none', scope === 'grade');
+            if (sectionSelect) sectionSelect.required = scope === 'single';
+        } else if (sectionSelect) {
+            // for student reports, section required only when scope=section
+            sectionSelect.required = scope === 'section';
+        }
+
+        const isBulk = scope !== 'single';
+        if (formatNote) formatNote.classList.toggle('d-none', !isBulk);
+        if (formatSelect && isBulk) {
+            formatSelect.value = 'pdf';
+            formatSelect.disabled = true;
+        } else if (formatSelect) {
+            formatSelect.disabled = false;
+        }
+    }
+
+    function buildQuery(form) {
+        const params = new URLSearchParams();
+        ['academic_year_id', 'semester_id', 'format'].forEach(function (name) {
+            const el = form.querySelector('[name="' + name + '"]');
+            if (el && el.value) params.set(name, el.value);
+        });
+        return params;
+    }
+
+    document.querySelectorAll('.report-form').forEach(function (form) {
+        form.querySelector('.grade-select')?.addEventListener('change', function () {
+            fillSections(form, this.value);
+            fillStudents(form);
+            syncScopeUI(form);
+        });
+        form.querySelector('.section-select')?.addEventListener('change', function () {
+            fillStudents(form);
+            syncScopeUI(form);
+        });
+        form.querySelector('.scope-select')?.addEventListener('change', function () {
+            syncScopeUI(form);
+        });
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const type = form.dataset.type;
+            const scope = form.querySelector('.scope-select')?.value || 'single';
+            const grade = form.querySelector('.grade-select')?.value || '';
+            const sectionId = form.querySelector('.section-select')?.value || '';
+            const studentId = form.querySelector('.student-select')?.value || '';
+            const params = buildQuery(form);
+
+            if (!grade) {
+                alert('Please select a grade level.');
+                return;
+            }
+
+            if (scope === 'single') {
+                if (type === 'class-list') {
+                    if (!sectionId) {
+                        alert('Please select a section.');
+                        return;
+                    }
+                    window.location.href = form.dataset.singleBase + '/' + sectionId + '?' + params.toString();
+                    return;
+                }
+                if (!studentId) {
+                    alert('Please select a student.');
+                    return;
+                }
+                window.location.href = form.dataset.singleBase + '/' + studentId + '?' + params.toString();
+                return;
+            }
+
+            // Bulk ZIP
+            params.set('grade_level', grade);
+            if (scope === 'section') {
+                if (!sectionId) {
+                    alert('Please select a section for entire-section download.');
+                    return;
+                }
+                params.set('section_id', sectionId);
+            }
+            // force pdf for bulk
+            params.set('format', 'pdf');
+            window.location.href = form.dataset.bulkUrl + '?' + params.toString();
+        });
+
+        syncScopeUI(form);
     });
-});
+})();
 </script>
-
+@endpush
 @endsection
-
-
