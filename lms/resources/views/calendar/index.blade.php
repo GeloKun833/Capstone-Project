@@ -12,11 +12,11 @@
     ];
 @endphp
 
-<div class="page-wrapper">
+    <div class="page-wrapper">
     <div class="content container-fluid ams-calendar-page">
 
         <div class="page-header ams-cal-header">
-            <div class="row align-items-center">
+                <div class="row align-items-center">
                 <div class="col-md-7">
                     <h3 class="page-title mb-1">Calendar &amp; Events</h3>
                     <p class="ams-cal-subtitle mb-0">
@@ -26,17 +26,17 @@
                             View all school events and create your own. You can edit or delete only events you created.
                         @endif
                     </p>
-                </div>
+                    </div>
                 <div class="col-md-5 text-md-end mt-3 mt-md-0">
                     <button type="button" class="btn btn-outline-secondary ams-cal-btn" id="btnRefreshCalendar">
-                        <i class="fas fa-sync-alt"></i> Refresh
-                    </button>
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
                     <button type="button" class="btn btn-primary ams-cal-btn ms-2" id="btnOpenCreateEvent">
                         <i class="fas fa-plus"></i> Create Event
                     </button>
+                    </div>
                 </div>
             </div>
-        </div>
 
         <div class="card ams-cal-filters-card mb-3">
             <div class="card-body py-3">
@@ -52,8 +52,8 @@
                             @foreach($eventTypes as $type)
                                 <option value="{{ $type }}">{{ ucfirst($type) }}</option>
                             @endforeach
-                        </select>
-                    </div>
+                            </select>
+                        </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Teacher</label>
                         <select class="form-control form-control-sm" id="filter_teacher">
@@ -66,29 +66,29 @@
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Subject</label>
                         <select class="form-control form-control-sm" id="filter_subject">
-                            <option value="">All Subjects</option>
-                            @foreach($subjects as $subject)
-                                <option value="{{ $subject->id }}">{{ $subject->subject_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                                <option value="">All Subjects</option>
+                                @foreach($subjects as $subject)
+                                    <option value="{{ $subject->id }}">{{ $subject->subject_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Room</label>
                         <select class="form-control form-control-sm" id="filter_room">
                             <option value="">All Rooms</option>
                             @foreach($rooms as $room)
                                 <option value="{{ $room->id }}">{{ $room->full_name ?? $room->room_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                                @endforeach
+                            </select>
+                        </div>
                     <div class="col-lg-1 col-md-6">
                         <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnClearFilters" title="Clear filters">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
 
         <div class="ams-cal-legend mb-3">
             @foreach($typeColors as $type => $color)
@@ -97,7 +97,7 @@
                     {{ ucfirst($type) }}
                 </span>
             @endforeach
-        </div>
+            </div>
 
         <div class="card ams-cal-main-card">
             <div class="card-header ams-cal-card-header d-flex justify-content-between align-items-center">
@@ -108,12 +108,12 @@
                 <div id="calEmptyHint" class="ams-cal-empty-hint d-none">
                     No events scheduled for this period.
                 </div>
-                <div id="calendar"></div>
+                            <div id="calendar"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
-
+            
 {{-- Event Details Modal --}}
 <div class="modal fade" id="eventDetailsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -139,7 +139,7 @@
             <div class="modal-header">
                 <h5 class="modal-title">Delete this event?</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                        </div>
             <div class="modal-body">
                 <p class="mb-1">Event: <strong id="deleteEventTitle"></strong></p>
                 <p class="text-muted mb-0 small">This action cannot be undone.</p>
@@ -165,14 +165,14 @@
 
                 <div class="ams-cal-section">
                     <h6 class="ams-cal-section-title">Event Information</h6>
-                    <div class="row">
+                            <div class="row">
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>Event Title <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" name="title" id="form_title" required>
                                 <div class="invalid-feedback field-error" data-field="title"></div>
-                            </div>
-                        </div>
+                                    </div>
+                                </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>Event Type <span class="text-danger">*</span></label>
@@ -183,14 +183,14 @@
                                     @endforeach
                                 </select>
                                 <div class="invalid-feedback field-error" data-field="event_type"></div>
-                            </div>
-                        </div>
-                    </div>
+                                    </div>
+                                </div>
+                                    </div>
                     <div class="form-group mb-0">
                         <label>Description</label>
                         <textarea class="form-control" name="description" id="form_description" rows="2"></textarea>
-                    </div>
-                </div>
+                                </div>
+                                    </div>
 
                 <div class="ams-cal-section">
                     <h6 class="ams-cal-section-title">Schedule</h6>
@@ -200,16 +200,16 @@
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="datetime-local" class="form-control" name="start_time" id="form_start_time" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
-                            </div>
-                        </div>
+                                </div>
+                                    </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="datetime-local" class="form-control" name="end_time" id="form_end_time" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
-                            </div>
-                        </div>
-                    </div>
+                                </div>
+                                    </div>
+                                </div>
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="form-check">
@@ -221,7 +221,7 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="form_is_recurring" value="1">
                                 <label class="form-check-label" for="form_is_recurring">Recurring Event</label>
-                            </div>
+                    </div>
                         </div>
                     </div>
                     <div class="row" id="recurrence_options" style="display:none;">
@@ -243,10 +243,10 @@
                                 <label>Until</label>
                                 <input type="date" class="form-control" name="recurrence_end_date" id="form_recurrence_end_date">
                                 <div class="invalid-feedback field-error" data-field="recurrence_end_date"></div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
                 <div class="ams-cal-section">
                     <h6 class="ams-cal-section-title">Academic Assignment</h6>
@@ -260,8 +260,8 @@
                                         <option value="{{ $subject->id }}">{{ $subject->subject_name }}</option>
                                     @endforeach
                                 </select>
-                            </div>
-                        </div>
+                </div>
+                </div>
                         <div class="col-md-4">
                             <div class="form-group mb-0">
                                 <label>Teacher</label>
@@ -328,13 +328,13 @@
                     </div>
                 </div>
             </form>
-            <div class="modal-footer">
+                <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="btnSaveEvent" form="calendarEventForm">Create Event</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 @endsection
 
 @push('styles')
@@ -589,7 +589,7 @@
     };
 
     let calendar = null;
-    let selectedEvent = null;
+let selectedEvent = null;
     let saving = false;
     let searchTimer = null;
     let lastConflictBlocking = false;
@@ -692,8 +692,8 @@
     function openEditModal(event) {
         if (!(event.extendedProps && event.extendedProps.can_manage)) {
             toastError('You can only edit events that you created.');
-            return;
-        }
+        return;
+    }
         resetEventForm();
         selectedEvent = event;
         const p = event.extendedProps || {};
@@ -822,7 +822,7 @@
         let html = '';
         if (!response.has_conflicts) {
             html = '<div class="ams-conflict-ok"><i class="fas fa-check-circle"></i> No scheduling conflicts detected.</div>';
-        } else {
+                } else {
             html = '<div class="ams-conflict-alert"><strong>CONFLICT DETECTED</strong>';
             ['room', 'teacher', 'subject'].forEach(function (key) {
                 const list = (response.conflicts && response.conflicts[key]) || [];
@@ -1021,7 +1021,7 @@
     }
 
     function showEventDetails(event, clickEl) {
-        selectedEvent = event;
+    selectedEvent = event;
         const p = event.extendedProps || {};
         const color = TYPE_COLORS[p.event_type] || '#3d5ee1';
 
@@ -1077,10 +1077,10 @@
         function doSave() {
             saving = true;
             $('#btnSaveEvent').prop('disabled', true).text(isEdit ? 'Updating...' : 'Saving...');
-            $.ajax({
+    $.ajax({
                 url: isEdit ? (ROUTES.update + '/' + eventId) : ROUTES.store,
                 method: isEdit ? 'PUT' : 'POST',
-                data: data,
+        data: data,
                 success: function (response) {
                     saving = false;
                     toastSuccess(response.message || (isEdit ? 'Event updated successfully.' : 'Event created successfully.'));
@@ -1098,12 +1098,12 @@
                         lastConflictBlocking = true;
                         $('#conflict_results_panel').html(renderConflictHtml(xhr.responseJSON || { has_conflicts: true, conflicts: {} }, data.title));
                         toastError((xhr.responseJSON && xhr.responseJSON.error) || 'Schedule conflict detected. Please select another time or resource.');
-                    } else {
+            } else {
                         toastError('Unable to save event. Please try again.');
-                    }
-                }
-            });
+            }
         }
+    });
+}
 
         // Always re-check conflicts before save when teacher/room set
         if (data.teacher_id || data.room_id) {
@@ -1309,4 +1309,4 @@
     });
 })();
 </script>
-@endpush
+@endpush 

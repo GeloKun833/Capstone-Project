@@ -71,6 +71,43 @@
                                 </div>
                             </div>
 
+                            @php $files = $announcement->attachments ?? []; @endphp
+                            @if(!empty($files))
+                                <div class="announcement-attachments mb-4">
+                                    <h6 class="mb-3"><i class="fas fa-paperclip me-2"></i>Attachments</h6>
+                                    <div class="list-group">
+                                        @foreach($files as $file)
+                                            @php
+                                                $path = $file['path'] ?? '';
+                                                $name = $file['original_name'] ?? basename($path);
+                                                $ext = strtolower($file['ext'] ?? pathinfo($name, PATHINFO_EXTENSION));
+                                                $url = $path ? asset('storage/' . $path) : '#';
+                                                $isImage = in_array($ext, ['jpg','jpeg','png','gif','webp'], true);
+                                            @endphp
+                                            <div class="list-group-item">
+                                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                                    <div>
+                                                        <i class="fas fa-file me-2"></i>
+                                                        <strong>{{ $name }}</strong>
+                                                        @if(!empty($file['size']))
+                                                            <small class="text-muted">({{ number_format(($file['size'] ?? 0) / 1024, 1) }} KB)</small>
+                                                        @endif
+                                                    </div>
+                                                    <a href="{{ $url }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+                                                        {{ $isImage ? 'Open Image' : 'Download / Open' }}
+                                                    </a>
+                                                </div>
+                                                @if($isImage && $path)
+                                                    <div class="mt-2">
+                                                        <img src="{{ $url }}" alt="{{ $name }}" class="img-fluid rounded" style="max-height:220px;">
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
                             <!-- Announcement Metadata -->
                             <div class="announcement-meta">
                                 <hr>
@@ -245,7 +282,7 @@
     </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script>
     function deleteAnnouncement(id) {
         if (confirm('Are you sure you want to delete this announcement?')) {
@@ -280,4 +317,4 @@
         });
     }
 </script>
-@endsection 
+@endpush 

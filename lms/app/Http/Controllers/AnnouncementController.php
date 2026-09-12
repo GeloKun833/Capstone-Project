@@ -7,49 +7,59 @@ use App\Models\User;
 use App\Models\Section;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 
 class AnnouncementController extends Controller
 {
     public function __construct()
     {
         $this->middleware('auth');
-        $this->middleware('role:Admin,Teacher')->only(['create', 'store', 'edit', 'update', 'destroy']);
+        $this->middleware('role:Admin|Teacher')->only(['create', 'store', 'edit', 'update', 'destroy', 'togglePin']);
     }
 
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
-        
-        // Get announcements based on user role
-        $announcements = Announcement::active()
-            ->forRole($user->role_name)
-            ->with('creator')
+
+        // Admin manages everything; others only see visible/active for their role
+        if ($user->role_name === 'Admin') {
+            $query = Announcement::with('creator');
+        } else {
+            $query = Announcement::active()->forRole($user->role_name)->with('creator');
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+        if ($request->get('status') === 'pinned') {
+            $query->where('is_pinned', true);
+        } elseif ($request->get('status') === 'active') {
+            $query->where('is_active', true);
+        }
+
+        $announcements = $query
             ->orderBy('is_pinned', 'desc')
             ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)
+            ->withQueryString();
 
         return view('announcements.index', compact('announcements'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        $sections = Section::all();
+        $sections = Section::orderBy('name')->get();
         $roles = ['students', 'teachers', 'parents', 'admins'];
-        
+
         return view('announcements.create', compact('sections', 'roles'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -60,16 +70,16 @@ class AnnouncementController extends Controller
             'target_audience' => 'required|in:all,students,teachers,parents,admins',
             'target_roles' => 'nullable|array',
             'target_sections' => 'nullable|array',
-            'is_pinned' => 'boolean',
-            'is_scheduled' => 'boolean',
-            'scheduled_at' => 'nullable|date|after:now',
+            'is_pinned' => 'nullable|boolean',
+            'is_scheduled' => 'nullable|boolean',
+            'scheduled_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:now',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return redirect()->back()->withErrors($validator)->withInput();
         }
 
         $announcement = Announcement::create([
@@ -80,64 +90,47 @@ class AnnouncementController extends Controller
             'target_audience' => $request->target_audience,
             'target_roles' => $request->target_roles,
             'target_sections' => $request->target_sections,
-            'is_pinned' => $request->has('is_pinned'),
-            'is_scheduled' => $request->has('is_scheduled'),
+            'is_pinned' => $request->boolean('is_pinned'),
+            'is_scheduled' => $request->boolean('is_scheduled') || $request->filled('scheduled_at'),
             'scheduled_at' => $request->scheduled_at,
             'expires_at' => $request->expires_at,
+            'attachments' => $this->storeAttachments($request),
             'created_by' => Auth::id(),
+            'is_active' => true,
         ]);
 
-        // Send notifications to target users
-        $this->sendAnnouncementNotifications($announcement);
+        if (!$announcement->is_scheduled || !$announcement->scheduled_at || $announcement->scheduled_at->isPast()) {
+            $this->sendAnnouncementNotifications($announcement);
+        }
 
         return redirect()->route('announcements.index')
             ->with('success', 'Announcement created successfully!');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Announcement $announcement)
     {
-        $announcement = Announcement::with('creator')->findOrFail($id);
-        
-        // Check if user can view this announcement
-        if (!$announcement->isVisibleTo(Auth::user())) {
+        $announcement->load('creator');
+
+        if (Auth::user()->role_name !== 'Admin' && !$announcement->isVisibleTo(Auth::user())) {
             abort(403, 'You do not have permission to view this announcement.');
         }
 
         return view('announcements.show', compact('announcement'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function edit(Announcement $announcement)
     {
-        $announcement = Announcement::findOrFail($id);
-        
-        // Check if user can edit this announcement
-        if (Auth::user()->role_name !== 'Admin' && $announcement->created_by !== Auth::id()) {
-            abort(403, 'You do not have permission to edit this announcement.');
-        }
+        $this->authorizeManage($announcement);
 
-        $sections = Section::all();
+        $sections = Section::orderBy('name')->get();
         $roles = ['students', 'teachers', 'parents', 'admins'];
-        
+
         return view('announcements.edit', compact('announcement', 'sections', 'roles'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Announcement $announcement)
     {
-        $announcement = Announcement::findOrFail($id);
-        
-        // Check if user can edit this announcement
-        if (Auth::user()->role_name !== 'Admin' && $announcement->created_by !== Auth::id()) {
-            abort(403, 'You do not have permission to edit this announcement.');
-        }
+        $this->authorizeManage($announcement);
 
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
@@ -147,17 +140,37 @@ class AnnouncementController extends Controller
             'target_audience' => 'required|in:all,students,teachers,parents,admins',
             'target_roles' => 'nullable|array',
             'target_sections' => 'nullable|array',
-            'is_pinned' => 'boolean',
-            'is_scheduled' => 'boolean',
+            'is_pinned' => 'nullable|boolean',
+            'is_scheduled' => 'nullable|boolean',
             'scheduled_at' => 'nullable|date',
             'expires_at' => 'nullable|date',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
+            'remove_attachments' => 'nullable|array',
+            'remove_attachments.*' => 'string',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return redirect()->back()->withErrors($validator)->withInput();
         }
+
+        $files = collect($announcement->attachments ?? []);
+
+        // Remove selected existing attachments
+        $remove = $request->input('remove_attachments', []);
+        if (!empty($remove)) {
+            $files = $files->reject(function ($file) use ($remove) {
+                $path = is_array($file) ? ($file['path'] ?? '') : '';
+                if ($path && in_array($path, $remove, true)) {
+                    Storage::disk('public')->delete($path);
+                    return true;
+                }
+                return false;
+            })->values();
+        }
+
+        $newFiles = $this->storeAttachments($request);
+        $files = $files->concat($newFiles)->take(5)->values()->all();
 
         $announcement->update([
             'title' => $request->title,
@@ -167,26 +180,26 @@ class AnnouncementController extends Controller
             'target_audience' => $request->target_audience,
             'target_roles' => $request->target_roles,
             'target_sections' => $request->target_sections,
-            'is_pinned' => $request->has('is_pinned'),
-            'is_scheduled' => $request->has('is_scheduled'),
+            'is_pinned' => $request->boolean('is_pinned'),
+            'is_scheduled' => $request->boolean('is_scheduled') || $request->filled('scheduled_at'),
             'scheduled_at' => $request->scheduled_at,
             'expires_at' => $request->expires_at,
+            'attachments' => $files,
         ]);
 
         return redirect()->route('announcements.index')
             ->with('success', 'Announcement updated successfully!');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Announcement $announcement)
     {
-        $announcement = Announcement::findOrFail($id);
-        
-        // Check if user can delete this announcement
-        if (Auth::user()->role_name !== 'Admin' && $announcement->created_by !== Auth::id()) {
-            abort(403, 'You do not have permission to delete this announcement.');
+        $this->authorizeManage($announcement);
+
+        foreach ($announcement->attachments ?? [] as $file) {
+            $path = is_array($file) ? ($file['path'] ?? null) : null;
+            if ($path) {
+                Storage::disk('public')->delete($path);
+            }
         }
 
         $announcement->delete();
@@ -195,31 +208,28 @@ class AnnouncementController extends Controller
             ->with('success', 'Announcement deleted successfully!');
     }
 
-    /**
-     * Toggle pin status of announcement
-     */
-    public function togglePin(string $id)
+    public function togglePin(Announcement $announcement)
     {
-        $announcement = Announcement::findOrFail($id);
-        
-        // Only admins can pin/unpin announcements
         if (Auth::user()->role_name !== 'Admin') {
             abort(403, 'You do not have permission to pin/unpin announcements.');
         }
 
         $announcement->update(['is_pinned' => !$announcement->is_pinned]);
 
-        return redirect()->back()
-            ->with('success', 'Announcement pin status updated!');
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'is_pinned' => $announcement->is_pinned,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Announcement pin status updated!');
     }
 
-    /**
-     * Get announcements for dashboard widget
-     */
     public function getDashboardAnnouncements()
     {
         $user = Auth::user();
-        
+
         $announcements = Announcement::active()
             ->forRole($user->role_name)
             ->with('creator')
@@ -231,27 +241,65 @@ class AnnouncementController extends Controller
         return response()->json($announcements);
     }
 
-    /**
-     * Send notifications to target users
-     */
-    private function sendAnnouncementNotifications($announcement)
+    protected function authorizeManage(Announcement $announcement): void
     {
-        // Get target users based on announcement settings
-        $query = User::query();
+        $user = Auth::user();
+        if ($user->role_name === 'Admin') {
+            return;
+        }
+        if ($user->role_name === 'Teacher' && (int) $announcement->created_by === (int) $user->id) {
+            return;
+        }
+        abort(403, 'You do not have permission to manage this announcement.');
+    }
 
-        if ($announcement->target_audience !== 'all') {
-            $query->where('role_name', $announcement->target_audience);
+    protected function storeAttachments(Request $request): array
+    {
+        $saved = [];
+        if (!$request->hasFile('attachments')) {
+            return $saved;
         }
 
-        if ($announcement->target_roles) {
-            $query->whereIn('role_name', $announcement->target_roles);
+        foreach ($request->file('attachments') as $file) {
+            if (!$file || !$file->isValid()) {
+                continue;
+            }
+            $path = $file->store('announcements/' . date('Y/m'), 'public');
+            $saved[] = [
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'mime' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+                'ext' => strtolower($file->getClientOriginalExtension()),
+            ];
         }
 
-        $users = $query->get();
+        return $saved;
+    }
 
-        // Send notifications via Laravel notification system (database + email)
-        foreach ($users as $user) {
-            $user->notify(new \App\Notifications\AnnouncementNotification($announcement));
+    private function sendAnnouncementNotifications(Announcement $announcement)
+    {
+        try {
+            $announcement->loadMissing('creator');
+            $roleNames = $announcement->recipientRoleNames();
+            if (empty($roleNames)) {
+                return;
+            }
+
+            $users = User::query()->whereIn('role_name', $roleNames)->get();
+
+            foreach ($users as $user) {
+                $user->notify(new \App\Notifications\AnnouncementNotification($announcement));
+                Cache::forget('header.notifs.' . $user->id);
+            }
+
+            Log::info('Announcement notifications sent', [
+                'announcement_id' => $announcement->id,
+                'roles' => $roleNames,
+                'recipients' => $users->count(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed sending announcement notifications: ' . $e->getMessage());
         }
     }
 }

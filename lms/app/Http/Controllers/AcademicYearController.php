@@ -7,73 +7,114 @@ use Illuminate\Http\Request;
 
 class AcademicYearController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    public function __construct()
+    {
+        $this->middleware(['auth', 'role:Admin|Registrar']);
+    }
+
     public function index()
     {
-        $academicYears = \App\Models\AcademicYear::orderBy('start_date', 'desc')->get();
-        return view('academic_years.index', compact('academicYears'));
+        $academicYears = AcademicYear::withCount('semesters')
+            ->orderByDesc('start_date')
+            ->get();
+
+        $stats = [
+            'total' => $academicYears->count(),
+            'current' => $academicYears->filter->isCurrent()->count(),
+            'upcoming' => $academicYears->filter(fn ($y) => $y->statusLabel() === 'upcoming')->count(),
+            'completed' => $academicYears->filter(fn ($y) => $y->statusLabel() === 'completed')->count(),
+        ];
+
+        return view('academic_years.index', compact('academicYears', 'stats'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        return view('academic_years.create');
+        return redirect()->route('academic_years.index');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $data = $request->validate([
+            'name' => 'required|string|max:255|unique:academic_years,name',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
         ]);
-        \App\Models\AcademicYear::create($request->only(['name', 'start_date', 'end_date']));
-        return redirect()->route('academic_years.index')->with('success', 'Academic Year created successfully.');
+
+        $year = AcademicYear::create($data);
+        $year->loadCount('semesters');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Academic year created.',
+                'year' => $this->yearPayload($year),
+            ]);
+        }
+
+        return redirect()->route('academic_years.index')->with('success', 'Academic year created.');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(AcademicYear $academicYear)
     {
-        //
+        return redirect()->route('academic_years.index');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(\App\Models\AcademicYear $academicYear)
+    public function edit(AcademicYear $academicYear)
     {
-        return view('academic_years.edit', compact('academicYear'));
+        return redirect()->route('academic_years.index');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, \App\Models\AcademicYear $academicYear)
+    public function update(Request $request, AcademicYear $academicYear)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $data = $request->validate([
+            'name' => 'required|string|max:255|unique:academic_years,name,' . $academicYear->id,
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
         ]);
-        $academicYear->update($request->only(['name', 'start_date', 'end_date']));
-        return redirect()->route('academic_years.index')->with('success', 'Academic Year updated successfully.');
+
+        $academicYear->update($data);
+        $academicYear->loadCount('semesters');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Academic year updated.',
+                'year' => $this->yearPayload($academicYear->fresh()),
+            ]);
+        }
+
+        return redirect()->route('academic_years.index')->with('success', 'Academic year updated.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(\App\Models\AcademicYear $academicYear)
+    public function destroy(Request $request, AcademicYear $academicYear)
     {
+        $name = $academicYear->name;
         $academicYear->delete();
-        return redirect()->route('academic_years.index')->with('success', 'Academic Year deleted successfully.');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Academic year "' . $name . '" deleted.',
+            ]);
+        }
+
+        return redirect()->route('academic_years.index')->with('success', 'Academic year deleted.');
+    }
+
+    protected function yearPayload(AcademicYear $year): array
+    {
+        return [
+            'id' => $year->id,
+            'name' => $year->name,
+            'start_date' => optional($year->start_date)->format('Y-m-d'),
+            'end_date' => optional($year->end_date)->format('Y-m-d'),
+            'start_label' => optional($year->start_date)->format('M d, Y'),
+            'end_label' => optional($year->end_date)->format('M d, Y'),
+            'status' => $year->statusLabel(),
+            'semesters_count' => (int) ($year->semesters_count ?? $year->semesters()->count()),
+            'update_url' => route('academic_years.update', $year),
+            'destroy_url' => route('academic_years.destroy', $year),
+        ];
     }
 }

@@ -118,6 +118,7 @@ class EnrollmentPortalController extends Controller
             'doc_submitted_itr' => 'nullable|boolean',
             'doc_submitted_unemployment' => 'nullable|boolean',
             'grade_level_applying_for' => 'required|string|max:255',
+            'selected_section_id' => 'nullable|exists:sections,id',
             'agree_terms' => 'required|accepted',
             'existing_student_id' => 'nullable|exists:students,id',
             // Document validation (varies by category)
@@ -221,6 +222,11 @@ class EnrollmentPortalController extends Controller
             foreach ($documentCheckboxes as $checkbox) {
                 $applicationData[$checkbox] = isset($applicationData[$checkbox]) && $applicationData[$checkbox] == '1' ? true : false;
             }
+
+            // Persist Block Section choice from enrollment form (admin-managed sections)
+            $applicationData['preferred_section_id'] = $request->filled('selected_section_id')
+                ? (int) $request->input('selected_section_id')
+                : null;
             
             // Create the enrollment application
             $application = EnrollmentApplication::create($applicationData);
@@ -481,8 +487,9 @@ class EnrollmentPortalController extends Controller
             throw new \Exception("Selected section not found.");
         }
 
-        // Verify section is for the correct grade level
-        if ($section->grade_level !== $gradeLevel) {
+        // Verify section is for the correct grade level (allow aliases e.g. Kinder/Kindergarten)
+        $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
+        if (!in_array($section->grade_level, $aliases, true)) {
             throw new \Exception("Selected section does not match the student's grade level.");
         }
 
@@ -539,8 +546,8 @@ class EnrollmentPortalController extends Controller
             throw new \Exception('No academic year or semester found. Please set up academic periods first.');
         }
 
-        // Find sections for the student's grade level
-        $sections = \App\Models\Section::where('grade_level', $gradeLevel)->get();
+        // Find sections for the student's grade level (canonical + aliases)
+        $sections = app(\App\Services\GradeSubjectCatalogService::class)->sectionsForGrade($gradeLevel);
 
         if ($sections->isEmpty()) {
             throw new \Exception("No sections found for grade level: {$gradeLevel}. Please create sections first.");
@@ -595,10 +602,10 @@ class EnrollmentPortalController extends Controller
 
     /**
      * Automatically enroll student in subjects for their grade level
+     * Source of truth: admin-managed subjects table (subjects.class = grade label)
      */
     private function autoEnrollStudentInSubjects($student, $gradeLevel)
     {
-        // Get the latest academic year and semester (since is_active column doesn't exist)
         $academicYear = \App\Models\AcademicYear::latest()->first();
         $semester = \App\Models\Semester::latest()->first();
 
@@ -606,30 +613,18 @@ class EnrollmentPortalController extends Controller
             throw new \Exception('No academic year or semester found. Please set up academic periods first.');
         }
 
-        // Get subjects for the grade level from config
-        $gradeSubjects = config('grade_subjects.' . $gradeLevel, []);
-        
-        if (empty($gradeSubjects)) {
-            throw new \Exception("No subjects configured for grade level: {$gradeLevel}");
+        $subjects = app(\App\Services\GradeSubjectCatalogService::class)->subjectsForGrade($gradeLevel);
+
+        if ($subjects->isEmpty()) {
+            throw new \Exception(
+                "No subjects found for grade level: {$gradeLevel}. " .
+                'Please add subjects under Academic Management → Classes & Subjects first.'
+            );
         }
 
         $enrolledSubjects = [];
 
-        foreach ($gradeSubjects as $subjectName) {
-            // Find or create subject
-            $subject = \App\Models\Subject::where('subject_name', $subjectName)
-                ->where('class', $gradeLevel)
-                ->first();
-
-            if (!$subject) {
-                // Create subject if it doesn't exist
-                $subject = \App\Models\Subject::create([
-                    'subject_name' => $subjectName,
-                    'class' => $gradeLevel,
-                ]);
-            }
-
-            // Check if student is already enrolled in this subject
+        foreach ($subjects as $subject) {
             $existingEnrollment = \App\Models\Enrollment::where([
                 'student_id' => $student->id,
                 'subject_id' => $subject->id,
@@ -638,7 +633,6 @@ class EnrollmentPortalController extends Controller
             ])->first();
 
             if (!$existingEnrollment) {
-                // Create enrollment record
                 \App\Models\Enrollment::create([
                     'student_id' => $student->id,
                     'subject_id' => $subject->id,
@@ -648,7 +642,7 @@ class EnrollmentPortalController extends Controller
                     'status' => 'active',
                 ]);
 
-                $enrolledSubjects[] = $subjectName;
+                $enrolledSubjects[] = $subject->subject_name;
             }
         }
 
@@ -748,9 +742,10 @@ class EnrollmentPortalController extends Controller
 
         // Assign student to selected section or auto-assign
         try {
-            if ($selectedSectionId) {
+            $sectionChoice = $selectedSectionId ?: $application->preferred_section_id;
+            if ($sectionChoice) {
                 // User selected a specific section - assign to that section
-                $assignedSection = $this->assignStudentToSelectedSection($student, $selectedSectionId, $application->grade_level_applying_for);
+                $assignedSection = $this->assignStudentToSelectedSection($student, $sectionChoice, $application->grade_level_applying_for);
                 Log::info("✅ Assigned student to selected section: {$assignedSection->name}");
             } else {
                 // Auto-assign to available section
@@ -1061,11 +1056,9 @@ class EnrollmentPortalController extends Controller
             $academicYear = \App\Models\AcademicYear::latest()->first();
             $semester = \App\Models\Semester::latest()->first();
 
-            // Get sections for the specified grade level
-            $sections = \App\Models\Section::where('grade_level', $gradeLevel)
-                ->with('adviser')
-                ->orderBy('name')
-                ->get();
+            // Get sections for the specified grade level (canonical + aliases)
+            $sections = app(\App\Services\GradeSubjectCatalogService::class)
+                ->sectionsForGrade(urldecode($gradeLevel));
 
             if ($sections->isEmpty()) {
                 return response()->json([
@@ -1104,7 +1097,7 @@ class EnrollmentPortalController extends Controller
                 'sections' => $sectionsData,
                 'academic_year' => $academicYear ? $academicYear->name : null,
                 'semester' => $semester ? $semester->name : null,
-            ]);
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
 
         } catch (\Exception $e) {
             Log::error('Error fetching sections: ' . $e->getMessage());
@@ -1112,6 +1105,46 @@ class EnrollmentPortalController extends Controller
                 'success' => false,
                 'message' => 'Error loading sections. Please try again.',
                 'sections' => []
+            ], 500)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+        }
+    }
+
+    /**
+     * Get subjects by grade level for enrollment form preview.
+     * Driven by admin/registrar-managed subjects (subjects.class = grade).
+     */
+    public function getSubjectsByGradeLevel($gradeLevel)
+    {
+        try {
+            $subjects = app(\App\Services\GradeSubjectCatalogService::class)
+                ->subjectsForGrade(urldecode($gradeLevel));
+
+            if ($subjects->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No subjects have been set up for this grade yet. Please contact the school registrar.',
+                    'subjects' => [],
+                    'count' => 0,
+                ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+            }
+
+            return response()->json([
+                'success' => true,
+                'subjects' => $subjects->map(fn ($s) => [
+                    'id' => $s->id,
+                    'name' => $s->subject_name,
+                    'class' => $s->class,
+                ])->values(),
+                'count' => $subjects->count(),
+                'grade_level' => urldecode($gradeLevel),
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+        } catch (\Exception $e) {
+            Log::error('Error fetching subjects by grade: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading subjects. Please try again.',
+                'subjects' => [],
+                'count' => 0,
             ], 500);
         }
     }

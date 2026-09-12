@@ -2,78 +2,109 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Http\Request;
 
 class SemesterController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    public function __construct()
+    {
+        $this->middleware(['auth', 'role:Admin|Registrar']);
+    }
+
     public function index()
     {
-        $semesters = \App\Models\Semester::with('academicYear')->orderBy('id', 'desc')->get();
-        return view('semesters.index', compact('semesters'));
+        $semesters = Semester::with('academicYear')
+            ->orderByDesc('id')
+            ->get();
+
+        $academicYears = AcademicYear::orderByDesc('start_date')->get();
+
+        return view('semesters.index', compact('semesters', 'academicYears'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        $academicYears = \App\Models\AcademicYear::orderBy('start_date', 'desc')->get();
-        return view('semesters.create', compact('academicYears'));
+        return redirect()->route('semesters.index');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'name' => 'required|string|max:255',
             'academic_year_id' => 'required|exists:academic_years,id',
         ]);
-        \App\Models\Semester::create($request->only(['name', 'academic_year_id']));
-        return redirect()->route('semesters.index')->with('success', 'Semester created successfully.');
+
+        $semester = Semester::create($data);
+        $semester->load('academicYear');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Semester created.',
+                'semester' => $this->semesterPayload($semester),
+            ]);
+        }
+
+        return redirect()->route('semesters.index')->with('success', 'Semester created.');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Semester $semester)
     {
-        //
+        return redirect()->route('semesters.index');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(\App\Models\Semester $semester)
+    public function edit(Semester $semester)
     {
-        $academicYears = \App\Models\AcademicYear::orderBy('start_date', 'desc')->get();
-        return view('semesters.edit', compact('semester', 'academicYears'));
+        return redirect()->route('semesters.index');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, \App\Models\Semester $semester)
+    public function update(Request $request, Semester $semester)
     {
-        $request->validate([
+        $data = $request->validate([
             'name' => 'required|string|max:255',
             'academic_year_id' => 'required|exists:academic_years,id',
         ]);
-        $semester->update($request->only(['name', 'academic_year_id']));
-        return redirect()->route('semesters.index')->with('success', 'Semester updated successfully.');
+
+        $semester->update($data);
+        $semester->load('academicYear');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Semester updated.',
+                'semester' => $this->semesterPayload($semester),
+            ]);
+        }
+
+        return redirect()->route('semesters.index')->with('success', 'Semester updated.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(\App\Models\Semester $semester)
+    public function destroy(Request $request, Semester $semester)
     {
+        $name = $semester->name;
         $semester->delete();
-        return redirect()->route('semesters.index')->with('success', 'Semester deleted successfully.');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Semester "' . $name . '" deleted.',
+            ]);
+        }
+
+        return redirect()->route('semesters.index')->with('success', 'Semester deleted.');
+    }
+
+    protected function semesterPayload(Semester $semester): array
+    {
+        return [
+            'id' => $semester->id,
+            'name' => $semester->name,
+            'academic_year_id' => $semester->academic_year_id,
+            'academic_year_name' => optional($semester->academicYear)->name ?? '—',
+            'update_url' => route('semesters.update', $semester),
+            'destroy_url' => route('semesters.destroy', $semester),
+        ];
     }
 }

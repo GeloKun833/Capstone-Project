@@ -242,59 +242,54 @@
     </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script>
     function deleteAnnouncement(id) {
-        if (confirm('Are you sure you want to delete this announcement?')) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `/announcements/${id}`;
-            form.innerHTML = `
-                @csrf
-                @method('DELETE')
-            `;
-            document.body.appendChild(form);
+        const form = document.getElementById('deleteForm');
+        if (!form) return;
+        form.action = '/announcements/' + id;
+        const modalEl = document.getElementById('deleteModal');
+        if (window.bootstrap && modalEl) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else if (confirm('Are you sure you want to delete this announcement?')) {
             form.submit();
         }
     }
 
     function togglePin(id) {
-        fetch(`/announcements/${id}/toggle-pin`, {
+        fetch('/announcements/' + id + '/toggle-pin', {
             method: 'PATCH',
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            }
+        .then(function (response) {
+            if (!response.ok) throw new Error('Pin failed');
+            return response.json().catch(function () { return { success: true }; });
         })
-        .catch(error => {
+        .then(function () { location.reload(); })
+        .catch(function (error) {
             console.error('Error:', error);
+            alert('Could not update pin status.');
         });
     }
 
-    // Filter functionality
-    document.getElementById('applyFilters').addEventListener('click', function() {
+    document.getElementById('applyFilters')?.addEventListener('click', function () {
         const typeFilter = document.getElementById('type_filter').value;
         const priorityFilter = document.getElementById('priority_filter').value;
         const statusFilter = document.getElementById('status_filter').value;
-        
+
         let url = new URL(window.location);
+        url.searchParams.delete('type');
+        url.searchParams.delete('priority');
+        url.searchParams.delete('status');
         if (typeFilter) url.searchParams.set('type', typeFilter);
         if (priorityFilter) url.searchParams.set('priority', priorityFilter);
         if (statusFilter) url.searchParams.set('status', statusFilter);
-        
+
         window.location.href = url.toString();
     });
-
-    // Export functionality
-    document.getElementById('exportAnnouncements').addEventListener('click', function() {
-        // Implement export functionality
-        alert('Export functionality will be implemented here');
-    });
 </script>
-@endsection 
+@endpush

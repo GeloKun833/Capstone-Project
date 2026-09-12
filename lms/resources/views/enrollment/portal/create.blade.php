@@ -908,6 +908,16 @@
                             <i class="fas fa-info-circle me-2"></i>
                             <strong>Block Section Assignment:</strong> Select your preferred section below. Sections are based on your grade level and have limited capacity.
                         </div>
+
+                        <div id="sectionSelectionStatus" class="section-selection-status is-empty mb-4" role="status" aria-live="polite">
+                            <div class="section-selection-status__icon">
+                                <i class="fas fa-hand-pointer"></i>
+                            </div>
+                            <div>
+                                <strong id="sectionSelectionStatusTitle">No section selected yet</strong>
+                                <div class="small mb-0" id="sectionSelectionStatusText">Click a section card below to choose your preferred block section.</div>
+                            </div>
+                        </div>
                         
                         <div id="sectionsLoading" class="text-center py-5">
                             <div class="spinner-border text-primary" role="status">
@@ -1839,21 +1849,80 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Grade subjects data
-const gradeSubjects = {
-    'Nursery': ['English', 'Reading', 'Math', 'Cultural arts'],
-    'Kindergarten': ['English', 'Reading', 'Math', 'Cultural arts', 'Filipino'],
-    'Grade 1': ['Language', 'Reading', 'Science', 'Math', 'GMRC', 'Makabansa'],
-    'Grade 2': ['English 2', 'Filipino 2', 'Math', 'Science', 'GMRC', 'Makabansa'],
-    'Grade 3': ['English 2', 'Filipino 2', 'Math', 'Science', 'GMRC', 'Mapeh', 'Aralin/Mother tongue', 'Makabansa'],
-    'Grade 4': ['English', 'Filipino', 'Math', 'Science', 'GMRC', 'Mapeh', 'Aralin Panlipunan', 'Mother tongue', 'App'],
-    'Grade 5': ['English', 'Filipino', 'Math', 'Science', 'GMRC', 'Mapeh', 'Aralin Panlipunan', 'Mother tongue', 'Makabansa'],
-    'Grade 6': ['English 2', 'Filipino 2', 'Math', 'Science', 'Esp', 'Mapeh', 'Aralin Panlipunan', 'Mother tongue', 'Makabansa'],
-    'Grade 7': ['Filipino', 'English', 'Math', 'Science', 'Values education', 'Araling Panlipunan', 'Mapeh', 'TLE'],
-    'Grade 8': ['Filipino', 'English', 'Math', 'Science', 'Values education', 'Araling Panlipunan', 'Mapeh', 'TLE'],
-    'Grade 9': ['Filipino', 'English', 'Math', 'Science', 'Esp', 'Araling Panlipunan', 'Mapeh', 'TLE'],
-    'Grade 10': ['Filipino', 'English', 'Math', 'Science', 'Esp', 'Araling Panlipunan', 'Mapeh', 'TLE']
-};
+// Live catalog loaders (admin subjects/sections) — always cache-bust
+function loadEnrollmentSubjects(gradeLevel) {
+    const subjectsPreview = document.getElementById('subjectsPreview');
+    const subjectsList = document.getElementById('subjectsList');
+    if (!subjectsPreview || !subjectsList) return;
+
+    if (!gradeLevel) {
+        subjectsPreview.style.display = 'none';
+        subjectsList.innerHTML = '';
+        return;
+    }
+
+    subjectsPreview.style.display = 'block';
+    subjectsList.innerHTML = `
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-spinner fa-spin me-2"></i>Loading subjects for ${gradeLevel}...
+        </div>
+    `;
+
+    fetch(`/enrollment-portal/get-subjects/${encodeURIComponent(gradeLevel)}?_=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' }
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.subjects || data.subjects.length === 0) {
+                subjectsList.innerHTML = `
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${data.message || 'No subjects are available for this grade yet. Please contact the school.'}
+                    </div>
+                `;
+                return;
+            }
+
+            let subjectsHTML = '<div class="row">';
+            data.subjects.forEach(function(subject) {
+                const name = subject.name || subject;
+                subjectsHTML += `
+                    <div class="col-md-4 col-sm-6 mb-2">
+                        <div class="badge bg-success fs-6 p-2 w-100 text-start">
+                            <i class="fas fa-book me-2"></i>${name}
+                        </div>
+                    </div>
+                `;
+            });
+            subjectsHTML += '</div>';
+            subjectsHTML += `
+                <div class="mt-3 text-center">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Total: ${data.count} subjects for ${gradeLevel}
+                    </small>
+                </div>
+            `;
+            subjectsList.innerHTML = subjectsHTML;
+        })
+        .catch(function () {
+            subjectsList.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="fas fa-times-circle me-2"></i>
+                    Unable to load subjects. Please try again.
+                </div>
+            `;
+        });
+}
+
+document.getElementById('grade_level_applying_for').addEventListener('change', function() {
+    const selectedGrade = this.value;
+    loadEnrollmentSubjects(selectedGrade);
+    if (typeof loadSections === 'function') {
+        loadSections(selectedGrade);
+    }
+});
 
 // Birthdate calculation from month/date/year
 function updateBirthdate() {
@@ -2033,42 +2102,6 @@ document.addEventListener('DOMContentLoaded', function() {
     updateStudentNameInAgreement();
 });
 
-// Grade level change handler
-document.getElementById('grade_level_applying_for').addEventListener('change', function() {
-    const selectedGrade = this.value;
-    const subjectsPreview = document.getElementById('subjectsPreview');
-    const subjectsList = document.getElementById('subjectsList');
-    
-    if (selectedGrade && gradeSubjects[selectedGrade]) {
-        subjectsPreview.style.display = 'block';
-        const subjects = gradeSubjects[selectedGrade];
-        let subjectsHTML = '<div class="row">';
-        
-        subjects.forEach(function(subject) {
-            subjectsHTML += `
-                <div class="col-md-4 col-sm-6 mb-2">
-                    <div class="badge bg-success fs-6 p-2 w-100 text-start">
-                        <i class="fas fa-book me-2"></i>${subject}
-                    </div>
-                </div>
-            `;
-        });
-        
-        subjectsHTML += '</div>';
-        subjectsHTML += `
-            <div class="mt-3 text-center">
-                <small class="text-muted">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Total: ${subjects.length} subjects for ${selectedGrade}
-                </small>
-            </div>
-        `;
-        subjectsList.innerHTML = subjectsHTML;
-    } else {
-        subjectsPreview.style.display = 'none';
-    }
-});
-
 function changeStep(direction) {
     // Validate current step before moving forward
     if (direction === 1 && !validateStep(currentStep)) {
@@ -2090,6 +2123,15 @@ function changeStep(direction) {
     // Show new step
     document.getElementById('step' + currentStep).classList.add('active');
     document.querySelector(`.wizard-step[data-step="${currentStep}"]`).classList.add('active');
+
+    // Always refresh live catalog when entering subjects / sections steps
+    const gradeNow = document.getElementById('grade_level_applying_for')?.value || '';
+    if (currentStep === 5 && typeof loadEnrollmentSubjects === 'function') {
+        loadEnrollmentSubjects(gradeNow);
+    }
+    if (currentStep === 6 && typeof loadSections === 'function') {
+        loadSections(gradeNow);
+    }
     
     // Update student name in agreement if step 8
     if (currentStep === 8) {
@@ -2181,6 +2223,23 @@ function validateStep(step) {
         
         return true;
     }
+
+    // Step 6: require a block section when options are shown
+    if (step === 6) {
+        const sectionsVisible = document.getElementById('sectionsContainer')
+            && document.getElementById('sectionsContainer').style.display !== 'none';
+        const noSections = document.getElementById('noSectionsMessage')
+            && document.getElementById('noSectionsMessage').style.display !== 'none';
+        if (sectionsVisible && !noSections) {
+            const chosen = document.getElementById('selected_section_id');
+            if (!chosen || !chosen.value) {
+                showAlert('Please select a block section before continuing. Look for the blue “Your Choice” badge on the card you pick.', 'error');
+                updateSectionSelectionStatus(false);
+                return false;
+            }
+        }
+        return true;
+    }
     
     const currentStepElement = document.getElementById('step' + step);
     const requiredFields = currentStepElement.querySelectorAll('[required]');
@@ -2244,6 +2303,69 @@ document.getElementById('enrollmentForm').addEventListener('submit', function(e)
 
 // Load sections based on grade level
 let selectedSectionId = null;
+let selectedSectionName = null;
+let sectionsLoadedForGrade = null;
+
+function escapeHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function updateSectionSelectionStatus(isSelected, sectionName) {
+    const box = document.getElementById('sectionSelectionStatus');
+    const title = document.getElementById('sectionSelectionStatusTitle');
+    const text = document.getElementById('sectionSelectionStatusText');
+    const icon = box ? box.querySelector('.section-selection-status__icon i') : null;
+    if (!box || !title || !text) return;
+
+    if (isSelected) {
+        box.classList.remove('is-empty');
+        box.classList.add('is-selected');
+        title.textContent = 'Selected: ' + sectionName;
+        text.textContent = 'This section will be used when you submit your application. You can change it anytime before submitting.';
+        if (icon) icon.className = 'fas fa-check-circle';
+    } else {
+        box.classList.add('is-empty');
+        box.classList.remove('is-selected');
+        title.textContent = 'No section selected yet';
+        text.textContent = 'Click a section card below to choose your preferred block section.';
+        if (icon) icon.className = 'fas fa-hand-pointer';
+    }
+}
+
+function applySectionSelectionUI() {
+    document.querySelectorAll('.section-choice-card').forEach(function (card) {
+        const id = String(card.getAttribute('data-section-id') || '');
+        const btn = card.querySelector('.section-select-btn');
+        const badge = card.querySelector('.section-select-badge');
+        const isSelected = selectedSectionId != null && String(selectedSectionId) === id;
+
+        card.classList.toggle('is-selected', isSelected);
+        card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+
+        if (btn && !btn.disabled) {
+            if (isSelected) {
+                btn.classList.remove('btn-outline-success');
+                btn.classList.add('btn-primary');
+                btn.innerHTML = '<i class="fas fa-check-circle me-2"></i>Selected';
+            } else {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-success');
+                btn.innerHTML = '<i class="fas fa-hand-pointer me-2"></i>Select This Section';
+            }
+        }
+
+        if (badge) {
+            badge.style.display = isSelected ? 'inline-flex' : 'none';
+        }
+    });
+
+    updateSectionSelectionStatus(!!selectedSectionId, selectedSectionName || '');
+}
 
 function loadSections(gradeLevel) {
     if (!gradeLevel) {
@@ -2254,6 +2376,15 @@ function loadSections(gradeLevel) {
     }
     
     console.log('🔍 Loading sections for grade level:', gradeLevel);
+
+    // Only clear selection when the grade actually changes
+    if (sectionsLoadedForGrade && sectionsLoadedForGrade !== gradeLevel) {
+        selectedSectionId = null;
+        selectedSectionName = null;
+        const hidden = document.getElementById('selected_section_id');
+        if (hidden) hidden.value = '';
+        updateSectionSelectionStatus(false);
+    }
     
     // Show loading
     document.getElementById('sectionsLoading').style.display = 'block';
@@ -2261,16 +2392,37 @@ function loadSections(gradeLevel) {
     document.getElementById('noSectionsMessage').style.display = 'none';
     
     // Fetch sections via AJAX
-    fetch(`/enrollment-portal/get-sections/${encodeURIComponent(gradeLevel)}`)
+    fetch(`/enrollment-portal/get-sections/${encodeURIComponent(gradeLevel)}?_=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' }
+    })
         .then(response => response.json())
         .then(data => {
             console.log('📦 Sections received:', data);
+            sectionsLoadedForGrade = gradeLevel;
             
             if (data.success && data.sections && data.sections.length > 0) {
+                // Drop stale selection if that section is no longer in the list
+                if (selectedSectionId != null) {
+                    const stillThere = data.sections.some(function (s) {
+                        return String(s.id) === String(selectedSectionId) && s.available_spots !== 0;
+                    });
+                    if (!stillThere) {
+                        selectedSectionId = null;
+                        selectedSectionName = null;
+                        const hidden = document.getElementById('selected_section_id');
+                        if (hidden) hidden.value = '';
+                    }
+                }
                 renderSections(data.sections);
                 document.getElementById('sectionsLoading').style.display = 'none';
                 document.getElementById('sectionsContainer').style.display = 'block';
             } else {
+                selectedSectionId = null;
+                selectedSectionName = null;
+                const hidden = document.getElementById('selected_section_id');
+                if (hidden) hidden.value = '';
+                updateSectionSelectionStatus(false);
                 document.getElementById('sectionsLoading').style.display = 'none';
                 document.getElementById('noSectionsMessage').style.display = 'block';
             }
@@ -2288,26 +2440,39 @@ function renderSections(sections) {
     
     sections.forEach(section => {
         const isFull = section.available_spots === 0;
+        const safeName = escapeHtml(section.name);
+        const safeGrade = escapeHtml(section.grade_level);
+        const safeAdviser = escapeHtml(section.adviser || '');
+        const safeDesc = escapeHtml(section.description || '');
         const sectionCard = `
             <div class="col-md-6">
-                <div class="card section-choice-card ${isFull ? 'border-danger' : 'border-success'} h-100" 
-                     style="cursor: ${isFull ? 'not-allowed' : 'pointer'}; transition: all 0.3s ease; opacity: ${isFull ? '0.6' : '1'};"
-                     onclick="${isFull ? '' : `selectSection(${section.id}, '${section.name}')`}">
+                <div class="card section-choice-card h-100 ${isFull ? 'is-full' : ''}"
+                     data-section-id="${section.id}"
+                     data-section-name="${safeName}"
+                     role="button"
+                     tabindex="${isFull ? '-1' : '0'}"
+                     aria-pressed="false"
+                     style="cursor: ${isFull ? 'not-allowed' : 'pointer'}; opacity: ${isFull ? '0.65' : '1'};">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
                                 <h5 class="card-title mb-1">
-                                    <i class="fas fa-chalkboard me-2 text-primary"></i>${section.name}
+                                    <i class="fas fa-chalkboard me-2 text-primary"></i>${safeName}
                                 </h5>
-                                <p class="text-muted mb-0"><small>Grade Level: ${section.grade_level}</small></p>
+                                <p class="text-muted mb-0"><small>Grade Level: ${safeGrade}</small></p>
                             </div>
-                            ${isFull ? '<span class="badge bg-danger">Full</span>' : '<span class="badge bg-success">Available</span>'}
+                            <div class="d-flex flex-column align-items-end gap-1">
+                                <span class="badge section-select-badge" style="display:none;">
+                                    <i class="fas fa-check me-1"></i>Your Choice
+                                </span>
+                                ${isFull ? '<span class="badge bg-danger">Full</span>' : '<span class="badge bg-success">Available</span>'}
+                            </div>
                         </div>
                         
                         ${section.adviser ? `
                             <p class="mb-2">
                                 <i class="fas fa-user-tie me-1 text-primary"></i>
-                                <strong>Adviser:</strong> ${section.adviser}
+                                <strong>Adviser:</strong> ${safeAdviser}
                             </p>
                         ` : `
                             <p class="mb-2 text-muted">
@@ -2321,14 +2486,14 @@ function renderSections(sections) {
                             <strong>Capacity:</strong> ${section.available_spots} / ${section.capacity} spots available
                         </p>
                         
-                        ${section.description ? `<p class="text-muted mb-3"><small>${section.description}</small></p>` : ''}
+                        ${section.description ? `<p class="text-muted mb-3"><small>${safeDesc}</small></p>` : ''}
                         
                         ${!isFull ? `
-                            <button type="button" class="btn btn-success w-100" onclick="event.stopPropagation(); selectSection(${section.id}, '${section.name}');">
-                                <i class="fas fa-check-circle me-2"></i>Select This Section
+                            <button type="button" class="btn btn-outline-success w-100 section-select-btn">
+                                <i class="fas fa-hand-pointer me-2"></i>Select This Section
                             </button>
                         ` : `
-                            <button type="button" class="btn btn-secondary w-100" disabled>
+                            <button type="button" class="btn btn-secondary w-100 section-select-btn" disabled>
                                 <i class="fas fa-times-circle me-2"></i>Section is Full
                             </button>
                         `}
@@ -2338,24 +2503,49 @@ function renderSections(sections) {
         `;
         sectionsList.innerHTML += sectionCard;
     });
+
+    sectionsList.querySelectorAll('.section-choice-card:not(.is-full)').forEach(function (card) {
+        const pick = function () {
+            selectSection(
+                parseInt(card.getAttribute('data-section-id'), 10),
+                card.getAttribute('data-section-name') || 'Section'
+            );
+        };
+        card.addEventListener('click', function (e) {
+            if (e.target.closest('button')) return;
+            pick();
+        });
+        card.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                pick();
+            }
+        });
+        const btn = card.querySelector('.section-select-btn');
+        if (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                pick();
+            });
+        }
+    });
+
+    applySectionSelectionUI();
 }
 
 function selectSection(sectionId, sectionName) {
     selectedSectionId = sectionId;
+    selectedSectionName = sectionName;
     document.getElementById('selected_section_id').value = sectionId;
-    
-    // Remove selected class from all cards
-    document.querySelectorAll('.section-choice-card').forEach(card => {
-        card.classList.remove('border-primary', 'border-3');
-        card.style.boxShadow = '';
-    });
-    
-    // Add selected class to clicked card
-    event.currentTarget.classList.add('border-primary', 'border-3');
-    event.currentTarget.style.boxShadow = '0 10px 25px rgba(59, 130, 246, 0.3)';
-    
+
+    applySectionSelectionUI();
+
     console.log('✅ Selected section:', sectionId, sectionName);
-    showAlert(`✅ Section Selected Successfully!\n\nYou have selected: ${sectionName}\n\n🎯 You will be automatically assigned to this section when you submit your application.\n\nYou can change your selection anytime before submitting.`, 'success');
+    showAlert(
+        'Section selected: ' + sectionName + '\n\nLook for the blue “Your Choice” badge and the status bar above the cards. You can change this anytime before submitting.',
+        'success'
+    );
 }
 
 // Add event listener to grade level select
@@ -2380,5 +2570,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<style>
+.section-selection-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    border: 2px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+}
+.section-selection-status__icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    color: #475569;
+    flex-shrink: 0;
+}
+.section-selection-status.is-selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+.section-selection-status.is-selected .section-selection-status__icon {
+    background: #2563eb;
+    color: #fff;
+}
+.section-choice-card {
+    border: 2px solid #e2e8f0 !important;
+    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease, background .2s ease;
+    background: #fff;
+}
+.section-choice-card:hover:not(.is-full):not(.is-selected) {
+    border-color: #93c5fd !important;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+.section-choice-card.is-selected {
+    border-color: #2563eb !important;
+    border-width: 3px !important;
+    background: linear-gradient(180deg, #eff6ff 0%, #fff 55%);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18), 0 12px 24px rgba(37, 99, 235, 0.18);
+    transform: translateY(-2px);
+}
+.section-choice-card.is-full {
+    border-color: #fecaca !important;
+}
+.section-select-badge {
+    background: #1d4ed8 !important;
+    color: #fff !important;
+    font-weight: 700;
+    align-items: center;
+}
+</style>
 @endsection
     

@@ -174,9 +174,17 @@ class EnrollmentRegistrarController extends Controller
                 throw new \Exception("Student profile was not properly linked to user account");
             }
 
-            // Auto-assign student to section based on grade level
+            // Auto-assign student to preferred section (from enrollment form) or first available
             try {
-                $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+                if ($application->preferred_section_id) {
+                    $assignedSection = $this->assignStudentToPreferredSection(
+                        $student,
+                        $application->preferred_section_id,
+                        $application->grade_level_applying_for
+                    );
+                } else {
+                    $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+                }
                 Log::info("✅ Assigned student to section: {$assignedSection->name}");
             } catch (\Exception $e) {
                 Log::warning("⚠️  Section assignment failed: " . $e->getMessage());
@@ -520,8 +528,16 @@ class EnrollmentRegistrarController extends Controller
                 'year_level' => $application->grade_level_applying_for,
             ]);
 
-            // Auto-assign student to section based on grade level
-            $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+            // Auto-assign student to preferred section (from enrollment form) or first available
+            if ($application->preferred_section_id) {
+                $assignedSection = $this->assignStudentToPreferredSection(
+                    $student,
+                    $application->preferred_section_id,
+                    $application->grade_level_applying_for
+                );
+            } else {
+                $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+            }
 
             // Auto-enroll student in subjects for their grade level
             $this->autoEnrollStudentInSubjects($student, $application->grade_level_applying_for);
@@ -537,6 +553,61 @@ class EnrollmentRegistrarController extends Controller
     }
 
     /**
+     * Assign student to the section they chose on the enrollment form.
+     */
+    private function assignStudentToPreferredSection($student, $sectionId, $gradeLevel)
+    {
+        $academicYear = \App\Models\AcademicYear::latest()->first();
+        $semester = \App\Models\Semester::latest()->first();
+
+        if (!$academicYear || !$semester) {
+            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        }
+
+        $section = \App\Models\Section::find($sectionId);
+        if (!$section) {
+            return $this->autoAssignStudentToSection($student, $gradeLevel);
+        }
+
+        $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
+        if (!in_array($section->grade_level, $aliases, true)) {
+            return $this->autoAssignStudentToSection($student, $gradeLevel);
+        }
+
+        $currentCount = DB::table('student_section_assignments')
+            ->where('section_id', $section->id)
+            ->where('academic_year_id', $academicYear->id)
+            ->where('semester_id', $semester->id)
+            ->count();
+
+        if ($currentCount >= ($section->capacity ?? 25)) {
+            return $this->autoAssignStudentToSection($student, $gradeLevel);
+        }
+
+        $existingAssignment = DB::table('student_section_assignments')
+            ->where([
+                'student_id' => $student->id,
+                'section_id' => $section->id,
+                'academic_year_id' => $academicYear->id,
+                'semester_id' => $semester->id,
+            ])->first();
+
+        if (!$existingAssignment) {
+            DB::table('student_section_assignments')->insert([
+                'student_id' => $student->id,
+                'section_id' => $section->id,
+                'academic_year_id' => $academicYear->id,
+                'semester_id' => $semester->id,
+                'assigned_date' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $section;
+    }
+
+    /**
      * Automatically assign student to appropriate section based on grade level
      */
     private function autoAssignStudentToSection($student, $gradeLevel)
@@ -549,8 +620,8 @@ class EnrollmentRegistrarController extends Controller
             throw new \Exception('No academic year or semester found. Please set up academic periods first.');
         }
 
-        // Find sections for the student's grade level
-        $sections = \App\Models\Section::where('grade_level', $gradeLevel)->get();
+        // Find sections for the student's grade level (canonical + aliases)
+        $sections = app(\App\Services\GradeSubjectCatalogService::class)->sectionsForGrade($gradeLevel);
 
         if ($sections->isEmpty()) {
             throw new \Exception("No sections found for grade level: {$gradeLevel}. Please create sections first.");
@@ -605,10 +676,10 @@ class EnrollmentRegistrarController extends Controller
 
     /**
      * Automatically enroll student in subjects for their grade level
+     * Source of truth: admin-managed subjects table (subjects.class = grade label)
      */
     private function autoEnrollStudentInSubjects($student, $gradeLevel)
     {
-        // Get the latest academic year and semester (since is_active column doesn't exist)
         $academicYear = \App\Models\AcademicYear::latest()->first();
         $semester = \App\Models\Semester::latest()->first();
 
@@ -616,30 +687,18 @@ class EnrollmentRegistrarController extends Controller
             throw new \Exception('No academic year or semester found. Please set up academic periods first.');
         }
 
-        // Get subjects for the grade level from config
-        $gradeSubjects = config('grade_subjects.' . $gradeLevel, []);
-        
-        if (empty($gradeSubjects)) {
-            throw new \Exception("No subjects configured for grade level: {$gradeLevel}");
+        $subjects = app(\App\Services\GradeSubjectCatalogService::class)->subjectsForGrade($gradeLevel);
+
+        if ($subjects->isEmpty()) {
+            throw new \Exception(
+                "No subjects found for grade level: {$gradeLevel}. " .
+                'Please add subjects under Academic Management → Classes & Subjects first.'
+            );
         }
 
         $enrolledSubjects = [];
 
-        foreach ($gradeSubjects as $subjectName) {
-            // Find or create subject
-            $subject = \App\Models\Subject::where('subject_name', $subjectName)
-                ->where('class', $gradeLevel)
-                ->first();
-
-            if (!$subject) {
-                // Create subject if it doesn't exist
-                $subject = \App\Models\Subject::create([
-                    'subject_name' => $subjectName,
-                    'class' => $gradeLevel,
-                ]);
-            }
-
-            // Check if student is already enrolled in this subject
+        foreach ($subjects as $subject) {
             $existingEnrollment = \App\Models\Enrollment::where([
                 'student_id' => $student->id,
                 'subject_id' => $subject->id,
@@ -648,7 +707,6 @@ class EnrollmentRegistrarController extends Controller
             ])->first();
 
             if (!$existingEnrollment) {
-                // Create enrollment record
                 \App\Models\Enrollment::create([
                     'student_id' => $student->id,
                     'subject_id' => $subject->id,
@@ -658,7 +716,7 @@ class EnrollmentRegistrarController extends Controller
                     'status' => 'active',
                 ]);
 
-                $enrolledSubjects[] = $subjectName;
+                $enrolledSubjects[] = $subject->subject_name;
             }
         }
 
@@ -768,9 +826,17 @@ class EnrollmentRegistrarController extends Controller
                 throw new \Exception("Student profile was not properly linked to user account");
             }
 
-            // Auto-assign student to section based on grade level
+            // Auto-assign student to preferred section (from enrollment form) or first available
             try {
-                $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+                if ($application->preferred_section_id) {
+                    $assignedSection = $this->assignStudentToPreferredSection(
+                        $student,
+                        $application->preferred_section_id,
+                        $application->grade_level_applying_for
+                    );
+                } else {
+                    $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+                }
                 Log::info("✅ Assigned student to section: {$assignedSection->name}");
             } catch (\Exception $e) {
                 Log::warning("⚠️ Section assignment failed: " . $e->getMessage());

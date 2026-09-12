@@ -38,7 +38,12 @@
                         </div>
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
-                                <input type="text" name="search_class" class="form-control" placeholder="Search by Class ..." value="{{ request('search_class') }}">
+                                <select name="search_class" class="form-control">
+                                    <option value="">All Grades</option>
+                                    @foreach(($gradeLevels ?? []) as $grade)
+                                        <option value="{{ $grade }}" {{ request('search_class') === $grade ? 'selected' : '' }}>{{ $grade }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
                         <div class="col-lg-2">

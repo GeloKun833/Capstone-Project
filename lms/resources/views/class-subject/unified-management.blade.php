@@ -2,109 +2,189 @@
 
 @section('content')
 
+@php
+    $catalogEmpty = ($subjectsByGrade ?? collect())->isEmpty();
+@endphp
 
 <div class="page-wrapper">
-    <div class="content container-fluid">
+    <div class="content container-fluid ams-unified">
+
         <div class="page-header">
             <div class="row align-items-center">
-                <div class="col">
-                    <h3 class="page-title">Academic Management</h3>
-                    <p class="text-muted mb-0">Manage teachers, sections, and subject assignments. Students are automatically assigned to sections through the enrollment portal.</p>
-                    <ul class="breadcrumb">
+                <div class="col-lg-8">
+                    <h3 class="page-title mb-1">Classes &amp; Subjects</h3>
+                    <p class="ams-unified-sub mb-0">
+                        Manage the subject catalog by grade, then assign teachers to an entire grade at once.
+                    </p>
+                    <ul class="breadcrumb mb-0 mt-2">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Academic Management</li>
+                        <li class="breadcrumb-item active">Classes &amp; Subjects</li>
                     </ul>
+                </div>
+                <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                    <form action="{{ route('class-subject.import-defaults') }}" method="POST" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-download me-1"></i> Import Defaults
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">Teacher Assignment</h5>
+        {{-- Subject Catalog (click grade → modal) --}}
+        <div class="card ams-panel mb-4">
+            <div class="card-header ams-panel-header">
+                <div>
+                    <h5 class="mb-0">Subject Catalog by Grade</h5>
+                    <small class="text-muted">Click a grade to view, add, or manage its subjects</small>
+                </div>
+            </div>
+            <div class="card-body">
+                @if($catalogEmpty)
+                    <div class="alert alert-warning mb-3">
+                        <strong>No subjects yet.</strong>
+                        Use <em>Import Defaults</em> or open a grade below to add subjects.
                     </div>
-                    <div class="card-body">
-                <!-- Quick Setup Buttons -->
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <a href="{{ route('subject/list/page') }}" class="btn btn-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                            <i class="fas fa-book fa-2x mb-2"></i>
-                            <span class="fw-bold">Manage Subjects</span>
-                            <small class="text-muted">Add & edit subjects</small>
-                                </a>
-                            </div>
-                    <div class="col-md-3">
-                        <a href="{{ route('sections.index') }}" class="btn btn-success w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                            <i class="fas fa-layer-group fa-2x mb-2"></i>
-                            <span class="fw-bold">Manage Sections</span>
-                            <small class="text-muted">Add & edit sections</small>
-                        </a>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach($gradeLevels as $grade)
+                            <button type="button"
+                                class="btn btn-sm btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#catalogModal"
+                                data-grade="{{ $grade }}"
+                                data-count="0">
+                                Open {{ $grade }}
+                            </button>
+                        @endforeach
                     </div>
-                                        <div class="col-md-3">
-                        <a href="{{ route('teacher/list/page') }}" class="btn btn-info w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                            <i class="fas fa-chalkboard-teacher fa-2x mb-2"></i>
-                            <span class="fw-bold">Manage Teachers</span>
-                            <small class="text-muted">Add & edit teachers</small>
-                        </a>
+                @else
+                    <div class="row g-3" id="subjectCatalogGrid">
+                        @foreach($gradeLevels as $grade)
+                            @php
+                                $gradeSubjects = $subjectsByGrade->get($grade, collect());
+                                $assignedTeachers = $teachersByGrade[$grade] ?? collect();
+                            @endphp
+                            <div class="col-6 col-md-4 col-xl-3">
+                                <button type="button"
+                                    class="ams-grade-tile w-100 text-start"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#catalogModal"
+                                    data-grade="{{ $grade }}"
+                                    data-count="{{ $gradeSubjects->count() }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <span class="ams-grade-tile-title">{{ $grade }}</span>
+                                        <span class="ams-count-badge {{ $gradeSubjects->isEmpty() ? 'is-empty' : '' }}" data-role="subject-count">
+                                            {{ $gradeSubjects->count() }}
+                                        </span>
+                                    </div>
+                                    <div class="ams-grade-tile-meta mt-2" data-role="subject-preview">
+                                        @if($gradeSubjects->isEmpty())
+                                            <span class="text-muted">No subjects — click to add</span>
+                                        @else
+                                            <span class="text-muted">
+                                                {{ $gradeSubjects->take(3)->pluck('subject_name')->implode(', ') }}
+                                                @if($gradeSubjects->count() > 3)…@endif
+                                            </span>
+                                        @endif
+                                    </div>
+                                    @if($assignedTeachers->isNotEmpty())
+                                        <div class="ams-grade-tile-teachers mt-2">
+                                            <i class="fas fa-chalkboard-teacher me-1"></i>
+                                            {{ $assignedTeachers->count() }} teacher(s)
                                         </div>
-                                        <div class="col-md-3">
-                        <a href="{{ route('academic_years.index') }}" class="btn btn-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                            <i class="fas fa-calendar fa-2x mb-2"></i>
-                            <span class="fw-bold">Academic Years</span>
-                            <small class="text-muted">Manage academic periods</small>
-                        </a>
+                                    @endif
+                                </button>
                             </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        {{-- Block Sections by Grade (click → modal) --}}
+        <div class="card ams-panel mb-4">
+            <div class="card-header ams-panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0">Block Sections by Grade</h5>
+                    <small class="text-muted">These power the enrollment form Block Section step. Click a grade to manage.</small>
+                </div>
+                <a href="{{ route('sections.index') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-list me-1"></i> All Sections
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    @foreach($gradeLevels as $grade)
+                        @php $gradeSections = ($sectionsByGrade ?? collect())->get($grade, collect()); @endphp
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <button type="button"
+                                class="ams-grade-tile w-100 text-start"
+                                data-bs-toggle="modal"
+                                data-bs-target="#sectionModal"
+                                data-grade="{{ $grade }}"
+                                data-count="{{ $gradeSections->count() }}">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <span class="ams-grade-tile-title">{{ $grade }}</span>
+                                    <span class="ams-count-badge ams-count-badge--section {{ $gradeSections->isEmpty() ? 'is-empty' : '' }}" data-role="section-count">
+                                        {{ $gradeSections->count() }}
+                                    </span>
+                                </div>
+                                <div class="ams-grade-tile-meta mt-2" data-role="section-preview">
+                                    @if($gradeSections->isEmpty())
+                                        <span class="text-muted">No block sections — click to add</span>
+                                    @else
+                                        <span class="text-muted">
+                                            {{ $gradeSections->take(3)->pluck('name')->implode(', ') }}
+                                            @if($gradeSections->count() > 3)…@endif
+                                        </span>
+                                    @endif
+                                </div>
+                            </button>
                         </div>
-
-                        <hr>
-
-                        <!-- Quick Setup Information -->
-                        <div class="alert alert-info mb-4">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-info-circle me-2"></i>
-                                <div>
-                            <strong>Quick Setup:</strong> Need to create new sections or subjects first? Use the buttons above to add them, then come back here to assign teachers.
+                    @endforeach
         </div>
     </div>
 </div>
 
-                <!-- Teacher Assignment Form -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-chalkboard-teacher text-primary me-2"></i>Assign Teacher to Subject
-                        </h5>
+        {{-- Teacher Assignment by Grade --}}
+        <div class="card ams-panel">
+            <div class="card-header ams-panel-header">
+                <div>
+                    <h5 class="mb-0">Assign Teacher by Grade</h5>
+                    <small class="text-muted">
+                        Choosing a grade assigns the teacher to <strong>all subjects</strong> in that grade.
+                    </small>
+                </div>
                     </div>
                     <div class="card-body">
-                        <form method="POST" action="{{ route('class-subject.unified-management') }}" id="teacherAssignmentForm">
+                <form method="POST" action="{{ route('class-subject.unified-management') }}" id="teacherGradeForm">
             @csrf
-            <input type="hidden" name="operation_type" value="teacher_subject">
-            
-            <div class="row">
-                <!-- Subject Selection -->
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="subject_id">Subject <span class="text-danger">*</span></label>
-                        <select class="form-control @error('subject_id') is-invalid @enderror" name="subject_id" id="subject_id" required>
-                            <option value="">Select Subject</option>
-                            @foreach($subjects as $subject)
-                                <option value="{{ $subject->id }}" {{ old('subject_id') == $subject->id ? 'selected' : '' }}>
-                                    {{ $subject->subject_name }} ({{ $subject->class }})
+                    <input type="hidden" name="operation_type" value="teacher_grade">
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="grade_level">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-control @error('grade_level') is-invalid @enderror" name="grade_level" id="grade_level" required>
+                                <option value="">Select Grade</option>
+                                @foreach($gradeLevels as $grade)
+                                    <option value="{{ $grade }}"
+                                        data-subject-count="{{ ($subjectsByGrade->get($grade) ?? collect())->count() }}"
+                                        {{ old('grade_level') === $grade ? 'selected' : '' }}>
+                                        {{ $grade }}
+                                        ({{ ($subjectsByGrade->get($grade) ?? collect())->count() }} subjects)
                                 </option>
                             @endforeach
                         </select>
-                        @error('subject_id')
-                            <span class="invalid-feedback">{{ $message }}</span>
+                            @error('grade_level')
+                                <span class="invalid-feedback d-block">{{ $message }}</span>
                         @enderror
-                    </div>
+                            <div id="gradeSubjectsPreview" class="ams-preview mt-2 d-none"></div>
                 </div>
 
-                <!-- Academic Year -->
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
-                        <select class="form-control @error('academic_year_id') is-invalid @enderror" name="academic_year_id" id="academic_year_id" required>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
+                            <select class="form-control" name="academic_year_id" id="academic_year_id" required>
                             <option value="">Select Academic Year</option>
                             @foreach($academicYears as $year)
                                 <option value="{{ $year->id }}" {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
@@ -112,19 +192,11 @@
                                 </option>
                             @endforeach
                         </select>
-                        @error('academic_year_id')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-                </div>
             </div>
 
-            <div class="row">
-                <!-- Semester -->
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="semester_id">Semester <span class="text-danger">*</span></label>
-                        <select class="form-control @error('semester_id') is-invalid @enderror" name="semester_id" id="semester_id" required>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
+                            <select class="form-control" name="semester_id" id="semester_id" required>
                             <option value="">Select Semester</option>
                             @foreach($semesters as $semester)
                                 <option value="{{ $semester->id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
@@ -132,76 +204,55 @@
                                 </option>
                             @endforeach
                         </select>
-                        @error('semester_id')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
                 </div>
 
-                                <!-- Section -->
-                <div class="col-md-6">
-                    <div class="form-group">
-                                        <label for="section_id">Section <span class="text-danger">*</span></label>
-                                        <select class="form-control @error('section_id') is-invalid @enderror" name="section_id" id="section_id" required>
-                                            <option value="">Select Section</option>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="section_id">Section <span class="text-muted">(optional)</span></label>
+                            <select class="form-control" name="section_id" id="section_id">
+                                <option value="">All / None</option>
                             @foreach($sections as $section)
-                                <option value="{{ $section->id }}" {{ old('section_id') == $section->id ? 'selected' : '' }}>
-                                                    {{ $section->name }} ({{ $section->class }})
+                                    <option value="{{ $section->id }}"
+                                        data-grade="{{ $section->grade_level }}"
+                                        {{ old('section_id') == $section->id ? 'selected' : '' }}>
+                                        {{ $section->name }} ({{ $section->grade_level }})
                                 </option>
                             @endforeach
                         </select>
-                        @error('section_id')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
+                            <small class="text-muted">If set, teacher is also linked to that section.</small>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Teacher Selection -->
-            <div class="form-group">
-                <label for="teacher_ids">Teachers <span class="text-danger">*</span></label>
+                    <hr class="my-4">
+
+                    <label class="form-label ams-label">Teachers <span class="text-danger">*</span></label>
                 @if($teachers->isEmpty())
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>No teachers available!</strong> Please create teacher users in 
-                        <a href="{{ route('list/users') }}" class="alert-link">User Management</a> first, 
-                        or click the yellow <strong>Sync</strong> button on the 
-                        <a href="{{ route('teacher/list/page') }}" class="alert-link">Teachers page</a>.
+                        <div class="alert alert-warning mb-0">
+                            No teachers available. Create teacher users in User Management first.
                     </div>
                 @else
-                    <div class="row">
+                        <div class="row g-2">
                         @foreach($teachers as $teacher)
-                            <div class="col-md-4 col-sm-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="teacher_ids[]" value="{{ $teacher->id }}" 
-                                           id="teacher_{{ $teacher->id }}" {{ in_array($teacher->id, old('teacher_ids', [])) ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="teacher_{{ $teacher->id }}">
-                                        <strong>{{ $teacher->full_name ?: ($teacher->user->name ?? 'Unknown Teacher') }}</strong>
-                                        <br><small class="text-muted">ID: {{ $teacher->user_id ?? 'N/A' }}</small>
-                                        @if($teacher->user && $teacher->user->department)
-                                            <br><small class="text-muted">{{ $teacher->user->department }}</small>
-                                        @endif
+                                <div class="col-md-4 col-sm-6">
+                                    <label class="ams-teacher-card">
+                                        <input class="form-check-input me-2" type="checkbox" name="teacher_ids[]"
+                                            value="{{ $teacher->id }}"
+                                            {{ in_array($teacher->id, old('teacher_ids', [])) ? 'checked' : '' }}>
+                                        <span>
+                                            <strong>{{ $teacher->full_name ?: ($teacher->user->name ?? 'Unknown') }}</strong>
+                                            <br><small class="text-muted">{{ $teacher->user_id ?? '' }}</small>
+                                        </span>
                                     </label>
-                                </div>
                             </div>
                         @endforeach
                     </div>
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle"></i> 
-                        {{ $teachers->count() }} teacher(s) available for assignment
-                    </small>
-                @endif
-            </div>
-                        
                         @error('teacher_ids')
-                            <div class="alert alert-danger mt-3">{{ $message }}</div>
+                            <div class="alert alert-danger mt-3 mb-0">{{ $message }}</div>
                         @enderror
-            </div>
+                    @endif
 
             <div class="text-end mt-4">
-                <a href="{{ route('dashboard') }}" class="btn btn-secondary me-2">Cancel</a>
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <i class="fas fa-save"></i> Assign Teachers to Subject
+                        <button type="submit" class="btn btn-primary" id="submitGradeAssign" @disabled($teachers->isEmpty())>
+                            <i class="fas fa-user-check me-1"></i> Assign Teacher(s) to Grade
                 </button>
             </div>
         </form>
@@ -209,6 +260,100 @@
                 </div>
                     </div>
                 </div>
+
+{{-- Floating catalog modal --}}
+<div class="modal fade" id="catalogModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content ams-modal">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="catalogModalTitle">Grade Subjects</h5>
+                    <small class="text-muted" id="catalogModalSub">Subjects for enrollment &amp; teaching</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="catalogSubjectsList" class="mb-4"></div>
+
+                <div class="ams-modal-add">
+                    <h6 class="mb-3"><i class="fas fa-plus-circle me-1 text-primary"></i> Add Subject to this Grade</h6>
+                    <form method="POST" action="{{ route('class-subject.quick-add-subject') }}" id="quickAddSubjectForm">
+                        @csrf
+                        <input type="hidden" name="grade_level" id="quickAddGrade" value="">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-8">
+                                <label class="form-label ams-label">Subject Name</label>
+                                <input type="text" class="form-control" name="subject_name" id="quickAddName"
+                                    placeholder="e.g. Math" required autocomplete="off">
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary w-100" id="quickAddSubjectBtn">
+                                    <i class="fas fa-plus me-1"></i> Add
+                                </button>
+                            </div>
+                        </div>
+                        <div id="quickAddSubjectMsg" class="small mt-2"></div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <form action="{{ route('class-subject.import-defaults') }}" method="POST" id="importGradeForm">
+                    @csrf
+                    <input type="hidden" name="grade_level" id="importGradeLevel" value="">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-download me-1"></i> Import Defaults for Grade
+                    </button>
+                </form>
+                <a href="#" id="catalogManageLink" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-external-link-alt me-1"></i> Full Subject List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Floating section modal --}}
+<div class="modal fade" id="sectionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content ams-modal">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="sectionModalTitle">Block Sections</h5>
+                    <small class="text-muted" id="sectionModalSub">Shown on enrollment when this grade is selected</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="sectionList" class="mb-4"></div>
+                <div class="ams-modal-add">
+                    <h6 class="mb-3"><i class="fas fa-plus-circle me-1 text-primary"></i> Add Block Section</h6>
+                    <form method="POST" action="{{ route('class-subject.quick-add-section') }}" id="quickAddSectionForm">
+                        @csrf
+                        <input type="hidden" name="grade_level" id="quickSectionGrade" value="">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label ams-label">Section Name</label>
+                                <input type="text" class="form-control" name="name" id="quickSectionName"
+                                    placeholder="e.g. Pasteur" required autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label ams-label">Capacity</label>
+                                <input type="number" class="form-control" name="capacity" value="25" min="1">
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary w-100" id="quickAddSectionBtn">
+                                    <i class="fas fa-plus me-1"></i> Add Section
+                                </button>
+                            </div>
+                        </div>
+                        <div id="quickAddSectionMsg" class="small mt-2"></div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ route('sections.index') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-external-link-alt me-1"></i> Manage All Sections
+                </a>
             </div>
         </div>
     </div>
@@ -216,20 +361,447 @@
 
 @endsection
 
-@section('scripts')
+@push('styles')
+<style>
+    .ams-unified {
+        --ams-blue: #3d5ee1;
+        --ams-ink: #111827;
+        --ams-muted: #6b7280;
+        --ams-line: #e5e7eb;
+        --ams-soft: #f8fafc;
+    }
+    .ams-unified-sub { color: var(--ams-muted); }
+    .ams-panel {
+        border: 1px solid var(--ams-line);
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+    .ams-panel-header {
+        background: linear-gradient(180deg, #fff, var(--ams-soft));
+        border-bottom: 1px solid var(--ams-line);
+        padding: 1rem 1.25rem;
+    }
+    .ams-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #374151;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .ams-grade-tile {
+        border: 1px solid var(--ams-line);
+        background: #fff;
+        border-radius: 14px;
+        padding: 1rem;
+        min-height: 118px;
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        cursor: pointer;
+    }
+    .ams-grade-tile:hover {
+        transform: translateY(-2px);
+        border-color: #c7d2fe;
+        box-shadow: 0 10px 22px rgba(61, 94, 225, 0.12);
+    }
+    .ams-grade-tile-title {
+        font-weight: 700;
+        color: var(--ams-ink);
+        font-size: 1rem;
+    }
+    .ams-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.75rem;
+        height: 1.75rem;
+        padding: 0 0.45rem;
+        border-radius: 8px;
+        background: #1e3a8a !important;
+        color: #fff !important;
+        font-size: 0.85rem;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+    }
+    .ams-count-badge--section {
+        background: #065f46 !important;
+    }
+    .ams-count-badge.is-empty {
+        background: #64748b !important;
+    }
+    .ams-grade-tile-meta { font-size: 0.8rem; line-height: 1.35; }
+    .ams-grade-tile-teachers {
+        font-size: 0.75rem;
+        color: var(--ams-blue);
+        font-weight: 600;
+    }
+    .ams-teacher-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.35rem;
+        border: 1px solid var(--ams-line);
+        border-radius: 12px;
+        padding: 0.75rem 0.85rem;
+        background: #fff;
+        cursor: pointer;
+        height: 100%;
+        transition: border-color .15s ease, background .15s ease;
+    }
+    .ams-teacher-card:hover { border-color: #c7d2fe; background: #f8faff; }
+    .ams-preview {
+        background: #f0f4ff;
+        border: 1px dashed #c7d2fe;
+        border-radius: 10px;
+        padding: 0.65rem 0.85rem;
+        font-size: 0.85rem;
+        color: #3730a3;
+    }
+    .ams-modal {
+        border: 0;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+    }
+    #catalogModal.modal.fade .modal-dialog {
+        transform: translateY(22px) scale(.96);
+        opacity: 0;
+        transition: transform .28s cubic-bezier(.22,1,.36,1), opacity .28s ease;
+    }
+    #catalogModal.modal.show .modal-dialog {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    .ams-modal-add {
+        background: var(--ams-soft);
+        border: 1px solid var(--ams-line);
+        border-radius: 12px;
+        padding: 1rem;
+    }
+    .ams-subject-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: #eef2ff;
+        color: #312e81;
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 0 0.35rem 0.5rem 0;
+    }
+</style>
+@endpush
+
+@push('scripts')
 <script>
-$(document).ready(function() {
-    // Form validation
-    $('#teacherAssignmentForm').on('submit', function(e) {
-        const teacherIds = $('input[name="teacher_ids[]"]:checked').length;
-        if (teacherIds === 0) {
+(function () {
+    let subjectsByGrade = @json($subjectsByGradeJson ?? []);
+    let sectionsByGrade = @json($sectionsByGradeJson ?? []);
+    const listUrlBase = @json(url('subject/list/page'));
+    const csrfToken = @json(csrf_token());
+
+    function renderSubjectChips(grade, subjects) {
+        const list = document.getElementById('catalogSubjectsList');
+        if (!list) return;
+        if (!subjects || !subjects.length) {
+            list.innerHTML = '<div class="alert alert-light border mb-0">No subjects in this grade yet. Add one below or import defaults.</div>';
+            return;
+        }
+        list.innerHTML = subjects.map(function (s) {
+            return '<span class="ams-subject-chip"><i class="fas fa-book"></i> ' + (s.name || s.subject_name) + '</span>';
+        }).join('');
+    }
+
+    function renderSectionChips(grade, sections) {
+        const list = document.getElementById('sectionList');
+        if (!list) return;
+        if (!sections || !sections.length) {
+            list.innerHTML = '<div class="alert alert-light border mb-0">No sections for this grade. Add one below — it will appear on the enrollment Block Section step.</div>';
+            return;
+        }
+        list.innerHTML = sections.map(function (s) {
+            const adviser = s.adviser ? (' · ' + s.adviser) : '';
+            return '<span class="ams-subject-chip"><i class="fas fa-door-open"></i> ' + s.name +
+                ' <small style="font-weight:500;opacity:.75">(cap ' + (s.capacity || 25) + adviser + ')</small></span>';
+        }).join('');
+    }
+
+    function updateSubjectTile(grade, subjects) {
+        const tile = document.querySelector('.ams-grade-tile[data-grade="' + grade + '"][data-bs-target="#catalogModal"]');
+        if (!tile) return;
+        const count = (subjects || []).length;
+        tile.setAttribute('data-count', String(count));
+        const badge = tile.querySelector('[data-role="subject-count"]');
+        if (badge) {
+            badge.textContent = String(count);
+            badge.classList.toggle('is-empty', count === 0);
+        }
+        const preview = tile.querySelector('[data-role="subject-preview"]');
+        if (preview) {
+            if (!count) {
+                preview.innerHTML = '<span class="text-muted">No subjects — click to add</span>';
+            } else {
+                const names = subjects.slice(0, 3).map(function (s) { return s.name || s.subject_name; });
+                preview.innerHTML = '<span class="text-muted">' + names.join(', ') + (count > 3 ? '…' : '') + '</span>';
+            }
+        }
+    }
+
+    function updateSectionTile(grade, sections) {
+        const tile = document.querySelector('.ams-grade-tile[data-grade="' + grade + '"][data-bs-target="#sectionModal"]');
+        if (!tile) return;
+        const count = (sections || []).length;
+        tile.setAttribute('data-count', String(count));
+        const badge = tile.querySelector('[data-role="section-count"]');
+        if (badge) {
+            badge.textContent = String(count);
+            badge.classList.toggle('is-empty', count === 0);
+        }
+        const preview = tile.querySelector('[data-role="section-preview"]');
+        if (preview) {
+            if (!count) {
+                preview.innerHTML = '<span class="text-muted">No block sections — click to add</span>';
+            } else {
+                const names = sections.slice(0, 3).map(function (s) { return s.name; });
+                preview.innerHTML = '<span class="text-muted">' + names.join(', ') + (count > 3 ? '…' : '') + '</span>';
+            }
+        }
+    }
+
+    function refreshSubjectsFromApi(grade) {
+        return fetch('/enrollment-portal/get-subjects/' + encodeURIComponent(grade) + '?_=' + Date.now(), {
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                const subjects = (data.subjects || []).map(function (s) {
+                    return { id: s.id, name: s.name, class: s.class };
+                });
+                subjectsByGrade[grade] = subjects;
+                renderSubjectChips(grade, subjects);
+                updateSubjectTile(grade, subjects);
+                document.getElementById('catalogModalSub').textContent = subjects.length
+                    ? (subjects.length + ' subject(s) — live from database / enrollment')
+                    : 'No subjects yet for ' + grade;
+                return subjects;
+            });
+    }
+
+    function refreshSectionsFromApi(grade) {
+        return fetch('/enrollment-portal/get-sections/' + encodeURIComponent(grade) + '?_=' + Date.now(), {
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                const sections = (data.sections || []).map(function (s) {
+                    return {
+                        id: s.id,
+                        name: s.name,
+                        capacity: s.capacity,
+                        adviser: s.adviser
+                    };
+                });
+                sectionsByGrade[grade] = sections;
+                renderSectionChips(grade, sections);
+                updateSectionTile(grade, sections);
+                document.getElementById('sectionModalSub').textContent = sections.length
+                    ? (sections.length + ' section(s) — live from database / enrollment')
+                    : 'No block sections yet for ' + grade;
+                return sections;
+            });
+    }
+
+    const catalogModal = document.getElementById('catalogModal');
+    if (catalogModal) {
+        catalogModal.addEventListener('show.bs.modal', function (event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const grade = btn.getAttribute('data-grade') || '';
+
+            document.getElementById('catalogModalTitle').textContent = grade + ' Subjects';
+            document.getElementById('quickAddGrade').value = grade;
+            document.getElementById('importGradeLevel').value = grade;
+            document.getElementById('catalogManageLink').href = listUrlBase + '?search_class=' + encodeURIComponent(grade);
+            document.getElementById('quickAddName').value = '';
+            document.getElementById('quickAddSubjectMsg').textContent = '';
+            document.getElementById('catalogSubjectsList').innerHTML = '<div class="text-muted py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading live subjects...</div>';
+
+            refreshSubjectsFromApi(grade).catch(function () {
+                renderSubjectChips(grade, subjectsByGrade[grade] || []);
+            });
+        });
+    }
+
+    const sectionModal = document.getElementById('sectionModal');
+    if (sectionModal) {
+        sectionModal.addEventListener('show.bs.modal', function (event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const grade = btn.getAttribute('data-grade') || '';
+
+            document.getElementById('sectionModalTitle').textContent = grade + ' Block Sections';
+            document.getElementById('quickSectionGrade').value = grade;
+            document.getElementById('quickSectionName').value = '';
+            document.getElementById('quickAddSectionMsg').textContent = '';
+            document.getElementById('sectionList').innerHTML = '<div class="text-muted py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading live sections...</div>';
+
+            refreshSectionsFromApi(grade).catch(function () {
+                renderSectionChips(grade, sectionsByGrade[grade] || []);
+            });
+        });
+    }
+
+    $('#quickAddSubjectForm').on('submit', function (e) {
+        e.preventDefault();
+        const grade = $('#quickAddGrade').val();
+        const name = ($('#quickAddName').val() || '').trim();
+        const $msg = $('#quickAddSubjectMsg');
+        const $btn = $('#quickAddSubjectBtn');
+
+        if (!grade || !name) {
+            $msg.html('<span class="text-danger">Grade and subject name are required.</span>');
+            return;
+        }
+
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        $msg.html('<span class="text-muted">Saving...</span>');
+
+        $.ajax({
+            url: @json(route('class-subject.quick-add-subject')),
+            method: 'POST',
+            data: {
+                _token: csrfToken,
+                grade_level: grade,
+                subject_name: name
+            },
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        }).done(function (res) {
+            $msg.html('<span class="text-success">' + (res.message || 'Added.') + ' Visible on enrollment now.</span>');
+            $('#quickAddName').val('');
+            // Wait for live fetch so tile count/preview update without page refresh
+            refreshSubjectsFromApi(grade).catch(function () {
+                const list = subjectsByGrade[grade] || [];
+                if (res.subject) {
+                    list.push({ id: res.subject.id, name: res.subject.subject_name || res.subject.name, class: grade });
+                    subjectsByGrade[grade] = list;
+                }
+                renderSubjectChips(grade, subjectsByGrade[grade] || []);
+                updateSubjectTile(grade, subjectsByGrade[grade] || []);
+            });
+        }).fail(function (xhr) {
+            const msg = (xhr.responseJSON && (xhr.responseJSON.message || (xhr.responseJSON.errors && Object.values(xhr.responseJSON.errors)[0][0]))) || 'Failed to add subject.';
+            $msg.html('<span class="text-danger">' + msg + '</span>');
+        }).always(function () {
+            $btn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i> Add');
+        });
+    });
+
+    $('#quickAddSectionForm').on('submit', function (e) {
+        e.preventDefault();
+        const grade = $('#quickSectionGrade').val();
+        const name = ($('#quickSectionName').val() || '').trim();
+        const capacity = $(this).find('[name="capacity"]').val() || 25;
+        const $msg = $('#quickAddSectionMsg');
+        const $btn = $('#quickAddSectionBtn');
+
+        if (!grade || !name) {
+            $msg.html('<span class="text-danger">Grade and section name are required.</span>');
+            return;
+        }
+
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        $msg.html('<span class="text-muted">Saving...</span>');
+
+        $.ajax({
+            url: @json(route('class-subject.quick-add-section')),
+            method: 'POST',
+            data: {
+                _token: csrfToken,
+                grade_level: grade,
+                name: name,
+                capacity: capacity
+            },
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        }).done(function (res) {
+            $msg.html('<span class="text-success">' + (res.message || 'Added.') + ' Visible on enrollment Block Section now.</span>');
+            $('#quickSectionName').val('');
+            refreshSectionsFromApi(grade).catch(function () {
+                const list = sectionsByGrade[grade] || [];
+                if (res.section) {
+                    list.push(res.section);
+                    sectionsByGrade[grade] = list;
+                }
+                renderSectionChips(grade, sectionsByGrade[grade] || []);
+                updateSectionTile(grade, sectionsByGrade[grade] || []);
+            });
+        }).fail(function (xhr) {
+            const msg = (xhr.responseJSON && (xhr.responseJSON.message || (xhr.responseJSON.errors && Object.values(xhr.responseJSON.errors)[0][0]))) || 'Failed to add section.';
+            $msg.html('<span class="text-danger">' + msg + '</span>');
+        }).always(function () {
+            $btn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i> Add Section');
+        });
+    });
+
+    const gradeSelect = document.getElementById('grade_level');
+    const preview = document.getElementById('gradeSubjectsPreview');
+    const sectionSelect = document.getElementById('section_id');
+
+    function refreshGradePreview() {
+        if (!gradeSelect || !preview) return;
+        const grade = gradeSelect.value;
+        const subjects = subjectsByGrade[grade] || [];
+        if (!grade) {
+            preview.classList.add('d-none');
+            preview.innerHTML = '';
+            filterSections('');
+            return;
+        }
+        if (!subjects.length) {
+            preview.classList.remove('d-none');
+            preview.innerHTML = '<strong>' + grade + '</strong> has no subjects yet. Open the catalog and add some first.';
+        } else {
+            preview.classList.remove('d-none');
+            preview.innerHTML = '<strong>Will assign:</strong> ' + subjects.map(function (s) { return s.name; }).join(', ');
+        }
+        filterSections(grade);
+    }
+
+    function filterSections(grade) {
+        if (!sectionSelect) return;
+        Array.from(sectionSelect.options).forEach(function (opt, idx) {
+            if (idx === 0) return;
+            const g = opt.getAttribute('data-grade') || '';
+            const match = !grade || g === grade;
+            opt.hidden = !match;
+            if (!match && opt.selected) {
+                opt.selected = false;
+                sectionSelect.value = '';
+            }
+        });
+    }
+
+    if (gradeSelect) {
+        gradeSelect.addEventListener('change', refreshGradePreview);
+        refreshGradePreview();
+    }
+
+    $('#teacherGradeForm').on('submit', function (e) {
+        if ($('input[name="teacher_ids[]"]:checked').length === 0) {
             e.preventDefault();
             alert('Please select at least one teacher.');
             return false;
         }
-        
-        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Assigning...');
+        const grade = $('#grade_level').val();
+        const subjects = subjectsByGrade[grade] || [];
+        if (!subjects.length) {
+            e.preventDefault();
+            alert('This grade has no subjects yet. Add subjects in the catalog first.');
+            return false;
+        }
+        $('#submitGradeAssign').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Assigning...');
     });
-});
+})();
 </script>
-@endsection
+@endpush

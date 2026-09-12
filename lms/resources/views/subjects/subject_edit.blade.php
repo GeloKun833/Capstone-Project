@@ -35,13 +35,18 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Subject Name <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="subject_name" value="{{ $subjectEdit->subject_name }}">
+                                            <input type="text" class="form-control" name="subject_name" value="{{ old('subject_name', $subjectEdit->subject_name) }}" required>
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Class <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control"  name="class" value="{{ $subjectEdit->class }}">
+                                            <label>Grade Level <span class="login-danger">*</span></label>
+                                            <select class="form-control" name="class" required>
+                                                <option value="">Select Grade</option>
+                                                @foreach($gradeLevels as $grade)
+                                                    <option value="{{ $grade }}" {{ old('class', $subjectEdit->class) === $grade ? 'selected' : '' }}>{{ $grade }}</option>
+                                                @endforeach
+                                            </select>
                                         </div>
                                     </div>
                                     <div class="col-12">

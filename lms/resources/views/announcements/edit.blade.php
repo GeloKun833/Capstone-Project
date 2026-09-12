@@ -22,7 +22,7 @@
                 <div class="col-sm-12">
                     <div class="card">
                         <div class="card-body">
-                            <form action="{{ route('announcements.update', $announcement->id) }}" method="POST" id="announcementForm">
+                            <form action="{{ route('announcements.update', $announcement->id) }}" method="POST" id="announcementForm" enctype="multipart/form-data">
                                 @csrf
                                 @method('PUT')
                                 
@@ -100,6 +100,36 @@
                                             @error('content')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="form-group">
+                                            <label>Current Attachments</label>
+                                            @php $files = $announcement->attachments ?? []; @endphp
+                                            @if(empty($files))
+                                                <p class="text-muted mb-2">No files attached yet.</p>
+                                            @else
+                                                <div class="list-group mb-3">
+                                                    @foreach($files as $file)
+                                                        <label class="list-group-item d-flex justify-content-between align-items-center">
+                                                            <span>
+                                                                <i class="fas fa-paperclip me-2"></i>
+                                                                {{ $file['original_name'] ?? basename($file['path'] ?? 'file') }}
+                                                            </span>
+                                                            <span>
+                                                                <a class="btn btn-sm btn-outline-primary me-2" target="_blank"
+                                                                   href="{{ asset('storage/' . ($file['path'] ?? '')) }}">View</a>
+                                                                <input type="checkbox" name="remove_attachments[]" value="{{ $file['path'] ?? '' }}"> Remove
+                                                            </span>
+                                                        </label>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                            <label class="mt-2">Add more files</label>
+                                            <input type="file" class="form-control" name="attachments[]" multiple
+                                                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.xls,.xlsx,.ppt,.pptx,image/*">
+                                            <small class="form-text text-muted">PDF, Word, Excel, PowerPoint, images, or TXT. Max 5 total, 10MB each.</small>
                                         </div>
                                     </div>
                                     
@@ -191,7 +221,7 @@
     </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script>
     $(document).ready(function() {
         // Initialize Select2
@@ -230,4 +260,4 @@
         });
     });
 </script>
-@endsection 
+@endpush 

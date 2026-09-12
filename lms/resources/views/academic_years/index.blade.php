@@ -1,518 +1,400 @@
 @extends('layouts.master')
 @section('content')
-
-    <div class="page-wrapper">
-        <div class="content container-fluid">
-
-            <div class="page-header">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h3 class="page-title">Academic Years</h3>
-                        <ul class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Academic Years</li>
-                        </ul>
-                    </div>
+<div class="page-wrapper">
+    <div class="content container-fluid ams-years">
+        <div class="page-header">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h3 class="page-title">Academic Years</h3>
+                    <p class="text-muted mb-0">Manage school years used by enrollment, grading, and semesters.</p>
+                    <ul class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Academic Years</li>
+                    </ul>
+                </div>
+                <div class="col-auto d-flex flex-wrap gap-2">
+                    <a href="{{ route('semesters.index') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-calendar-week me-1"></i> Semesters
+                    </a>
+                    <button type="button" class="btn btn-primary" id="btnAddYear"
+                        data-bs-toggle="modal" data-bs-target="#yearFormModal">
+                        <i class="fas fa-plus me-1"></i> Add Academic Year
+                    </button>
                 </div>
             </div>
+        </div>
 
-            <div class="student-group-form">
-                <div class="row">
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <input type="text" class="form-control" id="searchAcademicYear" placeholder="Search Academic Year...">
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <select class="form-control" id="status_filter">
-                                <option value="">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="upcoming">Upcoming</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="search-student-btn">
-                            <button type="button" class="btn btn-primary" id="filterAcademicYears">Filter</button>
-                        </div>
-                    </div>
-                </div>
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="ams-stat"><span class="ams-stat-val">{{ $stats['total'] }}</span><span class="ams-stat-lbl">Total</span></div>
             </div>
+            <div class="col-6 col-md-3">
+                <div class="ams-stat ams-stat--ok"><span class="ams-stat-val">{{ $stats['current'] }}</span><span class="ams-stat-lbl">Current</span></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="ams-stat ams-stat--info"><span class="ams-stat-val">{{ $stats['upcoming'] }}</span><span class="ams-stat-lbl">Upcoming</span></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="ams-stat ams-stat--muted"><span class="ams-stat-val">{{ $stats['completed'] }}</span><span class="ams-stat-lbl">Completed</span></div>
+            </div>
+        </div>
 
-            <div class="row">
-                <div class="col-sm-12">
-                    <div class="card card-table">
-                        <div class="card-body">
-                            <div class="page-header">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h3 class="page-title">Academic Year Management</h3>
-                                    </div>
-                                    <div class="col-auto text-end float-end ms-auto download-grp">
-                                        <a href="{{ route('academic_years.create') }}" class="btn btn-primary">
-                                            <i class="fas fa-plus"></i> Add Academic Year
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
+        <div class="ams-toolbar mb-3">
+            <div class="ams-search">
+                <i class="fas fa-search ams-search-icon"></i>
+                <input type="search" id="yearSearch" class="form-control ams-search-input"
+                    placeholder="Search academic year..." autocomplete="off">
+            </div>
+            <div class="ams-filter-bar mt-2">
+                <button type="button" class="ams-filter-chip is-active" data-status="all">All</button>
+                <button type="button" class="ams-filter-chip" data-status="current">Current</button>
+                <button type="button" class="ams-filter-chip" data-status="upcoming">Upcoming</button>
+                <button type="button" class="ams-filter-chip" data-status="completed">Completed</button>
+            </div>
+        </div>
 
-                            <!-- Academic Year Summary Cards -->
-                            <div class="row mb-4">
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-primary text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="totalAcademicYears">{{ $academicYears->count() }}</h4>
-                                                    <p class="mb-0">Total Academic Years</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-calendar-alt fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-success text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="activeYears">{{ $academicYears->where('is_active', true)->count() }}</h4>
-                                                    <p class="mb-0">Active Years</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-check-circle fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-warning text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="upcomingYears">{{ $academicYears->where('start_date', '>', now())->count() }}</h4>
-                                                    <p class="mb-0">Upcoming Years</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-clock fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-info text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="currentYear">{{ $academicYears->where('start_date', '<=', now())->where('end_date', '>=', now())->count() }}</h4>
-                                                    <p class="mb-0">Current Year</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-star fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="table-responsive">
-                                <table class="table border-0 star-student table-hover table-center mb-0 datatable table-striped">
-                                    <thead class="student-thread">
-                                        <tr>
-                                            <th>
-                                                <div class="form-check check-tables">
-                                                    <input class="form-check-input" type="checkbox" value="something" id="selectAllAcademicYears">
-                                                </div>
-                                            </th>
-                                            <th>Academic Year Name</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                                            <th>Duration</th>
-                                            <th>Status</th>
-                                            <th class="text-end">Action</th>
-            </tr>
-        </thead>
-                                    <tbody id="academicYearTableBody">
-                                        @forelse($academicYears as $year)
-                                            <tr>
-                                                <td>
-                                                    <div class="form-check check-tables">
-                                                        <input class="form-check-input" type="checkbox" value="{{ $year->id }}">
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <h2>
-                                                        <a>{{ $year->name }}</a>
-                                                    </h2>
-                                                    <small class="text-muted">ID: {{ $year->id }}</small>
-                                                </td>
-                                                <td>
-                                                    <strong>{{ \Carbon\Carbon::parse($year->start_date)->format('M d, Y') }}</strong>
-                                                </td>
-                                                <td>
-                                                    <strong>{{ \Carbon\Carbon::parse($year->end_date)->format('M d, Y') }}</strong>
-                                                </td>
-                                                <td>
-                                                    @php
-                                                        $startDate = \Carbon\Carbon::parse($year->start_date);
-                                                        $endDate = \Carbon\Carbon::parse($year->end_date);
-                                                        $duration = $startDate->diffInDays($endDate);
-                                                    @endphp
-                                                    <span class="badge bg-info">{{ $duration }} days</span>
-                                                </td>
-                                                <td>
-                                                    @php
-                                                        $now = \Carbon\Carbon::now();
-                                                        $startDate = \Carbon\Carbon::parse($year->start_date);
-                                                        $endDate = \Carbon\Carbon::parse($year->end_date);
-                                                        
-                                                        if ($now->between($startDate, $endDate)) {
-                                                            $status = 'Current';
-                                                            $badgeClass = 'bg-success';
-                                                        } elseif ($now->lt($startDate)) {
-                                                            $status = 'Upcoming';
-                                                            $badgeClass = 'bg-warning';
-                                                        } else {
-                                                            $status = 'Completed';
-                                                            $badgeClass = 'bg-secondary';
-                                                        }
-                                                    @endphp
-                                                    <span class="badge {{ $badgeClass }}">{{ $status }}</span>
-                                                </td>
-                                                <td class="text-end">
-                                                    <div class="actions">
-                                                        <a href="{{ route('academic_years.edit', $year) }}" class="btn btn-sm bg-danger-light">
-                                                            <i class="far fa-edit"></i>
-                                                        </a>
-                        <form action="{{ route('academic_years.destroy', $year) }}" method="POST" style="display:inline-block;">
-                            @csrf
-                            @method('DELETE')
-                                                            <button type="submit" class="btn btn-sm bg-danger-light" onclick="return confirm('Are you sure you want to delete this academic year?')">
-                                                                <i class="far fa-trash-alt"></i>
-                                                            </button>
-                        </form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="7" class="text-center py-5">
-                                                    <div class="text-muted">
-                                                        <i class="fas fa-calendar-alt fa-3x mb-3"></i>
-                                                        <h5>No academic years found</h5>
-                                                        <p>No academic years have been created yet.</p>
-                                                    </div>
-                    </td>
-                </tr>
-                                        @endforelse
-        </tbody>
-    </table>
+        <div class="row g-3" id="yearsGrid">
+            @forelse($academicYears as $year)
+                @php $status = $year->statusLabel(); @endphp
+                <div class="col-6 col-md-4 col-xl-3 year-grid-item"
+                    data-status="{{ $status }}"
+                    data-search="{{ strtolower($year->name) }}"
+                    data-id="{{ $year->id }}">
+                    <button type="button"
+                        class="ams-year-card w-100 text-start"
+                        data-bs-toggle="modal"
+                        data-bs-target="#yearDetailModal"
+                        data-id="{{ $year->id }}"
+                        data-name="{{ $year->name }}"
+                        data-start="{{ $year->start_date->format('Y-m-d') }}"
+                        data-end="{{ $year->end_date->format('Y-m-d') }}"
+                        data-start-label="{{ $year->start_date->format('M d, Y') }}"
+                        data-end-label="{{ $year->end_date->format('M d, Y') }}"
+                        data-status="{{ $status }}"
+                        data-semesters="{{ $year->semesters_count }}"
+                        data-update-url="{{ route('academic_years.update', $year) }}"
+                        data-destroy-url="{{ route('academic_years.destroy', $year) }}">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <span class="ams-year-title">{{ $year->name }}</span>
+                            <span class="ams-status-pill ams-status-pill--{{ $status }}">{{ ucfirst($status) }}</span>
+                        </div>
+                        <div class="ams-year-dates mt-2">
+                            {{ $year->start_date->format('M d, Y') }} → {{ $year->end_date->format('M d, Y') }}
+                        </div>
+                        <div class="ams-year-meta mt-2">
+                            <i class="fas fa-calendar-week me-1"></i>{{ $year->semesters_count }} semester(s)
+                        </div>
+                        <div class="ams-year-hint mt-3">Click to manage <i class="fas fa-arrow-right ms-1"></i></div>
+                    </button>
+                </div>
+            @empty
+                <div class="col-12" id="yearsEmptyState">
+                    <div class="alert alert-warning mb-0">No academic years yet. Add one to start enrollment periods.</div>
+                </div>
+            @endforelse
+        </div>
+        <div id="yearsFilterEmpty" class="alert alert-light border text-center d-none mt-3">
+            No academic years match your search or filter.
+        </div>
+    </div>
 </div>
+
+{{-- Detail modal --}}
+<div class="modal fade" id="yearDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content ams-float-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <p class="ams-modal-eyebrow mb-1">Academic Year</p>
+                    <h4 class="modal-title mb-0" id="yearDetailTitle">Year</h4>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <div class="ams-detail-grid">
+                    <div class="ams-detail-item">
+                        <span class="ams-detail-label">Status</span>
+                        <span class="ams-detail-value" id="yearDetailStatus">—</span>
+                    </div>
+                    <div class="ams-detail-item">
+                        <span class="ams-detail-label">Semesters</span>
+                        <span class="ams-detail-value" id="yearDetailSemesters">—</span>
+                    </div>
+                    <div class="ams-detail-item ams-detail-item--full">
+                        <span class="ams-detail-label">Date Range</span>
+                        <span class="ams-detail-value" id="yearDetailDates">—</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
+                <button type="button" class="btn btn-warning" id="yearEditBtn"><i class="fas fa-edit me-1"></i> Edit</button>
+                <button type="button" class="btn btn-danger" id="yearDeleteBtn"
+                    data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-trash me-1"></i> Delete</button>
+                <a href="{{ route('semesters.index') }}" class="btn btn-outline-primary">Manage Semesters</a>
+                <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Create / Edit modal --}}
+<div class="modal fade" id="yearFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content ams-float-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <p class="ams-modal-eyebrow mb-1" id="yearFormEyebrow">New Academic Year</p>
+                    <h4 class="modal-title mb-0" id="yearFormTitle">Add Academic Year</h4>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="yearForm">
+                <div class="modal-body pt-3">
+                    <div id="yearFormMsg" class="mb-2"></div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="yearName">Name</label>
+                        <input type="text" class="form-control" id="yearName" name="name" required
+                            placeholder="e.g. 2025-2026">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="yearStart">Start Date</label>
+                            <input type="date" class="form-control" id="yearStart" name="start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="yearEnd">End Date</label>
+                            <input type="date" class="form-control" id="yearEnd" name="end_date" required>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">Status (Current / Upcoming / Completed) is based on these dates.</p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="yearFormSave"><i class="fas fa-save me-1"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Delete modal --}}
+<div class="modal custom-modal fade" id="yearDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="form-header">
+                    <h3>Delete Academic Year</h3>
+                    <p class="mb-0">Delete <strong id="yearDeleteName">this year</strong>? Linked semesters will also be removed.</p>
+                </div>
+                <div class="modal-btn delete-action">
+                    <div class="row">
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary paid-continue-btn w-100" id="yearDeleteConfirm">Delete</button>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary paid-cancel-btn w-100" data-bs-dismiss="modal">Cancel</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
+<div id="yearsPageConfig" class="d-none"
+    data-store-url="{{ route('academic_years.store') }}"
+    data-csrf="{{ csrf_token() }}"
+    aria-hidden="true"></div>
+@endsection
 
 @push('styles')
 <style>
-/* Admin-style form controls */
-.student-group-form {
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 31px 3px rgba(44,50,63,.02);
-    margin-bottom: 20px;
-}
-
-.student-group-form .form-group {
-    margin-bottom: 0;
-}
-
-.student-group-form .form-control {
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    height: 45px;
-    padding: 10px 15px;
-    font-size: 15px;
-}
-
-.student-group-form .form-control:focus {
-    border-color: #3d5ee1;
-    box-shadow: none;
-    outline: 0;
-}
-
-.search-student-btn .btn {
-    height: 45px;
-    padding: 10px 20px;
-    font-weight: 600;
-}
-
-/* Card styling */
-.card-table {
-    border: 0;
-    border-radius: 10px;
-    box-shadow: 0 0 31px 3px rgba(44,50,63,.02);
-    margin-bottom: 1.875rem;
-}
-
-.card-table .card-body {
-    padding: 1.5rem;
-}
-
-/* Summary cards */
-.card.bg-primary {
-    background-color: #3d5ee1 !important;
-}
-
-.card.bg-success {
-    background-color: #7bb13c !important;
-}
-
-.card.bg-warning {
-    background-color: #ffc107 !important;
-}
-
-.card.bg-info {
-    background-color: #17a2b8 !important;
-}
-
-/* Table styling */
-.table {
-    color: #333;
-    max-width: 100%;
-    margin-bottom: 0;
-    width: 100%;
-}
-
-.table thead th {
-    vertical-align: bottom;
-    border-bottom: 1px solid #dee2e6;
-    font-weight: 600;
-    color: #000;
-    background-color: #f8f9fa;
-    border-color: #eff2f7;
-    padding: 15px;
-}
-
-.table tbody tr {
-    border-bottom: 1px solid #dee2e6;
-}
-
-.table tbody td {
-    padding: 15px;
-    vertical-align: middle;
-}
-
-.table-hover tbody tr:hover {
-    background-color: #f7f7f7;
-}
-
-.table-hover tbody tr:hover td {
-    color: #474648;
-}
-
-/* Buttons */
-.btn {
-    border-radius: 5px;
-    font-weight: 600;
-    transition: all .4s ease;
-}
-
-.btn-primary {
-    background-color: #3d5ee1;
-    border: 1px solid #3d5ee1;
-}
-
-.btn-primary:hover {
-    background-color: #18aefa;
-    border: 1px solid #18aefa;
-}
-
-/* Actions */
-.actions {
-    display: flex;
-    justify-content: end;
-}
-
-.actions a, .actions button {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 5px;
-    border: none;
-    background: transparent;
-}
-
-.actions a:hover, .actions button:hover {
-    background-color: #3d5ee1 !important;
-    color: #fff !important;
-}
-
-/* Checkbox styling */
-.form-check-input {
-    width: 18px;
-    height: 18px;
-    margin-top: 0;
-}
-
-.form-check-input:checked {
-    background-color: #3d5ee1;
-    border-color: #3d5ee1;
-}
-
-/* Badge styling */
-.badge {
-    font-size: 0.75rem;
-    padding: 0.375rem 0.75rem;
-}
-
-.badge.bg-primary {
-    background-color: #3d5ee1 !important;
-}
-
-.badge.bg-success {
-    background-color: #7bb13c !important;
-}
-
-.badge.bg-warning {
-    background-color: #ffc107 !important;
-    color: #000 !important;
-}
-
-.badge.bg-danger {
-    background-color: #dc3545 !important;
-}
-
-.badge.bg-info {
-    background-color: #17a2b8 !important;
-}
-
-.badge.bg-secondary {
-    background-color: #6c757d !important;
-}
-
-/* Page header */
-.page-header {
-    margin-bottom: 1.875rem;
-}
-
-.page-header .breadcrumb {
-    background-color: transparent;
-    color: #6c757d;
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 0;
-    padding: 0;
-    margin-left: auto;
-}
-
-.page-header .breadcrumb a {
-    color: #333;
-}
-
-.page-title {
-    font-size: 22px;
-    font-weight: 500;
-    color: #2c323f;
-    margin-bottom: 5px;
-}
-
-/* Download group */
-.download-grp {
-    display: flex;
-    align-items: center;
-}
-
-/* Text styling */
-.text-muted {
-    color: #6c757d !important;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .student-group-form {
-        padding: 15px;
-    }
-    
-    .card-table .card-body {
-        padding: 1rem;
-    }
-    
-    .table-responsive {
-        font-size: 0.875rem;
-    }
-    
-    .table th, .table td {
-        padding: 10px 8px;
-    }
-}
+.ams-years { --ams-line:#e5e7eb; --ams-ink:#111827; --ams-muted:#6b7280; --ams-blue:#1e3a8a; --ams-soft:#f8fafc; }
+.ams-stat { background:#fff; border:1px solid var(--ams-line); border-radius:14px; padding:1rem; }
+.ams-stat-val { display:block; font-size:1.5rem; font-weight:800; color:var(--ams-ink); }
+.ams-stat-lbl { font-size:.8rem; color:var(--ams-muted); font-weight:600; }
+.ams-stat--ok .ams-stat-val { color:#065f46; }
+.ams-stat--info .ams-stat-val { color:#1d4ed8; }
+.ams-stat--muted .ams-stat-val { color:#64748b; }
+.ams-toolbar { max-width:520px; }
+.ams-search { position:relative; }
+.ams-search-icon { position:absolute; left:.9rem; top:50%; transform:translateY(-50%); color:#94a3b8; }
+.ams-search-input { height:44px; padding-left:2.4rem; border-radius:12px; border:1px solid var(--ams-line); }
+.ams-filter-bar { display:flex; flex-wrap:wrap; gap:.5rem; }
+.ams-filter-chip { border:1px solid var(--ams-line); background:#fff; border-radius:999px; padding:.35rem .8rem; font-size:.85rem; font-weight:600; }
+.ams-filter-chip.is-active { background:var(--ams-blue); border-color:var(--ams-blue); color:#fff; }
+.ams-year-card { border:1px solid var(--ams-line); background:#fff; border-radius:14px; padding:1rem; min-height:148px; transition:transform .18s ease, box-shadow .18s ease; }
+.ams-year-card:hover { transform:translateY(-3px); border-color:#93c5fd; box-shadow:0 12px 24px rgba(30,58,138,.12); }
+.ams-year-title { font-weight:700; font-size:1.05rem; color:var(--ams-ink); }
+.ams-year-dates, .ams-year-meta { font-size:.82rem; color:var(--ams-muted); }
+.ams-year-hint { font-size:.75rem; font-weight:600; color:#2563eb; }
+.ams-status-pill { font-size:.72rem; font-weight:700; border-radius:999px; padding:.2rem .55rem; white-space:nowrap; }
+.ams-status-pill--current { background:#d1fae5; color:#065f46; }
+.ams-status-pill--upcoming { background:#dbeafe; color:#1e40af; }
+.ams-status-pill--completed { background:#e2e8f0; color:#475569; }
+.ams-float-modal { border:0; border-radius:18px; box-shadow:0 24px 48px rgba(15,23,42,.18); }
+.ams-modal-eyebrow { font-size:.75rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ams-muted); margin:0; }
+.ams-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:.85rem; }
+.ams-detail-item { background:var(--ams-soft); border:1px solid var(--ams-line); border-radius:12px; padding:.75rem .9rem; }
+.ams-detail-item--full { grid-column:1 / -1; }
+.ams-detail-label { display:block; font-size:.72rem; font-weight:700; text-transform:uppercase; color:var(--ams-muted); margin-bottom:.25rem; }
+.ams-detail-value { font-weight:600; color:var(--ams-ink); }
 </style>
 @endpush
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    // Filter academic years
-    $('#filterAcademicYears').on('click', function() {
-        const searchTerm = $('#searchAcademicYear').val().toLowerCase();
-        const statusFilter = $('#status_filter').val();
-        
-        // Show loading state
-        $(this).html('<i class="fas fa-spinner fa-spin me-2"></i>Filtering...').prop('disabled', true);
-        
-        // Filter table rows
-        $('#academicYearTableBody tr').each(function() {
-            const row = $(this);
-            const yearName = row.find('td:nth-child(2) h2 a').text().toLowerCase();
-            const status = row.find('td:nth-child(6) .badge').text().toLowerCase();
-            
-            let showRow = true;
-            
-            // Search filter
-            if (searchTerm && !yearName.includes(searchTerm)) {
-                showRow = false;
-            }
-            
-            // Status filter
-            if (statusFilter && status !== statusFilter) {
-                showRow = false;
-            }
-            
-            row.toggle(showRow);
+(function () {
+    const cfg = document.getElementById('yearsPageConfig');
+    const storeUrl = cfg?.dataset.storeUrl || '';
+    const csrf = cfg?.dataset.csrf || '';
+    let active = null;
+    let mode = 'create';
+    let statusFilter = 'all';
+
+    const detailEl = document.getElementById('yearDetailModal');
+    const formEl = document.getElementById('yearFormModal');
+    const deleteEl = document.getElementById('yearDeleteModal');
+    const detailModal = detailEl ? bootstrap.Modal.getOrCreateInstance(detailEl) : null;
+    const formModal = formEl ? bootstrap.Modal.getOrCreateInstance(formEl) : null;
+    const deleteModal = deleteEl ? bootstrap.Modal.getOrCreateInstance(deleteEl) : null;
+
+    function applyFilters() {
+        const q = (document.getElementById('yearSearch')?.value || '').trim().toLowerCase();
+        let visible = 0;
+        document.querySelectorAll('.year-grid-item').forEach(function (item) {
+            const statusOk = statusFilter === 'all' || item.getAttribute('data-status') === statusFilter;
+            const searchOk = !q || (item.getAttribute('data-search') || '').indexOf(q) !== -1;
+            const show = statusOk && searchOk;
+            item.classList.toggle('d-none', !show);
+            if (show) visible += 1;
         });
-        
-        // Reset button
-        $(this).html('Filter').prop('disabled', false);
+        const empty = document.getElementById('yearsFilterEmpty');
+        if (empty) empty.classList.toggle('d-none', visible > 0 || document.querySelectorAll('.year-grid-item').length === 0);
+    }
+
+    document.getElementById('yearSearch')?.addEventListener('input', applyFilters);
+    document.querySelectorAll('.ams-filter-chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            document.querySelectorAll('.ams-filter-chip').forEach(function (c) { c.classList.remove('is-active'); });
+            chip.classList.add('is-active');
+            statusFilter = chip.getAttribute('data-status') || 'all';
+            applyFilters();
+        });
     });
-    
-    // Select all functionality
-    $('#selectAllAcademicYears').on('change', function() {
-        $('.form-check-input').prop('checked', $(this).is(':checked'));
+
+    function statusLabel(s) {
+        return (s || '').charAt(0).toUpperCase() + (s || '').slice(1);
+    }
+
+    detailEl?.addEventListener('show.bs.modal', function (e) {
+        const btn = e.relatedTarget;
+        if (!btn || !btn.classList.contains('ams-year-card')) return;
+        active = {
+            id: btn.getAttribute('data-id'),
+            name: btn.getAttribute('data-name') || '',
+            start: btn.getAttribute('data-start') || '',
+            end: btn.getAttribute('data-end') || '',
+            startLabel: btn.getAttribute('data-start-label') || '',
+            endLabel: btn.getAttribute('data-end-label') || '',
+            status: btn.getAttribute('data-status') || '',
+            semesters: btn.getAttribute('data-semesters') || '0',
+            updateUrl: btn.getAttribute('data-update-url') || '',
+            destroyUrl: btn.getAttribute('data-destroy-url') || '',
+            cardBtn: btn
+        };
+        document.getElementById('yearDetailTitle').textContent = active.name;
+        document.getElementById('yearDetailStatus').textContent = statusLabel(active.status);
+        document.getElementById('yearDetailSemesters').textContent = active.semesters;
+        document.getElementById('yearDetailDates').textContent = active.startLabel + ' → ' + active.endLabel;
     });
-    
-    // Auto-filter on search input
-    $('#searchAcademicYear').on('keyup', function() {
-        $('#filterAcademicYears').click();
+
+    document.getElementById('btnAddYear')?.addEventListener('click', function () {
+        mode = 'create';
+        active = null;
+        document.getElementById('yearFormEyebrow').textContent = 'New Academic Year';
+        document.getElementById('yearFormTitle').textContent = 'Add Academic Year';
+        document.getElementById('yearForm').reset();
+        document.getElementById('yearFormMsg').innerHTML = '';
     });
-    
-    // Auto-filter on status change
-    $('#status_filter').on('change', function() {
-        $('#filterAcademicYears').click();
+
+    document.getElementById('yearEditBtn')?.addEventListener('click', function () {
+        if (!active) return;
+        mode = 'edit';
+        document.getElementById('yearFormEyebrow').textContent = 'Edit Academic Year';
+        document.getElementById('yearFormTitle').textContent = active.name;
+        document.getElementById('yearName').value = active.name;
+        document.getElementById('yearStart').value = active.start;
+        document.getElementById('yearEnd').value = active.end;
+        document.getElementById('yearFormMsg').innerHTML = '';
+        detailModal?.hide();
+        setTimeout(function () { formModal?.show(); }, 200);
     });
-});
+
+    document.getElementById('yearForm')?.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const payload = {
+            name: document.getElementById('yearName').value.trim(),
+            start_date: document.getElementById('yearStart').value,
+            end_date: document.getElementById('yearEnd').value,
+            _token: csrf
+        };
+        const url = mode === 'edit' && active ? active.updateUrl : storeUrl;
+        if (mode === 'edit') payload._method = 'PUT';
+
+        const btn = document.getElementById('yearFormSave');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw d; return d; }); })
+        .then(function () { window.location.reload(); })
+        .catch(function (err) {
+            let msg = 'Failed to save.';
+            if (err?.message) msg = err.message;
+            if (err?.errors) {
+                const first = Object.values(err.errors)[0];
+                if (first?.[0]) msg = first[0];
+            }
+            document.getElementById('yearFormMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">' + msg + '</div>';
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-1"></i> Save';
+        });
+    });
+
+    deleteEl?.addEventListener('show.bs.modal', function () {
+        if (!active) return;
+        document.getElementById('yearDeleteName').textContent = active.name;
+    });
+
+    document.getElementById('yearDeleteConfirm')?.addEventListener('click', function () {
+        if (!active) return;
+        fetch(active.destroyUrl, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ _token: csrf, _method: 'DELETE' })
+        }).then(function () { window.location.reload(); });
+    });
+})();
 </script>
 @endpush
-
-@endsection 

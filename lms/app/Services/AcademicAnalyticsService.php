@@ -12,6 +12,7 @@ use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\ActivitySubmission;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class AcademicAnalyticsService
@@ -59,11 +60,13 @@ class AcademicAnalyticsService
     {
         return [
             'school_overview' => $this->getSchoolOverview($academicYearId, $semesterId),
+            'enrollment_overview' => $this->getEnrollmentOverview(),
+            'students_by_grade' => $this->getStudentsByGrade(),
             'gpa_comparison' => $this->getGpaComparison($academicYearId, $semesterId),
             'pass_fail_rates' => $this->getPassFailRates($academicYearId, $semesterId),
             'attendance_summary' => $this->getSchoolAttendanceSummary($academicYearId, $semesterId),
             'subject_performance' => $this->getSchoolSubjectPerformance($academicYearId, $semesterId),
-            'section_comparison' => $this->getSectionComparison($academicYearId, $semesterId)
+            'section_comparison' => $this->getSectionComparison($academicYearId, $semesterId),
         ];
     }
 
@@ -409,29 +412,122 @@ class AcademicAnalyticsService
     }
 
     /**
-     * Get school overview
+     * Get school overview KPIs
      */
     private function getSchoolOverview($academicYearId = null, $semesterId = null)
     {
-        $query = Grade::query();
+        $gradeQuery = Grade::query();
+        if ($academicYearId) {
+            $gradeQuery->where('academic_year_id', $academicYearId);
+        }
+        if ($semesterId) {
+            $gradeQuery->where('semester_id', $semesterId);
+        }
 
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        $gradeStats = $gradeQuery
+            ->selectRaw('COUNT(*) as total_grades')
+            ->selectRaw('AVG(percentage) as average_score')
+            ->selectRaw('SUM(CASE WHEN percentage >= 60 THEN 1 ELSE 0 END) as passing_grades')
+            ->first();
 
-        $grades = $query->get();
+        $totalGrades = (int) ($gradeStats->total_grades ?? 0);
+        $passing = (int) ($gradeStats->passing_grades ?? 0);
 
-        $totalStudents = Student::count();
-        $totalTeachers = Teacher::count();
-        $totalSubjects = Subject::count();
+        $attendanceQuery = Attendance::query();
+        if ($academicYearId) {
+            $attendanceQuery->where('academic_year_id', $academicYearId);
+        }
+        if ($semesterId) {
+            $attendanceQuery->where('semester_id', $semesterId);
+        }
+        $attendanceStats = $attendanceQuery
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw("SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present")
+            ->first();
+        $attTotal = (int) ($attendanceStats->total ?? 0);
+        $attPresent = (int) ($attendanceStats->present ?? 0);
+
+        $parentsQuery = DB::table('users')->where('role_name', 'Parent');
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $parentsQuery->whereNull('deleted_at');
+        }
 
         return [
-            'total_students' => $totalStudents,
-            'total_teachers' => $totalTeachers,
-            'total_subjects' => $totalSubjects,
-            'average_score' => round($grades->avg('percentage'), 2),
-            'total_assignments' => $grades->count(),
-            'pass_rate' => $grades->count() > 0 ? round(($grades->where('percentage', '>=', 60)->count() / $grades->count()) * 100, 2) : 0
+            'total_students' => Student::count(),
+            'total_teachers' => Teacher::count(),
+            'total_parents' => $parentsQuery->count(),
+            'total_subjects' => Subject::count(),
+            'total_sections' => Section::count(),
+            'average_score' => round((float) ($gradeStats->average_score ?? 0), 2),
+            'total_assignments' => $totalGrades,
+            'pass_rate' => $totalGrades > 0 ? round(($passing / $totalGrades) * 100, 2) : 0,
+            'attendance_rate' => $attTotal > 0 ? round(($attPresent / $attTotal) * 100, 2) : 0,
         ];
+    }
+
+    /**
+     * Enrollment application pipeline (live registrar queue).
+     */
+    private function getEnrollmentOverview(): array
+    {
+        if (!class_exists(\App\Models\EnrollmentApplication::class) || !Schema::hasTable('enrollment_applications')) {
+            return [
+                'total' => 0,
+                'pending' => 0,
+                'under_review' => 0,
+                'approved' => 0,
+                'rejected' => 0,
+                'needs_documents' => 0,
+                'by_grade' => [],
+            ];
+        }
+
+        $rows = \App\Models\EnrollmentApplication::query()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $byGrade = \App\Models\EnrollmentApplication::query()
+            ->select('grade_level_applying_for', DB::raw('COUNT(*) as total'))
+            ->whereNotNull('grade_level_applying_for')
+            ->groupBy('grade_level_applying_for')
+            ->orderBy('grade_level_applying_for')
+            ->get()
+            ->map(fn ($r) => [
+                'grade' => $r->grade_level_applying_for,
+                'count' => (int) $r->total,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'total' => (int) $rows->sum(),
+            'pending' => (int) ($rows['pending'] ?? 0),
+            'under_review' => (int) ($rows['under_review'] ?? 0),
+            'approved' => (int) ($rows['approved'] ?? 0),
+            'rejected' => (int) ($rows['rejected'] ?? 0),
+            'needs_documents' => (int) ($rows['needs_documents'] ?? 0),
+            'by_grade' => $byGrade,
+        ];
+    }
+
+    /**
+     * Active student headcount by class/grade label.
+     */
+    private function getStudentsByGrade(): array
+    {
+        return Student::query()
+            ->select(DB::raw("COALESCE(NULLIF(TRIM(class), ''), NULLIF(TRIM(year_level), ''), 'Unassigned') as grade_label"))
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('grade_label')
+            ->orderBy('grade_label')
+            ->get()
+            ->map(fn ($r) => [
+                'grade' => $r->grade_label,
+                'count' => (int) $r->total,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -555,29 +651,74 @@ class AcademicAnalyticsService
     }
 
     /**
-     * Get section comparison
+     * Section comparison via student_section_assignments (real section links).
      */
     private function getSectionComparison($academicYearId = null, $semesterId = null)
     {
-        $query = Grade::query();
+        if (!Schema::hasTable('student_section_assignments')) {
+            return [];
+        }
 
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        $gradesQuery = Grade::query();
+        if ($academicYearId) {
+            $gradesQuery->where('academic_year_id', $academicYearId);
+        }
+        if ($semesterId) {
+            $gradesQuery->where('semester_id', $semesterId);
+        }
 
-        $grades = $query->with(['student.sections'])->get();
+        $gradeRows = $gradesQuery
+            ->select('student_id', DB::raw('AVG(percentage) as avg_score'), DB::raw('COUNT(*) as grade_count'))
+            ->groupBy('student_id')
+            ->get()
+            ->keyBy('student_id');
+
+        if ($gradeRows->isEmpty()) {
+            return [];
+        }
+
+        $assignQuery = DB::table('student_section_assignments')->select('section_id', 'student_id');
+        if ($academicYearId && Schema::hasColumn('student_section_assignments', 'academic_year_id')) {
+            $assignQuery->where('academic_year_id', $academicYearId);
+        }
+        if ($semesterId && Schema::hasColumn('student_section_assignments', 'semester_id')) {
+            $assignQuery->where('semester_id', $semesterId);
+        }
+
+        $assignments = $assignQuery->get()->groupBy('section_id');
+        $sections = Section::whereIn('id', $assignments->keys())->get()->keyBy('id');
 
         $comparison = [];
-        foreach ($grades->groupBy('student.sections.first.id') as $sectionId => $sectionGrades) {
-            $section = Section::find($sectionId);
-            if (!$section) continue;
+        foreach ($assignments as $sectionId => $rows) {
+            $section = $sections->get($sectionId);
+            if (!$section) {
+                continue;
+            }
+
+            $scores = [];
+            $gradeCount = 0;
+            foreach ($rows as $row) {
+                $g = $gradeRows->get($row->student_id);
+                if (!$g) {
+                    continue;
+                }
+                $scores[] = (float) $g->avg_score;
+                $gradeCount += (int) $g->grade_count;
+            }
+
+            if (empty($scores)) {
+                continue;
+            }
 
             $comparison[] = [
-                'section' => $section->name,
-                'average_score' => round($sectionGrades->avg('percentage'), 2),
-                'students_count' => $sectionGrades->groupBy('student_id')->count(),
-                'assignments_count' => $sectionGrades->count()
+                'section' => $section->name . ($section->grade_level ? ' (' . $section->grade_level . ')' : ''),
+                'average_score' => round(array_sum($scores) / count($scores), 2),
+                'students_count' => count($scores),
+                'assignments_count' => $gradeCount,
             ];
         }
+
+        usort($comparison, fn ($a, $b) => $b['average_score'] <=> $a['average_score']);
 
         return $comparison;
     }

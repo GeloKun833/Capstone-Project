@@ -17,6 +17,33 @@ class AnalyticsController extends Controller
     public function __construct(AcademicAnalyticsService $analyticsService)
     {
         $this->analyticsService = $analyticsService;
+        $this->middleware(['auth']);
+        $this->middleware('role:Admin')->only(['adminDashboard']);
+    }
+
+    /**
+     * Admin Analytics Dashboard
+     */
+    public function adminDashboard(Request $request)
+    {
+        $academicYearId = $request->get('academic_year_id');
+        $semesterId = $request->get('semester_id');
+
+        $academicYears = AcademicYear::orderByDesc('start_date')->get();
+        $semesters = Semester::with('academicYear')->orderByDesc('id')->get();
+
+        $analytics = $this->analyticsService->getAdminAnalytics(
+            $academicYearId,
+            $semesterId
+        );
+
+        return view('analytics.admin-dashboard', compact(
+            'analytics',
+            'academicYears',
+            'semesters',
+            'academicYearId',
+            'semesterId'
+        ));
     }
 
     /**
@@ -73,31 +100,6 @@ class AnalyticsController extends Controller
         );
 
         return view('analytics.teacher-dashboard', compact(
-            'analytics',
-            'academicYears',
-            'semesters',
-            'academicYearId',
-            'semesterId'
-        ));
-    }
-
-    /**
-     * Admin Analytics Dashboard
-     */
-    public function adminDashboard(Request $request)
-    {
-        $academicYearId = $request->get('academic_year_id');
-        $semesterId = $request->get('semester_id');
-
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
-
-        $analytics = $this->analyticsService->getAdminAnalytics(
-            $academicYearId, 
-            $semesterId
-        );
-
-        return view('analytics.admin-dashboard', compact(
             'analytics',
             'academicYears',
             'semesters',
@@ -239,8 +241,19 @@ class AnalyticsController extends Controller
                     fputcsv($file, ['School Analytics Report']);
                     fputcsv($file, ['Total Students', $data['school_overview']['total_students']]);
                     fputcsv($file, ['Total Teachers', $data['school_overview']['total_teachers']]);
-                    fputcsv($file, ['Average Score', $data['school_overview']['average_score'] . '%']);
-                    fputcsv($file, ['Pass Rate', $data['school_overview']['pass_rate'] . '%']);
+                    fputcsv($file, ['Total Parents', $data['school_overview']['total_parents'] ?? 0]);
+                    fputcsv($file, ['Total Subjects', $data['school_overview']['total_subjects']]);
+                    fputcsv($file, ['Total Sections', $data['school_overview']['total_sections'] ?? 0]);
+                    fputcsv($file, ['Average Score', ($data['school_overview']['average_score'] ?? 0) . '%']);
+                    fputcsv($file, ['Pass Rate', ($data['school_overview']['pass_rate'] ?? 0) . '%']);
+                    fputcsv($file, ['Attendance Rate', ($data['school_overview']['attendance_rate'] ?? 0) . '%']);
+                    fputcsv($file, []);
+                    fputcsv($file, ['Enrollment Pipeline']);
+                    fputcsv($file, ['Pending', $data['enrollment_overview']['pending'] ?? 0]);
+                    fputcsv($file, ['Under Review', $data['enrollment_overview']['under_review'] ?? 0]);
+                    fputcsv($file, ['Needs Documents', $data['enrollment_overview']['needs_documents'] ?? 0]);
+                    fputcsv($file, ['Approved', $data['enrollment_overview']['approved'] ?? 0]);
+                    fputcsv($file, ['Rejected', $data['enrollment_overview']['rejected'] ?? 0]);
                     fputcsv($file, []);
                     
                     // Subject Performance

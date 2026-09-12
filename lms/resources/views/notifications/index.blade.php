@@ -32,7 +32,7 @@
                                                 </div>
                                                 <div class="notification-details">
                                                     <h6>{{ $notification->data['title'] ?? 'Notification' }}</h6>
-                                                    <p>{{ $notification->data['message'] ?? 'You have a new notification' }}</p>
+                                                    <p>{{ $notification->data['message'] ?? \Illuminate\Support\Str::limit(strip_tags($notification->data['content'] ?? 'You have a new notification'), 160) }}</p>
                                                     <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
                                                 </div>
                                                 @if(!$notification->read_at)

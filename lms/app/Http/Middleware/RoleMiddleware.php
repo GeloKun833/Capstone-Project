@@ -23,20 +23,18 @@ class RoleMiddleware
             abort(403, 'Unauthorized action.');
         }
 
-        // Handle pipe-separated roles (e.g., 'Admin|Registrar')
+        // Handle pipe/comma-separated roles (e.g. 'Admin|Registrar' or 'Admin,Teacher')
         $allowedRoles = [];
         foreach ($roles as $role) {
-            if (strpos($role, '|') !== false) {
-                $explodedRoles = explode('|', $role);
-                foreach ($explodedRoles as $explodedRole) {
-                    $allowedRoles[] = $explodedRole;
+            foreach (preg_split('/[|,]/', $role) as $part) {
+                $part = trim($part);
+                if ($part !== '') {
+                    $allowedRoles[] = $part;
                 }
-            } else {
-                $allowedRoles[] = $role;
             }
         }
 
-        if (!in_array($user->role_name, $allowedRoles)) {
+        if (!in_array($user->role_name, $allowedRoles, true)) {
             abort(403, 'Unauthorized action.');
         }
         return $next($request);

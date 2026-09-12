@@ -69,16 +69,30 @@
                         <div class="noti-content">
                             <ul class="notification-list">
                                 @forelse(($headerNotifications ?? collect()) as $notification)
-                                    <li class="notification-message {{ $notification->read_at ? '' : 'unread' }}">
+                                    <li class="notification-message {{ $notification->read_at ? '' : 'unread' }}" data-notification-id="{{ $notification->id }}">
                                         @php
-                                            $data = is_array($notification->data) ? $notification->data : json_decode($notification->data, true);
-                                            $url = $data['url'] ?? 'javascript:void(0)';
+                                            $data = is_array($notification->data) ? $notification->data : (json_decode($notification->data, true) ?: []);
                                             $icon = $data['icon'] ?? 'fas fa-bell';
                                             $title = $data['title'] ?? 'Notification';
-                                            $message = $data['message'] ?? 'You have a new notification';
-                                            $teacher = $data['teacher'] ?? null;
+                                            $message = $data['message'] ?? ($data['content'] ?? 'You have a new notification');
+                                            if (is_string($message) && strlen(strip_tags($message)) > 120) {
+                                                $message = \Illuminate\Support\Str::limit(strip_tags($message), 120);
+                                            }
+                                            $fullContent = $data['content'] ?? $message;
+                                            $url = $data['url'] ?? '';
+                                            $teacher = $data['teacher'] ?? ($data['created_by'] ?? null);
+                                            $priority = $data['priority'] ?? 'normal';
                                         @endphp
-                                        <a href="{{ $url }}" onclick="markAsRead('{{ $notification->id }}')">
+                                        <a href="javascript:void(0)"
+                                            class="js-open-notification"
+                                            data-id="{{ $notification->id }}"
+                                            data-title="{{ e($title) }}"
+                                            data-message="{{ e(strip_tags((string) $message)) }}"
+                                            data-content="{{ e(strip_tags((string) $fullContent)) }}"
+                                            data-url="{{ e($url) }}"
+                                            data-priority="{{ e($priority) }}"
+                                            data-by="{{ e((string) $teacher) }}"
+                                            data-time="{{ $notification->created_at->diffForHumans() }}">
                                             <div class="media d-flex">
                                                 <span class="avatar avatar-sm flex-shrink-0">
                                                     <i class="{{ $icon }} text-primary"></i>
@@ -504,21 +518,18 @@
 
         // Notification functions
         function markAsRead(notificationId) {
-            $.ajax({
+            return $.ajax({
                 url: '/notifications/' + notificationId + '/mark-as-read',
                 type: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
-                success: function(response) {
-                    // Update the notification count
-                    updateNotificationCount();
-                    // Reload the page to refresh notifications
-                    location.reload();
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error marking notification as read:', error);
                 }
+            }).then(function () {
+                updateNotificationCount();
+                const row = document.querySelector('[data-notification-id="' + notificationId + '"]');
+                if (row) row.classList.remove('unread');
+            }).catch(function (err) {
+                console.error('Error marking notification as read:', err);
             });
         }
 
@@ -529,13 +540,13 @@
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                 },
-                success: function(response) {
-                    // Update the notification count
+                success: function () {
                     updateNotificationCount();
-                    // Reload the page to refresh notifications
-                    location.reload();
+                    document.querySelectorAll('.notification-message.unread').forEach(function (el) {
+                        el.classList.remove('unread');
+                    });
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('Error marking all notifications as read:', error);
                 }
             });
@@ -545,28 +556,92 @@
             $.ajax({
                 url: '/notifications/unread-count',
                 type: 'GET',
-                success: function(response) {
+                success: function (response) {
                     const badge = $('.noti-dropdown .badge');
                     if (response.count > 0) {
                         if (badge.length) {
                             badge.text(response.count);
                         } else {
-                            $('.noti-dropdown a').append('<span class="badge badge-danger">' + response.count + '</span>');
+                            $('.noti-dropdown a.dropdown-toggle').append('<span class="badge badge-danger">' + response.count + '</span>');
                         }
                     } else {
                         badge.remove();
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('Error updating notification count:', error);
                 }
             });
         }
 
-        // Auto-refresh notifications every 30 seconds
-        setInterval(function() {
+        function openNotificationModal(el) {
+            const title = el.getAttribute('data-title') || 'Notification';
+            const content = el.getAttribute('data-content') || el.getAttribute('data-message') || '';
+            const url = el.getAttribute('data-url') || '';
+            const by = el.getAttribute('data-by') || '';
+            const time = el.getAttribute('data-time') || '';
+            const priority = el.getAttribute('data-priority') || 'normal';
+            const id = el.getAttribute('data-id');
+
+            document.getElementById('notifModalTitle').textContent = title;
+            document.getElementById('notifModalBody').textContent = content;
+            document.getElementById('notifModalMeta').textContent = [by ? ('By ' + by) : '', time].filter(Boolean).join(' · ');
+            const badge = document.getElementById('notifModalPriority');
+            badge.textContent = priority.charAt(0).toUpperCase() + priority.slice(1);
+            badge.className = 'badge bg-' + (
+                priority === 'urgent' ? 'danger' : priority === 'high' ? 'warning' : priority === 'low' ? 'secondary' : 'info'
+            );
+
+            const openBtn = document.getElementById('notifModalOpenBtn');
+            if (url) {
+                openBtn.href = url;
+                openBtn.classList.remove('d-none');
+            } else {
+                openBtn.classList.add('d-none');
+            }
+
+            if (id) markAsRead(id);
+
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('notificationPreviewModal'));
+            modal.show();
+        }
+
+        document.addEventListener('click', function (e) {
+            const link = e.target.closest('.js-open-notification');
+            if (!link) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openNotificationModal(link);
+        });
+
+        setInterval(function () {
             updateNotificationCount();
         }, 30000);
     </script>
+
+    <div class="modal fade" id="notificationPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <p class="mb-1 text-muted small text-uppercase fw-bold" style="letter-spacing:.04em;">Notification</p>
+                        <h5 class="modal-title mb-0" id="notifModalTitle">Notification</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="d-flex gap-2 align-items-center mb-3">
+                        <span id="notifModalPriority" class="badge bg-info">Normal</span>
+                        <small class="text-muted" id="notifModalMeta"></small>
+                    </div>
+                    <div id="notifModalBody" style="white-space:pre-wrap;line-height:1.55;color:#1f2937;"></div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                    <a href="#" class="btn btn-primary d-none" id="notifModalOpenBtn">Open Full Page</a>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

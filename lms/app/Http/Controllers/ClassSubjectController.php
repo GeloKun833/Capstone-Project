@@ -11,6 +11,7 @@ use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\Enrollment;
+use App\Services\GradeSubjectCatalogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Brian2694\Toastr\Facades\Toastr;
@@ -19,7 +20,7 @@ class ClassSubjectController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(['auth', 'role:Admin']);
+        $this->middleware(['auth', 'role:Admin|Registrar']);
     }
 
     /**
@@ -27,35 +28,189 @@ class ClassSubjectController extends Controller
      */
     public function unifiedManagementForm()
     {
-        $subjects = Subject::orderBy('subject_name')->get();
-        $students = Student::with('user')->orderBy('first_name')->get();
-        
-        // Only get teachers who have valid user accounts with role "Teacher"
-        // First, create Teacher records for Users with role "Teacher" if they don't exist
+        $catalogService = app(GradeSubjectCatalogService::class);
+        $subjectsByGrade = $catalogService->subjectsGroupedByGrade();
+        $gradeLevels = GradeSubjectCatalogService::gradeLevels();
+
         $this->syncTeacherUsers();
-        
-        // Then get only teachers who have valid user relationships
-        $teachers = Teacher::with('user')
-            ->whereHas('user', function($query) {
+
+        $teachers = Teacher::with(['user', 'subjects'])
+            ->whereHas('user', function ($query) {
                 $query->where('role_name', 'Teacher');
             })
             ->get()
-            ->sortBy(function($teacher) {
+            ->sortBy(function ($teacher) {
                 return $teacher->full_name ?: ($teacher->user ? $teacher->user->name : '');
-            });
-            
+            })
+            ->values();
+
         $academicYears = AcademicYear::orderBy('name')->get();
         $semesters = Semester::orderBy('name')->get();
-        $sections = Section::orderBy('name')->get();
-        
+        $sections = Section::orderBy('grade_level')->orderBy('name')->get();
+        $sectionsByGrade = $catalogService->sectionsGroupedByGrade();
+        $catalogService->normalizeSectionGradeLabels();
+        $sectionsByGrade = $catalogService->sectionsGroupedByGrade();
+
+        // Teachers currently linked to each grade (via subject_teacher)
+        $teachersByGrade = [];
+        foreach ($subjectsByGrade as $grade => $gradeSubjects) {
+            $subjectIds = $gradeSubjects->pluck('id')->all();
+            if (empty($subjectIds)) {
+                $teachersByGrade[$grade] = collect();
+                continue;
+            }
+            $teacherIds = DB::table('subject_teacher')
+                ->whereIn('subject_id', $subjectIds)
+                ->pluck('teacher_id')
+                ->unique()
+                ->all();
+            $teachersByGrade[$grade] = $teachers->whereIn('id', $teacherIds)->values();
+        }
+
+        // Flat JSON for catalog modal JS (avoid complex @json closures in Blade)
+        $subjectsByGradeJson = [];
+        foreach ($subjectsByGrade as $grade => $gradeSubjects) {
+            $subjectsByGradeJson[$grade] = $gradeSubjects->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->subject_name,
+                    'subject_id' => $s->subject_id,
+                ];
+            })->values()->all();
+        }
+
+        $sectionsByGradeJson = [];
+        foreach ($sectionsByGrade as $grade => $gradeSections) {
+            $sectionsByGradeJson[$grade] = $gradeSections->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'capacity' => $s->capacity ?? 25,
+                    'adviser' => $s->adviser->full_name ?? null,
+                ];
+            })->values()->all();
+        }
+
         return view('class-subject.unified-management', compact(
-            'subjects', 
-            'students', 
-            'teachers', 
-            'academicYears', 
-            'semesters', 
+            'subjectsByGrade',
+            'subjectsByGradeJson',
+            'sectionsByGrade',
+            'sectionsByGradeJson',
+            'gradeLevels',
+            'teachers',
+            'teachersByGrade',
+            'academicYears',
+            'semesters',
             'sections'
         ));
+    }
+
+    /**
+     * Import missing default subjects from config into the admin catalog.
+     */
+    public function importDefaultSubjects(Request $request)
+    {
+        $grade = $request->filled('grade_level') ? $request->grade_level : null;
+        $created = app(GradeSubjectCatalogService::class)->importMissingFromConfig($grade);
+
+        if ($created > 0) {
+            Toastr::success("Imported {$created} subject(s) into the catalog.", 'Success');
+        } else {
+            Toastr::info('All default subjects for the selected grade(s) already exist.', 'Info');
+        }
+
+        return redirect()->route('class-subject.unified-management');
+    }
+
+    /**
+     * Quick-add a subject for a grade (from catalog modal).
+     */
+    public function quickAddSubject(Request $request)
+    {
+        $grade = $request->input('grade_level', $request->input('class'));
+
+        $request->merge(['grade_level' => $grade]);
+
+        $request->validate([
+            'subject_name' => 'required|string|max:255',
+            'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+        ]);
+
+        $exists = Subject::where('subject_name', $request->subject_name)
+            ->where('class', $request->grade_level)
+            ->exists();
+
+        if ($exists) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'That subject already exists for ' . $request->grade_level . '.',
+                ], 422);
+            }
+            Toastr::error('That subject already exists for ' . $request->grade_level . '.', 'Error');
+            return redirect()->route('class-subject.unified-management');
+        }
+
+        $subject = Subject::create([
+            'subject_name' => trim($request->subject_name),
+            'class' => $request->grade_level,
+        ]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $subject->subject_name . ' added to ' . $subject->class . '.',
+                'subject' => [
+                    'id' => $subject->id,
+                    'name' => $subject->subject_name,
+                    'subject_id' => $subject->subject_id,
+                    'class' => $subject->class,
+                ],
+                'grade_level' => $subject->class,
+            ]);
+        }
+
+        Toastr::success($subject->subject_name . ' added to ' . $subject->class . '.', 'Success');
+        return redirect()->route('class-subject.unified-management');
+    }
+
+    /**
+     * Quick-add a block section for a grade (from sections modal).
+     */
+    public function quickAddSection(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+            'capacity' => 'nullable|integer|min:1',
+        ]);
+
+        $section = Section::create([
+            'name' => trim($request->name),
+            'grade_level' => $request->grade_level,
+            'capacity' => $request->capacity ?: 25,
+        ]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $section->name . ' added for ' . $section->grade_level . '.',
+                'section' => [
+                    'id' => $section->id,
+                    'name' => $section->name,
+                    'capacity' => $section->capacity ?? 25,
+                    'adviser' => null,
+                    'grade_level' => $section->grade_level,
+                ],
+                'grade_level' => $section->grade_level,
+            ]);
+        }
+
+        Toastr::success(
+            $section->name . ' added for ' . $section->grade_level . '. It will show on enrollment Block Section.',
+            'Success'
+        );
+        return redirect()->route('class-subject.unified-management');
     }
 
     /**
@@ -72,17 +227,13 @@ class ClassSubjectController extends Controller
         ]);
 
         DB::beginTransaction();
-        
+
         try {
             $section = Section::findOrFail($request->section_id);
-            $academicYear = AcademicYear::findOrFail($request->academic_year_id);
-            $semester = Semester::findOrFail($request->semester_id);
-            
             $assignedCount = 0;
             $alreadyAssignedCount = 0;
 
             foreach ($request->student_ids as $studentId) {
-                // Check if student is already assigned to this section for this academic period
                 $existingAssignment = DB::table('student_section_assignments')
                     ->where([
                         'student_id' => $studentId,
@@ -96,7 +247,6 @@ class ClassSubjectController extends Controller
                     continue;
                 }
 
-                // Create new assignment
                 DB::table('student_section_assignments')->insert([
                     'student_id' => $studentId,
                     'section_id' => $request->section_id,
@@ -104,7 +254,7 @@ class ClassSubjectController extends Controller
                     'semester_id' => $request->semester_id,
                     'assigned_date' => now(),
                 ]);
-                
+
                 $assignedCount++;
             }
 
@@ -117,7 +267,6 @@ class ClassSubjectController extends Controller
 
             Toastr::success($message, 'Success');
             return redirect()->route('class-subject.unified-management');
-
         } catch (\Exception $e) {
             DB::rollback();
             Toastr::error('Failed to assign students to section: ' . $e->getMessage(), 'Error');
@@ -125,73 +274,53 @@ class ClassSubjectController extends Controller
         }
     }
 
-    /**
-     * Get students for AJAX request
-     */
     public function getStudents(Request $request)
     {
         try {
             $query = Student::with('user');
-            
+
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('first_name', 'like', "%{$search}%")
-                      ->orWhere('last_name', 'like', "%{$search}%")
-                      ->orWhere('admission_id', 'like', "%{$search}%")
-                      ->orWhereHas('user', function($userQuery) use ($search) {
-                          $userQuery->where('email', 'like', "%{$search}%");
-                      });
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('admission_id', 'like', "%{$search}%")
+                        ->orWhereHas('user', function ($userQuery) use ($search) {
+                            $userQuery->where('email', 'like', "%{$search}%");
+                        });
                 });
             }
-            
-            $students = $query->limit(50)->get();
-            
-            return response()->json($students);
-            
+
+            return response()->json($query->limit(50)->get());
         } catch (\Exception $e) {
             Log::error('ClassSubjectController: Error in getStudents: ' . $e->getMessage());
-            return response()->json([
-                'error' => 'Failed to fetch students: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['error' => 'Failed to fetch students: ' . $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Get subjects for AJAX request
-     */
     public function getSubjects(Request $request)
     {
         try {
             $query = Subject::query();
-            
+
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('subject_name', 'like', "%{$search}%")
-                      ->orWhere('class', 'like', "%{$search}%");
+                        ->orWhere('class', 'like', "%{$search}%");
                 });
             }
-            
-            $subjects = $query->limit(50)->get();
-            
-            return response()->json($subjects);
-            
+
+            return response()->json($query->limit(50)->get());
         } catch (\Exception $e) {
             Log::error('ClassSubjectController: Error in getSubjects: ' . $e->getMessage());
-            return response()->json([
-                'error' => 'Failed to fetch subjects: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['error' => 'Failed to fetch subjects: ' . $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Sync Teacher records with User records that have role "Teacher"
-     */
     private function syncTeacherUsers()
     {
         try {
-            // Get all users with role "Teacher" who don't have a corresponding Teacher record
             $teacherUsers = User::where('role_name', 'Teacher')
                 ->whereDoesntHave('teacher')
                 ->get();
@@ -201,32 +330,33 @@ class ClassSubjectController extends Controller
                     'user_id' => $user->user_id,
                     'full_name' => $user->name,
                     'phone_number' => $user->phone_number,
-                    'address' => '', // Default empty
-                    'gender' => '', // Default empty
+                    'address' => '',
+                    'gender' => '',
                     'date_of_birth' => null,
-                    'qualification' => '', // Default empty
-                    'experience' => '', // Default empty
-                    'upload' => 'photo_defaults.jpg', // Default avatar
+                    'qualification' => '',
+                    'experience' => '',
+                    'upload' => 'photo_defaults.jpg',
                 ]);
             }
-
-            Log::info('ClassSubjectController: Synced ' . $teacherUsers->count() . ' teacher users');
-
         } catch (\Exception $e) {
             Log::error('ClassSubjectController: Error syncing teacher users: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Handle teacher-subject assignment from unified management form
-     */
     public function handleAssignment(Request $request)
     {
         $operationType = $request->input('operation_type');
 
+        if ($operationType === 'teacher_grade') {
+            return $this->assignTeachersToGrade($request);
+        }
+
         if ($operationType === 'teacher_subject') {
+            // Legacy single-subject path kept for compatibility
             return $this->assignTeachersToSubject($request);
-        } elseif ($operationType === 'student_section') {
+        }
+
+        if ($operationType === 'student_section') {
             return $this->assignStudentsToSection($request);
         }
 
@@ -235,7 +365,83 @@ class ClassSubjectController extends Controller
     }
 
     /**
-     * Assign teachers to a subject
+     * Assign teacher(s) to ALL subjects under a grade level.
+     */
+    private function assignTeachersToGrade(Request $request)
+    {
+        $request->validate([
+            'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'section_id' => 'nullable|exists:sections,id',
+            'teacher_ids' => 'required|array|min:1',
+            'teacher_ids.*' => 'exists:teachers,id',
+        ]);
+
+        $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
+
+        if ($subjects->isEmpty()) {
+            Toastr::error(
+                'No subjects found for ' . $request->grade_level . '. Add subjects in the catalog first.',
+                'Error'
+            );
+            return back()->withInput();
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $section = $request->filled('section_id')
+                ? Section::findOrFail($request->section_id)
+                : null;
+
+            $linkCount = 0;
+            $teacherNames = [];
+
+            foreach ($request->teacher_ids as $teacherId) {
+                $teacher = Teacher::findOrFail($teacherId);
+                $teacherNames[] = $teacher->full_name ?: ($teacher->user->name ?? 'Teacher');
+
+                foreach ($subjects as $subject) {
+                    if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
+                        $subject->teachers()->attach($teacherId);
+                        $linkCount++;
+                    }
+                }
+
+                if ($section && !$teacher->sections()->where('section_id', $section->id)->exists()) {
+                    $teacher->sections()->attach($section->id);
+                }
+            }
+
+            DB::commit();
+
+            $subjectCount = $subjects->count();
+            $teacherCount = count($request->teacher_ids);
+
+            if ($linkCount > 0) {
+                Toastr::success(
+                    "Assigned {$teacherCount} teacher(s) to all {$subjectCount} subject(s) in {$request->grade_level}.",
+                    'Success'
+                );
+            } else {
+                Toastr::info(
+                    'Selected teacher(s) were already assigned to all subjects in ' . $request->grade_level . '.',
+                    'Info'
+                );
+            }
+
+            return redirect()->route('class-subject.unified-management');
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Failed to assign teachers to grade: ' . $e->getMessage());
+            Toastr::error('Failed to assign teachers: ' . $e->getMessage(), 'Error');
+            return back()->withInput();
+        }
+    }
+
+    /**
+     * Legacy: assign teachers to a single subject
      */
     private function assignTeachersToSubject(Request $request)
     {
@@ -249,26 +455,20 @@ class ClassSubjectController extends Controller
         ]);
 
         DB::beginTransaction();
-        
+
         try {
             $subject = Subject::findOrFail($request->subject_id);
-            $academicYear = AcademicYear::findOrFail($request->academic_year_id);
-            $semester = Semester::findOrFail($request->semester_id);
             $section = Section::findOrFail($request->section_id);
-            
             $assignedCount = 0;
 
             foreach ($request->teacher_ids as $teacherId) {
                 $teacher = Teacher::findOrFail($teacherId);
-                
-                // Check if teacher is already assigned to this subject
+
                 if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
-                    // Assign teacher to subject
                     $subject->teachers()->attach($teacherId);
                     $assignedCount++;
                 }
-                
-                // Also assign teacher to the section if not already assigned
+
                 if (!$teacher->sections()->where('section_id', $section->id)->exists()) {
                     $teacher->sections()->attach($section->id);
                 }
@@ -281,9 +481,8 @@ class ClassSubjectController extends Controller
             } else {
                 Toastr::info('All selected teachers were already assigned to this subject', 'Info');
             }
-            
-            return redirect()->route('class-subject.unified-management');
 
+            return redirect()->route('class-subject.unified-management');
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Failed to assign teachers to subject: ' . $e->getMessage());

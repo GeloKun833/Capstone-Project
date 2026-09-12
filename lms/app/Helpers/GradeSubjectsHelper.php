@@ -2,40 +2,42 @@
 
 namespace App\Helpers;
 
+use App\Services\GradeSubjectCatalogService;
+
 class GradeSubjectsHelper
 {
     /**
-     * Get subjects for a specific grade level
+     * Get subject names for a grade from the admin subjects catalog (DB).
      */
     public static function getSubjectsForGrade($gradeLevel)
     {
-        $subjects = config('grade_subjects');
-        return $subjects[$gradeLevel] ?? [];
+        return app(GradeSubjectCatalogService::class)->subjectNamesForGrade($gradeLevel);
     }
-    
+
     /**
-     * Get all grade levels with their subjects
+     * Get all grade levels with their subject names.
      */
     public static function getAllGradeSubjects()
     {
-        return config('grade_subjects');
+        $service = app(GradeSubjectCatalogService::class);
+        $all = [];
+        foreach (GradeSubjectCatalogService::gradeLevels() as $grade) {
+            $names = $service->subjectNamesForGrade($grade);
+            if (!empty($names)) {
+                $all[$grade] = $names;
+            }
+        }
+
+        return $all;
     }
-    
-    /**
-     * Check if a grade level exists
-     */
+
     public static function gradeLevelExists($gradeLevel)
     {
-        $subjects = config('grade_subjects');
-        return isset($subjects[$gradeLevel]);
+        return in_array($gradeLevel, GradeSubjectCatalogService::gradeLevels(), true);
     }
-    
-    /**
-     * Get subject count for a grade level
-     */
+
     public static function getSubjectCount($gradeLevel)
     {
-        $subjects = self::getSubjectsForGrade($gradeLevel);
-        return count($subjects);
+        return count(self::getSubjectsForGrade($gradeLevel));
     }
 }

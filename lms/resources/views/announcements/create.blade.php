@@ -21,7 +21,7 @@
                 <div class="col-sm-12">
                     <div class="card">
                         <div class="card-body">
-                            <form action="{{ route('announcements.store') }}" method="POST" id="announcementForm">
+                            <form action="{{ route('announcements.store') }}" method="POST" id="announcementForm" enctype="multipart/form-data">
                                 @csrf
                                 
                                 <div class="row">
@@ -97,6 +97,22 @@
                                                       name="content" rows="6" required>{{ old('content') }}</textarea>
                                             @error('content')
                                                 <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="form-group">
+                                            <label>Attachments <span class="text-muted">(optional)</span></label>
+                                            <input type="file" class="form-control @error('attachments') is-invalid @enderror @error('attachments.*') is-invalid @enderror"
+                                                   name="attachments[]" multiple
+                                                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.xls,.xlsx,.ppt,.pptx,image/*">
+                                            <small class="form-text text-muted">PDF, Word, Excel, PowerPoint, images, or TXT. Max 5 files, 10MB each.</small>
+                                            @error('attachments')
+                                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                                            @enderror
+                                            @error('attachments.*')
+                                                <div class="invalid-feedback d-block">{{ $message }}</div>
                                             @enderror
                                         </div>
                                     </div>
@@ -186,7 +202,7 @@
     </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script>
     $(document).ready(function() {
         // Initialize Select2
@@ -225,4 +241,4 @@
         });
     });
 </script>
-@endsection 
+@endpush 

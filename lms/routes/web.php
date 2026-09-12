@@ -177,12 +177,12 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 
     // ----------------------- subject -----------------------------//
     Route::controller(SubjectController::class)->group(function () {
-        Route::get('subject/list/page', 'subjectList')->middleware(['auth', 'role:Admin'])->name('subject/list/page'); // subject/list/page
-        Route::get('subject/add/page', 'subjectAdd')->middleware(['auth', 'role:Admin'])->name('subject/add/page'); // subject/add/page
-        Route::post('subject/save', 'saveRecord')->middleware(['auth', 'role:Admin'])->name('subject/save'); // subject/save
-        Route::post('subject/update', 'updateRecord')->middleware(['auth', 'role:Admin'])->name('subject/update'); // subject/update
-        Route::post('subject/delete', 'deleteRecord')->middleware(['auth', 'role:Admin'])->name('subject/delete'); // subject/delete
-        Route::get('subject/edit/{subject_id}', 'subjectEdit')->middleware(['auth', 'role:Admin']); // subject/edit/page
+        Route::get('subject/list/page', 'subjectList')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/list/page');
+        Route::get('subject/add/page', 'subjectAdd')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/add/page');
+        Route::post('subject/save', 'saveRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/save');
+        Route::post('subject/update', 'updateRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/update');
+        Route::post('subject/delete', 'deleteRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/delete');
+        Route::get('subject/edit/{subject_id}', 'subjectEdit')->middleware(['auth', 'role:Admin|Registrar']);
     });
 
     // ----------------------- invoice -----------------------------//
@@ -218,15 +218,17 @@ Route::resource('academic_years', AcademicYearController::class)->middleware('au
 Route::resource('semesters', SemesterController::class)->middleware('auth');
 Route::resource('sections', SectionController::class)->middleware('auth');
 
-// Enrollment routes (Admin only)
+// Enrollment routes (Admin + Registrar for subject catalog / teacher assignment)
 Route::group(['middleware' => ['auth', 'role:Admin']], function () {
     Route::resource('enrollments', EnrollmentController::class);
-    
-    
-    // Unified Class & Subject Management Routes
+});
+
+Route::group(['middleware' => ['auth', 'role:Admin|Registrar']], function () {
     Route::get('class-subject/unified-management', [App\Http\Controllers\ClassSubjectController::class, 'unifiedManagementForm'])->name('class-subject.unified-management');
     Route::post('class-subject/unified-management', [App\Http\Controllers\ClassSubjectController::class, 'handleAssignment'])->name('class-subject.handle-assignment');
-    
+    Route::post('class-subject/import-defaults', [App\Http\Controllers\ClassSubjectController::class, 'importDefaultSubjects'])->name('class-subject.import-defaults');
+    Route::post('class-subject/quick-add-subject', [App\Http\Controllers\ClassSubjectController::class, 'quickAddSubject'])->name('class-subject.quick-add-subject');
+    Route::post('class-subject/quick-add-section', [App\Http\Controllers\ClassSubjectController::class, 'quickAddSection'])->name('class-subject.quick-add-section');
 });
 // Attendance routes (available to teachers and admins)
 Route::get('teacher/attendance', [App\Http\Controllers\AttendanceController::class, 'index'])->name('attendance.index');
@@ -258,11 +260,13 @@ Route::group(['middleware' => ['role:Admin']], function () {
         Route::get('{schedule}', [App\Http\Controllers\ClassScheduleController::class, 'show'])->name('show');
     });
     
-    // Curriculum Management (Admin Only)
+    // Curriculum Management (Admin Only) — connected to subject catalog by grade
+    Route::post('curriculum/sync-all', [App\Http\Controllers\CurriculumController::class, 'syncAllFromCatalog'])->name('curriculum.syncAll');
     Route::resource('curriculum', App\Http\Controllers\CurriculumController::class);
     Route::get('curriculum/{curriculum}/assign-subjects', [App\Http\Controllers\CurriculumController::class, 'assignSubjectsForm'])->name('curriculum.assignSubjectsForm');
     Route::post('curriculum/{curriculum}/assign-subjects', [App\Http\Controllers\CurriculumController::class, 'assignSubjects'])->name('curriculum.assignSubjects');
-    
+    Route::post('curriculum/{curriculum}/sync-from-catalog', [App\Http\Controllers\CurriculumController::class, 'syncFromCatalog'])->name('curriculum.syncFromCatalog');
+   
     // ----------------------- Grading Module Routes (Admin Access) -----------------------------//
     Route::group(['prefix' => 'admin/grading'], function () {
         // GPA and Ranking (Admin can view all)
@@ -429,6 +433,7 @@ Route::get('/enrollment-portal/old-student/generate-form/{sectionId}', [App\Http
 
 // Get sections by grade level (for enrollment form)
 Route::get('/enrollment-portal/get-sections/{gradeLevel}', [App\Http\Controllers\EnrollmentPortalController::class, 'getSectionsByGradeLevel'])->name('enrollment.get-sections');
+Route::get('/enrollment-portal/get-subjects/{gradeLevel}', [App\Http\Controllers\EnrollmentPortalController::class, 'getSubjectsByGradeLevel'])->name('enrollment.get-subjects');
 
 // ----------------------- Enrollment Registrar Routes (Admin & Registrar Only) -----------------------------//
 Route::group(['prefix' => 'admin/enrollment', 'middleware' => ['auth', 'role:Admin|Registrar']], function () {
@@ -527,12 +532,12 @@ Route::group(['prefix' => 'announcements', 'middleware' => ['auth']], function (
     Route::get('/', [App\Http\Controllers\AnnouncementController::class, 'index'])->name('announcements.index');
     Route::get('/create', [App\Http\Controllers\AnnouncementController::class, 'create'])->name('announcements.create');
     Route::post('/', [App\Http\Controllers\AnnouncementController::class, 'store'])->name('announcements.store');
+    Route::get('/dashboard/data', [App\Http\Controllers\AnnouncementController::class, 'getDashboardAnnouncements'])->name('announcements.dashboard-data');
     Route::get('/{announcement}', [App\Http\Controllers\AnnouncementController::class, 'show'])->name('announcements.show');
     Route::get('/{announcement}/edit', [App\Http\Controllers\AnnouncementController::class, 'edit'])->name('announcements.edit');
     Route::put('/{announcement}', [App\Http\Controllers\AnnouncementController::class, 'update'])->name('announcements.update');
     Route::delete('/{announcement}', [App\Http\Controllers\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
     Route::patch('/{announcement}/toggle-pin', [App\Http\Controllers\AnnouncementController::class, 'togglePin'])->name('announcements.toggle-pin');
-    Route::get('/dashboard/data', [App\Http\Controllers\AnnouncementController::class, 'getDashboardAnnouncements'])->name('announcements.dashboard-data');
 });
 
 Route::group(['prefix' => 'messages', 'middleware' => ['auth']], function () {

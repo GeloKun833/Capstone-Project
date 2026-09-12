@@ -36,13 +36,19 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Subject Name <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="subject_name" placeholder="Enter Subject Name">
+                                            <input type="text" class="form-control" name="subject_name" value="{{ old('subject_name') }}" placeholder="e.g. Math" required>
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Class <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="class" placeholder="Enter Class">
+                                            <label>Grade Level <span class="login-danger">*</span></label>
+                                            <select class="form-control" name="class" required>
+                                                <option value="">Select Grade</option>
+                                                @foreach($gradeLevels as $grade)
+                                                    <option value="{{ $grade }}" {{ old('class') === $grade ? 'selected' : '' }}>{{ $grade }}</option>
+                                                @endforeach
+                                            </select>
+                                            <small class="text-muted">This subject will appear on the enrollment form for the selected grade.</small>
                                         </div>
                                     </div>
                                     <div class="col-12">

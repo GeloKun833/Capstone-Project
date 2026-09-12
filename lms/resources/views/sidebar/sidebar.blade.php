@@ -73,6 +73,15 @@
                             <li><a href="{{ route('enrollment.portal.index') }}" target="_blank"><i class="fas fa-external-link-alt"></i> <span>Portal View</span></a></li>
                         </ul>
                     </li>
+
+                    <li class="submenu">
+                        <a href="#"><i class="fas fa-book"></i> <span>Classes &amp; Subjects</span> <span class="menu-arrow"></span></a>
+                        <ul>
+                            <li><a href="{{ route('class-subject.unified-management') }}"><i class="fas fa-cogs"></i> <span>Subject Catalog</span></a></li>
+                            <li><a href="{{ route('subject/list/page') }}"><i class="fas fa-list"></i> <span>All Subjects</span></a></li>
+                            <li><a href="{{ route('subject/add/page') }}"><i class="fas fa-plus"></i> <span>Add Subject</span></a></li>
+                        </ul>
+                    </li>
                 @endif
 
                 {{-- TEACHER SIDEBAR --}}
@@ -119,6 +128,10 @@
 
                     <li>
                         <a href="{{ route('calendar.index') }}"><i class="fas fa-calendar"></i> <span>Calendar & Events</span></a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a>
                     </li>
 
                     <li class="submenu">

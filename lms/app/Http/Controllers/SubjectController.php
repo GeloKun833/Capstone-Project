@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use DB;
 use App\Models\Subject;
+use App\Services\GradeSubjectCatalogService;
 
 use Brian2694\Toastr\Facades\Toastr;
 
@@ -15,7 +16,6 @@ class SubjectController extends Controller
     {
         $query = Subject::query();
         
-        // Search/Filter logic
         if ($id = request('search_id')) {
             $query->where('subject_id', 'like', "%$id%");
         }
@@ -23,26 +23,38 @@ class SubjectController extends Controller
             $query->where('subject_name', 'like', "%$name%");
         }
         if ($class = request('search_class')) {
-            $query->where('class', 'like', "%$class%");
+            $query->where('class', $class);
         }
         
-        $subjectList = $query->get();
-        return view('subjects.subject_list',compact('subjectList'));
+        $subjectList = $query->orderBy('class')->orderBy('subject_name')->get();
+        $subjectsByGrade = $subjectList->groupBy(fn ($s) => $s->class ?: 'Unassigned');
+        $gradeLevels = GradeSubjectCatalogService::gradeLevels();
+
+        return view('subjects.subject_list', compact('subjectList', 'subjectsByGrade', 'gradeLevels'));
     }
 
     /** subject add */
     public function subjectAdd()
     {
-        return view('subjects.subject_add');
+        $gradeLevels = GradeSubjectCatalogService::gradeLevels();
+        return view('subjects.subject_add', compact('gradeLevels'));
     }
 
     /** save record */
     public function saveRecord(Request $request)
     {
         $request->validate([
-            'subject_name' => 'required|string',
-            'class'        => 'required|string',
+            'subject_name' => 'required|string|max:255',
+            'class'        => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
         ]);
+
+        $exists = Subject::where('subject_name', $request->subject_name)
+            ->where('class', $request->class)
+            ->exists();
+        if ($exists) {
+            Toastr::error('This subject already exists for that grade.', 'Error');
+            return redirect()->back()->withInput();
+        }
         
         DB::beginTransaction();
         try {
@@ -51,9 +63,9 @@ class SubjectController extends Controller
                 $saveRecord->class          = $request->class;
                 $saveRecord->save();
 
-                Toastr::success('Has been add successfully :)','Success');
+                Toastr::success('Subject added. It will now appear on the enrollment form for ' . $request->class . '.', 'Success');
                 DB::commit();
-            return redirect()->back();
+            return redirect()->route('subject/list/page', ['search_class' => $request->class]);
            
         } catch(\Exception $e) {
             \Log::info($e);
@@ -67,12 +79,19 @@ class SubjectController extends Controller
     public function subjectEdit($subject_id)
     {
         $subjectEdit = Subject::where('subject_id',$subject_id)->first();
-        return view('subjects.subject_edit',compact('subjectEdit'));
+        $gradeLevels = GradeSubjectCatalogService::gradeLevels();
+        return view('subjects.subject_edit', compact('subjectEdit', 'gradeLevels'));
     }
 
     /** update record */
     public function updateRecord(Request $request)
     {
+        $request->validate([
+            'subject_id'   => 'required',
+            'subject_name' => 'required|string|max:255',
+            'class'        => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+        ]);
+
         DB::beginTransaction();
         try {
             
@@ -82,9 +101,9 @@ class SubjectController extends Controller
             ];
 
             Subject::where('subject_id',$request->subject_id)->update($updateRecord);
-            Toastr::success('Has been update successfully :)','Success');
+            Toastr::success('Subject updated. Enrollment form uses this catalog by grade.','Success');
             DB::commit();
-            return redirect()->back();
+            return redirect()->route('subject/list/page', ['search_class' => $request->class]);
            
         } catch(\Exception $e) {
             \Log::info($e);

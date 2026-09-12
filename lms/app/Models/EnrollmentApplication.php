@@ -87,6 +87,7 @@ class EnrollmentApplication extends Model
         'doc_submitted_itr',
         'doc_submitted_unemployment',
         'grade_level_applying_for',
+        'preferred_section_id',
         'status',
         'notes',
         'rejection_reason',
@@ -120,6 +121,11 @@ class EnrollmentApplication extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function preferredSection()
+    {
+        return $this->belongsTo(Section::class, 'preferred_section_id');
     }
 
     public function student()
