@@ -85,12 +85,13 @@ class AcademicAnalyticsService
 
         $trends = [];
         foreach ($grades as $grade) {
-            $period = $grade->academicYear->name . ' - ' . $grade->semester->name;
+            $year = optional($grade->academicYear)->name ?? 'Academic Year';
+            $sem = optional($grade->semester)->name ?? 'Period';
             $trends[] = [
-                'period' => $period,
-                'subject' => $grade->subject->subject_name,
+                'period' => $year.' - '.$sem,
+                'subject' => optional($grade->subject)->subject_name ?? 'Subject',
                 'score' => $grade->percentage,
-                'date' => $grade->created_at->format('Y-m-d')
+                'date' => optional($grade->created_at)->format('Y-m-d'),
             ];
         }
 
@@ -104,8 +105,12 @@ class AcademicAnalyticsService
     {
         $query = Attendance::where('student_id', $studentId);
 
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        if ($academicYearId && Schema::hasColumn('attendances', 'academic_year_id')) {
+            $query->where('academic_year_id', $academicYearId);
+        }
+        if ($semesterId && Schema::hasColumn('attendances', 'semester_id')) {
+            $query->where('semester_id', $semesterId);
+        }
 
         $attendance = $query->get();
 
@@ -127,9 +132,9 @@ class AcademicAnalyticsService
         foreach ($monthlyData as $month => $data) {
             $summary[] = [
                 'month' => Carbon::createFromFormat('Y-m', $month)->format('M Y'),
-                'percentage' => round(($data['present'] / $data['total']) * 100, 2),
+                'percentage' => $data['total'] > 0 ? round(($data['present'] / $data['total']) * 100, 2) : 0,
                 'present' => $data['present'],
-                'total' => $data['total']
+                'total' => $data['total'],
             ];
         }
 
@@ -217,20 +222,59 @@ class AcademicAnalyticsService
      */
     private function getStudentGpaTrend($studentId, $academicYearId = null, $semesterId = null)
     {
-        $query = DB::table('student_gpa')->where('student_id', $studentId);
+        $query = DB::table('student_gpa')
+            ->leftJoin('academic_years', 'student_gpa.academic_year_id', '=', 'academic_years.id')
+            ->leftJoin('semesters', 'student_gpa.semester_id', '=', 'semesters.id')
+            ->where('student_gpa.student_id', $studentId)
+            ->select(
+                'student_gpa.gpa',
+                'student_gpa.created_at',
+                'academic_years.name as academic_year_name',
+                'semesters.name as semester_name'
+            );
 
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        if ($academicYearId) {
+            $query->where('student_gpa.academic_year_id', $academicYearId);
+        }
+        if ($semesterId) {
+            $query->where('student_gpa.semester_id', $semesterId);
+        }
 
-        return $query->orderBy('created_at')
+        return $query->orderBy('student_gpa.created_at')
             ->get()
-            ->map(function($gpa) {
+            ->map(function ($gpa) {
+                $year = $gpa->academic_year_name ?: 'Academic Year';
+                $sem = $gpa->semester_name ?: 'Period';
+                $value = $gpa->gpa !== null ? (float) $gpa->gpa : null;
+
                 return [
-                    'period' => $gpa->academic_year_name . ' - ' . $gpa->semester_name,
-                    'gpa' => $gpa->gpa,
-                    'letter_grade' => $gpa->letter_grade
+                    'period' => $year.' - '.$sem,
+                    'gpa' => $value,
+                    'letter_grade' => $this->letterGradeFromGpa($value),
                 ];
-            });
+            })
+            ->values();
+    }
+
+    private function letterGradeFromGpa(?float $gpa): string
+    {
+        if ($gpa === null) {
+            return '—';
+        }
+        if ($gpa >= 3.5) {
+            return 'A';
+        }
+        if ($gpa >= 3.0) {
+            return 'B';
+        }
+        if ($gpa >= 2.5) {
+            return 'C';
+        }
+        if ($gpa >= 2.0) {
+            return 'D';
+        }
+
+        return 'F';
     }
 
     /**
@@ -535,21 +579,30 @@ class AcademicAnalyticsService
      */
     private function getGpaComparison($academicYearId = null, $semesterId = null)
     {
-        $query = DB::table('student_gpa');
+        $query = DB::table('student_gpa')
+            ->leftJoin('students', 'student_gpa.student_id', '=', 'students.id')
+            ->select(
+                'student_gpa.gpa',
+                DB::raw("COALESCE(students.year_level, students.class, 'N/A') as grade_level")
+            );
 
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        if ($academicYearId) {
+            $query->where('student_gpa.academic_year_id', $academicYearId);
+        }
+        if ($semesterId) {
+            $query->where('student_gpa.semester_id', $semesterId);
+        }
 
         $gpaData = $query->get();
 
         $comparison = [];
         foreach ($gpaData->groupBy('grade_level') as $gradeLevel => $gradeGpas) {
             $comparison[] = [
-                'grade_level' => 'Grade ' . $gradeLevel,
-                'average_gpa' => round($gradeGpas->avg('gpa'), 2),
+                'grade_level' => (string) $gradeLevel,
+                'average_gpa' => round((float) $gradeGpas->avg('gpa'), 2),
                 'students_count' => $gradeGpas->count(),
                 'highest_gpa' => $gradeGpas->max('gpa'),
-                'lowest_gpa' => $gradeGpas->min('gpa')
+                'lowest_gpa' => $gradeGpas->min('gpa'),
             ];
         }
 

@@ -174,14 +174,9 @@
                         $sRecords = request()->routeIs(
                             'student.my-schedule',
                             'student.grades',
-                            'student.attendance',
-                            'student.assignments.*',
-                            'student.recommendations',
-                            'analytics.student-dashboard',
-                            'announcements.*',
-                            'chat.*',
                             'student.report-card',
-                            'notifications.*'
+                            'analytics.student-dashboard',
+                            'announcements.*'
                         );
                     @endphp
 
@@ -218,12 +213,8 @@
                         <ul>
                             <li><a href="{{ route('student.my-schedule') }}"><i class="fas fa-calendar-alt"></i> <span>My Schedule</span></a></li>
                             <li><a href="{{ route('student.grades') }}"><i class="fas fa-clipboard-list"></i> <span>Grades</span></a></li>
-                            <li><a href="{{ route('student.attendance') }}"><i class="fas fa-user-check"></i> <span>Attendance Records</span></a></li>
-                            <li><a href="{{ route('student.assignments.index') }}"><i class="fas fa-tasks"></i> <span>Assignments</span></a></li>
-                            <li><a href="{{ route('student.recommendations') }}"><i class="fas fa-lightbulb"></i> <span>Study Recommendations</span></a></li>
                             <li><a href="{{ route('analytics.student-dashboard') }}"><i class="fas fa-chart-line"></i> <span>My Analytics</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
-                            <li><a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
                         </ul>
                     </li>
                 @endif
