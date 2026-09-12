@@ -11,13 +11,13 @@
                     <h3 class="page-title"><i class="fas fa-user-graduate me-2"></i>Student Information System (SIS)</h3>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('sis.hub') }}">Information Systems</a></li>
+                        <li class="breadcrumb-item"><a href="{{ route('student/list') }}">Students</a></li>
                         <li class="breadcrumb-item active">Student SIS</li>
                     </ul>
                 </div>
                 <div class="col-auto">
-                    <a href="{{ route('sis.hub') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-arrow-left me-2"></i>Back to Hub
+                    <a href="{{ route('student/list') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Students
                     </a>
                     <a href="{{ url('view/user/edit/'.$user->user_id) }}" class="btn btn-primary">
                         <i class="fas fa-edit me-2"></i>Edit User

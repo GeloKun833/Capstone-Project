@@ -189,10 +189,10 @@
                         <h2 class="admin-panel__title">Upcoming Events</h2>
                         <p class="admin-panel__desc">From the school calendar</p>
                     </div>
-                    @if(Route::has('calendar.events.list'))
-                        <a href="{{ route('calendar.events.list') }}" class="admin-panel__link">View Calendar →</a>
-                    @elseif(Route::has('calendar.index'))
+                    @if(Route::has('calendar.index'))
                         <a href="{{ route('calendar.index') }}" class="admin-panel__link">View Calendar →</a>
+                    @elseif(Route::has('calendar.events.list'))
+                        <a href="{{ route('calendar.events.list') }}" class="admin-panel__link">View Calendar →</a>
                     @endif
                 </div>
                 <div class="admin-panel__body">

@@ -93,6 +93,7 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
     // ----------------------------- user controller ---------------------//
     Route::controller(UserManagementController::class)->group(function () {
         Route::get('list/users', 'index')->middleware(['auth', 'role:Admin'])->name('list/users');
+        Route::get('list/parents', 'parentList')->middleware(['auth', 'role:Admin'])->name('list/parents');
         Route::post('change/password', 'changePassword')->name('change/password');
         Route::get('view/user/edit/{id}', 'userView')->middleware(['auth', 'role:Admin']);
         Route::post('user/update', 'userUpdate')->middleware(['auth', 'role:Admin'])->name('user/update');
@@ -396,8 +397,6 @@ Route::group(['middleware' => ['role:Student']], function () {
 // Student Information System (SIS) route for admin and teachers
 Route::get('/student/sis/{user_id}', [App\Http\Controllers\StudentController::class, 'viewSIS'])->middleware(['auth', 'role:Admin|Teacher|Registrar'])->name('student.sis');
 
-Route::get('/sis', [App\Http\Controllers\SisHubController::class, 'index'])->middleware(['auth', 'role:Admin|Registrar|Teacher'])->name('sis.hub');
-
 // Parent-only routes
 Route::group(['middleware' => ['role:Parent']], function () {
     // Place parent-only routes here
@@ -484,54 +483,30 @@ Route::group(['prefix' => 'analytics', 'middleware' => ['auth']], function () {
 });
 
 // Calendar Routes
-    Route::group(['prefix' => 'calendar', 'middleware' => ['role:Admin,Teacher']], function () {
-    Route::get('/', [App\Http\Controllers\CalendarEventController::class, 'index'])->name('calendar.index');
-    Route::get('/create', [App\Http\Controllers\CalendarEventController::class, 'create'])->name('calendar.create');
-    Route::post('/', [App\Http\Controllers\CalendarEventController::class, 'store'])->name('calendar.store');
-    Route::get('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'show'])->name('calendar.show');
-    Route::get('/{calendarEvent}/edit', [App\Http\Controllers\CalendarEventController::class, 'edit'])->name('calendar.edit');
-    Route::put('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'update'])->name('calendar.update');
-    Route::delete('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'destroy'])->name('calendar.destroy');
-    
-    // API endpoints for calendar functionality
-    Route::get('/available-slots', [App\Http\Controllers\CalendarEventController::class, 'getAvailableSlots'])->name('calendar.available-slots');
-    Route::get('/check-conflicts', [App\Http\Controllers\CalendarEventController::class, 'checkConflicts'])->name('calendar.check-conflicts');
-    
-    // Test route for debugging
-    Route::get('/test/events', function() {
-        $events = App\Models\CalendarEvent::with(['subject', 'teacher', 'room'])->take(5)->get();
-        return response()->json($events);
-    })->name('calendar.test-events');
-});
+Route::group(['prefix' => 'calendar', 'middleware' => ['auth']], function () {
+    // View-only access for Admin, Teacher, and Student
+    Route::get('/', [App\Http\Controllers\CalendarEventController::class, 'index'])
+        ->middleware('role:Admin,Teacher,Student,Parent')
+        ->name('calendar.index');
 
-// Test route for calendar events
-Route::get('/calendar/test/events', function() {
-    $events = App\Models\CalendarEvent::with(['subject', 'teacher', 'room'])->get();
-    return response()->json([
-        'total_events' => $events->count(),
-        'events' => $events->map(function($event) {
-            return [
-                'id' => $event->id,
-                'title' => $event->title,
-                'start_time' => $event->start_time->toISOString(),
-                'end_time' => $event->end_time->toISOString(),
-                'event_type' => $event->event_type,
-                'subject' => $event->subject?->subject_name,
-                'teacher' => $event->teacher?->full_name
-            ];
-        })
-    ]);
-});
+    // Management APIs / CRUD — Admin & Teacher only
+    Route::middleware('role:Admin,Teacher')->group(function () {
+        Route::get('/events/list', [App\Http\Controllers\CalendarEventController::class, 'eventsList'])->name('calendar.events.list');
+        Route::get('/create', [App\Http\Controllers\CalendarEventController::class, 'create'])->name('calendar.create');
+        Route::post('/', [App\Http\Controllers\CalendarEventController::class, 'store'])->name('calendar.store');
+        Route::get('/available-slots', [App\Http\Controllers\CalendarEventController::class, 'getAvailableSlots'])->name('calendar.available-slots');
+        Route::get('/check-conflicts', [App\Http\Controllers\CalendarEventController::class, 'checkConflicts'])->name('calendar.check-conflicts');
+        Route::get('/subject-preferences', [App\Http\Controllers\CalendarEventController::class, 'subjectPreferences'])->name('calendar.subject-preferences');
+        Route::get('/workload', [App\Http\Controllers\CalendarEventController::class, 'workload'])->name('calendar.workload');
+        Route::get('/{calendarEvent}/edit', [App\Http\Controllers\CalendarEventController::class, 'edit'])->name('calendar.edit');
+        Route::put('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'update'])->name('calendar.update');
+        Route::delete('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'destroy'])->name('calendar.destroy');
+    });
 
-// Test calendar page
-Route::get('/calendar/test', function() {
-    return view('calendar.test');
+    Route::get('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'show'])
+        ->middleware('role:Admin,Teacher,Student,Parent')
+        ->name('calendar.show');
 });
-
-// Calendar events list route
-Route::get('/calendar/events/list', [App\Http\Controllers\CalendarEventController::class, 'eventsList'])
-    ->middleware('auth')
-    ->name('calendar.events.list');
 
 // Schedule Routes
 Route::group(['prefix' => 'schedule', 'middleware' => ['role:Student,Admin,Teacher,Parent']], function () {

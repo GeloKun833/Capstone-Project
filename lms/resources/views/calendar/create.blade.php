@@ -164,6 +164,7 @@
                                                 <option value="daily" {{ old('recurrence_pattern') == 'daily' ? 'selected' : '' }}>Daily</option>
                                                 <option value="weekly" {{ old('recurrence_pattern') == 'weekly' ? 'selected' : '' }}>Weekly</option>
                                                 <option value="monthly" {{ old('recurrence_pattern') == 'monthly' ? 'selected' : '' }}>Monthly</option>
+                                                <option value="custom" {{ old('recurrence_pattern') == 'custom' ? 'selected' : '' }}>Custom</option>
                                             </select>
                                         </div>
                                     </div>
@@ -288,17 +289,34 @@ function checkAvailableSlots() {
             room_id: roomId
         },
         success: function(response) {
-            let html = '<h6>Available Time Slots:</h6>';
-            if (response.length > 0) {
+            const available = response.available || response.slots || (Array.isArray(response) ? response : []);
+            const unavailable = response.unavailable || [];
+            let html = '<h6>Available:</h6>';
+            if (available.length > 0) {
                 html += '<ul class="list-unstyled">';
-                response.forEach(function(slot) {
-                    html += `<li><span class="badge bg-success">${slot.start} - ${slot.end}</span></li>`;
+                available.forEach(function(slot) {
+                    html += `<li><button type="button" class="badge bg-success border-0 mb-1 slot-pick" data-start="${slot.start}" data-end="${slot.end}">${slot.start_display || slot.start} – ${slot.end_display || slot.end}</button></li>`;
                 });
                 html += '</ul>';
             } else {
                 html += '<p class="text-muted">No available slots for this date.</p>';
             }
+            if (unavailable.length > 0) {
+                html += '<h6 class="mt-2">Unavailable:</h6><ul class="list-unstyled">';
+                unavailable.slice(0, 6).forEach(function(slot) {
+                    html += `<li class="text-muted small">${slot.start_display || slot.start} — Conflict</li>`;
+                });
+                html += '</ul>';
+            }
             $('#available_slots').html(html);
+            $('#available_slots').off('click', '.slot-pick').on('click', '.slot-pick', function() {
+                const date = $('#slot_date').val();
+                const start = $(this).data('start');
+                const end = $(this).data('end');
+                $('input[name="is_all_day"]').prop('checked', false);
+                $('input[name="start_time"]').attr('type', 'datetime-local').val(date + 'T' + start);
+                $('input[name="end_time"]').attr('type', 'datetime-local').val(date + 'T' + end);
+            });
         },
         error: function() {
             toastr.error('Failed to check available slots');
@@ -339,11 +357,12 @@ function checkConflicts() {
                 }
                 html += '</div>';
                 
-                if (response.available_slots && response.available_slots.length > 0) {
+                if (response.available_slots && (response.available_slots.available || response.available_slots.slots || response.available_slots.length)) {
+                    const slots = response.available_slots.available || response.available_slots.slots || response.available_slots;
                     html += '<h6>Suggested Available Slots:</h6>';
                     html += '<ul class="list-unstyled">';
-                    response.available_slots.slice(0, 5).forEach(function(slot) {
-                        html += `<li><span class="badge bg-info">${slot.start} - ${slot.end}</span></li>`;
+                    (slots.slice ? slots.slice(0, 5) : []).forEach(function(slot) {
+                        html += `<li><span class="badge bg-info">${slot.start_display || slot.start} - ${slot.end_display || slot.end}</span></li>`;
                     });
                     html += '</ul>';
                 }

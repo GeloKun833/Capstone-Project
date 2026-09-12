@@ -15,6 +15,28 @@ use Carbon\Carbon;
 class CalendarEventController extends Controller
 {
     /**
+     * Block teachers from editing/deleting events they did not create.
+     */
+    protected function authorizeEventManagement(CalendarEvent $calendarEvent, Request $request = null)
+    {
+        $user = Auth::user();
+        if ($calendarEvent->canBeManagedBy($user)) {
+            return null;
+        }
+
+        $message = 'You can only edit or delete events that you created.';
+
+        if ($request && ($request->ajax() || $request->wantsJson())) {
+            return response()->json([
+                'success' => false,
+                'error' => $message,
+            ], 403);
+        }
+
+        abort(403, $message);
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
@@ -22,98 +44,167 @@ class CalendarEventController extends Controller
         $view = $request->get('view', 'month');
         $subjectId = $request->get('subject_id');
         $teacherId = $request->get('teacher_id');
+        $roomId = $request->get('room_id');
+        $eventType = $request->get('event_type');
+        $filterGroup = $request->get('filter_group');
+        $search = $request->get('search');
         $startDate = $request->get('start');
         $endDate = $request->get('end');
+        $childId = $request->get('child_id');
+        $user = Auth::user();
 
-        // Get events with proper filtering
-        $events = CalendarEvent::with(['subject', 'teacher', 'room'])
-            ->when($subjectId, function ($query) use ($subjectId) {
-                return $query->bySubject($subjectId);
-            })
-            ->when($teacherId, function ($query) use ($teacherId) {
-                return $query->byTeacher($teacherId);
-            })
-            // Temporarily disable date filtering to see all events
-            // ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-            //     Log::info('Applying date filter', ['start' => $startDate, 'end' => $endDate]);
-            //     return $query->inDateRange($startDate, $endDate);
-            // })
-            // // If no date range is provided, show events for the next 6 months (more inclusive)
-            // ->when(!$startDate && !$endDate, function ($query) {
-            //     Log::info('No date range provided, showing next 6 months events');
-            //     return $query->inDateRange(
-            //         now()->subMonths(1)->startOfMonth()->toISOString(),
-            //         now()->addMonths(6)->endOfMonth()->toISOString()
-            //     );
-            // })
-            ->orderBy('start_time')
-            ->get();
+        $isStudent = $user && $user->role_name === 'Student';
+        $isParent = $user && $user->role_name === 'Parent';
+        $isViewerOnly = $isStudent || $isParent;
 
-        // Debug logging
-        Log::info('Calendar Events Query', [
-            'total_events' => $events->count(),
-            'subject_filter' => $subjectId,
-            'teacher_filter' => $teacherId,
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-            'is_ajax' => $request->ajax(),
-            'request_params' => $request->all(),
-            'date_range_applied' => false, // Changed to false since we disabled date filtering
-            'sample_events' => $events->take(3)->map(function($e) {
+        $student = null;
+        $children = collect();
+        $selectedChildren = collect();
+
+        if ($isStudent) {
+            $student = $user->student;
+            if (!$student) {
+                abort(403, 'Student profile not found.');
+            }
+            $selectedChildren = collect([$student]);
+        }
+
+        if ($isParent) {
+            $portal = app(\App\Services\ParentPortalService::class);
+            $children = $portal->getChildrenForParent($user);
+            if ($children->isEmpty()) {
+                abort(403, 'No children linked to this parent account.');
+            }
+
+            if ($childId) {
+                $selectedChildren = collect([
+                    $portal->resolveChildForParent($user, (int) $childId),
+                ]);
+            } else {
+                $selectedChildren = $children;
+            }
+        }
+
+        $eventsQuery = CalendarEvent::with(['subject:id,subject_name,class', 'teacher:id,full_name', 'room:id,room_name,room_number', 'createdBy:id,name'])
+            ->when($isStudent, fn ($query) => $query->visibleToStudent($student))
+            ->when($isParent, fn ($query) => $query->visibleToStudents($selectedChildren))
+            ->when($subjectId, fn ($query) => $query->bySubject($subjectId))
+            ->when(!$isViewerOnly && $teacherId, fn ($query) => $query->byTeacher($teacherId))
+            ->when(!$isViewerOnly && $roomId, fn ($query) => $query->where('room_id', $roomId))
+            ->when($eventType, fn ($query) => $query->byType($eventType))
+            ->when($filterGroup, function ($query) use ($filterGroup) {
+                return match ($filterGroup) {
+                    'exams' => $query->byType('exam'),
+                    'activities' => $query->byType('activity'),
+                    'deadlines' => $query->byType('deadline'),
+                    'holidays' => $query->byType('holiday'),
+                    'school' => $query->whereIn('event_type', ['meeting', 'other'])->whereNull('subject_id'),
+                    'subjects' => $query->whereNotNull('subject_id')->where('event_type', '!=', 'holiday'),
+                    default => $query,
+                };
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->when($startDate && $endDate, fn ($query) => $query->inDateRange($startDate, $endDate))
+            ->orderBy('start_time');
+
+        if ($request->ajax() || $request->wantsJson() || $request->boolean('json')) {
+            $formattedEvents = $eventsQuery->get()->map(function ($event) use ($user, $isViewerOnly, $isParent, $selectedChildren) {
+                $canManage = !$isViewerOnly && $event->canBeManagedBy($user);
+                $relevant = $isParent
+                    ? $event->relevantChildrenAmong($selectedChildren)
+                    : collect();
+
                 return [
-                    'id' => $e->id,
-                    'title' => $e->title,
-                    'start_time' => $e->start_time->toISOString(),
-                    'end_time' => $e->end_time->toISOString(),
-                    'event_type' => $e->event_type
-                ];
-            })->toArray()
-        ]);
-
-        if ($request->ajax()) {
-            $formattedEvents = $events->map(function ($event) {
-                $formattedEvent = [
                     'id' => $event->id,
                     'title' => $event->title,
-                    'start' => $event->start_time->toISOString(),
-                    'end' => $event->end_time->toISOString(),
+                    'start' => $event->start_time->toIso8601String(),
+                    'end' => $event->end_time->toIso8601String(),
                     'color' => $event->event_color,
-                    'allDay' => $event->is_all_day,
+                    'allDay' => (bool) $event->is_all_day,
+                    'editable' => $canManage,
+                    'startEditable' => $canManage,
+                    'durationEditable' => $canManage,
                     'extendedProps' => [
                         'description' => $event->description,
                         'event_type' => $event->event_type,
                         'subject' => $event->subject?->subject_name,
+                        'subject_id' => $event->subject_id,
+                        'subject_class' => $event->subject?->class,
                         'teacher' => $event->teacher?->full_name,
-                        'room' => $event->room?->room_name,
-                        'is_all_day' => $event->is_all_day
-                    ]
+                        'teacher_id' => $event->teacher_id,
+                        'room' => $event->room?->full_name ?? $event->room?->room_name,
+                        'room_id' => $event->room_id,
+                        'is_all_day' => (bool) $event->is_all_day,
+                        'is_recurring' => (bool) $event->is_recurring,
+                        'recurrence_pattern' => $event->recurrence_pattern,
+                        'recurrence_end_date' => optional($event->recurrence_end_date)?->format('Y-m-d'),
+                        'start_local' => $event->start_time->format('Y-m-d\TH:i'),
+                        'end_local' => $event->end_time->format('Y-m-d\TH:i'),
+                        'created_by' => $event->created_by,
+                        'organizer' => $event->createdBy?->name,
+                        'can_manage' => $canManage,
+                        'children' => $relevant->map(fn ($c) => [
+                            'id' => $c->id,
+                            'name' => $c->full_name,
+                            'grade' => $c->year_level ?: $c->class,
+                            'section' => $c->section,
+                        ])->values()->all(),
+                        'child_names' => $relevant->pluck('full_name')->implode(', '),
+                    ],
                 ];
-                
-                Log::info('Formatted event', [
-                    'event_id' => $event->id,
-                    'title' => $event->title,
-                    'start' => $formattedEvent['start'],
-                    'end' => $formattedEvent['end'],
-                    'color' => $formattedEvent['color']
-                ]);
-                
-                return $formattedEvent;
             });
-
-            Log::info('Formatted Events for AJAX', [
-                'events_count' => $formattedEvents->count(),
-                'sample_event' => $formattedEvents->first(),
-                'all_events' => $formattedEvents->toArray()
-            ]);
 
             return response()->json($formattedEvents);
         }
 
-        $subjects = Subject::all();
-        $teachers = Teacher::all();
-        $rooms = Room::active()->get();
+        if ($isStudent) {
+            $subjects = $student->subjects()->orderBy('subject_name')->get(['subjects.id', 'subjects.subject_name']);
+            $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
 
-        return view('calendar.index', compact('events', 'subjects', 'teachers', 'rooms', 'view'));
+            return view('calendar.student', compact('subjects', 'view', 'eventTypes', 'student'));
+        }
+
+        if ($isParent) {
+            $subjectIds = [];
+            foreach ($children as $child) {
+                $subjectIds = array_merge($subjectIds, $child->subjects()->pluck('subjects.id')->all());
+            }
+            $subjects = Subject::whereIn('id', array_unique($subjectIds) ?: [0])
+                ->orderBy('subject_name')
+                ->get(['id', 'subject_name']);
+
+            $upcomingEvents = CalendarEvent::with(['subject:id,subject_name', 'teacher:id,full_name'])
+                ->visibleToStudents($selectedChildren)
+                ->where('start_time', '>=', now()->startOfDay())
+                ->orderBy('start_time')
+                ->limit(6)
+                ->get();
+
+            $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
+            $selectedChildId = $childId ? (int) $childId : null;
+
+            return view('calendar.parent', compact(
+                'subjects',
+                'view',
+                'eventTypes',
+                'children',
+                'selectedChildId',
+                'upcomingEvents'
+            ));
+        }
+
+        $subjects = Subject::orderBy('subject_name')->get(['id', 'subject_name']);
+        $teachers = Teacher::orderBy('full_name')->get(['id', 'full_name']);
+        $rooms = Room::active()->orderBy('room_name')->get();
+        $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
+        $isAdmin = $user && $user->role_name === 'Admin';
+
+        return view('calendar.index', compact('subjects', 'teachers', 'rooms', 'view', 'eventTypes', 'isAdmin'));
     }
 
     /**
@@ -121,6 +212,10 @@ class CalendarEventController extends Controller
      */
     public function create()
     {
+        if (in_array(Auth::user()?->role_name, ['Student', 'Parent'], true)) {
+            abort(403, 'You are not allowed to create events.');
+        }
+
         $subjects = Subject::all();
         $teachers = Teacher::all();
         $rooms = Room::active()->get();
@@ -134,6 +229,18 @@ class CalendarEventController extends Controller
      */
     public function store(Request $request)
     {
+        if (in_array(Auth::user()?->role_name, ['Student', 'Parent'], true)) {
+            abort(403, 'You are not allowed to create events.');
+        }
+
+        $request->merge([
+            'subject_id' => $request->filled('subject_id') ? $request->subject_id : null,
+            'teacher_id' => $request->filled('teacher_id') ? $request->teacher_id : null,
+            'room_id' => $request->filled('room_id') ? $request->room_id : null,
+            'recurrence_pattern' => $request->boolean('is_recurring') ? $request->recurrence_pattern : null,
+            'recurrence_end_date' => $request->boolean('is_recurring') ? $request->recurrence_end_date : null,
+        ]);
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -145,13 +252,16 @@ class CalendarEventController extends Controller
             'room_id' => 'nullable|exists:rooms,id',
             'is_all_day' => 'boolean',
             'is_recurring' => 'boolean',
-            'recurrence_pattern' => 'nullable|in:daily,weekly,monthly',
+            'recurrence_pattern' => 'nullable|in:daily,weekly,monthly,custom',
             'recurrence_end_date' => 'nullable|date|after:start_time'
         ]);
 
         if ($validator->fails()) {
             if ($request->ajax()) {
-                return response()->json(['errors' => $validator->errors()], 422);
+                return response()->json([
+                    'errors' => $validator->errors(),
+                    'error' => 'Unable to create event. Please check the highlighted fields.',
+                ], 422);
             }
             return redirect()->back()->withErrors($validator)->withInput();
         }
@@ -161,21 +271,15 @@ class CalendarEventController extends Controller
             $request->start_time,
             $request->end_time,
             $request->teacher_id,
-            $request->room_id
+            $request->room_id,
+            null,
+            $request->subject_id
         );
 
-        if (!empty($conflicts)) {
-            $conflictMessage = 'Scheduling conflicts detected: ';
-            if (isset($conflicts['teacher'])) {
-                $conflictMessage .= 'Teacher has conflicting events. ';
-            }
-            if (isset($conflicts['room'])) {
-                $conflictMessage .= 'Room is already booked. ';
-            }
-
+        if (!empty($conflicts['teacher']) || !empty($conflicts['room'])) {
             if ($request->ajax()) {
                 return response()->json([
-                    'error' => $conflictMessage,
+                    'error' => 'Schedule conflict detected. Please select another time or resource.',
                     'conflicts' => $conflicts,
                     'available_slots' => CalendarEvent::getAvailableTimeSlots(
                         $request->start_time,
@@ -186,7 +290,7 @@ class CalendarEventController extends Controller
             }
 
             return redirect()->back()
-                ->with('error', $conflictMessage)
+                ->with('error', 'Schedule conflict detected. Please select another time or resource.')
                 ->withInput();
         }
 
@@ -209,12 +313,12 @@ class CalendarEventController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Event created successfully',
+                'message' => 'Event created successfully.',
                 'event' => $event->load(['subject', 'teacher', 'room'])
             ]);
         }
 
-        return redirect()->route('calendar.index')->with('success', 'Event created successfully')->with('refresh_calendar', true);
+        return redirect()->route('calendar.index')->with('success', 'Event created successfully.')->with('refresh_calendar', true);
     }
 
     /**
@@ -222,8 +326,39 @@ class CalendarEventController extends Controller
      */
     public function show(CalendarEvent $calendarEvent)
     {
+        $user = Auth::user();
+
+        if ($user && $user->role_name === 'Student') {
+            $student = $user->student;
+            if (!$student || !$calendarEvent->isVisibleToStudent($student)) {
+                abort(403, 'You are not allowed to view this event.');
+            }
+        }
+
+        if ($user && $user->role_name === 'Parent') {
+            $portal = app(\App\Services\ParentPortalService::class);
+            $children = $portal->getChildrenForParent($user);
+            if ($children->isEmpty() || $calendarEvent->relevantChildrenAmong($children)->isEmpty()) {
+                abort(403, 'You are not allowed to view this event.');
+            }
+        }
+
         $calendarEvent->load(['subject', 'teacher', 'room', 'createdBy']);
-        return view('calendar.show', compact('calendarEvent'));
+        $canManage = $calendarEvent->canBeManagedBy($user);
+
+        if ($user && $user->role_name === 'Student') {
+            return view('calendar.student-show', compact('calendarEvent'));
+        }
+
+        if ($user && $user->role_name === 'Parent') {
+            $portal = app(\App\Services\ParentPortalService::class);
+            $children = $portal->getChildrenForParent($user);
+            $relevantChildren = $calendarEvent->relevantChildrenAmong($children);
+
+            return view('calendar.parent-show', compact('calendarEvent', 'relevantChildren'));
+        }
+
+        return view('calendar.show', compact('calendarEvent', 'canManage'));
     }
 
     /**
@@ -231,6 +366,10 @@ class CalendarEventController extends Controller
      */
     public function edit(CalendarEvent $calendarEvent)
     {
+        if ($denied = $this->authorizeEventManagement($calendarEvent, request())) {
+            return $denied;
+        }
+
         $subjects = Subject::all();
         $teachers = Teacher::all();
         $rooms = Room::active()->get();
@@ -244,6 +383,60 @@ class CalendarEventController extends Controller
      */
     public function update(Request $request, CalendarEvent $calendarEvent)
     {
+        if ($denied = $this->authorizeEventManagement($calendarEvent, $request)) {
+            return $denied;
+        }
+
+        // Drag/resize from calendar only sends new dates
+        if ($request->boolean('dates_only') || (!$request->filled('title') && $request->filled('start_time') && $request->filled('end_time'))) {
+            $request->validate([
+                'start_time' => 'required|date',
+                'end_time' => 'required|date|after:start_time',
+            ]);
+
+            $conflicts = CalendarEvent::checkConflicts(
+                $request->start_time,
+                $request->end_time,
+                $calendarEvent->teacher_id,
+                $calendarEvent->room_id,
+                $calendarEvent->id
+            );
+
+            if (!empty($conflicts['teacher']) || !empty($conflicts['room'])) {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Schedule conflict detected. Please select another time or resource.',
+                        'conflicts' => $conflicts,
+                    ], 409);
+                }
+                return redirect()->back()->with('error', 'Schedule conflict detected.');
+            }
+
+            $calendarEvent->update([
+                'start_time' => $request->start_time,
+                'end_time' => $request->end_time,
+            ]);
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Event updated successfully.',
+                    'event' => $calendarEvent->fresh()->load(['subject', 'teacher', 'room']),
+                ]);
+            }
+
+            return redirect()->route('calendar.index')->with('success', 'Event updated successfully.');
+        }
+
+        $request->merge([
+            'subject_id' => $request->filled('subject_id') ? $request->subject_id : null,
+            'teacher_id' => $request->filled('teacher_id') ? $request->teacher_id : null,
+            'room_id' => $request->filled('room_id') ? $request->room_id : null,
+            'recurrence_pattern' => $request->boolean('is_recurring') ? $request->recurrence_pattern : null,
+            'recurrence_end_date' => $request->boolean('is_recurring') ? $request->recurrence_end_date : null,
+        ]);
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -255,13 +448,13 @@ class CalendarEventController extends Controller
             'room_id' => 'nullable|exists:rooms,id',
             'is_all_day' => 'boolean',
             'is_recurring' => 'boolean',
-            'recurrence_pattern' => 'nullable|in:daily,weekly,monthly',
+            'recurrence_pattern' => 'nullable|in:daily,weekly,monthly,custom',
             'recurrence_end_date' => 'nullable|date|after:start_time'
         ]);
 
         if ($validator->fails()) {
             if ($request->ajax()) {
-                return response()->json(['errors' => $validator->errors()], 422);
+                return response()->json(['errors' => $validator->errors(), 'error' => 'Unable to update event. Please check the highlighted fields.'], 422);
             }
             return redirect()->back()->withErrors($validator)->withInput();
         }
@@ -272,17 +465,12 @@ class CalendarEventController extends Controller
             $request->end_time,
             $request->teacher_id,
             $request->room_id,
-            $calendarEvent->id
+            $calendarEvent->id,
+            $request->subject_id
         );
 
-        if (!empty($conflicts)) {
-            $conflictMessage = 'Scheduling conflicts detected: ';
-            if (isset($conflicts['teacher'])) {
-                $conflictMessage .= 'Teacher has conflicting events. ';
-            }
-            if (isset($conflicts['room'])) {
-                $conflictMessage .= 'Room is already booked. ';
-            }
+        if (!empty($conflicts['teacher']) || !empty($conflicts['room'])) {
+            $conflictMessage = 'Schedule conflict detected. Please select another time or resource.';
 
             if ($request->ajax()) {
                 return response()->json([
@@ -319,12 +507,12 @@ class CalendarEventController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Event updated successfully',
-                'event' => $calendarEvent->load(['subject', 'teacher', 'room'])
+                'message' => 'Event updated successfully.',
+                'event' => $calendarEvent->fresh()->load(['subject', 'teacher', 'room']),
             ]);
         }
 
-        return redirect()->route('calendar.index')->with('success', 'Event updated successfully');
+        return redirect()->route('calendar.index')->with('success', 'Event updated successfully.');
     }
 
     /**
@@ -332,16 +520,20 @@ class CalendarEventController extends Controller
      */
     public function destroy(CalendarEvent $calendarEvent, Request $request)
     {
+        if ($denied = $this->authorizeEventManagement($calendarEvent, $request)) {
+            return $denied;
+        }
+
         $calendarEvent->delete();
 
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Event deleted successfully'
+                'message' => 'Event deleted successfully.',
             ]);
         }
 
-        return redirect()->route('calendar.index')->with('success', 'Event deleted successfully');
+        return redirect()->route('calendar.index')->with('success', 'Event deleted successfully.');
     }
 
     /**
@@ -367,7 +559,43 @@ class CalendarEventController extends Controller
     }
 
     /**
-     * Check for conflicts
+     * Preferred teacher/room for a subject based on past events
+     */
+    public function subjectPreferences(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|exists:subjects,id',
+        ]);
+
+        return response()->json(
+            CalendarEvent::preferredResourcesForSubject($request->subject_id)
+        );
+    }
+
+    /**
+     * Daily workload for teacher/room
+     */
+    public function workload(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'teacher_id' => 'nullable|exists:teachers,id',
+            'room_id' => 'nullable|exists:rooms,id',
+            'exclude_event_id' => 'nullable|exists:calendar_events,id',
+        ]);
+
+        return response()->json(
+            CalendarEvent::workloadForDate(
+                $request->date,
+                $request->teacher_id,
+                $request->room_id,
+                $request->exclude_event_id
+            )
+        );
+    }
+
+    /**
+     * Check for conflicts (includes suggestions + workload)
      */
     public function checkConflicts(Request $request)
     {
@@ -376,12 +604,42 @@ class CalendarEventController extends Controller
             'end_time' => 'required|date|after:start_time',
             'teacher_id' => 'nullable|exists:teachers,id',
             'room_id' => 'nullable|exists:rooms,id',
+            'subject_id' => 'nullable|exists:subjects,id',
             'exclude_event_id' => 'nullable|exists:calendar_events,id'
         ]);
+
+        $duration = max(15, Carbon::parse($request->start_time)->diffInMinutes(Carbon::parse($request->end_time)));
 
         $conflicts = CalendarEvent::checkConflicts(
             $request->start_time,
             $request->end_time,
+            $request->teacher_id,
+            $request->room_id,
+            $request->exclude_event_id,
+            $request->subject_id
+        );
+
+        $blocking = !empty($conflicts['teacher']) || !empty($conflicts['room']);
+        $availableSlots = CalendarEvent::getAvailableTimeSlots(
+            $request->start_time,
+            $request->teacher_id,
+            $request->room_id,
+            $duration
+        );
+
+        $suggestions = $blocking
+            ? CalendarEvent::suggestNextAvailableSlots(
+                $request->start_time,
+                $request->end_time,
+                $request->teacher_id,
+                $request->room_id,
+                5,
+                7
+            )
+            : [];
+
+        $workload = CalendarEvent::workloadForDate(
+            $request->start_time,
             $request->teacher_id,
             $request->room_id,
             $request->exclude_event_id
@@ -389,12 +647,14 @@ class CalendarEventController extends Controller
 
         return response()->json([
             'has_conflicts' => !empty($conflicts),
+            'blocking' => $blocking,
+            'message' => $blocking
+                ? 'Schedule conflict detected. Please select another time or resource.'
+                : (empty($conflicts) ? 'No scheduling conflicts detected.' : 'Related schedule overlaps found.'),
             'conflicts' => $conflicts,
-            'available_slots' => CalendarEvent::getAvailableTimeSlots(
-                $request->start_time,
-                $request->teacher_id,
-                $request->room_id
-            )
+            'available_slots' => $availableSlots,
+            'suggestions' => $suggestions,
+            'workload' => $workload,
         ]);
     }
 
@@ -445,6 +705,8 @@ class CalendarEventController extends Controller
         }
         
         $events = $query->orderBy('start_time', 'desc')->paginate(15);
-        return view('calendar.events-list', compact('events'));
+        $isAdmin = Auth::user() && Auth::user()->role_name === 'Admin';
+
+        return view('calendar.events-list', compact('events', 'isAdmin'));
     }
 }

@@ -163,20 +163,22 @@
                                                         <li><a class="dropdown-item" href="{{ route('calendar.show', $event->id) }}">
                                                             <i class="fas fa-eye"></i> View Details
                                                         </a></li>
-                                                        <li><a class="dropdown-item" href="{{ route('calendar.edit', $event->id) }}">
-                                                            <i class="fas fa-edit"></i> Edit
-                                                        </a></li>
-                                                        <li><hr class="dropdown-divider"></li>
-                                                        <li>
-                                                            <form action="{{ route('calendar.destroy', $event->id) }}" method="POST" 
-                                                                  onsubmit="return confirm('Are you sure you want to delete this event?')" style="display: inline;">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button type="submit" class="dropdown-item text-danger">
-                                                                    <i class="fas fa-trash"></i> Delete
-                                                                </button>
-                                                            </form>
-                                                        </li>
+                                                        @if($event->canBeManagedBy(Auth::user()))
+                                                            <li><a class="dropdown-item" href="{{ route('calendar.edit', $event->id) }}">
+                                                                <i class="fas fa-edit"></i> Edit
+                                                            </a></li>
+                                                            <li><hr class="dropdown-divider"></li>
+                                                            <li>
+                                                                <form action="{{ route('calendar.destroy', $event->id) }}" method="POST"
+                                                                      onsubmit="return confirm('Are you sure you want to delete this event?')" style="display: inline;">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button type="submit" class="dropdown-item text-danger">
+                                                                        <i class="fas fa-trash"></i> Delete
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                        @endif
                                                     </ul>
                                                 </div>
                                             </td>
@@ -195,8 +197,11 @@
                             <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
                             <h5>No events found</h5>
                             <p class="text-muted">No events match your current filters.</p>
+                            <a href="{{ route('calendar.index') }}" class="btn btn-outline-secondary me-2">
+                                <i class="fas fa-calendar"></i> Open Calendar
+                            </a>
                             <a href="{{ route('calendar.create') }}" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Create Your First Event
+                                <i class="fas fa-plus"></i> Create Event
                             </a>
                         </div>
                     @endif

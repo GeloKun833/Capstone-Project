@@ -15,11 +15,13 @@
                         </ul>
                     </div>
                     <div class="col-auto text-end float-end ms-auto download-grp">
-                        <a href="{{ route('calendar.edit', $calendarEvent->id) }}" class="btn btn-primary">
-                            <i class="fas fa-edit"></i> Edit Event
-                        </a>
-                        <a href="{{ route('calendar.events.list') }}" class="btn btn-secondary ms-2">
-                            <i class="fas fa-arrow-left"></i> Back to List
+                        @if($canManage)
+                            <a href="{{ route('calendar.edit', $calendarEvent->id) }}" class="btn btn-primary">
+                                <i class="fas fa-edit"></i> Edit Event
+                            </a>
+                        @endif
+                        <a href="{{ route('calendar.index') }}" class="btn btn-secondary ms-2">
+                            <i class="fas fa-arrow-left"></i> Back to Calendar
                         </a>
                     </div>
                 </div>
@@ -140,19 +142,23 @@
                         </div>
                         <div class="card-body">
                             <div class="d-grid gap-2">
-                                <a href="{{ route('calendar.edit', $calendarEvent->id) }}" class="btn btn-primary">
-                                    <i class="fas fa-edit"></i> Edit Event
-                                </a>
-                                <form action="{{ route('calendar.destroy', $calendarEvent->id) }}" method="POST" 
-                                      onsubmit="return confirm('Are you sure you want to delete this event?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-danger w-100">
-                                        <i class="fas fa-trash"></i> Delete Event
-                                    </button>
-                                </form>
-                                <a href="{{ route('calendar.events.list') }}" class="btn btn-secondary">
-                                    <i class="fas fa-list"></i> Back to Events List
+                                @if($canManage)
+                                    <a href="{{ route('calendar.edit', $calendarEvent->id) }}" class="btn btn-primary">
+                                        <i class="fas fa-edit"></i> Edit Event
+                                    </a>
+                                    <form action="{{ route('calendar.destroy', $calendarEvent->id) }}" method="POST"
+                                          onsubmit="return confirm('Are you sure you want to delete this event?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger w-100">
+                                            <i class="fas fa-trash"></i> Delete Event
+                                        </button>
+                                    </form>
+                                @else
+                                    <p class="text-muted small mb-0">You can view this event, but only the creator or an admin can edit or delete it.</p>
+                                @endif
+                                <a href="{{ route('calendar.index') }}" class="btn btn-secondary">
+                                    <i class="fas fa-calendar"></i> Back to Calendar
                                 </a>
                             </div>
                         </div>

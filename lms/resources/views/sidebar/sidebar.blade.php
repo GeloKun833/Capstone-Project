@@ -19,10 +19,9 @@
                             <li><a href="{{ route('enrollments.create') }}"><i class="fas fa-user-plus"></i> <span>Create User</span></a></li>
                             <li><a href="{{ route('teacher/list/page') }}"><i class="fas fa-chalkboard-teacher"></i> <span>Teachers</span></a></li>
                             <li><a href="{{ route('student/list') }}"><i class="fas fa-user-graduate"></i> <span>Students</span></a></li>
+                            <li><a href="{{ route('list/parents') }}"><i class="fas fa-user-friends"></i> <span>Parents</span></a></li>
                             <li><a href="{{ route('enrollments.index') }}"><i class="fas fa-list"></i> <span>Enrollments</span></a></li>
-                            <li><a href="{{ route('enrollment.registrar.index') }}"><i class="fas fa-file-alt"></i> <span>Enrollment Applications</span></a></li>
                             <li><a href="{{ route('activity.log') }}"><i class="fas fa-history"></i> <span>Activity Log</span></a></li>
-                            <li><a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a></li>
                         </ul>
                     </li>
 
@@ -38,12 +37,8 @@
                         </ul>
                     </li>
 
-                    <li class="submenu">
-                        <a href="#"><i class="fas fa-calendar-alt"></i> <span>Calendar & Events</span> <span class="menu-arrow"></span></a>
-                        <ul>
-                            <li><a href="{{ route('calendar.events.list') }}"><i class="fas fa-list"></i> <span>All Events</span></a></li>
-                            <li><a href="{{ route('calendar.create') }}"><i class="fas fa-plus"></i> <span>Create Event</span></a></li>
-                        </ul>
+                    <li>
+                        <a href="{{ route('calendar.index') }}"><i class="fas fa-calendar-alt"></i> <span>Calendar & Events</span></a>
                     </li>
 
                     <li class="submenu">
@@ -76,7 +71,6 @@
                             <li><a href="{{ route('enrollment.registrar.statistics') }}"><i class="fas fa-chart-bar"></i> <span>Statistics</span></a></li>
                             <li><a href="{{ route('enrollment.registrar.archive') }}"><i class="fas fa-archive"></i> <span>Archive</span></a></li>
                             <li><a href="{{ route('enrollment.portal.index') }}" target="_blank"><i class="fas fa-external-link-alt"></i> <span>Portal View</span></a></li>
-                            <li><a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a></li>
                         </ul>
                     </li>
                 @endif
@@ -114,10 +108,6 @@
                         <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
 
-                    <li>
-                        <a href="{{ route('sis.hub') }}"><i class="fas fa-database"></i> <span>Information Systems</span></a>
-                    </li>
-
                     <li class="submenu">
                         <a href="#"><i class="fas fa-bullhorn"></i> <span>Class Management</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -127,12 +117,8 @@
                         </ul>
                     </li>
 
-                    <li class="submenu">
-                        <a href="#"><i class="fas fa-calendar"></i> <span>Calendar & Events</span> <span class="menu-arrow"></span></a>
-                        <ul>
-                            <li><a href="{{ route('calendar.events.list') }}"><i class="fas fa-list"></i> <span>All Events</span></a></li>
-                            <li><a href="{{ route('calendar.create') }}"><i class="fas fa-plus"></i> <span>Create Event</span></a></li>
-                        </ul>
+                    <li>
+                        <a href="{{ route('calendar.index') }}"><i class="fas fa-calendar"></i> <span>Calendar & Events</span></a>
                     </li>
 
                     <li class="submenu">
@@ -183,6 +169,10 @@
                         </ul>
                     </li>
 
+                    <li>
+                        <a href="{{ route('calendar.index') }}"><i class="fas fa-calendar"></i> <span>Calendar & Events</span></a>
+                    </li>
+
                     <li class="submenu">
                         <a href="#"><i class="fas fa-chart-line"></i> <span>Academic Records</span> <span class="menu-arrow"></span></a>
                         <ul>
@@ -211,6 +201,10 @@
 
                     <li>
                         <a href="{{ route('parent.index') }}"><i class="fas fa-home"></i> <span>Parent Portal</span></a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('calendar.index') }}"><i class="fas fa-calendar"></i> <span>Calendar & Events</span></a>
                     </li>
 
                     @if($children->count() > 0)

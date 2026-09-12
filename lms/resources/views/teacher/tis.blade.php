@@ -11,18 +11,14 @@
                     <h3 class="page-title">Teacher Information System (TIS)</h3>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('sis.hub') }}">Information Systems</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('teacher/list/page') }}">Teachers</a></li>
                         <li class="breadcrumb-item active">{{ $teacher->full_name }}</li>
                     </ul>
                 </div>
                 <div class="col-12 col-sm-6">
                     <div class="float-end">
-                        <a href="{{ route('sis.hub') }}" class="btn btn-outline-primary me-2">
-                            <i class="fas fa-database me-2"></i>Information Systems
-                        </a>
                         <a href="{{ route('teacher/list/page') }}" class="btn btn-primary">
-                            <i class="fas fa-arrow-left me-2"></i>Back to List
+                            <i class="fas fa-arrow-left me-2"></i>Back to Teachers
                         </a>
                     </div>
                 </div>

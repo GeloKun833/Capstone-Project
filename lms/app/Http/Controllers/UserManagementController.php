@@ -24,6 +24,53 @@ class UserManagementController extends Controller
         return view('usermanagement.list_users');
     }
 
+    /** Admin: Parent user accounts */
+    public function parentList(Request $request)
+    {
+        $query = User::query()->where('role_name', 'Parent');
+
+        if ($id = $request->get('search_id')) {
+            $query->where(function ($q) use ($id) {
+                $q->where('user_id', 'like', "%{$id}%")
+                    ->orWhere('id', 'like', "%{$id}%");
+            });
+        }
+
+        if ($name = $request->get('search_name')) {
+            $query->where('name', 'like', "%{$name}%");
+        }
+
+        if ($email = $request->get('search_email')) {
+            $query->where('email', 'like', "%{$email}%");
+        }
+
+        if ($phone = $request->get('search_phone')) {
+            $query->where('phone_number', 'like', "%{$phone}%");
+        }
+
+        $parents = $query->orderBy('name')->paginate(20)->withQueryString();
+
+        $emails = $parents->pluck('email')->filter()->map(fn ($e) => strtolower(trim($e)))->unique()->values();
+        $childrenByEmail = collect();
+        if ($emails->isNotEmpty()) {
+            $students = \App\Models\Student::query()
+                ->whereNotNull('parent_email')
+                ->where('parent_email', '!=', '')
+                ->where(function ($q) use ($emails) {
+                    foreach ($emails as $email) {
+                        $q->orWhereRaw('LOWER(TRIM(parent_email)) = ?', [$email]);
+                    }
+                })
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(['id', 'first_name', 'last_name', 'year_level', 'class', 'section', 'parent_email']);
+
+            $childrenByEmail = $students->groupBy(fn ($s) => strtolower(trim((string) $s->parent_email)));
+        }
+
+        return view('usermanagement.list_parents', compact('parents', 'childrenByEmail'));
+    }
+
     /** user view */
     public function userView($id)
     {
