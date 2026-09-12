@@ -187,18 +187,40 @@
                                     </div>
                                 @endif
 
-                                <form action="{{ route('student.assignments.submit', $assignment->id) }}" method="POST" enctype="multipart/form-data">
+                                @if($assignment->requires_file_upload)
+                                    <div class="alert alert-warning border-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Required file types</strong>
+                                        <p class="mb-1 mt-2">Your teacher only accepts:</p>
+                                        <p class="mb-1 fw-bold text-dark">{{ $assignment->submissionAllowedLabels() }}</p>
+                                        <small class="text-muted">Max size: {{ $assignment->submissionMaxMb() }}MB. Wrong file type cannot be submitted.</small>
+                                    </div>
+                                @else
+                                    <div class="alert alert-light border">
+                                        <i class="fas fa-paperclip me-2"></i>
+                                        <strong>Allowed file types:</strong> {{ $assignment->submissionAllowedLabels() }}
+                                        <br><small class="text-muted">Max size: {{ $assignment->submissionMaxMb() }}MB</small>
+                                    </div>
+                                @endif
+
+                                <form action="{{ route('student.assignments.submit', $assignment->id) }}" method="POST" enctype="multipart/form-data" id="studentSubmitForm"
+                                      data-allowed='@json($assignment->submissionAllowedExtensions())'
+                                      data-max-mb="{{ $assignment->submissionMaxMb() }}"
+                                      data-requires="{{ $assignment->requires_file_upload ? '1' : '0' }}"
+                                      data-labels="{{ $assignment->submissionAllowedLabels() }}">
                                     @csrf
                                     
                                     <div class="form-group">
                                         <label class="form-label">Upload File <span class="text-danger">*</span></label>
-                                        <input type="file" name="submission_file" class="form-control @error('submission_file') is-invalid @enderror" 
-                                               accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png" required>
+                                        <input type="file" name="submission_file" id="submission_file"
+                                               class="form-control @error('submission_file') is-invalid @enderror" 
+                                               accept="{{ $assignment->submissionAcceptAttribute() }}" required>
                                         <small class="form-text text-muted">
-                                            Max: 10MB. Allowed: PDF, DOC, DOCX, PPT, PPTX, TXT, JPG, PNG
+                                            Max: {{ $assignment->submissionMaxMb() }}MB. Allowed: {{ $assignment->submissionAllowedLabels() }}
                                         </small>
+                                        <div id="submissionFileClientError" class="text-danger small mt-1" style="display:none;"></div>
                                         @error('submission_file')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block">{{ $message }}</div>
                                         @enderror
                                     </div>
 
@@ -251,6 +273,11 @@
             </div>
             <div class="modal-body" style="padding-top: 0.5rem; padding-bottom: 1.5rem; font-size: 1rem; line-height: 1.5;">
                 <p class="mb-2">Are you sure you want to submit this assignment?</p>
+                <div id="modalFileRequirement" class="p-3 mb-3 rounded" style="background:#1a202c;border:1px solid #f6ad55;">
+                    <p class="mb-1 text-warning fw-bold"><i class="fas fa-file me-1"></i> File requirement</p>
+                    <p class="mb-1" id="modalAllowedTypes">Allowed: —</p>
+                    <p class="mb-0 small" id="modalSelectedFile">Selected: —</p>
+                </div>
                 <p class="mb-0 text-warning">
                     <i class="fas fa-info-circle me-1"></i>
                     <strong>You cannot edit it after submission.</strong>
@@ -260,7 +287,7 @@
                 <button type="button" class="btn" data-bs-dismiss="modal" style="background-color: #1e3a8a; border: 1px solid #1e3a8a; color: #ffffff; font-weight: 600; padding: 0.5rem 1.5rem; border-radius: 0.5rem;">
                     <i class="fas fa-times me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn" onclick="confirmSubmit()" style="background-color: #10b981; border: 1px solid #10b981; color: #ffffff; font-weight: 600; padding: 0.5rem 1.5rem; border-radius: 0.5rem;">
+                <button type="button" class="btn" id="confirmSubmitBtn" onclick="confirmSubmit()" style="background-color: #10b981; border: 1px solid #10b981; color: #ffffff; font-weight: 600; padding: 0.5rem 1.5rem; border-radius: 0.5rem;">
                     <i class="fas fa-check me-2"></i>Yes, Submit
                 </button>
             </div>
@@ -274,31 +301,114 @@
 <script>
 let submitForm = null;
 
-// Show confirmation modal
+function getFormRules(form) {
+    let allowed = [];
+    try {
+        allowed = JSON.parse(form.getAttribute('data-allowed') || '[]');
+    } catch (e) {
+        allowed = [];
+    }
+    return {
+        allowed: allowed.map(String),
+        maxMb: parseInt(form.getAttribute('data-max-mb') || '10', 10) || 10,
+        labels: form.getAttribute('data-labels') || '',
+        requires: form.getAttribute('data-requires') === '1',
+    };
+}
+
+function fileExtension(name) {
+    const parts = String(name || '').split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function validateSubmissionFile(form) {
+    const rules = getFormRules(form);
+    const fileInput = form.querySelector('input[name="submission_file"]');
+    const errorEl = document.getElementById('submissionFileClientError');
+    const showError = (msg) => {
+        if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = msg;
+        }
+        if (fileInput) {
+            fileInput.classList.add('is-invalid');
+        }
+        return false;
+    };
+    const clearError = () => {
+        if (errorEl) {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+        }
+        if (fileInput) {
+            fileInput.classList.remove('is-invalid');
+        }
+        return true;
+    };
+
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        return showError('Please choose a file to upload before submitting.');
+    }
+
+    const file = fileInput.files[0];
+    const ext = fileExtension(file.name);
+
+    if (rules.allowed.length && !rules.allowed.includes(ext)) {
+        return showError(
+            (rules.requires ? 'Teacher requires these file types only: ' : 'Allowed file types: ')
+            + rules.labels + '. Your file (.' + ext + ') is not allowed.'
+        );
+    }
+
+    if (file.size > rules.maxMb * 1024 * 1024) {
+        return showError('File is too large. Maximum size is ' + rules.maxMb + 'MB.');
+    }
+
+    return clearError();
+}
+
 function showSubmitConfirmation(event) {
     event.preventDefault();
-    submitForm = event.target.closest('form');
+    submitForm = event.target.closest('form') || document.getElementById('studentSubmitForm');
+    if (!submitForm) {
+        return;
+    }
+
+    if (!validateSubmissionFile(submitForm)) {
+        return;
+    }
+
+    const rules = getFormRules(submitForm);
+    const file = submitForm.querySelector('input[name="submission_file"]').files[0];
+    const allowedEl = document.getElementById('modalAllowedTypes');
+    const selectedEl = document.getElementById('modalSelectedFile');
+    if (allowedEl) {
+        allowedEl.textContent = (rules.requires ? 'Teacher requires: ' : 'Allowed: ') + rules.labels
+            + ' (max ' + rules.maxMb + 'MB)';
+    }
+    if (selectedEl) {
+        selectedEl.textContent = 'Selected: ' + file.name + ' (.' + fileExtension(file.name) + ')';
+    }
+
+    const confirmBtn = document.getElementById('confirmSubmitBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+    }
     
     const modal = document.getElementById('submitConfirmationModal');
     if (modal) {
         try {
-            // Try Bootstrap 5 Modal first
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
                 const bsModal = new bootstrap.Modal(modal);
                 bsModal.show();
-            }
-            // Try jQuery/Bootstrap 4 Modal
-            else if (typeof $ !== 'undefined' && $.fn.modal) {
+            } else if (typeof $ !== 'undefined' && $.fn.modal) {
                 $('#submitConfirmationModal').modal('show');
-            }
-            // Manual fallback
-            else {
+            } else {
                 modal.classList.add('show');
                 modal.style.display = 'block';
                 modal.setAttribute('aria-modal', 'true');
                 modal.setAttribute('role', 'dialog');
                 
-                // Add backdrop
                 const backdrop = document.createElement('div');
                 backdrop.className = 'modal-backdrop fade show';
                 backdrop.id = 'submitConfirmationBackdrop';
@@ -307,7 +417,6 @@ function showSubmitConfirmation(event) {
             }
         } catch (e) {
             console.error('Error showing modal:', e);
-            // Fallback to browser confirm
             if (confirm('Are you sure you want to submit this assignment? You cannot edit it after submission.')) {
                 submitForm.submit();
             }
@@ -315,44 +424,40 @@ function showSubmitConfirmation(event) {
     }
 }
 
-// Confirm and submit the form
 function confirmSubmit() {
-    if (submitForm) {
-        // Close modal first
-        closeModal();
-        
-        // Show loading state
-        const submitBtn = submitForm.querySelector('button[type="button"]');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
-        }
-        
-        // Submit the form
-        submitForm.submit();
+    if (!submitForm) {
+        return;
     }
+    if (!validateSubmissionFile(submitForm)) {
+        closeModal();
+        return;
+    }
+
+    closeModal();
+    
+    const submitBtn = submitForm.querySelector('button[type="button"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+    }
+    
+    submitForm.submit();
 }
 
-// Close modal function
 function closeModal() {
     const modal = document.getElementById('submitConfirmationModal');
     const backdrop = document.getElementById('submitConfirmationBackdrop');
     
     if (modal) {
         try {
-            // Try Bootstrap 5
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
                 const bsModal = bootstrap.Modal.getInstance(modal);
                 if (bsModal) {
                     bsModal.hide();
                 }
-            }
-            // Try jQuery
-            else if (typeof $ !== 'undefined' && $.fn.modal) {
+            } else if (typeof $ !== 'undefined' && $.fn.modal) {
                 $('#submitConfirmationModal').modal('hide');
-            }
-            // Manual close
-            else {
+            } else {
                 modal.classList.remove('show');
                 modal.style.display = 'none';
                 modal.removeAttribute('aria-modal');
@@ -369,6 +474,16 @@ function closeModal() {
         }
     }
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('studentSubmitForm');
+    const input = document.getElementById('submission_file');
+    if (form && input) {
+        input.addEventListener('change', function () {
+            validateSubmissionFile(form);
+        });
+    }
+});
 </script>
 @endsection
 

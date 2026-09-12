@@ -45,6 +45,7 @@
                         <a href="#"><i class="fas fa-chart-line"></i> <span>Analytics & Settings</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('analytics.admin-dashboard') }}"><i class="fas fa-chart-bar"></i> <span>School Analytics</span></a></li>
+                            <li><a href="{{ route('admin.grading.performance-hub') }}"><i class="fas fa-chart-line"></i> <span>Performance Hub</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
                             <li><a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
                             <li><a href="{{ route('setting/page') }}"><i class="fas fa-cog"></i> <span>System Settings</span></a></li>
@@ -89,47 +90,43 @@
 
                 {{-- TEACHER SIDEBAR --}}
                 @if (Session::get('role_name') === 'Teacher')
-                    <li>
-                        <a href="{{ route('dashboard') }}"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
+                    <li class="{{ request()->routeIs('dashboard', 'home') ? 'active' : '' }}">
+                        <a href="{{ route('dashboard') }}"><i class="fas fa-th-large"></i> <span>Dashboard</span></a>
                     </li>
 
                     <li class="submenu">
                         <a href="#"><i class="fas fa-graduation-cap"></i> <span>Teaching & Learning</span> <span class="menu-arrow"></span></a>
                         <ul>
-                            <li><a href="{{ route('teacher.my-schedule') }}"><i class="fas fa-calendar-alt"></i> <span>My Schedule</span></a></li>
-                            <li><a href="{{ route('lessons.index') }}"><i class="fas fa-list"></i> <span>My Lessons</span></a></li>
-                            <li><a href="{{ route('lessons.create') }}"><i class="fas fa-plus"></i> <span>Create Lesson</span></a></li>
+                            <li><a href="{{ route('teacher.my-schedule') }}"><i class="far fa-calendar-alt"></i> <span>My Schedule</span></a></li>
+                            <li><a href="{{ route('lessons.index') }}"><i class="fas fa-book"></i> <span>My Lessons</span></a></li>
                             <li><a href="{{ route('teacher.classes') }}"><i class="fas fa-chalkboard-teacher"></i> <span>My Classes & Subjects</span></a></li>
                         </ul>
                     </li>
 
                     <li class="submenu">
-                        <a href="#"><i class="fas fa-tasks"></i> <span>Assignments & Grading</span> <span class="menu-arrow"></span></a>
+                        <a href="#"><i class="fas fa-tasks"></i> <span>Assignments & Grades</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('assignments.index') }}"><i class="fas fa-list"></i> <span>All Assignments</span></a></li>
-                            <li><a href="{{ route('assignments.create') }}"><i class="fas fa-plus"></i> <span>Create Assignment</span></a></li>
                             <li><a href="{{ route('teacher.grading.grade-entry') }}"><i class="fas fa-edit"></i> <span>Grade Entry</span></a></li>
-                            <li><a href="{{ route('teacher.grading.gpa-ranking') }}"><i class="fas fa-chart-bar"></i> <span>GPA Ranking</span></a></li>
-                            <li><a href="{{ route('teacher.grading.performance-analytics') }}"><i class="fas fa-chart-line"></i> <span>Performance Analytics</span></a></li>
-                            <li><a href="{{ route('teacher.grading.grade-alerts') }}"><i class="fas fa-exclamation-triangle"></i> <span>Grade Alerts</span></a></li>
+                            <li><a href="{{ route('teacher.grading.performance-hub') }}"><i class="fas fa-chart-line"></i> <span>Performance Hub</span></a></li>
                         </ul>
                     </li>
 
                     <li>
-                        <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
+                        <a href="{{ route('reports.index') }}"><i class="far fa-file-alt"></i> <span>Reports & Documents</span></a>
                     </li>
 
                     <li class="submenu">
-                        <a href="#"><i class="fas fa-bullhorn"></i> <span>Class Management</span> <span class="menu-arrow"></span></a>
+                        <a href="#"><i class="fas fa-users"></i> <span>Class Management</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('class-posts.index') }}"><i class="fas fa-list"></i> <span>All Posts</span></a></li>
                             <li><a href="{{ route('class-posts.create') }}"><i class="fas fa-plus"></i> <span>Create Post</span></a></li>
-                            <li><a href="{{ route('attendance.index') }}"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a></li>
+                            <li><a href="{{ route('attendance.index') }}"><i class="fas fa-user-check"></i> <span>Attendance</span></a></li>
                         </ul>
                     </li>
 
                     <li>
-                        <a href="{{ route('calendar.index') }}"><i class="fas fa-calendar"></i> <span>Calendar & Events</span></a>
+                        <a href="{{ route('calendar.index') }}"><i class="far fa-calendar"></i> <span>Calendar & Events</span></a>
                     </li>
 
                     <li>
@@ -137,7 +134,7 @@
                     </li>
 
                     <li>
-                        <a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a>
+                        <a href="{{ route('chat.index') }}"><i class="far fa-comments"></i> <span>Chat</span></a>
                     </li>
                 @endif
 
@@ -347,5 +344,15 @@
 
 .submenu {
     overflow: hidden;
+}
+
+.sidebar-menu > ul > li.active > a {
+    background: rgba(230, 126, 34, 0.28) !important;
+    border-left: 3px solid #e67e22;
+    color: #fff !important;
+    font-weight: 600;
+}
+.sidebar-menu > ul > li.active > a i {
+    color: #ffb266;
 }
 </style>

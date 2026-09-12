@@ -234,4 +234,66 @@ class Assignment extends Model
             default => 'primary'
         };
     }
+
+    /**
+     * Extensions students may upload. If teacher requires file upload, only their selected types.
+     */
+    public function submissionAllowedExtensions(): array
+    {
+        $documents = ['pdf', 'docx'];
+        $images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'heic', 'svg'];
+        $all = array_merge($documents, $images);
+
+        if (! $this->requires_file_upload) {
+            return $all;
+        }
+
+        $types = is_array($this->allowed_file_types) ? $this->allowed_file_types : [];
+        $types = array_values(array_unique(array_filter(array_map(
+            static fn ($t) => strtolower(trim((string) $t)),
+            $types
+        ))));
+
+        // Legacy DOC → treat as DOCX
+        if (in_array('doc', $types, true)) {
+            $types[] = 'docx';
+            $types = array_values(array_diff($types, ['doc']));
+        }
+
+        if ($types === []) {
+            return ['pdf', 'docx'];
+        }
+
+        if (in_array('jpg', $types, true) && ! in_array('jpeg', $types, true)) {
+            $types[] = 'jpeg';
+        }
+        if (in_array('tif', $types, true) && ! in_array('tiff', $types, true)) {
+            $types[] = 'tiff';
+        }
+
+        return array_values(array_intersect($types, $all));
+    }
+
+    public function submissionMaxMb(): int
+    {
+        return max(1, min((int) ($this->max_file_size ?: 10), 50));
+    }
+
+    public function submissionAllowedLabels(): string
+    {
+        $labels = [];
+        foreach ($this->submissionAllowedExtensions() as $ext) {
+            $labels[] = $ext === 'jpeg' ? 'JPG' : strtoupper($ext);
+        }
+
+        return implode(', ', array_unique($labels));
+    }
+
+    public function submissionAcceptAttribute(): string
+    {
+        return collect($this->submissionAllowedExtensions())
+            ->map(fn ($ext) => '.' . $ext)
+            ->unique()
+            ->implode(',');
+    }
 }

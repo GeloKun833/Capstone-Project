@@ -10,183 +10,469 @@
         'Parent' => 'Parents',
     ];
     $roleBadge = [
-        'Admin' => 'bg-danger',
-        'Teacher' => 'bg-primary',
-        'Registrar' => 'bg-warning text-dark',
-        'Student' => 'bg-success',
-        'Parent' => 'bg-info text-dark',
+        'Admin' => 'chat-role-admin',
+        'Teacher' => 'chat-role-teacher',
+        'Registrar' => 'chat-role-registrar',
+        'Student' => 'chat-role-student',
+        'Parent' => 'chat-role-parent',
     ];
 @endphp
 
 <div class="page-wrapper">
-    <div class="content container-fluid p-0">
-        <div class="row g-0 chat-shell">
+    <div class="content container-fluid chat-page">
+        <div class="chat-shell">
             {{-- Contacts --}}
-            <div class="col-md-4 col-lg-3 border-end chat-sidebar">
-                <div class="p-3 border-bottom bg-white sticky-top">
+            <aside class="chat-sidebar">
+                <div class="chat-sidebar-head">
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                        <h4 class="mb-0">
-                            <i class="fas fa-comments text-primary me-2"></i>Chat
+                        <h4 class="chat-title mb-0">
+                            <i class="far fa-comments me-2"></i>Chat
                         </h4>
-                        <span class="badge bg-primary" id="total-unread">0</span>
+                        <span class="chat-unread-pill d-none" id="total-unread">0</span>
                     </div>
                     @if(Auth::user()->role_name === 'Admin')
-                        <p class="text-muted small mb-2 mb-md-3">You can message Teachers and Registrars only.</p>
+                        <p class="chat-hint">You can message Teachers and Registrars only.</p>
                     @elseif(Auth::user()->role_name === 'Registrar')
-                        <p class="text-muted small mb-2 mb-md-3">Chat with Admin and Teachers.</p>
+                        <p class="chat-hint">Chat with Admin and Teachers.</p>
                     @endif
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0">
-                            <i class="fas fa-search text-muted"></i>
-                        </span>
-                        <input type="text" class="form-control border-start-0 ps-0"
-                               placeholder="Search contacts..." id="search-contacts">
+                    <div class="chat-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search contacts..." id="search-contacts">
                     </div>
                 </div>
 
                 <div class="contacts-list" id="contacts-list">
                     @forelse($grouped as $role => $items)
                         <div class="contact-group" data-role-group="{{ $role }}">
-                            <div class="contact-group-title px-3 py-2 text-uppercase small fw-semibold text-muted">
+                            <div class="contact-group-title">
                                 {{ $roleLabels[$role] ?? $role }}
-                                <span class="badge bg-light text-dark ms-1">{{ $items->count() }}</span>
+                                <span>{{ $items->count() }}</span>
                             </div>
                             @foreach($items as $conversation)
                                 @php $u = $conversation['user']; @endphp
-                                <div class="contact-item p-3 border-bottom"
+                                <div class="contact-item"
                                      data-user-id="{{ $u->id }}"
                                      data-user-name="{{ $u->name }}"
                                      data-user-avatar="{{ $u->avatar ?? 'default-avatar.png' }}"
                                      data-user-role="{{ $u->role_name }}"
                                      onclick="loadConversation({{ $u->id }}, '{{ addslashes($u->name) }}', '{{ $u->avatar ?? 'default-avatar.png' }}', '{{ $u->role_name }}')">
-                                    <div class="d-flex align-items-start">
-                                        <div class="position-relative me-3">
+                                    <div class="contact-row">
+                                        <div class="contact-avatar-wrap">
                                             <img src="{{ asset('assets/img/profiles/' . ($u->avatar ?? 'default-avatar.png')) }}"
                                                  alt="{{ $u->name }}"
-                                                 class="rounded-circle contact-avatar">
+                                                 class="contact-avatar">
                                         </div>
-                                        <div class="flex-grow-1 overflow-hidden">
-                                            <div class="d-flex justify-content-between align-items-start mb-1 gap-2">
-                                                <h6 class="mb-0 text-truncate">{{ $u->name }}</h6>
+                                        <div class="contact-meta">
+                                            <div class="contact-top">
+                                                <h6>{{ $u->name }}</h6>
                                                 @if($conversation['last_message'])
-                                                    <small class="text-muted flex-shrink-0 last-time">{{ $conversation['last_message']->created_at->diffForHumans(null, true, true) }}</small>
+                                                    <small class="last-time">{{ $conversation['last_message']->created_at->diffForHumans(null, true, true) }}</small>
                                                 @endif
                                             </div>
-                                            <div class="d-flex justify-content-between align-items-center gap-2">
-                                                <p class="text-muted mb-0 small text-truncate last-preview">
+                                            <div class="contact-bottom">
+                                                <p class="last-preview">
                                                     {{ $conversation['last_message']->content ?? 'No messages yet' }}
                                                 </p>
                                                 @if($conversation['unread_count'] > 0)
-                                                    <span class="badge bg-primary rounded-pill unread-badge">{{ $conversation['unread_count'] }}</span>
+                                                    <span class="unread-badge">{{ $conversation['unread_count'] }}</span>
                                                 @endif
                                             </div>
-                                            <span class="badge {{ $roleBadge[$u->role_name] ?? 'bg-secondary' }} mt-1">{{ $u->role_name }}</span>
+                                            <span class="chat-role-badge {{ $roleBadge[$u->role_name] ?? 'chat-role-default' }}">{{ $u->role_name }}</span>
                                         </div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
                     @empty
-                        <div class="text-center py-5 px-3">
-                            <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
-                            <p class="text-muted mb-1">No contacts available</p>
+                        <div class="chat-empty-contacts">
+                            <i class="fas fa-user-friends"></i>
+                            <p>No contacts available</p>
                             @if(Auth::user()->role_name === 'Admin')
-                                <small class="text-muted">Create Teacher or Registrar accounts under User Management to start chatting.</small>
+                                <small>Create Teacher or Registrar accounts under User Management to start chatting.</small>
                             @else
-                                <small class="text-muted">There is no one available to chat with yet.</small>
+                                <small>There is no one available to chat with yet.</small>
                             @endif
                         </div>
                     @endforelse
                 </div>
-            </div>
+            </aside>
 
             {{-- Conversation pane --}}
-            <div class="col-md-8 col-lg-9 d-flex flex-column chat-main">
-                <div id="empty-state" class="flex-grow-1 d-flex align-items-center justify-content-center">
-                    <div class="text-center px-4">
-                        <i class="fas fa-comments fa-5x text-muted mb-4"></i>
-                        <h4 class="text-muted">Select a conversation</h4>
-                        <p class="text-muted mb-0">Choose a contact on the left to start messaging</p>
+            <section class="chat-main">
+                <div id="empty-state" class="chat-empty-state">
+                    <div class="chat-empty-card">
+                        <div class="chat-empty-icon"><i class="far fa-comments"></i></div>
+                        <h4>Select a conversation</h4>
+                        <p>Choose a contact on the left to start messaging.</p>
                     </div>
                 </div>
 
-                <div id="chat-container" class="d-none flex-grow-1 d-flex flex-column">
-                    <div class="p-3 border-bottom bg-white" id="chat-header">
+                <div id="chat-container" class="d-none chat-thread">
+                    <div class="chat-thread-head" id="chat-header">
                         <div class="d-flex align-items-center">
-                            <img src="" alt="Contact" id="contact-avatar" class="rounded-circle me-3 contact-avatar-sm">
-                            <div class="flex-grow-1">
+                            <img src="" alt="Contact" id="contact-avatar" class="contact-avatar-sm">
+                            <div class="flex-grow-1 ms-3">
                                 <h5 class="mb-0" id="contact-name">Contact Name</h5>
-                                <small class="text-muted" id="contact-role-label"></small>
+                                <small id="contact-role-label"></small>
                             </div>
-                            <button type="button" class="btn btn-sm btn-light rounded-circle" onclick="refreshChat()" title="Refresh">
+                            <button type="button" class="chat-icon-btn" onclick="refreshChat()" title="Refresh">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
                     </div>
 
-                    <div class="flex-grow-1 p-3" id="messages-area"></div>
+                    <div id="messages-area"></div>
 
-                    <div class="p-3 border-top bg-white">
+                    <div class="chat-composer">
                         <form id="message-form" onsubmit="sendMessage(event)">
-                            <div class="input-group">
-                                <textarea class="form-control"
-                                          id="message-input"
+                            <div class="chat-composer-inner">
+                                <textarea id="message-input"
                                           placeholder="Type a message..."
                                           rows="1"
                                           onkeydown="handleKeyPress(event)"></textarea>
-                                <button class="btn btn-primary px-4" type="submit">
+                                <button class="chat-send-btn" type="submit" title="Send">
                                     <i class="fas fa-paper-plane"></i>
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 </div>
 
-@push('styles')
 <style>
-    .chat-shell { height: calc(100vh - 60px); }
-    .chat-sidebar { height: 100%; overflow-y: auto; background: #f8f9fa; }
-    .chat-main { height: 100%; background: #fff; }
-    .contact-group-title { background: #eef1f4; letter-spacing: .04em; }
-    .contact-item { cursor: pointer; transition: background-color .15s; background: #fff; }
-    .contact-item:hover { background-color: #f0f2f5 !important; }
-    .contact-item.active { background-color: #e7f3ff !important; border-left: 3px solid #0d6efd; }
-    .contact-avatar { width: 48px; height: 48px; object-fit: cover; }
-    .contact-avatar-sm { width: 40px; height: 40px; object-fit: cover; }
-    .message-bubble {
-        max-width: 65%;
-        word-wrap: break-word;
-        margin-bottom: 10px;
-        padding: 10px 15px;
-        border-radius: 18px;
+:root {
+    --chat-orange: #e67e22;
+    --chat-orange-dark: #d35400;
+    --chat-orange-soft: #fff4eb;
+    --chat-bg: #f5f6f8;
+    --chat-card: #ffffff;
+    --chat-text: #1f2937;
+    --chat-muted: #6b7280;
+    --chat-border: #e8eaed;
+    --chat-radius: 12px;
+}
+.page-wrapper .content.chat-page {
+    background: var(--chat-bg) !important;
+    max-width: none !important;
+    width: 100% !important;
+    padding: 1rem 1.25rem 1rem 1.75rem !important;
+}
+.chat-shell {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    gap: 1rem;
+    height: calc(100vh - 100px);
+    min-height: 560px;
+    width: 100%;
+}
+.chat-sidebar,
+.chat-main {
+    background: var(--chat-card);
+    border: 1px solid var(--chat-border);
+    border-radius: var(--chat-radius);
+    box-shadow: 0 1px 3px rgba(16,24,40,.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.chat-sidebar-head {
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--chat-border);
+    background: #fff;
+}
+.chat-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--chat-text);
+}
+.chat-title i { color: var(--chat-orange); }
+.chat-unread-pill {
+    background: var(--chat-orange);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 .45rem;
+}
+.chat-hint {
+    font-size: .78rem;
+    color: var(--chat-muted);
+    margin: 0 0 .75rem;
+}
+.chat-search {
+    position: relative;
+}
+.chat-search i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--chat-muted);
+    font-size: .85rem;
+}
+.chat-search input {
+    width: 100%;
+    border: 1px solid var(--chat-border);
+    border-radius: 10px;
+    padding: .65rem .85rem .65rem 2.2rem;
+    background: #f8f9fb;
+    font-size: .9rem;
+    outline: none;
+}
+.chat-search input:focus {
+    border-color: #f0c49a;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(230,126,34,.12);
+}
+.contacts-list {
+    overflow-y: auto;
+    flex: 1;
+}
+.contact-group-title {
+    padding: .55rem 1.1rem;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--chat-muted);
+    background: #fafbfc;
+    border-bottom: 1px solid var(--chat-border);
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+.contact-group-title span {
+    background: var(--chat-orange-soft);
+    color: var(--chat-orange-dark);
+    border-radius: 999px;
+    padding: .1rem .45rem;
+    font-size: .68rem;
+}
+.contact-item {
+    padding: .85rem 1.1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--chat-border);
+    transition: background .15s;
+    background: #fff;
+}
+.contact-item:hover { background: #fafbfc; }
+.contact-item.active {
+    background: var(--chat-orange-soft) !important;
+    border-left: 3px solid var(--chat-orange);
+}
+.contact-row { display: flex; gap: .75rem; align-items: flex-start; }
+.contact-avatar,
+.contact-avatar-sm {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #f0f1f3;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--chat-border);
+}
+.contact-avatar-sm { width: 40px; height: 40px; }
+.contact-meta { flex: 1; min-width: 0; }
+.contact-top,
+.contact-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5rem;
+}
+.contact-top h6 {
+    margin: 0;
+    font-size: .9rem;
+    font-weight: 650;
+    color: var(--chat-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.last-time { color: var(--chat-muted); font-size: .72rem; flex-shrink: 0; }
+.last-preview {
+    margin: .2rem 0 0;
+    font-size: .8rem;
+    color: var(--chat-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.unread-badge {
+    background: var(--chat-orange);
+    color: #fff;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 .35rem;
+    flex-shrink: 0;
+}
+.chat-role-badge {
+    display: inline-block;
+    margin-top: .35rem;
+    font-size: .65rem;
+    font-weight: 700;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+}
+.chat-role-admin { background: #fee2e2; color: #b91c1c; }
+.chat-role-teacher { background: var(--chat-orange-soft); color: var(--chat-orange-dark); }
+.chat-role-registrar { background: #fef3c7; color: #b45309; }
+.chat-role-student { background: #ecfdf5; color: #047857; }
+.chat-role-parent { background: #f3f4f6; color: #4b5563; }
+.chat-role-default { background: #f3f4f6; color: #6b7280; }
+
+.chat-empty-contacts,
+.chat-empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 2rem;
+    text-align: center;
+    color: var(--chat-muted);
+}
+.chat-empty-contacts i { font-size: 2.5rem; margin-bottom: .75rem; color: #d1d5db; }
+.chat-empty-card {
+    max-width: 360px;
+}
+.chat-empty-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 1rem;
+    border-radius: 18px;
+    background: var(--chat-orange-soft);
+    color: var(--chat-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+}
+.chat-empty-state h4 {
+    color: var(--chat-text);
+    font-weight: 700;
+    margin-bottom: .35rem;
+}
+.chat-empty-state p { margin: 0; font-size: .9rem; }
+
+.chat-thread { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.chat-thread-head {
+    padding: .9rem 1.15rem;
+    border-bottom: 1px solid var(--chat-border);
+    background: #fff;
+}
+.chat-thread-head h5 { font-size: 1rem; font-weight: 700; }
+.chat-thread-head small { color: var(--chat-muted); }
+.chat-icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--chat-border);
+    background: #fafbfc;
+    color: var(--chat-muted);
+}
+.chat-icon-btn:hover {
+    color: var(--chat-orange);
+    border-color: #f0c49a;
+    background: var(--chat-orange-soft);
+}
+#messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.15rem 1.25rem;
+    background: #fafbfc;
+}
+#messages-area::-webkit-scrollbar { width: 6px; }
+#messages-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+.message-bubble {
+    max-width: min(65%, 520px);
+    word-wrap: break-word;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    display: inline-block;
+    text-align: left;
+}
+.message-bubble.sent {
+    background: var(--chat-orange);
+    color: #fff;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+.message-bubble.received {
+    background: #fff;
+    color: var(--chat-text);
+    border: 1px solid var(--chat-border);
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+}
+.message-time { font-size: 11px; margin-top: 4px; opacity: .8; }
+.chat-composer {
+    padding: .85rem 1.1rem;
+    border-top: 1px solid var(--chat-border);
+    background: #fff;
+}
+.chat-composer-inner {
+    display: flex;
+    gap: .6rem;
+    align-items: flex-end;
+}
+#message-input {
+    flex: 1;
+    resize: none;
+    max-height: 100px;
+    border: 1px solid var(--chat-border);
+    border-radius: 12px;
+    padding: .7rem .9rem;
+    background: #f8f9fb;
+    font-size: .92rem;
+    outline: none;
+}
+#message-input:focus {
+    border-color: #f0c49a;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(230,126,34,.12);
+}
+.chat-send-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 12px;
+    background: var(--chat-orange);
+    color: #fff;
+    flex-shrink: 0;
+}
+.chat-send-btn:hover { background: var(--chat-orange-dark); }
+.chat-send-btn:disabled { opacity: .65; }
+
+@media (max-width: 992px) {
+    .chat-shell {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 0;
     }
-    .message-bubble.sent {
-        background: #0d6efd;
-        color: #fff;
-        margin-left: auto;
-        border-bottom-right-radius: 4px;
+    .chat-sidebar { max-height: 42vh; }
+    .chat-main { min-height: 55vh; }
+    .page-wrapper .content.chat-page {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
-    .message-bubble.received {
-        background: #e9ecef;
-        color: #333;
-        margin-right: auto;
-        border-bottom-left-radius: 4px;
-    }
-    .message-time { font-size: 11px; margin-top: 4px; opacity: .75; }
-    #messages-area {
-        overflow-y: auto;
-        max-height: calc(100vh - 240px);
-        background: #f8f9fa;
-    }
-    #message-input { resize: none; max-height: 100px; }
-    #messages-area::-webkit-scrollbar { width: 6px; }
-    #messages-area::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+}
 </style>
-@endpush
 
 @push('scripts')
 <script>
@@ -215,7 +501,7 @@
     function loadMessages(userId, silent) {
         silent = !!silent;
         if (!silent) {
-            $('#messages-area').html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>');
+            $('#messages-area').html('<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>');
         }
 
         $.ajax({
@@ -227,7 +513,7 @@
                 const isScrolledToBottom = el.scrollHeight - el.scrollTop - messagesArea.height() < 100;
 
                 if (!response.messages || response.messages.length === 0) {
-                    messagesArea.html('<div class="text-center py-5"><i class="fas fa-comments fa-3x text-muted mb-3"></i><p class="text-muted">No messages yet. Start the conversation!</p></div>');
+                    messagesArea.html('<div class="text-center py-5"><div class="chat-empty-icon mx-auto mb-3"><i class="far fa-comments"></i></div><p class="text-muted mb-0">No messages yet. Start the conversation!</p></div>');
                 } else {
                     messagesArea.empty();
                     response.messages.forEach(function (message) {
@@ -273,8 +559,7 @@
             success: function (response) {
                 if (response.success) {
                     $('#message-input').val('').css('height', 'auto');
-                    // Clear empty-state placeholder if present
-                    if ($('#messages-area .fa-comments').length) {
+                    if ($('#messages-area .fa-comments').length || $('#messages-area .chat-empty-icon').length) {
                         $('#messages-area').empty();
                     }
                     appendMessage(response.message);

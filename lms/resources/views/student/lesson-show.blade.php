@@ -111,15 +111,17 @@
 
                                         @if($isGraded)
                                             <div class="d-flex flex-wrap gap-2 mb-2">
-                                                <span class="badge bg-success">Graded</span>
-                                                <span class="badge bg-primary">
+                                                <span class="badge" style="background:#198754;color:#fff;">Graded</span>
+                                                <span class="badge" style="background:#0d6efd;color:#fff;">
                                                     Score: {{ $submission->total_score }}{{ $submission->max_possible_score ? ' / ' . $submission->max_possible_score : '' }}
                                                 </span>
                                                 @if($submission->percentage !== null)
-                                                    <span class="badge bg-info">{{ number_format((float) $submission->percentage, 1) }}%</span>
+                                                    <span class="badge" style="background:#0dcaf0;color:#062830;">
+                                                        {{ number_format((float) $submission->percentage, 1) }}%
+                                                    </span>
                                                 @endif
                                                 @if($submission->letter_grade)
-                                                    <span class="badge bg-{{ $submission->letter_grade_color }}">{{ $submission->letter_grade }}</span>
+                                                    <span class="badge" style="background:#198754;color:#fff;">{{ $submission->letter_grade }}</span>
                                                 @endif
                                             </div>
                                             @if($submission->feedback)

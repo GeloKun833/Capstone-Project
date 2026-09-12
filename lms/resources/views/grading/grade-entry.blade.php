@@ -1,522 +1,438 @@
 @extends('layouts.master')
 @section('content')
 
-    <div class="page-wrapper">
-        <div class="content container-fluid">
+@php
+    $quarterLabels = [1 => '1st Quarter', 2 => '2nd Quarter', 3 => '3rd Quarter', 4 => '4th Quarter'];
+    $hasFilters = $selectedSectionId && in_array((int) $selectedQuarter, [1, 2, 3, 4], true) && $currentAcademicYear;
+    $sectionName = $sections->where('id', $selectedSectionId)->first()->name ?? 'N/A';
+@endphp
 
-            <div class="page-header">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h3 class="page-title">Quarterly Grade Entry</h3>
-                        <ul class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Grade Entry</li>
-                        </ul>
+<div class="page-wrapper">
+    <div class="content container-fluid">
+        <div class="page-header">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h3 class="page-title">Quarterly Grade Entry</h3>
+                    <ul class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Grade Entry</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Select Section, Quarter & Academic Year</h5>
+            </div>
+            <div class="card-body">
+                @if($subjects->isEmpty() || $sections->isEmpty())
+                    <div class="alert alert-warning mb-3">
+                        You have no subject/section assignment yet. Ask Admin to assign you under
+                        <strong>Classes &amp; Subjects</strong>.
+                    </div>
+                @endif
+                <form method="GET" action="{{ route('teacher.grading.grade-entry') }}" id="filterForm">
+                    <input type="hidden" name="step" value="grades">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Section *</label>
+                            <select class="form-control form-select" name="section_id" id="selected_section" required @if($sections->isEmpty()) disabled @endif>
+                                <option value="">-- Select Section --</option>
+                                @foreach($sections as $section)
+                                    <option value="{{ $section->id }}" {{ (string) ($selectedSectionId ?? '') === (string) $section->id ? 'selected' : '' }}>
+                                        {{ $section->name }} ({{ $section->grade_level ?? 'N/A' }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Quarter *</label>
+                            <select class="form-control form-select" name="quarter" id="selected_quarter" required>
+                                <option value="">-- Select Quarter --</option>
+                                @foreach($quarterLabels as $num => $label)
+                                    <option value="{{ $num }}" {{ (int) ($selectedQuarter ?? 0) === $num ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Academic Year *</label>
+                            <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
+                                <option value="">-- Select Academic Year --</option>
+                                @foreach($academicYears as $year)
+                                    <option value="{{ $year->id }}" {{ $currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : '' }}>
+                                        {{ $year->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary btn-lg" @if($sections->isEmpty() || $subjects->isEmpty()) disabled @endif>
+                            <i class="fas fa-search me-2"></i>Load Grade Sheet
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @if($hasFilters && $sectionSubjects->isNotEmpty() && $students->count() > 0)
+            <div class="card mt-3">
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span class="badge {{ $step === 'grades' ? 'ge-badge-active' : 'ge-badge-idle' }}">1. Grade Entry</span>
+                        <i class="fas fa-chevron-right text-muted"></i>
+                        <span class="badge {{ $step === 'observed' ? 'ge-badge-active' : 'ge-badge-idle' }}">2. Observed Values</span>
+                        <i class="fas fa-chevron-right text-muted"></i>
+                        <span class="badge {{ $step === 'summary' ? 'ge-badge-active' : 'ge-badge-idle' }}">3. Quarter Summary &amp; Print</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Filter Section -->
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Select Learning Area & Academic Year</h5>
-                </div>
-                <div class="card-body">
-                    <form method="GET" action="{{ route('teacher.grading.grade-entry') }}" id="filterForm">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label"><strong>Learning Area (Subject) *</strong></label>
-                                    <select class="form-control form-select" name="subject_id" id="selected_subject" required>
-                                        <option value="">-- Select Learning Area --</option>
-                                        @foreach($subjects as $subject)
-                                            <option value="{{ $subject->id }}" {{ $selectedSubjectId == $subject->id ? 'selected' : '' }}>
-                                                {{ $subject->subject_name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label"><strong>Academic Year *</strong></label>
-                                    <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
-                                        <option value="">-- Select Academic Year --</option>
-                                        @foreach($academicYears as $year)
-                                            <option value="{{ $year->id }}" {{ $currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : '' }}>
-                                                {{ $year->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-search me-2"></i>Load Students
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Grade Entry Table - DepEd Report Card Format -->
-            @if($selectedSubjectId && $currentAcademicYear && $students->count() > 0)
-            <div class="card mt-4">
-                <div class="card-header bg-success text-white">
+            {{-- STEP 1: Grades --}}
+            @if($step === 'grades')
+            <div class="card mt-3" id="gradesStepCard">
+                <div class="card-header ge-header text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-table me-2"></i>
-                        Quarterly Grades - {{ $subjects->where('id', $selectedSubjectId)->first()->subject_name ?? 'N/A' }} 
-                        ({{ $currentAcademicYear->name }})
+                        Step 1 — {{ $quarterLabels[(int) $selectedQuarter] }} Grades —
+                        {{ $sectionName }} ({{ $currentAcademicYear->name }})
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info">
-                        <strong><i class="fas fa-info-circle me-2"></i>Instructions:</strong>
-                        <ul class="mb-0 mt-2">
-                            <li>Enter quarterly grades (Q1, Q2, Q3, Q4) for each student</li>
-                            <li>Final Grade is automatically computed as the average of all quarters</li>
-                            <li>Enter remarks manually for each student, or click the <i class="fas fa-magic"></i> button to auto-fill based on final grade</li>
-                            <li>Click "Save All Grades" when finished</li>
-                        </ul>
+                    <div class="alert ge-alert d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>Enter grades for all learning areas, then <strong>Save Grades</strong>. Observed Values will open next.</div>
+                        @if($hasQuarterGrades)
+                            <a class="btn btn-outline-success btn-sm"
+                               href="{{ route('teacher.grading.grade-entry', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id,'step'=>'observed']) }}">
+                                Continue to Observed Values →
+                            </a>
+                        @endif
                     </div>
-
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover" id="gradesTable">
-                            <thead class="table-dark">
+                            <thead class="ge-thead">
                                 <tr>
-                                    <th style="width: 5%;">#</th>
-                                    <th style="width: 20%;">Student Name</th>
-                                    <th style="width: 12%;">Quarter 1</th>
-                                    <th style="width: 12%;">Quarter 2</th>
-                                    <th style="width: 12%;">Quarter 3</th>
-                                    <th style="width: 12%;">Quarter 4</th>
-                                    <th style="width: 12%;">Final Grade</th>
-                                    <th style="width: 15%;">Remarks</th>
+                                    <th>#</th>
+                                    <th>Student Name</th>
+                                    @foreach($sectionSubjects as $subject)
+                                        <th class="text-center">{{ $subject->subject_name }}</th>
+                                    @endforeach
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($students as $index => $student)
-                                    @php
-                                        $quarterlyGrade = $quarterlyGrades->get($student->id);
-                                    @endphp
                                     <tr>
                                         <td class="text-center">{{ $index + 1 }}</td>
-                                        <td><strong>{{ $student->last_name }}, {{ $student->first_name }} {{ $student->middle_name ?? '' }}</strong></td>
-                                        <td>
-                                            <input type="number" 
-                                                   class="form-control quarter-input" 
-                                                   data-student-id="{{ $student->id }}"
-                                                   data-quarter="1"
-                                                   name="grades[{{ $student->id }}][quarter_1]"
-                                                   value="{{ $quarterlyGrade ? $quarterlyGrade->quarter_1 : '' }}"
-                                                   min="0" 
-                                                   max="100"
-                                                   step="0.01"
-                                                   placeholder="0.00">
-                                        </td>
-                                        <td>
-                                            <input type="number" 
-                                                   class="form-control quarter-input" 
-                                                   data-student-id="{{ $student->id }}"
-                                                   data-quarter="2"
-                                                   name="grades[{{ $student->id }}][quarter_2]"
-                                                   value="{{ $quarterlyGrade ? $quarterlyGrade->quarter_2 : '' }}"
-                                                   min="0" 
-                                                   max="100"
-                                                   step="0.01"
-                                                   placeholder="0.00">
-                                        </td>
-                                        <td>
-                                            <input type="number" 
-                                                   class="form-control quarter-input" 
-                                                   data-student-id="{{ $student->id }}"
-                                                   data-quarter="3"
-                                                   name="grades[{{ $student->id }}][quarter_3]"
-                                                   value="{{ $quarterlyGrade ? $quarterlyGrade->quarter_3 : '' }}"
-                                                   min="0" 
-                                                   max="100"
-                                                   step="0.01"
-                                                   placeholder="0.00">
-                                        </td>
-                                        <td>
-                                            <input type="number" 
-                                                   class="form-control quarter-input" 
-                                                   data-student-id="{{ $student->id }}"
-                                                   data-quarter="4"
-                                                   name="grades[{{ $student->id }}][quarter_4]"
-                                                   value="{{ $quarterlyGrade ? $quarterlyGrade->quarter_4 : '' }}"
-                                                   min="0" 
-                                                   max="100"
-                                                   step="0.01"
-                                                   placeholder="0.00">
+                                        <td><strong>{{ $student->last_name }}, {{ $student->first_name }}</strong></td>
+                                        @foreach($sectionSubjects as $subject)
+                                            @php $key = $student->id . '_' . $subject->id; @endphp
+                                            <td>
+                                                <input type="number" class="form-control quarter-subject-input"
+                                                       data-student-id="{{ $student->id }}"
+                                                       data-subject-id="{{ $subject->id }}"
+                                                       value="{{ $gradeMap[$key] ?? '' }}"
+                                                       min="0" max="100" step="0.01" placeholder="—">
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end mt-3">
+                        <button type="button" class="btn btn-success btn-lg" id="saveGradesBtn">
+                            <i class="fas fa-save me-2"></i>Save Grades &amp; Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            {{-- STEP 2: Observed Values (only after grades exist) --}}
+            @if($step === 'observed' && $hasQuarterGrades)
+            <div class="card mt-3">
+                <div class="card-header ge-header text-white">
+                    <h5 class="mb-0 text-uppercase">
+                        Step 2 — Report on Learner&rsquo;s Observed Values
+                        ({{ $quarterLabels[(int) $selectedQuarter] }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">
+                        Marking: <strong>AO</strong> Always Observed |
+                        <strong>SO</strong> Sometimes Observed |
+                        <strong>RO</strong> Rarely Observed
+                        — for <strong>{{ $quarterLabels[(int) $selectedQuarter] }}</strong> only.
+                    </p>
+
+                    <form method="POST" action="{{ route('teacher.grading.observed-values.store') }}" id="observedForm">
+                        @csrf
+                        <input type="hidden" name="section_id" value="{{ $selectedSectionId }}">
+                        <input type="hidden" name="academic_year_id" value="{{ $currentAcademicYear->id }}">
+                        <input type="hidden" name="quarter" value="{{ $selectedQuarter }}">
+
+                        @php $rIdx = 0; @endphp
+                        @foreach($students as $student)
+                            <div class="border rounded mb-3 p-3">
+                                <h6 class="fw-bold mb-2">{{ $student->last_name }}, {{ $student->first_name }}</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm mb-0 observed-inline-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:18%">Core Values</th>
+                                                <th>Behavior Statements</th>
+                                                <th class="text-center" style="width:14%">Q{{ $selectedQuarter }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($observedIndicators as $core => $items)
+                                                @foreach($items as $i => $indicator)
+                                                    @php
+                                                        $key = $student->id . '_' . $indicator->id;
+                                                        $mark = $observedMap[$key] ?? '';
+                                                    @endphp
+                                                    <tr>
+                                                        @if($i === 0)
+                                                            <td rowspan="{{ $items->count() }}" class="fw-bold align-middle">{{ $core }}</td>
+                                                        @endif
+                                                        <td>
+                                                            {{ $indicator->statement }}
+                                                            <input type="hidden" name="ratings[{{ $rIdx }}][student_id]" value="{{ $student->id }}">
+                                                            <input type="hidden" name="ratings[{{ $rIdx }}][indicator_id]" value="{{ $indicator->id }}">
+                                                        </td>
+                                                        <td>
+                                                            <select class="form-select form-select-sm" name="ratings[{{ $rIdx }}][mark]">
+                                                                <option value="">—</option>
+                                                                @foreach(['AO','SO','RO'] as $opt)
+                                                                    <option value="{{ $opt }}" {{ $mark === $opt ? 'selected' : '' }}>{{ $opt }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                    @php $rIdx++; @endphp
+                                                @endforeach
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endforeach
+
+                        <div class="d-flex justify-content-between">
+                            <a class="btn btn-secondary"
+                               href="{{ route('teacher.grading.grade-entry', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id,'step'=>'grades']) }}">
+                                Back to Grades
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-save me-2"></i>Save Observed Values &amp; Show Summary
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            @endif
+
+            {{-- STEP 3: Summary + Print --}}
+            @if($step === 'summary' && $hasQuarterGrades)
+            <div class="card mt-3">
+                <div class="card-header ge-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="mb-0">
+                        Step 3 — {{ $quarterLabels[(int) $selectedQuarter] }} Average &amp; Remarks
+                        ({{ $sectionName }})
+                    </h5>
+                    <a class="btn btn-light btn-sm ge-print-btn"
+                       href="{{ route('teacher.grading.quarter-report', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id]) }}"
+                       target="_blank">
+                        <i class="fas fa-print me-1"></i> Open Printable Form
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="ge-thead">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Student</th>
+                                    <th class="text-center">Quarter Average</th>
+                                    <th class="text-center">Auto Remarks</th>
+                                    <th class="text-center">Print</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($students as $index => $student)
+                                    @php $sum = $studentQuarterSummaries[$student->id] ?? ['average'=>null,'remark'=>'—']; @endphp
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td>{{ $student->last_name }}, {{ $student->first_name }}</td>
+                                        <td class="text-center fw-bold">
+                                            {{ $sum['average'] !== null ? number_format($sum['average'], 2) : '—' }}
                                         </td>
                                         <td class="text-center">
-                                            <span class="badge bg-primary final-grade-display" data-student-id="{{ $student->id }}">
-                                                {{ $quarterlyGrade && $quarterlyGrade->final_grade ? number_format($quarterlyGrade->final_grade, 2) : '-' }}
-                                            </span>
+                                            @if(($sum['remark'] ?? '—') === 'Passed')
+                                                <span class="badge bg-success">Passed</span>
+                                            @elseif(($sum['remark'] ?? '—') === 'Failed')
+                                                <span class="badge bg-danger">Failed</span>
+                                            @else
+                                                —
+                                            @endif
                                         </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <input type="text" 
-                                                       class="form-control remarks-input" 
-                                                       data-student-id="{{ $student->id }}"
-                                                       name="grades[{{ $student->id }}][remarks]"
-                                                       value="{{ $quarterlyGrade && $quarterlyGrade->remarks ? $quarterlyGrade->remarks : '' }}"
-                                                       placeholder="Enter remarks"
-                                                       list="remarks-suggestions-{{ $student->id }}">
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-secondary auto-fill-remarks" 
-                                                        data-student-id="{{ $student->id }}"
-                                                        title="Auto-fill based on final grade">
-                                                    <i class="fas fa-magic"></i>
-                                                </button>
-                                            </div>
-                                            <datalist id="remarks-suggestions-{{ $student->id }}">
-                                                <option value="Outstanding">
-                                                <option value="Very Satisfactory">
-                                                <option value="Satisfactory">
-                                                <option value="Fairly Satisfactory">
-                                                <option value="Did Not Meet Expectations">
-                                            </datalist>
+                                        <td class="text-center">
+                                            <a class="btn btn-sm btn-outline-success"
+                                               target="_blank"
+                                               href="{{ route('teacher.grading.student-report', ['student'=>$student->id,'academic_year_id'=>$currentAcademicYear->id,'quarter'=>$selectedQuarter]) }}">
+                                                <i class="fas fa-print"></i>
+                                            </a>
                                         </td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
                     </div>
-
-                    <div class="mt-3 text-end">
-                        <button type="button" class="btn btn-success btn-lg" id="saveGradesBtn">
-                            <i class="fas fa-save me-2"></i>Save All Grades
-                        </button>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-outline-secondary"
+                           href="{{ route('teacher.grading.grade-entry', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id,'step'=>'observed']) }}">
+                            Back to Observed Values
+                        </a>
+                        <a class="btn btn-success"
+                           href="{{ route('teacher.grading.grade-entry', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id,'step'=>'grades']) }}">
+                            Edit Grades
+                        </a>
                     </div>
-                </div>
-            </div>
-            @elseif($selectedSubjectId && $currentAcademicYear && $students->count() == 0)
-            <div class="card mt-4">
-                <div class="card-body text-center py-5">
-                    <div class="mb-4">
-                        <i class="fas fa-user-slash text-muted" style="font-size: 5rem; opacity: 0.6;"></i>
-                    </div>
-                    <h4 class="fw-bold text-dark mb-3">No Students Found</h4>
-                    <p class="text-muted mb-4">No students are assigned to your sections for the selected subject and academic year.</p>
-                </div>
-            </div>
-            @else
-            <div class="card mt-4">
-                <div class="card-body text-center py-5">
-                    <div class="mb-4">
-                        <i class="fas fa-clipboard-list text-primary" style="font-size: 5rem; opacity: 0.6;"></i>
-                    </div>
-                    <h4 class="fw-bold text-dark mb-3">Ready to Enter Grades</h4>
-                    <p class="text-muted mb-4">Please select a Learning Area (Subject) and Academic Year above to view and enter student grades.</p>
                 </div>
             </div>
             @endif
 
-        </div>
+        @elseif($hasFilters && $sectionSubjects->isEmpty())
+            <div class="alert alert-warning mt-3">No subjects for this section.</div>
+        @elseif($hasFilters && $students->isEmpty())
+            <div class="alert alert-warning mt-3">No students in this section.</div>
+        @else
+            <div class="card mt-4">
+                <div class="card-body text-center py-5">
+                    <h4>Ready to Enter Grades</h4>
+                    <p class="text-muted mb-0">Select Section, Quarter, and Academic Year to begin.</p>
+                </div>
+            </div>
+        @endif
     </div>
+</div>
 
 @push('styles')
 <style>
-.card {
-    border-radius: 10px;
-    box-shadow: 0 0 31px 3px rgba(44,50,63,.02);
-    margin-bottom: 20px;
+:root {
+    --ge-accent: #2f6f4e;
+    --ge-accent-soft: #e8f3ec;
+    --ge-accent-mid: #3d8b63;
 }
-
-.card-header {
-    border-radius: 10px 10px 0 0 !important;
-    padding: 15px 20px;
+.quarter-subject-input { text-align: center; font-weight: 600; }
+.observed-inline-table th, .observed-inline-table td { border: 1px solid #c5d5cb; vertical-align: middle; }
+.ge-header {
+    background: linear-gradient(135deg, #2f6f4e 0%, #3d8b63 100%) !important;
+    border-bottom: none;
 }
-
-.table th {
-    background-color: #343a40;
-    color: white;
-    font-weight: 600;
-    padding: 15px;
-    text-align: center;
-    vertical-align: middle;
+.ge-thead th {
+    background: #e8f3ec !important;
+    color: #1f4d35 !important;
+    border-color: #c5d5cb !important;
+    font-weight: 700;
 }
-
-.table td {
-    padding: 12px;
-    vertical-align: middle;
+.ge-badge-active {
+    background: var(--ge-accent) !important;
+    color: #fff !important;
 }
-
-.quarter-input {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #ddd;
-    border-radius: 5px;
-    text-align: center;
-    font-size: 16px;
-    font-weight: 600;
+.ge-badge-idle {
+    background: #e9ecef !important;
+    color: #495057 !important;
 }
-
-.quarter-input:focus {
-    border-color: #3d5ee1;
-    box-shadow: 0 0 0 0.2rem rgba(61, 94, 225, 0.25);
+.ge-alert {
+    background: var(--ge-accent-soft);
+    border: 1px solid #c5d5cb;
+    color: #1f4d35;
+    border-radius: .375rem;
+    padding: .75rem 1rem;
 }
-
-.badge {
-    padding: 8px 12px;
-    font-size: 14px;
+.ge-print-btn {
+    color: var(--ge-accent) !important;
+    border: 1px solid #fff;
     font-weight: 600;
 }
-
-.remarks-input {
-    font-size: 14px;
+.ge-print-btn:hover {
+    background: #fff !important;
+    color: #1f4d35 !important;
 }
-
-.auto-fill-remarks {
-    border-left: none;
-}
-
-/* DepEd Grading Scale Colors */
-.remarks-outstanding { background-color: #28a745 !important; color: white; }
-.remarks-very-satisfactory { background-color: #17a2b8 !important; color: white; }
-.remarks-satisfactory { background-color: #007bff !important; color: white; }
-.remarks-fairly-satisfactory { background-color: #ffc107 !important; color: #212529; }
-.remarks-did-not-meet { background-color: #dc3545 !important; color: white; }
 </style>
 @endpush
 
 @push('scripts')
 <script>
 $(document).ready(function() {
-    // Verify button exists and bind handlers
-    const $saveBtn = $('#saveGradesBtn');
-    if ($saveBtn.length === 0) {
-        console.error('Save All Grades button not found!');
-    } else {
-        console.log('Save All Grades button found, binding click handler');
-    }
-    // Auto-calculate final grade and remarks when quarter grades are entered
-    $(document).on('input', '.quarter-input', function() {
-        const $row = $(this).closest('tr');
-        const studentId = $(this).data('student-id');
-        
-        // Get all quarter grades for this student
-        const q1 = parseFloat($row.find('input[data-quarter="1"]').val()) || 0;
-        const q2 = parseFloat($row.find('input[data-quarter="2"]').val()) || 0;
-        const q3 = parseFloat($row.find('input[data-quarter="3"]').val()) || 0;
-        const q4 = parseFloat($row.find('input[data-quarter="4"]').val()) || 0;
-        
-        // Calculate final grade (average of all quarters with values)
-        const quarters = [];
-        if ($row.find('input[data-quarter="1"]').val() !== '') quarters.push(q1);
-        if ($row.find('input[data-quarter="2"]').val() !== '') quarters.push(q2);
-        if ($row.find('input[data-quarter="3"]').val() !== '') quarters.push(q3);
-        if ($row.find('input[data-quarter="4"]').val() !== '') quarters.push(q4);
-        
-        let finalGrade = null;
-        if (quarters.length > 0) {
-            finalGrade = (quarters.reduce((a, b) => a + b, 0) / quarters.length).toFixed(2);
-        }
-        
-        // Update final grade display
-        const $finalGradeDisplay = $row.find('.final-grade-display');
-        if (finalGrade !== null) {
-            $finalGradeDisplay.text(parseFloat(finalGrade).toFixed(2));
-        } else {
-            $finalGradeDisplay.text('-');
-        }
-        
-        // Update remarks suggestion (but don't auto-fill - let teacher decide)
-        // The auto-fill button will handle this
-    });
-    
-    // Auto-fill remarks button
-    $(document).on('click', '.auto-fill-remarks', function() {
-        const studentId = $(this).data('student-id');
-        const $row = $(this).closest('tr');
-        const $remarksInput = $row.find('.remarks-input');
-        
-        // Get final grade
-        const finalGradeText = $row.find('.final-grade-display').text();
-        const finalGrade = parseFloat(finalGradeText);
-        
-        if (isNaN(finalGrade)) {
-            toastr.warning('Please enter quarter grades first to calculate final grade.');
+    $('#saveGradesBtn').on('click', function(e) {
+        e.preventDefault();
+        const sectionId = $('#selected_section').val();
+        const quarter = $('#selected_quarter').val();
+        const academicYearId = $('#selected_academic_year').val();
+        if (!sectionId || !quarter || !academicYearId) {
+            toastr.error('Please select Section, Quarter, and Academic Year.');
             return;
         }
-        
-        // Determine remarks based on DepEd grading scale
-        let remarks = '';
-        if (finalGrade >= 90 && finalGrade <= 100) {
-            remarks = 'Outstanding';
-        } else if (finalGrade >= 85 && finalGrade <= 89) {
-            remarks = 'Very Satisfactory';
-        } else if (finalGrade >= 80 && finalGrade <= 84) {
-            remarks = 'Satisfactory';
-        } else if (finalGrade >= 75 && finalGrade <= 79) {
-            remarks = 'Fairly Satisfactory';
-        } else if (finalGrade < 75) {
-            remarks = 'Did Not Meet Expectations';
-        }
-        
-        if (remarks) {
-            $remarksInput.val(remarks);
-            toastr.success('Remarks auto-filled based on final grade.');
-        }
-    });
-    
-    // Save Grades Button - Use both direct binding and event delegation for reliability
-    $saveBtn.on('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        console.log('Save All Grades button clicked');
-        
-        const selectedSubjectId = $('#selected_subject').val();
-        const selectedAcademicYearId = $('#selected_academic_year').val();
-        
-        console.log('Selected values:', {
-            subject_id: selectedSubjectId,
-            academic_year_id: selectedAcademicYearId
-        });
-        
-        if (!selectedSubjectId || !selectedAcademicYearId) {
-            toastr.error('Please select Learning Area and Academic Year before saving grades.');
-            return false;
-        }
-        
+
         const grades = [];
-        
-        // Collect quarter grades
-        $('.quarter-input').each(function() {
-            const studentId = $(this).data('student-id');
-            const quarter = $(this).data('quarter');
+        $('.quarter-subject-input').each(function() {
             const value = $(this).val();
-            
-            // Find or create grade object for this student
-            let gradeObj = grades.find(g => g.student_id == studentId);
-            if (!gradeObj) {
-                gradeObj = { student_id: parseInt(studentId) };
-                grades.push(gradeObj);
-            }
-            
-            // Add quarter grade if value exists and is not empty
-            if (value !== '' && value !== null && value !== undefined && !isNaN(parseFloat(value))) {
-                const numValue = parseFloat(value);
-                if (numValue >= 0) {
-                    gradeObj['quarter_' + quarter] = numValue;
-                }
-            }
+            if (value === '' || value === null) return;
+            const num = parseFloat(value);
+            if (isNaN(num) || num < 0 || num > 100) return;
+            grades.push({
+                student_id: parseInt($(this).data('student-id'), 10),
+                subject_id: parseInt($(this).data('subject-id'), 10),
+                score: num
+            });
         });
-        
-        // Collect remarks
-        $('.remarks-input').each(function() {
-            const studentId = $(this).data('student-id');
-            const remarks = $(this).val().trim();
-            
-            let gradeObj = grades.find(g => g.student_id == studentId);
-            if (!gradeObj) {
-                gradeObj = { student_id: parseInt(studentId) };
-                grades.push(gradeObj);
-            }
-            
-            if (remarks !== '') {
-                gradeObj['remarks'] = remarks;
-            }
-        });
-        
-        // Filter out grades with no quarter values
-        const validGrades = grades.filter(g => {
-            return (g.quarter_1 !== undefined && g.quarter_1 !== null) ||
-                   (g.quarter_2 !== undefined && g.quarter_2 !== null) ||
-                   (g.quarter_3 !== undefined && g.quarter_3 !== null) ||
-                   (g.quarter_4 !== undefined && g.quarter_4 !== null);
-        });
-        
-        console.log('Grades to save:', validGrades);
-        
-        if (validGrades.length === 0) {
-            toastr.warning('Please enter at least one quarter grade before saving.');
-            return false;
+
+        if (!grades.length) {
+            toastr.warning('Enter at least one grade before saving.');
+            return;
         }
-        
-        // Show loading
+
         const $btn = $(this);
-        const originalText = $btn.html();
+        const original = $btn.html();
         $btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...').prop('disabled', true);
-        
-        // Save grades
+
         $.ajax({
             url: '{{ route("teacher.grading.store-quarterly-grades") }}',
             type: 'POST',
             dataType: 'json',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            },
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             data: {
                 _token: '{{ csrf_token() }}',
-                subject_id: selectedSubjectId,
-                academic_year_id: selectedAcademicYearId,
-                grades: validGrades
-            },
-            beforeSend: function() {
-                console.log('Sending AJAX request to save quarterly grades...');
+                section_id: sectionId,
+                quarter: quarter,
+                academic_year_id: academicYearId,
+                grades: grades
             },
             success: function(response) {
-                console.log('Success response:', response);
                 if (response && response.success) {
-                    toastr.success(response.message || `Successfully saved ${validGrades.length} student grade(s)! Students can now view these grades in their portal.`);
-                    console.log('Grades saved successfully. Students can now view these grades in their portal.');
-                    // Reload page to show updated grades
-                    setTimeout(function() {
-                        location.reload();
-                    }, 2000);
+                    toastr.success(response.message || 'Grades saved.');
+                    const url = new URL('{{ route("teacher.grading.grade-entry") }}', window.location.origin);
+                    url.searchParams.set('section_id', sectionId);
+                    url.searchParams.set('quarter', quarter);
+                    url.searchParams.set('academic_year_id', academicYearId);
+                    url.searchParams.set('step', 'observed');
+                    setTimeout(function() { window.location.href = url.toString(); }, 800);
                 } else {
-                    toastr.warning(response.message || 'Grades saved with warnings.');
-                    $btn.html(originalText).prop('disabled', false);
+                    toastr.warning(response.message || 'Saved with warnings.');
+                    $btn.html(original).prop('disabled', false);
                 }
             },
-            error: function(xhr, status, error) {
-                console.error('AJAX Error saving grades:', {
-                    status: status,
-                    error: error,
-                    response: xhr.responseText,
-                    statusCode: xhr.status,
-                    responseJSON: xhr.responseJSON
-                });
-                
-                let message = 'Failed to save grades. Please try again.';
-                
-                if (xhr.responseJSON) {
-                    if (xhr.responseJSON.message) {
-                        message = xhr.responseJSON.message;
-                    } else if (xhr.responseJSON.errors) {
-                        const errors = [];
-                        $.each(xhr.responseJSON.errors, function(key, value) {
-                            if (Array.isArray(value)) {
-                                errors.push(value[0]);
-                            } else {
-                                errors.push(value);
-                            }
-                        });
-                        message = 'Validation errors: ' + errors.join(', ');
-                    }
-                } else if (xhr.status === 0) {
-                    message = 'Network error. Please check your connection.';
-                } else if (xhr.status === 500) {
-                    message = 'Server error. Please contact administrator.';
-                }
-                
-                toastr.error(message);
-                $btn.html(originalText).prop('disabled', false);
-            },
-            complete: function() {
-                console.log('AJAX request completed');
+            error: function(xhr) {
+                toastr.error((xhr.responseJSON && xhr.responseJSON.message) || 'Failed to save grades.');
+                $btn.html(original).prop('disabled', false);
             }
         });
-        
-        return false;
     });
 });
 </script>

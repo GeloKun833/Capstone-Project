@@ -1,0 +1,596 @@
+
+<?php $__env->startSection('content'); ?>
+
+<div class="page-wrapper">
+    <div class="content container-fluid">
+        <div class="page-header">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h3 class="page-title">Reports &amp; Documents</h3>
+                    <ul class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Reports</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <?php if(session('error')): ?>
+            <div class="alert alert-danger"><?php echo e(session('error')); ?></div>
+        <?php endif; ?>
+
+        <div class="alert alert-light border mb-4">
+            <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
+            For many students, use <strong>Entire grade</strong> or <strong>Entire section</strong> to download a ZIP of PDFs.
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-alt fa-3x text-primary mb-3"></i>
+                        <h5 class="card-title">Student Transcript</h5>
+                        <p class="text-muted small">Academic history — one student or bulk by grade/section</p>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#transcriptModal">
+                            <i class="fas fa-download me-1"></i> Generate / Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-users fa-3x text-success mb-3"></i>
+                        <h5 class="card-title">Class List</h5>
+                        <p class="text-muted small">Section roster — filter by grade, then section</p>
+                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#classListModal">
+                            <i class="fas fa-download me-1"></i> Generate / Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clipboard-list fa-3x text-warning mb-3"></i>
+                        <h5 class="card-title">Grade Slip</h5>
+                        <p class="text-muted small">Period grades — one student or bulk ZIP by grade</p>
+                        <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
+                            <i class="fas fa-download me-1"></i> Generate / Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100 report-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-chart-line fa-3x text-info mb-3"></i>
+                        <h5 class="card-title">Progress Report</h5>
+                        <p class="text-muted small">Performance summary — one student or bulk by grade</p>
+                        <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
+                            <i class="fas fa-download me-1"></i> Generate / Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php
+    $ayOptions = $academicYears;
+    $semOptions = $semesters;
+?>
+
+
+
+<!-- Transcript Modal -->
+<div class="modal fade" id="transcriptModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Download Student Transcript</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form class="report-form" data-type="transcript" data-single-base="<?php echo e(url('/reports/transcript')); ?>" data-bulk-url="<?php echo e(route('reports.bulk', ['type' => 'transcript'])); ?>">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($grade); ?>"><?php echo e($grade); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select section-select">
+                                <option value="">All sections in grade</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One student</option>
+                                <option value="section">Entire section (ZIP)</option>
+                                <option value="grade">Entire grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 student-wrap">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <select class="form-select student-select" name="student_id">
+                                <option value="">Select student</option>
+                            </select>
+                            <small class="text-muted student-count"></small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">All years</option>
+                                <?php $__currentLoopData = $ayOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($year->id); ?>"><?php echo e($year->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">All semesters</option>
+                                <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-download me-1"></i> Download</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Class List Modal -->
+<div class="modal fade" id="classListModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Download Class List</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form class="report-form" data-type="class-list" data-single-base="<?php echo e(url('/reports/class-list')); ?>" data-bulk-url="<?php echo e(route('reports.bulk', ['type' => 'class-list'])); ?>">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($grade); ?>"><?php echo e($grade); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One section</option>
+                                <option value="grade">All sections in grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 section-wrap">
+                            <label class="form-label">Section <span class="text-danger">*</span></label>
+                            <select class="form-select section-select" name="section_id">
+                                <option value="">Select section</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">Current</option>
+                                <?php $__currentLoopData = $ayOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($year->id); ?>"><?php echo e($year->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">Current</option>
+                                <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-download me-1"></i> Download</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Grade Slip Modal -->
+<div class="modal fade" id="gradeSlipModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Download Grade Slip</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form class="report-form" data-type="grade-slip" data-single-base="<?php echo e(url('/reports/grade-slip')); ?>" data-bulk-url="<?php echo e(route('reports.bulk', ['type' => 'grade-slip'])); ?>">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($grade); ?>"><?php echo e($grade); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select section-select">
+                                <option value="">All sections in grade</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One student</option>
+                                <option value="section">Entire section (ZIP)</option>
+                                <option value="grade">Entire grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 student-wrap">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <select class="form-select student-select" name="student_id">
+                                <option value="">Select student</option>
+                            </select>
+                            <small class="text-muted student-count"></small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">Current</option>
+                                <?php $__currentLoopData = $ayOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($year->id); ?>"><?php echo e($year->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">Current</option>
+                                <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-download me-1"></i> Download</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Report Modal -->
+<div class="modal fade" id="progressSummaryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Download Progress Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form class="report-form" data-type="progress-summary" data-single-base="<?php echo e(url('/reports/progress-summary')); ?>" data-bulk-url="<?php echo e(route('reports.bulk', ['type' => 'progress-summary'])); ?>">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select grade-select" required>
+                                <option value="">Select grade</option>
+                                <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($grade); ?>"><?php echo e($grade); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select section-select">
+                                <option value="">All sections in grade</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select scope-select" name="scope">
+                                <option value="single">One student</option>
+                                <option value="section">Entire section (ZIP)</option>
+                                <option value="grade">Entire grade (ZIP)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 student-wrap">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <select class="form-select student-select" name="student_id">
+                                <option value="">Select student</option>
+                            </select>
+                            <small class="text-muted student-count"></small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Academic Year</label>
+                            <select class="form-select" name="academic_year_id">
+                                <option value="">Current</option>
+                                <?php $__currentLoopData = $ayOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($year->id); ?>"><?php echo e($year->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Semester</label>
+                            <select class="form-select" name="semester_id">
+                                <option value="">Current</option>
+                                <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" name="format">
+                                <option value="pdf">PDF (download)</option>
+                                <option value="excel">Excel (download)</option>
+                            </select>
+                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info"><i class="fas fa-download me-1"></i> Download</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<?php $__env->startPush('styles'); ?>
+<style>
+    .report-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .report-card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,.08); }
+</style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script>
+(function () {
+    const students = <?php echo json_encode($studentsPayload, 15, 512) ?>;
+    const sections = <?php echo json_encode($sectionsPayload, 15, 512) ?>;
+
+    function fillSections(form, grade) {
+        const select = form.querySelector('.section-select');
+        if (!select) return;
+        const keepAll = form.dataset.type !== 'class-list';
+        const current = select.value;
+        select.innerHTML = keepAll
+            ? '<option value="">All sections in grade</option>'
+            : '<option value="">Select section</option>';
+
+        sections
+            .filter(function (s) { return !grade || s.grade === grade; })
+            .forEach(function (s) {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name + (s.grade ? ' (' + s.grade + ')' : '');
+                select.appendChild(opt);
+            });
+
+        if ([...select.options].some(function (o) { return o.value === current; })) {
+            select.value = current;
+        }
+    }
+
+    function fillStudents(form) {
+        const studentSelect = form.querySelector('.student-select');
+        const countEl = form.querySelector('.student-count');
+        if (!studentSelect) return;
+
+        const grade = (form.querySelector('.grade-select')?.value || '').trim();
+        const sectionId = (form.querySelector('.section-select')?.value || '').trim();
+
+        let list = students.filter(function (st) {
+            const stGrade = (st.grade || '').trim();
+            const ids = (st.section_ids || []).map(String);
+
+            // If a section is chosen, prefer students assigned to that section
+            if (sectionId) {
+                if (ids.includes(String(sectionId))) {
+                    return true;
+                }
+                // fallback: denormalized section name + grade match
+                const sectionMeta = sections.find(function (s) { return String(s.id) === String(sectionId); });
+                const sectionName = sectionMeta ? sectionMeta.name : '';
+                if (sectionName && st.section && st.section === sectionName) {
+                    return !grade || stGrade === grade || stGrade === (sectionMeta.grade || '');
+                }
+                return false;
+            }
+
+            // Grade only: match year_level/class OR any section under that grade
+            if (grade) {
+                if (stGrade === grade) return true;
+                const gradeSectionIds = sections
+                    .filter(function (s) { return s.grade === grade; })
+                    .map(function (s) { return String(s.id); });
+                return ids.some(function (id) { return gradeSectionIds.includes(id); });
+            }
+
+            return true;
+        });
+
+        // Stable sort by name
+        list = list.slice().sort(function (a, b) {
+            return String(a.name).localeCompare(String(b.name));
+        });
+
+        studentSelect.innerHTML = '<option value="">Select student</option>';
+        list.forEach(function (st) {
+            const opt = document.createElement('option');
+            opt.value = st.id;
+            opt.textContent = st.name + (st.grade ? ' — ' + st.grade : '');
+            studentSelect.appendChild(opt);
+        });
+
+        if (countEl) {
+            countEl.textContent = list.length
+                ? (list.length + ' student(s) available')
+                : 'No enrolled students found for this grade/section';
+        }
+    }
+
+    function syncScopeUI(form) {
+        const scope = form.querySelector('.scope-select')?.value || 'single';
+        const studentWrap = form.querySelector('.student-wrap');
+        const sectionWrap = form.querySelector('.section-wrap');
+        const sectionSelect = form.querySelector('.section-select');
+        const formatNote = form.querySelector('.bulk-format-note');
+        const formatSelect = form.querySelector('[name="format"]');
+        const type = form.dataset.type;
+
+        if (studentWrap) {
+            studentWrap.classList.toggle('d-none', scope !== 'single');
+            const studentSelect = form.querySelector('.student-select');
+            if (studentSelect) studentSelect.required = scope === 'single';
+        }
+
+        if (type === 'class-list') {
+            if (sectionWrap) sectionWrap.classList.toggle('d-none', scope === 'grade');
+            if (sectionSelect) sectionSelect.required = scope === 'single';
+        } else if (sectionSelect) {
+            // for student reports, section required only when scope=section
+            sectionSelect.required = scope === 'section';
+        }
+
+        const isBulk = scope !== 'single';
+        if (formatNote) formatNote.classList.toggle('d-none', !isBulk);
+        if (formatSelect && isBulk) {
+            formatSelect.value = 'pdf';
+            formatSelect.disabled = true;
+        } else if (formatSelect) {
+            formatSelect.disabled = false;
+        }
+    }
+
+    function buildQuery(form) {
+        const params = new URLSearchParams();
+        ['academic_year_id', 'semester_id', 'format'].forEach(function (name) {
+            const el = form.querySelector('[name="' + name + '"]');
+            if (el && el.value) params.set(name, el.value);
+        });
+        return params;
+    }
+
+    document.querySelectorAll('.report-form').forEach(function (form) {
+        form.querySelector('.grade-select')?.addEventListener('change', function () {
+            fillSections(form, this.value);
+            fillStudents(form);
+            syncScopeUI(form);
+        });
+        form.querySelector('.section-select')?.addEventListener('change', function () {
+            fillStudents(form);
+            syncScopeUI(form);
+        });
+        form.querySelector('.scope-select')?.addEventListener('change', function () {
+            syncScopeUI(form);
+        });
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const type = form.dataset.type;
+            const scope = form.querySelector('.scope-select')?.value || 'single';
+            const grade = form.querySelector('.grade-select')?.value || '';
+            const sectionId = form.querySelector('.section-select')?.value || '';
+            const studentId = form.querySelector('.student-select')?.value || '';
+            const params = buildQuery(form);
+
+            if (!grade) {
+                alert('Please select a grade level.');
+                return;
+            }
+
+            if (scope === 'single') {
+                if (type === 'class-list') {
+                    if (!sectionId) {
+                        alert('Please select a section.');
+                        return;
+                    }
+                    window.location.href = form.dataset.singleBase + '/' + sectionId + '?' + params.toString();
+                    return;
+                }
+                if (!studentId) {
+                    alert('Please select a student.');
+                    return;
+                }
+                window.location.href = form.dataset.singleBase + '/' + studentId + '?' + params.toString();
+                return;
+            }
+
+            // Bulk ZIP
+            params.set('grade_level', grade);
+            if (scope === 'section') {
+                if (!sectionId) {
+                    alert('Please select a section for entire-section download.');
+                    return;
+                }
+                params.set('section_id', sectionId);
+            }
+            // force pdf for bulk
+            params.set('format', 'pdf');
+            window.location.href = form.dataset.bulkUrl + '?' + params.toString();
+        });
+
+        syncScopeUI(form);
+    });
+})();
+</script>
+<?php $__env->stopPush(); ?>
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views\reports\index.blade.php ENDPATH**/ ?>

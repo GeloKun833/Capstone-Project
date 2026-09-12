@@ -135,24 +135,17 @@
                                 <p class="fw-bold">
                                     @if($assignment->requires_file_upload)
                                         <span class="text-success">Required</span>
+                                        <br><small class="text-muted">Allowed: {{ $assignment->submissionAllowedLabels() }}</small>
                                         @if($assignment->max_file_size)
                                             <br><small class="text-muted">Max size: {{ $assignment->max_file_size }}MB</small>
                                         @endif
                                     @else
-                                        <span class="text-muted">Optional</span>
+                                        <span class="text-muted">Optional / all common types</span>
                                     @endif
                                 </p>
                             </div>
                         </div>
 
-                        @if($assignment->assignment_file)
-                            <div class="mb-4">
-                                <h6 class="text-muted">Assignment File</h6>
-                                <a href="{{ Storage::url($assignment->assignment_file) }}" class="btn btn-outline-primary" target="_blank">
-                                    <i class="fas fa-download me-2"></i>Download Assignment File
-                                </a>
-                            </div>
-                        @endif
                     </div>
                 </div>
             </div>

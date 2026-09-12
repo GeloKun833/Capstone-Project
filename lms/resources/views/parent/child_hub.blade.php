@@ -118,13 +118,59 @@
         @endif
 
         @if($tab === 'grades')
+            <div class="mb-3 text-end">
+                @if($academicYear)
+                    <a class="btn btn-primary" target="_blank"
+                       href="{{ route('parent.child.report-card', ['childId' => $child->id, 'academic_year_id' => $academicYear->id]) }}">
+                        <i class="fas fa-print me-1"></i> Printable Report Card
+                    </a>
+                @endif
+            </div>
+
             <div class="card card-table comman-shadow mb-4">
-                <div class="card-header bg-primary text-white"><h5 class="mb-0">Quarterly Grades</h5></div>
+                <div class="card-header bg-success text-white"><h5 class="mb-0 text-uppercase">Report on Learner&rsquo;s Observed Values</h5></div>
+                <div class="card-body table-responsive">
+                    <table class="table table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th>Core Values</th>
+                                <th>Behavior Statements</th>
+                                <th class="text-center">1</th>
+                                <th class="text-center">2</th>
+                                <th class="text-center">3</th>
+                                <th class="text-center">4</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($observedIndicators ?? [] as $core => $items)
+                                @foreach($items as $i => $indicator)
+                                    @php $rating = ($observedRatings ?? collect())->get($indicator->id); @endphp
+                                    <tr>
+                                        @if($i === 0)
+                                            <td rowspan="{{ $items->count() }}" class="fw-bold">{{ $core }}</td>
+                                        @endif
+                                        <td>{{ $indicator->statement }}</td>
+                                        @foreach(['quarter_1','quarter_2','quarter_3','quarter_4'] as $qf)
+                                            <td class="text-center">{{ optional($rating)->{$qf} ?: '—' }}</td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            @empty
+                                <tr><td colspan="6" class="text-center text-muted py-3">No observed values yet.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                    <p class="small text-muted mt-2 mb-0">AO = Always Observed | SO = Sometimes Observed | RO = Rarely Observed</p>
+                </div>
+            </div>
+
+            <div class="card card-table comman-shadow mb-4">
+                <div class="card-header bg-primary text-white"><h5 class="mb-0 text-uppercase">Report on Learning Progress and Achievement</h5></div>
                 <div class="card-body table-responsive">
                     <table class="table table-bordered table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Subject</th>
+                                <th>Learning Areas</th>
                                 <th class="text-center">Q1</th>
                                 <th class="text-center">Q2</th>
                                 <th class="text-center">Q3</th>
@@ -137,38 +183,31 @@
                             @forelse($quarterlyGrades as $qg)
                                 <tr>
                                     <td>{{ $qg->subject->subject_name ?? 'N/A' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_1 !== null ? number_format($qg->quarter_1, 2) : '—' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_2 !== null ? number_format($qg->quarter_2, 2) : '—' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_3 !== null ? number_format($qg->quarter_3, 2) : '—' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_4 !== null ? number_format($qg->quarter_4, 2) : '—' }}</td>
-                                    <td class="text-center"><strong>{{ $qg->final_grade !== null ? number_format($qg->final_grade, 2) : '—' }}</strong></td>
-                                    <td class="text-center">{{ $qg->remarks ?? '—' }}</td>
+                                    <td class="text-center">{{ $qg->quarter_1 !== null ? number_format($qg->quarter_1, 0) : '—' }}</td>
+                                    <td class="text-center">{{ $qg->quarter_2 !== null ? number_format($qg->quarter_2, 0) : '—' }}</td>
+                                    <td class="text-center">{{ $qg->quarter_3 !== null ? number_format($qg->quarter_3, 0) : '—' }}</td>
+                                    <td class="text-center">{{ $qg->quarter_4 !== null ? number_format($qg->quarter_4, 0) : '—' }}</td>
+                                    <td class="text-center"><strong>{{ $qg->final_grade !== null ? number_format($qg->final_grade, 0) : '—' }}</strong></td>
+                                    <td class="text-center">
+                                        {{ $qg->remarks ?? \App\Services\ReportCardService::remarkForScore($qg->final_grade !== null ? (float)$qg->final_grade : null) }}
+                                    </td>
                                 </tr>
                             @empty
                                 <tr><td colspan="7" class="text-center text-muted py-4">No quarterly grades posted yet.</td></tr>
                             @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card card-table comman-shadow">
-                <div class="card-header"><h5 class="mb-0">Component Grades</h5></div>
-                <div class="card-body table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead><tr><th>Subject</th><th>Component</th><th>Score</th><th>Remarks</th><th>Date</th></tr></thead>
-                        <tbody>
-                            @forelse($grades as $grade)
-                                <tr>
-                                    <td>{{ $grade->subject->subject_name ?? 'N/A' }}</td>
-                                    <td>{{ $grade->component->name ?? 'Grade' }}</td>
-                                    <td>{{ $grade->score !== null ? number_format($grade->score, 2) . ' / ' . number_format($grade->max_score ?? 100, 0) : '—' }}</td>
-                                    <td>{{ $grade->remarks ?? '—' }}</td>
-                                    <td>{{ $grade->created_at?->format('M d, Y') }}</td>
+                            @if($quarterlyGrades->isNotEmpty())
+                                <tr class="table-secondary">
+                                    <td class="fw-bold text-end">General Average</td>
+                                    @foreach(['q1','q2','q3','q4','final'] as $k)
+                                        <td class="text-center fw-bold">
+                                            {{ isset($generalAverages[$k]) && $generalAverages[$k] !== null ? number_format($generalAverages[$k], 2) : '—' }}
+                                        </td>
+                                    @endforeach
+                                    <td class="text-center fw-bold">
+                                        {{ \App\Services\ReportCardService::remarkForScore($generalAverages['final'] ?? null) }}
+                                    </td>
                                 </tr>
-                            @empty
-                                <tr><td colspan="5" class="text-center text-muted py-4">No component grades yet.</td></tr>
-                            @endforelse
+                            @endif
                         </tbody>
                     </table>
                 </div>

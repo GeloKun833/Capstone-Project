@@ -103,30 +103,36 @@
                                                 <th>File</th>
                                                 <th>Status</th>
                                                 <th>Score</th>
-                                                <th>Grade</th>
+                                                <th>Letter Grade</th>
+                                                <th>Teacher Comments</th>
                                                 <th class="text-end">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach($submissions as $submission)
-                                                <tr data-status="{{ $submission->status }}">
+                                                @php
+                                                    $isGraded = $submission->status === 'graded' || $submission->total_score !== null;
+                                                    $pct = $submission->percentage;
+                                                    if ($pct === null && $submission->max_possible_score > 0 && $submission->total_score !== null) {
+                                                        $pct = round(($submission->total_score / $submission->max_possible_score) * 100, 1);
+                                                    }
+                                                @endphp
+                                                <tr data-status="{{ $isGraded ? 'graded' : $submission->status }}">
                                                     <td>
                                                         <div class="form-check check-tables">
                                                             <input class="form-check-input submission-checkbox" type="checkbox" value="{{ $submission->id }}">
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <h2 class="table-avatar">
-                                                            <a>{{ $submission->student->first_name }} {{ $submission->student->last_name }}</a>
-                                                            <small>{{ $submission->student->email }}</small>
-                                                        </h2>
+                                                        <div class="fw-semibold">{{ $submission->student->first_name }} {{ $submission->student->last_name }}</div>
+                                                        <small class="text-muted">{{ $submission->student->email }}</small>
                                                     </td>
                                                     <td>
                                                         <div>
-                                                            <strong>{{ $submission->created_at->format('M d, Y') }}</strong><br>
-                                                            <small class="text-muted">{{ $submission->created_at->format('H:i') }}</small>
+                                                            <strong>{{ optional($submission->submitted_at ?? $submission->created_at)->format('M d, Y') }}</strong><br>
+                                                            <small class="text-muted">{{ optional($submission->submitted_at ?? $submission->created_at)->format('g:i A') }}</small>
                                                         </div>
-                                                        @if($submission->created_at->gt($activity->due_date))
+                                                        @if(($submission->submitted_at ?? $submission->created_at) && $activity->due_date && ($submission->submitted_at ?? $submission->created_at)->gt($activity->due_date))
                                                             <span class="badge bg-danger">Late</span>
                                                         @endif
                                                     </td>
@@ -136,57 +142,67 @@
                                                                 <i class="fas fa-download"></i> Download
                                                             </a>
                                                             <br>
-                                                            <small class="text-muted">{{ $submission->file_name }}</small>
+                                                            <small class="text-muted">{{ \Illuminate\Support\Str::limit($submission->file_name, 28) }}</small>
                                                         @else
-                                                            <span class="text-muted">No file uploaded</span>
+                                                            <span class="text-muted">No file</span>
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        @if($submission->status === 'submitted')
-                                                            <span class="badge bg-warning">Submitted</span>
-                                                        @elseif($submission->status === 'graded')
-                                                            <span class="badge bg-success">Graded</span>
+                                                        @if($isGraded)
+                                                            <span class="badge" style="background:#198754;color:#fff;">Graded</span>
+                                                        @elseif($submission->status === 'submitted')
+                                                            <span class="badge" style="background:#ffc107;color:#212529;">Needs Grading</span>
                                                         @else
-                                                            <span class="badge bg-secondary">Pending</span>
+                                                            <span class="badge bg-secondary">{{ ucfirst($submission->status) }}</span>
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        @if($submission->status === 'graded')
-                                                            <strong>{{ $submission->total_score }}/{{ $submission->max_possible_score }}</strong>
-                                                            <br>
-                                                            <small class="text-muted">{{ number_format(($submission->total_score / $submission->max_possible_score) * 100, 1) }}%</small>
+                                                        @if($isGraded)
+                                                            <div class="fw-bold" style="font-size:1rem;color:#0d6efd;">
+                                                                {{ $submission->total_score }} / {{ $submission->max_possible_score ?? 100 }}
+                                                            </div>
+                                                            <small class="text-muted">{{ number_format((float) $pct, 1) }}%</small>
                                                         @else
-                                                            <span class="text-muted">-</span>
+                                                            <span class="text-muted">Not graded yet</span>
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        @if($submission->status === 'graded')
-                                                            <span class="badge bg-{{ $submission->letter_grade_color }}">{{ $submission->letter_grade }}</span>
+                                                        @if($isGraded && $submission->letter_grade)
+                                                            <span class="badge" style="background:#198754;color:#fff;font-size:0.95rem;min-width:2rem;">
+                                                                {{ $submission->letter_grade }}
+                                                            </span>
+                                                        @elseif($isGraded)
+                                                            <span class="text-muted">—</span>
                                                         @else
-                                                            <span class="text-muted">-</span>
+                                                            <span class="text-muted">Not graded yet</span>
                                                         @endif
                                                     </td>
-                                                    <td class="text-end">
-                                                        <div class="actions">
-                                                            @if($submission->status === 'submitted')
-                                                                <a href="{{ route('lessons.activities.grade-submission', [$lesson, $activity, $submission]) }}" 
-                                                                   class="btn btn-sm btn-primary">
-                                                                    <i class="fas fa-star"></i> Grade
+                                                    <td style="max-width:220px;">
+                                                        @if($isGraded && $submission->feedback)
+                                                            <div class="small" style="white-space:pre-line;">{{ \Illuminate\Support\Str::limit($submission->feedback, 80) }}</div>
+                                                        @elseif($isGraded)
+                                                            <span class="text-muted small">No comments</span>
+                                                        @else
+                                                            <span class="text-muted small">—</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="text-end" style="min-width: 220px;">
+                                                        <div class="submission-actions">
+                                                            @if(!$isGraded)
+                                                                <a href="{{ route('lessons.activities.grade-submission', [$lesson, $activity, $submission]) }}"
+                                                                   class="submission-action-btn btn-grade">
+                                                                    Grade
                                                                 </a>
-                                                            @elseif($submission->status === 'graded')
-                                                                <a href="{{ route('lessons.activities.view-grade', [$lesson, $activity, $submission]) }}" 
-                                                                   class="btn btn-sm btn-outline-primary">
-                                                                    <i class="fas fa-eye"></i> View
+                                                            @else
+                                                                <a href="{{ route('lessons.activities.view-grade', [$lesson, $activity, $submission]) }}"
+                                                                   class="submission-action-btn btn-view">
+                                                                    View
                                                                 </a>
-                                                                <a href="{{ route('lessons.activities.edit-grade', [$lesson, $activity, $submission]) }}" 
-                                                                   class="btn btn-sm btn-outline-warning">
-                                                                    <i class="fas fa-edit"></i> Edit
+                                                                <a href="{{ route('lessons.activities.edit-grade', [$lesson, $activity, $submission]) }}"
+                                                                   class="submission-action-btn btn-edit">
+                                                                    Edit
                                                                 </a>
                                                             @endif
-                                                            <button type="button" class="btn btn-sm btn-outline-info" 
-                                                                    onclick="viewSubmissionDetails({{ $submission->id }})">
-                                                                <i class="fas fa-info-circle"></i>
-                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -303,6 +319,50 @@
     .btn-sm {
         padding: 0.25rem 0.5rem;
         font-size: 0.875rem;
+    }
+
+    .submission-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        min-width: 200px;
+    }
+
+    .submission-action-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        min-width: 72px;
+        width: auto !important;
+        height: auto !important;
+        padding: 8px 14px !important;
+        border-radius: 6px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+        text-decoration: none !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        box-sizing: border-box;
+    }
+
+    .submission-action-btn.btn-grade {
+        background: #0d6efd !important;
+        border: 1px solid #0d6efd !important;
+        color: #fff !important;
+    }
+
+    .submission-action-btn.btn-view {
+        background: #fff !important;
+        border: 1px solid #0d6efd !important;
+        color: #0d6efd !important;
+    }
+
+    .submission-action-btn.btn-edit {
+        background: #fff !important;
+        border: 1px solid #fd7e14 !important;
+        color: #fd7e14 !important;
     }
 </style>
 @endpush

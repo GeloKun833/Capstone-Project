@@ -8,11 +8,13 @@ use App\Models\Subject;
 use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
+use App\Services\TeacherClassAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -93,21 +95,20 @@ class AssignmentController extends Controller
             abort(403, 'Only teachers can create assignments.');
         }
 
-        $user = Auth::user();
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
-
-        // Get teacher's assigned subjects and sections ONLY
-        $teacher = $user->teacher;
-        if ($teacher) {
-            $subjects = $teacher->subjects()->with(['sections'])->get();
-            $sections = $teacher->sections()->get(); // Only teacher's assigned sections
-        } else {
-            $subjects = Subject::all();
-            $sections = Section::all();
+        $teacher = Auth::user()->teacher;
+        if (!$teacher) {
+            return redirect()->route('assignments.index')
+                ->with('error', 'Teacher profile not found.');
         }
 
-        return view('assignments.create', compact('subjects', 'sections', 'academicYears', 'semesters'));
+        $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $academicYears = AcademicYear::orderByDesc('id')->get();
+        $semesters = Semester::orderBy('name')->get();
+
+        return view('assignments.create', array_merge($assignmentOptions, [
+            'academicYears' => $academicYears,
+            'semesters' => $semesters,
+        ]));
     }
 
     /**
@@ -119,77 +120,81 @@ class AssignmentController extends Controller
             abort(403, 'Only teachers can create assignments.');
         }
 
+        $teacher = Auth::user()->teacher;
+        if (!$teacher) {
+            return redirect()->back()->with('error', 'Teacher profile not found.');
+        }
+
+        $allowed = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $allowedSubjectIds = $allowed['subjects']->pluck('id')->all();
+        $allowedSectionIds = $allowed['sections']->pluck('id')->all();
+        $subjectsBySection = $allowed['subjectsBySection'];
+
         $validator = Validator::make($request->all(), [
+            'section_id' => ['required', Rule::in($allowedSectionIds)],
+            'subject_id' => ['required', Rule::in($allowedSubjectIds)],
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'subject_id' => 'required|exists:subjects,id',
-            'section_id' => 'required|exists:sections,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'semester_id' => 'required|exists:semesters,id',
             'due_date' => 'required|date|after_or_equal:today',
-            'due_time' => 'nullable|date_format:H:i',
+            'due_time' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'max_score' => 'required|numeric|min:0|max:1000',
             'late_submission_penalty' => 'nullable|numeric|min:0|max:100',
             'submission_instructions' => 'nullable|string',
             'allowed_file_types' => 'nullable|array',
             'max_file_size' => 'nullable|numeric|min:1|max:50',
-            'assignment_file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,txt|max:10240'
+        ], [
+            'subject_id.in' => 'Select a subject assigned to you by Admin.',
+            'section_id.in' => 'Select a section assigned to you by Admin.',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        $user = Auth::user();
-        $teacher = $user->teacher;
-
-        if (!$teacher) {
-            return redirect()->back()->with('error', 'Teacher profile not found.');
+        $subjectId = (int) $request->subject_id;
+        $sectionId = (int) $request->section_id;
+        $validSubjects = array_map('intval', $subjectsBySection[$sectionId] ?? []);
+        if (! in_array($subjectId, $validSubjects, true)) {
+            return redirect()->back()->withInput()->withErrors([
+                'subject_id' => 'That subject is not linked to the selected section in your teaching assignment.',
+            ]);
         }
 
-        $data = $request->all();
+        $data = $request->only([
+            'title',
+            'description',
+            'subject_id',
+            'section_id',
+            'academic_year_id',
+            'semester_id',
+            'due_date',
+            'due_time',
+            'max_score',
+            'late_submission_penalty',
+            'submission_instructions',
+            'allowed_file_types',
+            'max_file_size',
+        ]);
         $data['teacher_id'] = $teacher->id;
         $data['allows_late_submission'] = $request->has('allows_late_submission');
         $data['requires_file_upload'] = $request->has('requires_file_upload');
+        $data['status'] = 'published';
+        $data['is_active'] = true;
 
-        // Handle file upload
-        if ($request->hasFile('assignment_file')) {
-            try {
-                $file = $request->file('assignment_file');
-                
-                // Validate file size (10MB = 10240 KB)
-                if ($file->getSize() > 10240 * 1024) {
-                    return redirect()->back()
-                        ->withErrors(['assignment_file' => 'The file size must not exceed 10MB.'])
-                        ->withInput();
-                }
-                
-                // Validate file type
-                $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt'];
-                $fileExtension = strtolower($file->getClientOriginalExtension());
-                
-                if (!in_array($fileExtension, $allowedExtensions)) {
-                    return redirect()->back()
-                        ->withErrors(['assignment_file' => 'Invalid file type. Allowed types: PDF, DOC, DOCX, PPT, PPTX, TXT.'])
-                        ->withInput();
-                }
-                
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $filePath = $file->storeAs('assignments', $fileName, 'public');
-                
-                $data['file_path'] = $filePath;
-                $data['file_name'] = $file->getClientOriginalName();
-                $data['file_type'] = $file->getClientOriginalExtension();
-            } catch (\Exception $e) {
-                return redirect()->back()
-                    ->withErrors(['assignment_file' => 'File upload failed: ' . $e->getMessage()])
-                    ->withInput();
-            }
+        if ($data['requires_file_upload']) {
+            $types = array_values(array_filter((array) $request->input('allowed_file_types', [])));
+            $data['allowed_file_types'] = $types !== [] ? $types : ['pdf', 'docx'];
+            $data['max_file_size'] = (int) ($request->input('max_file_size') ?: 10);
+        } else {
+            $data['allowed_file_types'] = null;
+            $data['max_file_size'] = 10;
         }
 
-        // Set default status and active state so students can see it immediately
-        $data['status'] = $data['status'] ?? 'published'; // Default to published
-        $data['is_active'] = $data['is_active'] ?? true; // Default to active
+        if ($request->filled('due_time') && strlen($data['due_time']) > 5) {
+            $data['due_time'] = substr($data['due_time'], 0, 5);
+        }
 
         try {
             Assignment::create($data);
@@ -243,39 +248,47 @@ class AssignmentController extends Controller
             'academic_year_id' => 'required|exists:academic_years,id',
             'semester_id' => 'required|exists:semesters,id',
             'due_date' => 'required|date',
-            'due_time' => 'nullable|date_format:H:i',
+            'due_time' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'max_score' => 'required|numeric|min:0|max:1000',
-            'allows_late_submission' => 'boolean',
             'late_submission_penalty' => 'nullable|numeric|min:0|max:100',
-            'requires_file_upload' => 'boolean',
             'submission_instructions' => 'nullable|string',
             'allowed_file_types' => 'nullable|array',
             'max_file_size' => 'nullable|numeric|min:1|max:50',
-            'assignment_file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,txt|max:10240'
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        $data = $request->all();
+        $data = $request->only([
+            'title',
+            'description',
+            'subject_id',
+            'section_id',
+            'academic_year_id',
+            'semester_id',
+            'due_date',
+            'due_time',
+            'max_score',
+            'late_submission_penalty',
+            'submission_instructions',
+            'allowed_file_types',
+            'max_file_size',
+        ]);
         $data['allows_late_submission'] = $request->has('allows_late_submission');
         $data['requires_file_upload'] = $request->has('requires_file_upload');
 
-        // Handle file upload
-        if ($request->hasFile('assignment_file')) {
-            // Delete old file if exists
-            if ($assignment->file_path) {
-                Storage::disk('public')->delete($assignment->file_path);
-            }
-            
-            $file = $request->file('assignment_file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('assignments', $fileName, 'public');
-            
-            $data['file_path'] = $filePath;
-            $data['file_name'] = $file->getClientOriginalName();
-            $data['file_type'] = $file->getClientOriginalExtension();
+        if ($data['requires_file_upload']) {
+            $types = array_values(array_filter((array) $request->input('allowed_file_types', [])));
+            $data['allowed_file_types'] = $types !== [] ? $types : ['pdf', 'docx'];
+            $data['max_file_size'] = (int) ($request->input('max_file_size') ?: 10);
+        } else {
+            $data['allowed_file_types'] = null;
+            $data['max_file_size'] = 10;
+        }
+
+        if ($request->filled('due_time') && strlen((string) ($data['due_time'] ?? '')) > 5) {
+            $data['due_time'] = substr($data['due_time'], 0, 5);
         }
 
         $assignment->update($data);

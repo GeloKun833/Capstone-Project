@@ -25,7 +25,7 @@
                         <h5 class="card-title">Edit Assignment: {{ $assignment->title }}</h5>
                     </div>
                     <div class="card-body">
-                        <form action="{{ route('assignments.update', $assignment->id) }}" method="POST" enctype="multipart/form-data">
+                        <form action="{{ route('assignments.update', $assignment->id) }}" method="POST">
                             @csrf
                             @method('PUT')
                             
@@ -186,21 +186,44 @@
                                             </div>
 
                                             <div class="mb-3" id="file_settings_div" style="display: {{ $assignment->requires_file_upload ? 'block' : 'none' }};">
-                                                <label for="allowed_file_types" class="form-label">Allowed File Types</label>
-                                                <select class="form-control" id="allowed_file_types" name="allowed_file_types[]" multiple>
-                                                    @php
-                                                        $allowedTypes = is_array($assignment->allowed_file_types) ? $assignment->allowed_file_types : [];
-                                                    @endphp
-                                                    <option value="pdf" {{ in_array('pdf', $allowedTypes) ? 'selected' : '' }}>PDF</option>
-                                                    <option value="doc" {{ in_array('doc', $allowedTypes) ? 'selected' : '' }}>DOC</option>
-                                                    <option value="docx" {{ in_array('docx', $allowedTypes) ? 'selected' : '' }}>DOCX</option>
-                                                    <option value="ppt" {{ in_array('ppt', $allowedTypes) ? 'selected' : '' }}>PPT</option>
-                                                    <option value="pptx" {{ in_array('pptx', $allowedTypes) ? 'selected' : '' }}>PPTX</option>
-                                                    <option value="txt" {{ in_array('txt', $allowedTypes) ? 'selected' : '' }}>TXT</option>
-                                                    <option value="jpg" {{ in_array('jpg', $allowedTypes) ? 'selected' : '' }}>JPG</option>
-                                                    <option value="png" {{ in_array('png', $allowedTypes) ? 'selected' : '' }}>PNG</option>
-                                                </select>
-                                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple types</small>
+                                                <label class="form-label mb-2">Allowed File Types</label>
+                                                @php
+                                                    $allowedTypes = old('allowed_file_types', is_array($assignment->allowed_file_types) ? $assignment->allowed_file_types : []);
+                                                    $allowedTypes = array_map('strtolower', (array) $allowedTypes);
+                                                @endphp
+                                                <div class="border rounded p-3 bg-light">
+                                                    <div class="mb-3">
+                                                        <div class="fw-semibold text-dark mb-2"><i class="fas fa-file-alt me-1"></i> Documents</div>
+                                                        <div class="d-flex flex-wrap gap-3">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" name="allowed_file_types[]" value="pdf" id="type_pdf"
+                                                                       {{ in_array('pdf', $allowedTypes, true) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="type_pdf">PDF</label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" name="allowed_file_types[]" value="docx" id="type_docx"
+                                                                       {{ in_array('docx', $allowedTypes, true) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="type_docx">DOCX</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <div class="fw-semibold text-dark"><i class="fas fa-image me-1"></i> Images</div>
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary py-0" id="selectAllImagesBtn">Select all images</button>
+                                                        </div>
+                                                        <div class="d-flex flex-wrap gap-3" id="imageTypeChecks">
+                                                            @foreach(['jpg' => 'JPG', 'png' => 'PNG', 'gif' => 'GIF', 'webp' => 'WEBP', 'bmp' => 'BMP', 'tif' => 'TIF', 'tiff' => 'TIFF', 'heic' => 'HEIC', 'svg' => 'SVG'] as $value => $label)
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input image-type-check" type="checkbox" name="allowed_file_types[]" value="{{ $value }}" id="type_{{ $value }}"
+                                                                           {{ in_array($value, $allowedTypes, true) ? 'checked' : '' }}>
+                                                                    <label class="form-check-label" for="type_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <small class="form-text text-muted">Tick the formats students may submit. JPEG is accepted when JPG is selected.</small>
                                             </div>
 
                                             <div class="mb-3" id="file_size_div" style="display: {{ $assignment->requires_file_upload ? 'block' : 'none' }};">
@@ -208,38 +231,6 @@
                                                 <input type="number" class="form-control" id="max_file_size" 
                                                        name="max_file_size" value="{{ old('max_file_size', $assignment->max_file_size) }}" 
                                                        min="1" max="50">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Assignment File Upload --}}
-                                    <div class="card mt-3">
-                                        <div class="card-header">
-                                            <h6 class="card-title mb-0">Assignment File</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            @if($assignment->assignment_file)
-                                                <div class="mb-3">
-                                                    <label class="form-label">Current File</label>
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-file me-2"></i>
-                                                        <span>{{ basename($assignment->assignment_file) }}</span>
-                                                        <a href="{{ Storage::url($assignment->assignment_file) }}" class="btn btn-sm btn-outline-primary ms-2" target="_blank">
-                                                            <i class="fas fa-download"></i>
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            @endif
-                                            
-                                            <div class="mb-3">
-                                                <label for="assignment_file" class="form-label">Upload New File (Optional)</label>
-                                                <input type="file" class="form-control @error('assignment_file') is-invalid @enderror" 
-                                                       id="assignment_file" name="assignment_file" 
-                                                       accept=".pdf,.doc,.docx,.ppt,.pptx,.txt">
-                                                @error('assignment_file')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                                <small class="form-text text-muted">Max size: 10MB. Supported: PDF, DOC, DOCX, PPT, PPTX, TXT</small>
                                             </div>
                                         </div>
                                     </div>
@@ -289,6 +280,13 @@
                 $('#file_settings_div').hide();
                 $('#file_size_div').hide();
             }
+        });
+
+        $('#selectAllImagesBtn').on('click', function() {
+            const $checks = $('.image-type-check');
+            const allChecked = $checks.length && $checks.filter(':checked').length === $checks.length;
+            $checks.prop('checked', !allChecked);
+            $(this).text(allChecked ? 'Select all images' : 'Clear images');
         });
     });
 </script>

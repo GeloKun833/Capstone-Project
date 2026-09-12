@@ -17,7 +17,13 @@ use App\Models\CalendarEvent;
 use App\Models\Attendance;
 use App\Models\Subject;
 use App\Models\ClassSchedule;
+use App\Models\Lesson;
+use App\Models\Assignment;
+use App\Models\AssignmentSubmission;
+use App\Models\ClassPost;
 use App\Services\GradeSubjectCatalogService;
+use App\Services\TeacherClassAssignmentService;
+use Carbon\Carbon;
 
 class HomeController extends Controller
 {
@@ -754,11 +760,31 @@ class HomeController extends Controller
                 'teachingHistory' => collect(),
                 'upcomingEvents' => collect(),
                 'attendanceStats' => (object)['total_records' => 0, 'present_count' => 0, 'absent_count' => 0],
-                'attendancePercentage' => 0
+                'attendancePercentage' => 0,
+                'teacherSubjects' => collect(),
+                'teacherSections' => collect(),
+                'myClasses' => collect(),
+                'todaysSchedule' => collect(),
+                'activeLessonsCount' => 0,
+                'pendingTasksCount' => 0,
+                'upcomingLessonPlans' => collect(),
+                'assignmentWorkload' => collect(),
+                'teachingProgress' => [
+                    'lessons_completed' => 0,
+                    'lessons_remaining' => 0,
+                    'assignments_graded' => 0,
+                    'assignments_pending' => 0,
+                    'attendance_recorded' => 0,
+                    'lesson_progress_pct' => 0,
+                    'grading_progress_pct' => 0,
+                    'attendance_pct' => 0,
+                ],
+                'recentActivity' => collect(),
+                'greeting' => 'Hello',
             ];
         }
 
-        return Cache::remember('teacher.dashboard.'.$teacher->id, 90, function () use ($teacher) {
+        return Cache::remember('teacher.dashboard.v3.'.$teacher->id, 90, function () use ($teacher, $user) {
         // Get teacher's subjects with sections, grouped by grade level
         $subjectCollection = $teacher->subjects()
             ->with(['sections'])
@@ -824,13 +850,218 @@ class HomeController extends Controller
             : 0;
 
         $teacherSections = $teacher->sections()->get();
-        
+
+        // ---- UI enrichment (same modules; additional presentation data) ----
+        $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $assignedSectionIds = $options['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        $schedules = ClassSchedule::with(['subject', 'section', 'room'])
+            ->where('teacher_id', $teacher->id)
+            ->where('is_active', true)
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
+
+        if ($schedules->isEmpty() && ($options['subjects']->isNotEmpty() || $options['sections']->isNotEmpty())) {
+            // Fallback class cards from assignments when no schedule rows exist
+            $myClasses = collect();
+            foreach ($options['subjectsBySection'] as $sectionId => $subjectIdsForSection) {
+                $section = $options['sections']->firstWhere('id', (int) $sectionId);
+                if (! $section) {
+                    continue;
+                }
+                foreach ($subjectIdsForSection as $sid) {
+                    $subject = $options['subjects']->firstWhere('id', (int) $sid);
+                    if (! $subject) {
+                        continue;
+                    }
+                    $studentCount = Student::whereHas('sections', fn ($q) => $q->where('sections.id', $section->id))->count();
+                    $myClasses->push((object) [
+                        'grade_level' => $section->grade_level ?? ($subject->class ?? '—'),
+                        'subject_name' => $subject->subject_name,
+                        'section_name' => $section->name,
+                        'section_id' => $section->id,
+                        'student_count' => $studentCount,
+                        'schedule_label' => 'Schedule not set',
+                        'room' => null,
+                        'status' => 'Active',
+                    ]);
+                }
+            }
+        } else {
+            $myClasses = $schedules->map(function (ClassSchedule $row) {
+                $section = $row->section;
+                $studentCount = $section
+                    ? Student::whereHas('sections', fn ($q) => $q->where('sections.id', $section->id))->count()
+                    : 0;
+                $start = $row->start_time ? Carbon::parse($row->start_time)->format('g:i A') : '';
+                $end = $row->end_time ? Carbon::parse($row->end_time)->format('g:i A') : '';
+
+                return (object) [
+                    'grade_level' => $section->grade_level ?? ($row->subject->class ?? '—'),
+                    'subject_name' => $row->subject->subject_name ?? 'Subject',
+                    'section_name' => $section->name ?? '—',
+                    'section_id' => $section->id ?? null,
+                    'student_count' => $studentCount,
+                    'schedule_label' => trim(ucfirst($row->day_of_week).($start ? ' • '.$start.($end ? ' – '.$end : '') : '')),
+                    'room' => $row->room->room_name ?? null,
+                    'status' => $row->is_active ? 'Active' : 'Inactive',
+                ];
+            })->unique(fn ($c) => ($c->section_id ?? 0).'-'.($c->subject_name ?? ''))->values();
+        }
+
+        if ($totalClasses === 0) {
+            $totalClasses = max($myClasses->count(), $teacherSections->count());
+        }
+
+        $todayName = strtolower(now()->format('l'));
+        $todaysSchedule = $schedules->where('day_of_week', $todayName)->values()->map(function (ClassSchedule $row) {
+            $section = $row->section;
+            $studentCount = $section
+                ? Student::whereHas('sections', fn ($q) => $q->where('sections.id', $section->id))->count()
+                : 0;
+
+            return (object) [
+                'start_label' => $row->start_time ? Carbon::parse($row->start_time)->format('g:i A') : '—',
+                'end_label' => $row->end_time ? Carbon::parse($row->end_time)->format('g:i A') : '',
+                'subject_name' => $row->subject->subject_name ?? 'Subject',
+                'grade_level' => $section->grade_level ?? '—',
+                'section_name' => $section->name ?? '—',
+                'room' => $row->room->room_name ?? '—',
+                'student_count' => $studentCount,
+            ];
+        });
+
+        $activeLessonsCount = Lesson::where('teacher_id', $teacher->id)
+            ->where(function ($q) {
+                $q->where('status', 'published')->orWhere('is_active', true);
+            })
+            ->count();
+
+        $upcomingLessonPlans = Lesson::with(['subject', 'section'])
+            ->where('teacher_id', $teacher->id)
+            ->where(function ($q) {
+                $q->whereDate('lesson_date', '>=', now()->toDateString())
+                    ->orWhereNull('lesson_date');
+            })
+            ->orderByRaw('CASE WHEN lesson_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('lesson_date')
+            ->take(6)
+            ->get();
+
+        $assignmentWorkload = Assignment::with(['subject', 'section'])
+            ->where('teacher_id', $teacher->id)
+            ->where('is_active', true)
+            ->whereIn('status', ['published', 'closed', 'draft'])
+            ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('due_date')
+            ->take(8)
+            ->get()
+            ->map(function (Assignment $assignment) {
+                $submitted = $assignment->submissions()->whereIn('status', ['submitted', 'late', 'graded'])->count();
+                $graded = $assignment->submissions()->where('status', 'graded')->count();
+                $pending = max(0, $submitted - $graded);
+                $pct = $submitted > 0 ? round(($graded / $submitted) * 100) : 0;
+
+                return (object) [
+                    'id' => $assignment->id,
+                    'title' => $assignment->title,
+                    'subject_name' => $assignment->subject->subject_name ?? '—',
+                    'class_label' => trim(($assignment->section->grade_level ?? '').' '.($assignment->section->name ?? '')) ?: '—',
+                    'due_date' => $assignment->due_date,
+                    'status' => $assignment->status,
+                    'submitted' => $submitted,
+                    'graded' => $graded,
+                    'pending' => $pending,
+                    'progress_pct' => $pct,
+                ];
+            });
+
+        $pendingTasksCount = (int) $assignmentWorkload->sum('pending')
+            + Lesson::where('teacher_id', $teacher->id)->where('status', 'draft')->count();
+
+        $lessonsCompleted = Lesson::where('teacher_id', $teacher->id)
+            ->where(function ($q) {
+                $q->where('status', 'published')
+                    ->whereDate('lesson_date', '<', now()->toDateString());
+            })
+            ->count();
+        $lessonsRemaining = Lesson::where('teacher_id', $teacher->id)
+            ->where(function ($q) {
+                $q->whereDate('lesson_date', '>=', now()->toDateString())
+                    ->orWhere(function ($qq) {
+                        $qq->whereNull('lesson_date')->whereIn('status', ['draft', 'published']);
+                    });
+            })
+            ->count();
+
+        $assignmentsGraded = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('teacher_id', $teacher->id))
+            ->where('status', 'graded')
+            ->count();
+        $assignmentsPendingGrade = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('teacher_id', $teacher->id))
+            ->whereIn('status', ['submitted', 'late'])
+            ->count();
+        $attendanceRecorded = (int) ($attendanceStats->total_records ?? 0);
+
+        $lessonTotal = max(1, $lessonsCompleted + $lessonsRemaining);
+        $gradeTotal = max(1, $assignmentsGraded + $assignmentsPendingGrade);
+
+        $teachingProgress = [
+            'lessons_completed' => $lessonsCompleted,
+            'lessons_remaining' => $lessonsRemaining,
+            'assignments_graded' => $assignmentsGraded,
+            'assignments_pending' => $assignmentsPendingGrade,
+            'attendance_recorded' => $attendanceRecorded,
+            'lesson_progress_pct' => round(($lessonsCompleted / $lessonTotal) * 100),
+            'grading_progress_pct' => round(($assignmentsGraded / $gradeTotal) * 100),
+            'attendance_pct' => $attendancePercentage,
+        ];
+
+        $recentActivity = collect();
+        foreach ($teachingHistory->take(3) as $history) {
+            $recentActivity->push((object) [
+                'icon' => 'fa-chalkboard',
+                'text' => 'Completed session: '.($history->subject->subject_name ?? $history->title ?? 'Class'),
+                'time' => optional($history->start_time)->diffForHumans() ?? '',
+            ]);
+        }
+        foreach (Lesson::where('teacher_id', $teacher->id)->latest()->take(2)->get() as $lesson) {
+            $recentActivity->push((object) [
+                'icon' => 'fa-book',
+                'text' => 'Created lesson "'.$lesson->title.'"',
+                'time' => optional($lesson->created_at)->diffForHumans() ?? '',
+            ]);
+        }
+        foreach (Assignment::where('teacher_id', $teacher->id)->latest()->take(2)->get() as $asg) {
+            $recentActivity->push((object) [
+                'icon' => 'fa-tasks',
+                'text' => 'Published assignment "'.$asg->title.'"',
+                'time' => optional($asg->created_at)->diffForHumans() ?? '',
+            ]);
+        }
+        if (class_exists(ClassPost::class)) {
+            foreach (ClassPost::where('teacher_id', $teacher->id)->latest()->take(1)->get() as $post) {
+                $recentActivity->push((object) [
+                    'icon' => 'fa-bullhorn',
+                    'text' => 'Posted: '.($post->title ?? 'Class update'),
+                    'time' => optional($post->created_at)->diffForHumans() ?? '',
+                ]);
+            }
+        }
+        $recentActivity = $recentActivity->take(8)->values();
+
+        $hour = (int) now()->format('G');
+        $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
+
+        // Prefer real class count for overview card
+        $classCardCount = $myClasses->count() > 0 ? $myClasses->count() : $totalClasses;
+
         return compact(
             'teacher',
-            'teacherSubjects', // Now grouped by grade level
-            'teacherSections', // Teacher's assigned sections
+            'teacherSubjects',
+            'teacherSections',
             'totalClasses',
-            'totalStudents', 
+            'totalStudents',
             'totalLessons',
             'totalHours',
             'upcomingLessons',
@@ -839,7 +1070,21 @@ class HomeController extends Controller
             'upcomingEvents',
             'attendanceStats',
             'attendancePercentage'
-        );
+        ) + [
+            'myClasses' => $myClasses,
+            'todaysSchedule' => $todaysSchedule,
+            'activeLessonsCount' => $activeLessonsCount,
+            'pendingTasksCount' => $pendingTasksCount,
+            'upcomingLessonPlans' => $upcomingLessonPlans,
+            'assignmentWorkload' => $assignmentWorkload,
+            'teachingProgress' => $teachingProgress,
+            'recentActivity' => $recentActivity,
+            'greeting' => $greeting,
+            'classCardCount' => $classCardCount,
+            'teacherDisplayName' => $teacher->full_name
+                ?? trim(($teacher->first_name ?? '').' '.($teacher->last_name ?? ''))
+                ?: ($user->name ?? 'Teacher'),
+        ];
         });
     }
 

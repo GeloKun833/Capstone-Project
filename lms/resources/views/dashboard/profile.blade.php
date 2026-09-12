@@ -91,7 +91,7 @@
                                             <h5 class="card-title d-flex justify-content-between">
                                                 <span>Account Status</span>
                                             </h5>
-                                            <button class="btn btn-success" type="button"><i class="fe fe-check-verified"></i> {{ Session::get('status') }}</button>
+                                            <button class="btn btn-success" type="button"><i class="fe fe-check-verified"></i> {{ Session::get('user_status') }}</button>
                                         </div>
                                     </div>
                                 </div>

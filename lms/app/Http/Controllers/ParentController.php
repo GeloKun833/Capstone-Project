@@ -50,6 +50,12 @@ class ParentController extends Controller
             $child,
             $academicYear?->id
         );
+
+        $reportCard = app(\App\Services\ReportCardService::class)->forStudent($child, $academicYear);
+        $observedIndicators = $reportCard['observedGrouped'];
+        $observedRatings = $reportCard['observedRatings'];
+        $generalAverages = $reportCard['generalAverages'];
+
         $attendance = $this->portalService->getChildAttendance($child, $request);
         $activities = $this->portalService->getChildActivities($child, $academicYear, $semester);
         $submissions = $this->portalService->getChildSubmissions($child, $academicYear, $semester);
@@ -76,6 +82,9 @@ class ParentController extends Controller
             'overview',
             'grades',
             'quarterlyGrades',
+            'observedIndicators',
+            'observedRatings',
+            'generalAverages',
             'attendance',
             'attendanceSummary',
             'activities',

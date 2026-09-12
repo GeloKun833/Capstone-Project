@@ -17,7 +17,7 @@
                 <p class="login-card__subtitle">Sign in to your LMS account to continue</p>
             </header>
 
-            @if (session('status'))
+            @if (session('status') && ! in_array(strtolower(trim((string) session('status'))), ['active', 'inactive', 'disable', 'disabled', 'pending', 'blocked'], true))
                 <div class="alert alert-success" role="alert">{{ session('status') }}</div>
             @endif
 

@@ -1,0 +1,521 @@
+
+<?php $__env->startSection('content'); ?>
+
+    <div class="page-wrapper">
+        <div class="content container-fluid">
+
+            <div class="page-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h3 class="page-title">Performance Analytics Dashboard</h3>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
+                            <li class="breadcrumb-item active">Performance Analytics</li>
+                        </ul>
+                    </div>
+                    <div class="col-auto text-end float-end ms-auto download-grp">
+                        <button type="button" class="btn btn-primary" onclick="exportReport()">
+                            <i class="fas fa-download"></i> Export Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Form -->
+            <div class="student-group-form">
+                <div class="row">
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            <select class="form-control" id="academic_year_filter" name="academic_year_id">
+                                <option value="">All Academic Years</option>
+                                <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($year->id); ?>" <?php echo e($academicYearId == $year->id ? 'selected' : ''); ?>>
+                                        <?php echo e($year->name); ?>
+
+                                    </option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            <select class="form-control" id="semester_filter" name="semester_id">
+                                <option value="">All Semesters</option>
+                                <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($semester->id); ?>" <?php echo e($semesterId == $semester->id ? 'selected' : ''); ?>>
+                                        <?php echo e($semester->name); ?>
+
+                                    </option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="search-student-btn">
+                            <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                                <i class="fas fa-filter"></i> Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0"><?php echo e(count($analytics['class_averages'])); ?></h4>
+                                    <p class="mb-0">Subjects Taught</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-book fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0"><?php echo e(count($analytics['top_students']['top_students'])); ?></h4>
+                                    <p class="mb-0">Top Performers</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-trophy fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0"><?php echo e(count($analytics['attendance_overview'])); ?></h4>
+                                    <p class="mb-0">Classes Monitored</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-users fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0"><?php echo e(count($analytics['recent_grades'])); ?></h4>
+                                    <p class="mb-0">Recent Grades</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-chart-bar fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title">Class Averages by Subject</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="classAveragesChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title">Assessment Breakdown</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="assessmentBreakdownChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Overview -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title">Class Attendance Overview</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="attendanceOverviewChart" height="150"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top and Lowest Performing Students -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card card-table">
+                        <div class="card-body">
+                            <div class="page-header">
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <h3 class="page-title">Top Performing Students</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <?php if(count($analytics['top_students']['top_students']) > 0): ?>
+                                <div class="table-responsive">
+                                    <table class="table border-0 star-student table-hover table-center mb-0 datatable table-striped">
+                                        <thead class="student-thread">
+                                            <tr>
+                                                <th>Student</th>
+                                                <th>Average Score</th>
+                                                <th>Assignments</th>
+                                                <th>Subjects</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php $__currentLoopData = $analytics['top_students']['top_students']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $student): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <tr>
+                                                    <td>
+                                                        <h2 class="table-avatar">
+                                                            <a><?php echo e($student['student_name']); ?></a>
+                                                        </h2>
+                                                    </td>
+                                                    <td>
+                                                        <strong><?php echo e($student['average_score']); ?>%</strong>
+                                                    </td>
+                                                    <td><?php echo e($student['assignments_count']); ?></td>
+                                                    <td><?php echo e($student['subjects_count']); ?></td>
+                                                </tr>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-center py-3">
+                                    <p class="text-muted">No top performing students data available.</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card card-table">
+                        <div class="card-body">
+                            <div class="page-header">
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <h3 class="page-title">Students Needing Support</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <?php if(count($analytics['top_students']['lowest_students']) > 0): ?>
+                                <div class="table-responsive">
+                                    <table class="table border-0 star-student table-hover table-center mb-0 datatable table-striped">
+                                        <thead class="student-thread">
+                                            <tr>
+                                                <th>Student</th>
+                                                <th>Average Score</th>
+                                                <th>Assignments</th>
+                                                <th>Subjects</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php $__currentLoopData = $analytics['top_students']['lowest_students']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $student): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <tr>
+                                                    <td>
+                                                        <h2 class="table-avatar">
+                                                            <a><?php echo e($student['student_name']); ?></a>
+                                                        </h2>
+                                                    </td>
+                                                    <td>
+                                                        <strong class="text-danger"><?php echo e($student['average_score']); ?>%</strong>
+                                                    </td>
+                                                    <td><?php echo e($student['assignments_count']); ?></td>
+                                                    <td><?php echo e($student['subjects_count']); ?></td>
+                                                </tr>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-center py-3">
+                                    <p class="text-muted">No students needing support data available.</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Grades -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card card-table">
+                        <div class="card-body">
+                            <div class="page-header">
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <h3 class="page-title">Recent Grades</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <?php if(count($analytics['recent_grades']) > 0): ?>
+                                <div class="table-responsive">
+                                    <table class="table border-0 star-student table-hover table-center mb-0 datatable table-striped">
+                                        <thead class="student-thread">
+                                            <tr>
+                                                <th>Student</th>
+                                                <th>Subject</th>
+                                                <th>Score</th>
+                                                <th>Date</th>
+                                                <th>Performance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php $__currentLoopData = $analytics['recent_grades']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <tr>
+                                                    <td>
+                                                        <h2 class="table-avatar">
+                                                            <a><?php echo e($grade['student_name']); ?></a>
+                                                        </h2>
+                                                    </td>
+                                                    <td><?php echo e($grade['subject']); ?></td>
+                                                    <td>
+                                                        <strong><?php echo e($grade['score']); ?>%</strong>
+                                                    </td>
+                                                    <td><?php echo e($grade['date']); ?></td>
+                                                    <td>
+                                                        <?php if($grade['score'] >= 90): ?>
+                                                            <span class="badge bg-success">Excellent</span>
+                                                        <?php elseif($grade['score'] >= 80): ?>
+                                                            <span class="badge bg-primary">Good</span>
+                                                        <?php elseif($grade['score'] >= 70): ?>
+                                                            <span class="badge bg-warning">Average</span>
+                                                        <?php else: ?>
+                                                            <span class="badge bg-danger">Needs Improvement</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-center py-5">
+                                    <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No Recent Grades</h5>
+                                    <p class="text-muted">No grades have been recorded recently.</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('styles'); ?>
+<style>
+    .card.bg-primary {
+        background-color: #3d5ee1 !important;
+    }
+    
+    .card.bg-success {
+        background-color: #7bb13c !important;
+    }
+    
+    .card.bg-warning {
+        background-color: #ffc107 !important;
+    }
+    
+    .card.bg-info {
+        background-color: #17a2b8 !important;
+    }
+    
+    .badge.bg-success {
+        background-color: #7bb13c !important;
+    }
+    
+    .badge.bg-primary {
+        background-color: #3d5ee1 !important;
+    }
+    
+    .badge.bg-warning {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+    
+    .badge.bg-danger {
+        background-color: #dc3545 !important;
+    }
+    
+    .table-avatar h2 a {
+        color: #333;
+        font-weight: 500;
+        text-decoration: none;
+    }
+</style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let classAveragesChart, assessmentBreakdownChart, attendanceOverviewChart;
+
+$(document).ready(function() {
+    initializeCharts();
+});
+
+function initializeCharts() {
+    // Class Averages Chart
+    const classCtx = document.getElementById('classAveragesChart').getContext('2d');
+    classAveragesChart = new Chart(classCtx, {
+        type: 'bar',
+        data: {
+            labels: <?php echo json_encode(collect($analytics['class_averages'])->pluck('subject')); ?>,
+            datasets: [{
+                label: 'Average Score (%)',
+                data: <?php echo json_encode(collect($analytics['class_averages'])->pluck('average_score')); ?>,
+                backgroundColor: [
+                    '#3d5ee1',
+                    '#7bb13c',
+                    '#ffc107',
+                    '#dc3545',
+                    '#17a2b8',
+                    '#6c757d'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Assessment Breakdown Chart
+    const assessmentCtx = document.getElementById('assessmentBreakdownChart').getContext('2d');
+    assessmentBreakdownChart = new Chart(assessmentCtx, {
+        type: 'doughnut',
+        data: {
+            labels: <?php echo json_encode(collect($analytics['assessment_breakdown'])->pluck('assessment_type')); ?>,
+            datasets: [{
+                data: <?php echo json_encode(collect($analytics['assessment_breakdown'])->pluck('count')); ?>,
+                backgroundColor: [
+                    '#3d5ee1',
+                    '#7bb13c',
+                    '#ffc107',
+                    '#dc3545',
+                    '#17a2b8',
+                    '#6c757d'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Attendance Overview Chart
+    const attendanceCtx = document.getElementById('attendanceOverviewChart').getContext('2d');
+    attendanceOverviewChart = new Chart(attendanceCtx, {
+        type: 'bar',
+        data: {
+            labels: <?php echo json_encode(collect($analytics['attendance_overview'])->pluck('section')); ?>,
+            datasets: [{
+                label: 'Attendance Rate (%)',
+                data: <?php echo json_encode(collect($analytics['attendance_overview'])->pluck('attendance_rate')); ?>,
+                backgroundColor: [
+                    '#7bb13c',
+                    '#3d5ee1',
+                    '#ffc107',
+                    '#dc3545',
+                    '#17a2b8',
+                    '#6c757d'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function applyFilters() {
+    const academicYear = $('#academic_year_filter').val();
+    const semester = $('#semester_filter').val();
+    
+    // Build query string
+    const params = new URLSearchParams();
+    if (academicYear) params.append('academic_year_id', academicYear);
+    if (semester) params.append('semester_id', semester);
+    
+    // Redirect with parameters
+    window.location.href = '<?php echo e(route("analytics.teacher-dashboard")); ?>?' + params.toString();
+}
+
+function exportReport() {
+    const academicYear = $('#academic_year_filter').val();
+    const semester = $('#semester_filter').val();
+    
+    // Build query string
+    const params = new URLSearchParams();
+    if (academicYear) params.append('academic_year_id', academicYear);
+    if (semester) params.append('semester_id', semester);
+    
+    // Download report
+    window.location.href = '<?php echo e(route("analytics.export-report")); ?>?' + params.toString();
+}
+</script>
+<?php $__env->stopPush(); ?> 
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views\analytics\teacher-dashboard.blade.php ENDPATH**/ ?>

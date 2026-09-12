@@ -42,7 +42,8 @@
 
             <div class="top-nav-search">
                 <form>
-                    <input type="text" class="form-control" placeholder="Search here">
+                    <input type="text" class="form-control"
+                           placeholder="{{ Session::get('role_name') === 'Teacher' ? 'Search students, classes, assignments...' : 'Search here' }}">
                     <button class="btn" type="submit"><i class="fas fa-search"></i></button>
                 </form>
             </div>
@@ -51,6 +52,12 @@
             </a>
             <ul class="nav user-menu">
 
+
+                <li class="nav-item me-2">
+                    <a href="{{ route('chat.index') }}" class="nav-link header-nav-list" title="Messages">
+                        <i class="far fa-comment-dots"></i>
+                    </a>
+                </li>
 
                 <li class="nav-item dropdown noti-dropdown me-2">
                     <a href="#" class="dropdown-toggle nav-link header-nav-list" data-bs-toggle="dropdown">

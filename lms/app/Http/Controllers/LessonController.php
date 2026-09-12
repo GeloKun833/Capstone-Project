@@ -12,6 +12,7 @@ use App\Models\Semester;
 use App\Models\Teacher;
 use App\Models\ClassSchedule;
 use App\Services\GradeSubjectCatalogService;
+use App\Services\TeacherClassAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
@@ -83,7 +84,7 @@ class LessonController extends Controller
                 ->with('error', 'Teacher profile not found. Please contact admin.');
         }
 
-        $assignmentOptions = $this->teacherAssignmentOptions($teacher);
+        $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
         $academicYears = AcademicYear::orderByDesc('id')->get();
         $semesters = Semester::orderBy('name')->get();
 
@@ -102,7 +103,7 @@ class LessonController extends Controller
                 return redirect()->back()->withInput()->with('error', 'Teacher profile not found. Please contact admin.');
             }
 
-            $allowed = $this->teacherAssignmentOptions($teacher);
+            $allowed = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
             $allowedSubjectIds = $allowed['subjects']->pluck('id')->all();
             $allowedSectionIds = $allowed['sections']->pluck('id')->all();
             $subjectsBySection = $allowed['subjectsBySection'];
@@ -322,107 +323,10 @@ class LessonController extends Controller
     }
 
     /**
-     * Subjects/sections assigned to the teacher by Admin (+ schedule pairs).
-     *
-     * @return array{
-     *   subjects:\Illuminate\Support\Collection,
-     *   sections:\Illuminate\Support\Collection,
-     *   assignmentMap:array<int,array<int>>,
-     *   subjectsBySection:array<int,array<int>>
-     * }
+     * @deprecated Prefer TeacherClassAssignmentService
      */
     protected function teacherAssignmentOptions(Teacher $teacher): array
     {
-        $teacher->load(['subjects', 'sections', 'gradeLevels']);
-
-        $subjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
-        $sections = $teacher->sections->sortBy(['grade_level', 'name'])->values();
-
-        if ($sections->isEmpty() && $teacher->gradeLevels->isNotEmpty()) {
-            $expanded = collect();
-            foreach ($teacher->gradeLevels->pluck('grade_level')->filter()->unique() as $grade) {
-                foreach (GradeSubjectCatalogService::gradeAliases($grade) as $alias) {
-                    $expanded->push($alias);
-                }
-            }
-            $sections = Section::query()
-                ->whereIn('grade_level', $expanded->unique()->all())
-                ->orderBy('grade_level')
-                ->orderBy('name')
-                ->get();
-        }
-
-        $map = []; // subject_id => [section_ids]
-        $subjectsBySection = []; // section_id => [subject_ids]
-
-        $addPair = function (int $subjectId, int $sectionId) use (&$map, &$subjectsBySection) {
-            if (!isset($map[$subjectId])) {
-                $map[$subjectId] = [];
-            }
-            if (!in_array($sectionId, $map[$subjectId], true)) {
-                $map[$subjectId][] = $sectionId;
-            }
-
-            if (!isset($subjectsBySection[$sectionId])) {
-                $subjectsBySection[$sectionId] = [];
-            }
-            if (!in_array($subjectId, $subjectsBySection[$sectionId], true)) {
-                $subjectsBySection[$sectionId][] = $subjectId;
-            }
-        };
-
-        ClassSchedule::query()
-            ->where('teacher_id', $teacher->id)
-            ->where('is_active', true)
-            ->get(['subject_id', 'section_id'])
-            ->each(function ($row) use ($addPair) {
-                if ($row->subject_id && $row->section_id) {
-                    $addPair((int) $row->subject_id, (int) $row->section_id);
-                }
-            });
-
-        $subjectIds = $subjects->pluck('id');
-        $sectionIds = $sections->pluck('id');
-
-        if ($subjectIds->isNotEmpty() && $sectionIds->isNotEmpty()) {
-            DB::table('section_subject')
-                ->whereIn('subject_id', $subjectIds)
-                ->whereIn('section_id', $sectionIds)
-                ->get()
-                ->each(function ($row) use ($addPair) {
-                    $addPair((int) $row->subject_id, (int) $row->section_id);
-                });
-
-            // Strict grade match only — never mix Nursery with Grade 1, etc.
-            foreach ($subjects as $subject) {
-                $subjectGrade = trim((string) $subject->class);
-                if ($subjectGrade === '') {
-                    continue;
-                }
-                $subjectAliases = GradeSubjectCatalogService::gradeAliases($subjectGrade);
-
-                foreach ($sections as $section) {
-                    $sectionGrade = trim((string) $section->grade_level);
-                    if ($sectionGrade === '') {
-                        continue;
-                    }
-                    $sectionAliases = GradeSubjectCatalogService::gradeAliases($sectionGrade);
-
-                    $gradesMatch = count(array_intersect($subjectAliases, $sectionAliases)) > 0
-                        || strcasecmp($subjectGrade, $sectionGrade) === 0;
-
-                    if ($gradesMatch) {
-                        $addPair((int) $subject->id, (int) $section->id);
-                    }
-                }
-            }
-        }
-
-        return [
-            'subjects' => $subjects,
-            'sections' => $sections,
-            'assignmentMap' => $map,
-            'subjectsBySection' => $subjectsBySection,
-        ];
+        return app(TeacherClassAssignmentService::class)->optionsFor($teacher);
     }
 } 

@@ -273,19 +273,15 @@ Route::group(['middleware' => ['role:Admin']], function () {
    
     // ----------------------- Grading Module Routes (Admin Access) -----------------------------//
     Route::group(['prefix' => 'admin/grading'], function () {
-        // GPA and Ranking (Admin can view all)
-        Route::get('gpa-ranking', [App\Http\Controllers\GradingController::class, 'gpaRanking'])->name('admin.grading.gpa-ranking');
-        
-        // Performance Analytics (Admin can view all)
-        Route::get('performance-analytics', [App\Http\Controllers\GradingController::class, 'performanceAnalytics'])->name('admin.grading.performance-analytics');
-        
-        // Grade Alerts (Admin can manage all)
-        Route::get('grade-alerts', [App\Http\Controllers\GradingController::class, 'gradeAlerts'])->name('admin.grading.grade-alerts');
-        Route::post('resolve-alert/{alert}', [App\Http\Controllers\GradingController::class, 'resolveAlert'])->name('admin.grading.resolve-alert');
-        
-        // Export Routes (Admin can export all)
+        Route::get('performance-hub', [App\Http\Controllers\PerformanceHubController::class, 'index'])->name('admin.grading.performance-hub');
+        Route::post('resolve-alert/{alert}', [App\Http\Controllers\PerformanceHubController::class, 'resolveAlert'])->name('admin.grading.resolve-alert');
+        Route::get('export-gpa', [App\Http\Controllers\PerformanceHubController::class, 'exportGpa'])->name('admin.grading.export-gpa');
         Route::get('export-grades', [App\Http\Controllers\GradingController::class, 'exportGrades'])->name('admin.grading.export-grades');
-        Route::get('export-gpa', [App\Http\Controllers\GradingController::class, 'exportGpa'])->name('admin.grading.export-gpa');
+
+        // Legacy redirects → unified hub
+        Route::get('gpa-ranking', [App\Http\Controllers\PerformanceHubController::class, 'redirectRanking'])->name('admin.grading.gpa-ranking');
+        Route::get('performance-analytics', [App\Http\Controllers\PerformanceHubController::class, 'redirectAnalytics'])->name('admin.grading.performance-analytics');
+        Route::get('grade-alerts', [App\Http\Controllers\PerformanceHubController::class, 'redirectAlerts'])->name('admin.grading.grade-alerts');
     });
 });
 
@@ -301,24 +297,27 @@ Route::group(['middleware' => ['role:Teacher']], function () {
         Route::post('load-students', [App\Http\Controllers\GradingController::class, 'loadStudents'])->name('teacher.grading.load-students');
         Route::post('store-grades', [App\Http\Controllers\GradingController::class, 'storeGrades'])->name('teacher.grading.store-grades');
         Route::post('store-quarterly-grades', [App\Http\Controllers\GradingController::class, 'storeQuarterlyGrades'])->name('teacher.grading.store-quarterly-grades');
+        Route::get('observed-values', [App\Http\Controllers\ObservedValuesController::class, 'index'])->name('teacher.grading.observed-values');
+        Route::post('observed-values', [App\Http\Controllers\ObservedValuesController::class, 'store'])->name('teacher.grading.observed-values.store');
+        Route::get('quarter-report', [App\Http\Controllers\ReportCardController::class, 'teacherSectionReport'])->name('teacher.grading.quarter-report');
+        Route::get('student-report/{student}', [App\Http\Controllers\ReportCardController::class, 'teacherStudentReport'])->name('teacher.grading.student-report');
         
-        // GPA and Ranking
-        Route::get('gpa-ranking', [App\Http\Controllers\GradingController::class, 'gpaRanking'])->name('teacher.grading.gpa-ranking');
-        
-        // Performance Analytics
-        Route::get('performance-analytics', [App\Http\Controllers\GradingController::class, 'performanceAnalytics'])->name('teacher.grading.performance-analytics');
-        
+        // Unified Performance Hub (GPA Ranking + Analytics + Alerts)
+        Route::get('performance-hub', [App\Http\Controllers\PerformanceHubController::class, 'index'])->name('teacher.grading.performance-hub');
+        Route::post('resolve-alert/{alert}', [App\Http\Controllers\PerformanceHubController::class, 'resolveAlert'])->name('teacher.grading.resolve-alert');
+        Route::get('export-gpa', [App\Http\Controllers\PerformanceHubController::class, 'exportGpa'])->name('teacher.grading.export-gpa');
+
+        // Legacy redirects → unified hub
+        Route::get('gpa-ranking', [App\Http\Controllers\PerformanceHubController::class, 'redirectRanking'])->name('teacher.grading.gpa-ranking');
+        Route::get('performance-analytics', [App\Http\Controllers\PerformanceHubController::class, 'redirectAnalytics'])->name('teacher.grading.performance-analytics');
+        Route::get('grade-alerts', [App\Http\Controllers\PerformanceHubController::class, 'redirectAlerts'])->name('teacher.grading.grade-alerts');
+
         // Weight Settings
         Route::get('weight-settings', [App\Http\Controllers\GradingController::class, 'weightSettings'])->name('teacher.grading.weight-settings');
         Route::post('store-weight-settings', [App\Http\Controllers\GradingController::class, 'storeWeightSettings'])->name('teacher.grading.store-weight-settings');
-        
-        // Grade Alerts
-        Route::get('grade-alerts', [App\Http\Controllers\GradingController::class, 'gradeAlerts'])->name('teacher.grading.grade-alerts');
-        Route::post('resolve-alert/{alert}', [App\Http\Controllers\GradingController::class, 'resolveAlert'])->name('teacher.grading.resolve-alert');
-        
+
         // Export Routes
         Route::get('export-grades', [App\Http\Controllers\GradingController::class, 'exportGrades'])->name('teacher.grading.export-grades');
-        Route::get('export-gpa', [App\Http\Controllers\GradingController::class, 'exportGpa'])->name('teacher.grading.export-gpa');
     });
 
     // ----------------------- Lesson Planner Module Routes (Teacher Only) -----------------------------//
@@ -392,6 +391,7 @@ Route::group(['middleware' => ['role:Student']], function () {
     Route::get('/class/{enrollmentId}/lessons/{lesson}', [App\Http\Controllers\StudentController::class, 'lessonShow'])->name('student.lessons.show');
     // Student grades route
     Route::get('/grades', [App\Http\Controllers\StudentController::class, 'grades'])->name('student.grades');
+    Route::get('/report-card', [App\Http\Controllers\ReportCardController::class, 'studentReport'])->name('student.report-card');
     // Student attendance route
     Route::get('/attendance', [App\Http\Controllers\StudentController::class, 'attendance'])->name('student.attendance');
     // Lesson activity submission routes (student-prefixed to avoid clashing with teacher lesson routes)
@@ -626,6 +626,7 @@ Route::group(['prefix' => 'parent', 'middleware' => ['auth', 'role:Parent']], fu
     Route::get('/child/{childId}', [App\Http\Controllers\ParentController::class, 'childHub'])->name('parent.child.hub');
     Route::get('/child/{childId}/profile', [App\Http\Controllers\ParentController::class, 'childProfile'])->name('parent.child.profile');
     Route::get('/child/{childId}/grades', [App\Http\Controllers\ParentController::class, 'childGrades'])->name('parent.child.grades');
+    Route::get('/child/{childId}/report-card', [App\Http\Controllers\ReportCardController::class, 'parentChildReport'])->name('parent.child.report-card');
     Route::get('/child/{childId}/attendance', [App\Http\Controllers\ParentController::class, 'childAttendance'])->name('parent.child.attendance');
     Route::get('/child/{childId}/activities', [App\Http\Controllers\ParentController::class, 'childActivities'])->name('parent.child.activities');
     Route::get('/schedule', [App\Http\Controllers\ClassScheduleController::class, 'index'])->name('parent.schedule');

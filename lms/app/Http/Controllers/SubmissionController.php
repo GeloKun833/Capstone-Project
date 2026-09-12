@@ -26,6 +26,14 @@ class SubmissionController extends Controller
 
         $submissions = $activity->submissions()->with(['student'])->orderBy('created_at', 'desc')->get();
 
+        // Keep status in sync if a score was saved but status stayed "submitted"
+        foreach ($submissions as $submission) {
+            if ($submission->total_score !== null && $submission->status !== 'graded') {
+                $submission->status = 'graded';
+                $submission->save();
+            }
+        }
+
         return view('activities.submissions', compact('lesson', 'activity', 'submissions'));
     }
 
@@ -112,8 +120,10 @@ class SubmissionController extends Controller
         }
 
         $rubrics = $activity->rubrics()->where('is_active', true)->orderBy('weight', 'desc')->get();
+        $isEditing = false;
+        $existingScores = collect();
 
-        return view('activities.grade-submission', compact('lesson', 'activity', 'submission', 'rubrics'));
+        return view('activities.grade-submission', compact('lesson', 'activity', 'submission', 'rubrics', 'isEditing', 'existingScores'));
     }
 
     public function storeGrade(Request $request, Lesson $lesson, Activity $activity, ActivitySubmission $submission)
@@ -258,69 +268,24 @@ class SubmissionController extends Controller
         }
 
         $rubrics = $activity->rubrics()->where('is_active', true)->orderBy('weight', 'desc')->get();
-        $submission->load(['grades.rubric']);
+        $submission->load(['student', 'grades.rubric']);
+        $isEditing = true;
+        $existingScores = $submission->grades->pluck('score', 'rubric_id');
 
-        return view('activities.edit-grade', compact('lesson', 'activity', 'submission', 'rubrics'));
+        return view('activities.grade-submission', compact(
+            'lesson',
+            'activity',
+            'submission',
+            'rubrics',
+            'isEditing',
+            'existingScores'
+        ));
     }
 
     public function updateGrade(Request $request, Lesson $lesson, Activity $activity, ActivitySubmission $submission)
     {
-        // Check if teacher owns this lesson
-        if (Auth::user()->role_name === 'Teacher') {
-            $teacher = Auth::user()->teacher;
-            if ($teacher && $lesson->teacher_id !== $teacher->id) {
-                abort(403, 'Unauthorized action.');
-            }
-        }
-
-        $request->validate([
-            'scores' => 'required|array',
-            'scores.*' => 'required|integer|min:0',
-            'feedback' => 'nullable|string|max:2000',
-            'total_score' => 'required|integer|min:0',
-            'max_possible_score' => 'required|integer|min:1',
-            'percentage' => 'required|numeric|min:0|max:100',
-            'letter_grade' => 'required|string|max:2',
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            // Update existing grades
-            foreach ($request->scores as $rubricId => $score) {
-                ActivityGrade::updateOrCreate(
-                    [
-                        'submission_id' => $submission->id,
-                        'rubric_id' => $rubricId,
-                    ],
-                    [
-                        'score' => $score,
-                        'graded_by' => Auth::id(),
-                        'graded_at' => now(),
-                    ]
-                );
-            }
-
-            // Update submission
-            $submission->update([
-                'total_score' => $request->total_score,
-                'max_possible_score' => $request->max_possible_score,
-                'percentage' => $request->percentage,
-                'letter_grade' => $request->letter_grade,
-                'feedback' => $request->feedback,
-                'graded_at' => now(),
-                'graded_by' => Auth::id(),
-            ]);
-
-            DB::commit();
-
-            return redirect()->route('lessons.activities.submissions', [$lesson, $activity])
-                ->with('success', 'Grade updated successfully!');
-
-        } catch (\Exception $e) {
-            DB::rollback();
-            return redirect()->back()->with('error', 'Error updating grade: ' . $e->getMessage());
-        }
+        // Same save logic as initial grading
+        return $this->storeGrade($request, $lesson, $activity, $submission);
     }
 
     public function destroy(Lesson $lesson, Activity $activity, ActivitySubmission $submission)

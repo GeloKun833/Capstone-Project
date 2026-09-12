@@ -29,7 +29,7 @@ class GradingController extends Controller
         $this->middleware('auth');
     }
 
-    // Grade Entry Form - DepEd Report Card Format
+    // Grade Entry Form - by Section + Quarter (all subjects for that section)
     public function gradeEntryForm(Request $request)
     {
         $teacher = Auth::user()->teacher;
@@ -37,69 +37,140 @@ class GradingController extends Controller
         if (!$teacher) {
             abort(403, 'Teacher profile not found. Please contact the administrator.');
         }
-        
-        // Get selected subject and academic year from request
-        $selectedSubjectId = $request->get('subject_id');
+
+        $assignmentOptions = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $allSubjects = $assignmentOptions['subjects'];
+        $sections = $assignmentOptions['sections'];
+        $subjectsBySection = $assignmentOptions['subjectsBySection'];
+
+        $selectedSectionId = $request->get('section_id');
+        $selectedQuarter = (int) $request->get('quarter', 0);
         $selectedAcademicYearId = $request->get('academic_year_id');
-        
-        // Get all subjects assigned to this teacher via class schedules
-        $subjects = Subject::whereHas('classSchedules', function($query) use ($teacher) {
-            $query->where('teacher_id', $teacher->id)
-                  ->where('is_active', true);
-        })->distinct()->orderBy('subject_name')->get();
-        
-        // If no subjects found, get all subjects (fallback)
-        if ($subjects->isEmpty()) {
-            $subjects = Subject::orderBy('subject_name')->get();
-        }
-        
-        // Get all academic years
+
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-        $currentAcademicYear = $selectedAcademicYearId 
-            ? AcademicYear::find($selectedAcademicYearId) 
+        $currentAcademicYear = $selectedAcademicYearId
+            ? AcademicYear::find($selectedAcademicYearId)
             : $academicYears->first();
-        
+
+        $sectionSubjects = collect();
         $students = collect();
-        $quarterlyGrades = collect();
-        
-        // If subject is selected, get students and their quarterly grades
-        if ($selectedSubjectId && $currentAcademicYear) {
-            // Get all sections where this teacher teaches the selected subject
-            $teacherSections = Section::whereHas('classSchedules', function($query) use ($teacher, $selectedSubjectId) {
-                $query->where('teacher_id', $teacher->id)
-                      ->where('subject_id', $selectedSubjectId)
-                      ->where('is_active', true);
-            })->pluck('id');
-            
-            // Get all students assigned to these sections
-            $students = Student::whereHas('sections', function($query) use ($teacherSections) {
-                $query->whereIn('sections.id', $teacherSections);
-            })->with(['sections' => function($query) use ($teacherSections) {
-                $query->whereIn('sections.id', $teacherSections);
-            }])
-              ->orderBy('last_name')
-              ->orderBy('first_name')
-              ->get();
-            
-            // Get existing quarterly grades for these students
-            if ($students->isNotEmpty()) {
-                $quarterlyGrades = QuarterlyGrade::where('subject_id', $selectedSubjectId)
-                    ->where('academic_year_id', $currentAcademicYear->id)
-                    ->where('teacher_id', $teacher->id)
+        $gradeMap = [];
+
+        $allowedSectionIds = $sections->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $validSubjectIds = array_map('intval', $subjectsBySection[(int) $selectedSectionId] ?? []);
+
+        if (
+            $selectedSectionId
+            && in_array($selectedQuarter, [1, 2, 3, 4], true)
+            && $currentAcademicYear
+            && in_array((int) $selectedSectionId, $allowedSectionIds, true)
+        ) {
+            $sectionSubjects = $allSubjects->whereIn('id', $validSubjectIds)->values();
+
+            $students = Student::whereHas('sections', function ($query) use ($selectedSectionId, $currentAcademicYear) {
+                $query->where('sections.id', $selectedSectionId);
+                if ($currentAcademicYear) {
+                    $query->where(function ($q) use ($currentAcademicYear) {
+                        $q->where('student_section_assignments.academic_year_id', $currentAcademicYear->id)
+                            ->orWhereNull('student_section_assignments.academic_year_id');
+                    });
+                }
+            })
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get();
+
+            if ($students->isEmpty()) {
+                $students = Student::whereHas('sections', function ($query) use ($selectedSectionId) {
+                    $query->where('sections.id', $selectedSectionId);
+                })
+                    ->orderBy('last_name')
+                    ->orderBy('first_name')
+                    ->get();
+            }
+
+            if ($students->isNotEmpty() && $sectionSubjects->isNotEmpty()) {
+                $quarterField = 'quarter_' . $selectedQuarter;
+                $rows = QuarterlyGrade::where('academic_year_id', $currentAcademicYear->id)
+                    ->whereIn('subject_id', $sectionSubjects->pluck('id'))
                     ->whereIn('student_id', $students->pluck('id'))
-                    ->get()
-                    ->keyBy('student_id');
+                    ->get();
+
+                foreach ($rows as $row) {
+                    $gradeMap[$row->student_id . '_' . $row->subject_id] = $row->{$quarterField};
+                }
             }
         }
 
-        return view('grading.grade-entry', compact(
-            'students', 
-            'subjects', 
-            'academicYears',
-            'currentAcademicYear',
-            'selectedSubjectId',
-            'quarterlyGrades'
-        ));
+        $step = $request->get('step', 'grades'); // grades | observed | summary
+        $observedIndicators = \App\Models\ObservedValueIndicator::active()->get()->groupBy('core_value');
+        $observedFlat = \App\Models\ObservedValueIndicator::active()->get();
+        $observedMap = [];
+        $studentQuarterSummaries = [];
+        $hasQuarterGrades = false;
+        $hasObservedForQuarter = false;
+
+        if ($students->isNotEmpty() && $currentAcademicYear && in_array($selectedQuarter, [1, 2, 3, 4], true)) {
+            $quarterField = 'quarter_' . $selectedQuarter;
+            $hasQuarterGrades = collect($gradeMap)->filter(fn ($v) => $v !== null && $v !== '')->isNotEmpty();
+
+            $ovRows = \App\Models\StudentObservedValue::where('academic_year_id', $currentAcademicYear->id)
+                ->whereIn('student_id', $students->pluck('id'))
+                ->get();
+
+            foreach ($ovRows as $row) {
+                $observedMap[$row->student_id . '_' . $row->indicator_id] = $row->{$quarterField};
+                if ($row->{$quarterField}) {
+                    $hasObservedForQuarter = true;
+                }
+            }
+
+            foreach ($students as $student) {
+                $scores = [];
+                foreach ($sectionSubjects as $subject) {
+                    $val = $gradeMap[$student->id . '_' . $subject->id] ?? null;
+                    if ($val !== null && $val !== '') {
+                        $scores[] = (float) $val;
+                    }
+                }
+                $avg = count($scores) ? round(array_sum($scores) / count($scores), 2) : null;
+                $studentQuarterSummaries[$student->id] = [
+                    'average' => $avg,
+                    'remark' => \App\Services\ReportCardService::remarkForScore($avg),
+                    'descriptor' => \App\Services\ReportCardService::descriptorForScore($avg),
+                ];
+            }
+        }
+
+        if ($step === 'grades' && $hasQuarterGrades && $request->boolean('after_grades')) {
+            $step = 'observed';
+        }
+        if ($step === 'observed' && ! $hasQuarterGrades) {
+            $step = 'grades';
+        }
+        if ($step === 'summary' && ! $hasQuarterGrades) {
+            $step = 'grades';
+        }
+
+        return view('grading.grade-entry', [
+            'subjects' => $allSubjects,
+            'sections' => $sections,
+            'subjectsBySection' => $subjectsBySection,
+            'sectionSubjects' => $sectionSubjects,
+            'academicYears' => $academicYears,
+            'currentAcademicYear' => $currentAcademicYear,
+            'selectedSectionId' => $selectedSectionId,
+            'selectedQuarter' => $selectedQuarter,
+            'students' => $students,
+            'gradeMap' => $gradeMap,
+            'step' => $step,
+            'observedIndicators' => $observedIndicators,
+            'observedFlat' => $observedFlat,
+            'observedMap' => $observedMap,
+            'hasQuarterGrades' => $hasQuarterGrades,
+            'hasObservedForQuarter' => $hasObservedForQuarter,
+            'studentQuarterSummaries' => $studentQuarterSummaries,
+        ]);
     }
     
     // Load Students via AJAX (for loading existing grades)
@@ -322,27 +393,25 @@ class GradingController extends Controller
         ]);
     }
 
-    // Store Quarterly Grades
+    // Store Quarterly Grades — one quarter across many subjects
     public function storeQuarterlyGrades(Request $request)
     {
         try {
             $request->validate([
-                'subject_id' => 'required|exists:subjects,id',
+                'section_id' => 'required|exists:sections,id',
+                'quarter' => 'required|integer|in:1,2,3,4',
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'grades' => 'required|array|min:1',
                 'grades.*.student_id' => 'required|exists:students,id',
-                'grades.*.quarter_1' => 'nullable|numeric|min:0|max:100',
-                'grades.*.quarter_2' => 'nullable|numeric|min:0|max:100',
-                'grades.*.quarter_3' => 'nullable|numeric|min:0|max:100',
-                'grades.*.quarter_4' => 'nullable|numeric|min:0|max:100',
-                'grades.*.remarks' => 'nullable|string|max:50',
+                'grades.*.subject_id' => 'required|exists:subjects,id',
+                'grades.*.score' => 'nullable|numeric|min:0|max:100',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation error saving quarterly grades', [
                 'errors' => $e->errors(),
                 'request_data' => $request->all()
             ]);
-            
+
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -354,115 +423,97 @@ class GradingController extends Controller
         }
 
         $teacher = Auth::user()->teacher;
-        $subjectId = $request->subject_id;
-
         if (!$teacher) {
             return response()->json([
                 'success' => false,
                 'message' => 'Teacher profile not found. Please contact the administrator.',
             ], 403);
         }
-        
-        // Verify that the subject is assigned to this teacher
-        $subjectAssigned = Subject::whereHas('classSchedules', function($query) use ($teacher, $subjectId) {
-            $query->where('teacher_id', $teacher->id)
-                  ->where('subject_id', $subjectId);
-        })->exists();
-        
-        if (!$subjectAssigned) {
+
+        $sectionId = (int) $request->section_id;
+        $quarter = (int) $request->quarter;
+        $quarterField = 'quarter_' . $quarter;
+        $academicYearId = (int) $request->academic_year_id;
+
+        $allowed = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $allowedSectionIds = $allowed['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $validSubjectIds = array_map('intval', $allowed['subjectsBySection'][$sectionId] ?? []);
+
+        if (! in_array($sectionId, $allowedSectionIds, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You are not authorized to save grades for this subject.'
+                'message' => 'You are not assigned to this section.',
             ], 403);
         }
 
         $semesterId = $request->semester_id
-            ?? Semester::where('academic_year_id', $request->academic_year_id)->orderBy('id')->value('id')
+            ?? Semester::where('academic_year_id', $academicYearId)->orderBy('id')->value('id')
             ?? Semester::latest()->value('id');
 
         $syncService = app(\App\Services\QuarterlyGradeSyncService::class);
         $savedQuarterlyGrades = [];
+        $touchedSubjectIds = [];
 
         DB::beginTransaction();
         try {
             $savedCount = 0;
             foreach ($request->grades as $gradeData) {
-                // Only save if at least one quarter grade is provided
-                if (isset($gradeData['quarter_1']) || isset($gradeData['quarter_2']) || 
-                    isset($gradeData['quarter_3']) || isset($gradeData['quarter_4'])) {
-                    
-                    $quarterlyGrade = QuarterlyGrade::updateOrCreate(
-                        [
-                            'student_id' => $gradeData['student_id'],
-                            'subject_id' => $subjectId,
-                            'academic_year_id' => $request->academic_year_id,
-                        ],
-                        [
-                            'teacher_id' => $teacher->id,
-                            'quarter_1' => isset($gradeData['quarter_1']) && $gradeData['quarter_1'] !== '' && $gradeData['quarter_1'] !== null ? (float)$gradeData['quarter_1'] : null,
-                            'quarter_2' => isset($gradeData['quarter_2']) && $gradeData['quarter_2'] !== '' && $gradeData['quarter_2'] !== null ? (float)$gradeData['quarter_2'] : null,
-                            'quarter_3' => isset($gradeData['quarter_3']) && $gradeData['quarter_3'] !== '' && $gradeData['quarter_3'] !== null ? (float)$gradeData['quarter_3'] : null,
-                            'quarter_4' => isset($gradeData['quarter_4']) && $gradeData['quarter_4'] !== '' && $gradeData['quarter_4'] !== null ? (float)$gradeData['quarter_4'] : null,
-                            'remarks' => isset($gradeData['remarks']) && $gradeData['remarks'] !== '' ? $gradeData['remarks'] : null,
-                        ]
-                    );
-                    
-                    // Recalculate final grade after saving
-                    $quarterlyGrade->final_grade = $quarterlyGrade->calculateFinalGrade();
-                    
-                    // Only set remarks if not provided by teacher
-                    if (empty($quarterlyGrade->remarks) && $quarterlyGrade->final_grade !== null) {
-                        $quarterlyGrade->remarks = $quarterlyGrade->getRemarks();
-                    }
-                    
-                    $quarterlyGrade->save();
-                    $savedQuarterlyGrades[] = $quarterlyGrade->fresh();
-                    
-                    Log::info('Quarterly grade saved', [
-                        'student_id' => $gradeData['student_id'],
-                        'subject_id' => $subjectId,
-                        'academic_year_id' => $request->academic_year_id,
-                        'quarter_1' => $quarterlyGrade->quarter_1,
-                        'quarter_2' => $quarterlyGrade->quarter_2,
-                        'quarter_3' => $quarterlyGrade->quarter_3,
-                        'quarter_4' => $quarterlyGrade->quarter_4,
-                        'final_grade' => $quarterlyGrade->final_grade,
-                        'remarks' => $quarterlyGrade->remarks,
-                    ]);
-                    
-                    $savedCount++;
+                $subjectId = (int) $gradeData['subject_id'];
+                if (! in_array($subjectId, $validSubjectIds, true)) {
+                    continue;
                 }
+
+                if (! array_key_exists('score', $gradeData) || $gradeData['score'] === '' || $gradeData['score'] === null) {
+                    continue;
+                }
+
+                $score = (float) $gradeData['score'];
+
+                $quarterlyGrade = QuarterlyGrade::firstOrNew([
+                    'student_id' => $gradeData['student_id'],
+                    'subject_id' => $subjectId,
+                    'academic_year_id' => $academicYearId,
+                ]);
+
+                if (! $quarterlyGrade->exists) {
+                    $quarterlyGrade->teacher_id = $teacher->id;
+                }
+
+                $quarterlyGrade->{$quarterField} = $score;
+                $quarterlyGrade->teacher_id = $teacher->id;
+                $quarterlyGrade->final_grade = $quarterlyGrade->calculateFinalGrade();
+
+                if (empty($quarterlyGrade->remarks) && $quarterlyGrade->final_grade !== null) {
+                    $quarterlyGrade->remarks = $quarterlyGrade->getRemarks();
+                }
+
+                $quarterlyGrade->save();
+                $savedQuarterlyGrades[] = $quarterlyGrade->fresh();
+                $touchedSubjectIds[$subjectId] = true;
+                $savedCount++;
             }
 
             if ($savedCount > 0 && $semesterId) {
                 try {
                     $affectedStudentIds = $syncService->syncBatch($savedQuarterlyGrades, $semesterId);
-                    $this->calculateGpaForStudents($affectedStudentIds, $request->academic_year_id, $semesterId);
-                    $this->checkGradeAlerts($subjectId, $request->academic_year_id, $semesterId);
-                    $this->updateRankings($request->academic_year_id, $semesterId);
+                    $performance = app(\App\Services\StudentPerformanceService::class);
+                    $performance->recalculateForStudents($affectedStudentIds, $academicYearId, (int) $semesterId);
+                    $performance->checkAlertsForSubjects(array_keys($touchedSubjectIds), $academicYearId, (int) $semesterId);
                 } catch (\Exception $syncException) {
                     Log::warning('Quarterly grades saved but post-save sync failed', [
                         'error' => $syncException->getMessage(),
-                        'subject_id' => $subjectId,
-                        'academic_year_id' => $request->academic_year_id,
+                        'section_id' => $sectionId,
+                        'quarter' => $quarter,
+                        'academic_year_id' => $academicYearId,
                     ]);
                 }
             }
 
             DB::commit();
-            
-            // Log successful save
-            Log::info('Quarterly grades saved successfully', [
-                'teacher_id' => $teacher->id,
-                'subject_id' => $subjectId,
-                'academic_year_id' => $request->academic_year_id,
-                'saved_count' => $savedCount,
-                'student_ids' => collect($request->grades)->pluck('student_id')->toArray()
-            ]);
-            
+
             return response()->json([
                 'success' => true,
-                'message' => "Successfully saved {$savedCount} student grade(s)! Students can now view their grades in their portal."
+                'message' => "Successfully saved {$savedCount} grade(s) for Quarter {$quarter}."
             ]);
         } catch (\Exception $e) {
             DB::rollback();
@@ -471,7 +522,7 @@ class GradingController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->all()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error saving grades: ' . $e->getMessage()
@@ -566,15 +617,17 @@ class GradingController extends Controller
             }
 
             if ($savedCount > 0) {
-                // Calculate GPA for affected students
-                $this->calculateGpaForStudents(
+                $performance = app(\App\Services\StudentPerformanceService::class);
+                $performance->recalculateForStudents(
                     collect($request->grades)->pluck('student_id')->unique(),
-                    $request->academic_year_id,
-                    $request->semester_id
+                    (int) $request->academic_year_id,
+                    (int) $request->semester_id
                 );
-
-                // Check for grade alerts (auto-flagging low grades, performance drops, and at-risk students)
-                $this->checkGradeAlerts($request->subject_id, $request->academic_year_id, $request->semester_id);
+                $performance->checkAlertsForSubjects(
+                    [(int) $request->subject_id],
+                    (int) $request->academic_year_id,
+                    (int) $request->semester_id
+                );
             }
 
             DB::commit();

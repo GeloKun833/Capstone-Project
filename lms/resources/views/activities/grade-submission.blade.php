@@ -7,7 +7,7 @@
             <div class="page-header">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h3 class="page-title">Grade Submission</h3>
+                        <h3 class="page-title">{{ !empty($isEditing) ? 'Edit Grade' : 'Grade Submission' }}</h3>
                         <p class="text-muted mb-0">
                             {{ $activity->title }} · {{ $submission->student->first_name }} {{ $submission->student->last_name }}
                         </p>
@@ -17,7 +17,7 @@
                             <i class="fas fa-arrow-left"></i> Back to Submissions
                         </a>
                         <button type="button" class="btn btn-success" onclick="saveGrade()">
-                            <i class="fas fa-save"></i> Save Grade
+                            <i class="fas fa-save"></i> {{ !empty($isEditing) ? 'Update Grade' : 'Save Grade' }}
                         </button>
                     </div>
                 </div>
@@ -75,8 +75,11 @@
                         <div class="card-body">
                             @if($rubrics->count() > 0)
                                 <h5 class="card-title">Rubric Grading</h5>
-                                <form id="gradingForm" action="{{ route('lessons.activities.store-grade', [$lesson, $activity, $submission]) }}" method="POST">
+                                <form id="gradingForm" action="{{ !empty($isEditing) ? route('lessons.activities.update-grade', [$lesson, $activity, $submission]) : route('lessons.activities.store-grade', [$lesson, $activity, $submission]) }}" method="POST">
                                     @csrf
+                                    @if(!empty($isEditing))
+                                        @method('PUT')
+                                    @endif
                                     
                                     <div class="table-responsive">
                                         <table class="table table-bordered">
@@ -91,6 +94,12 @@
                                             </thead>
                                             <tbody>
                                                 @foreach($rubrics as $rubric)
+                                                    @php
+                                                        $prefillScore = old(
+                                                            'scores.' . $rubric->id,
+                                                            ($existingScores[$rubric->id] ?? null) ?? 0
+                                                        );
+                                                    @endphp
                                                     <tr>
                                                         <td>
                                                             <strong>{{ $rubric->category_name }}</strong>
@@ -110,7 +119,7 @@
                                                                    name="scores[{{ $rubric->id }}]" 
                                                                    min="0" 
                                                                    max="{{ $rubric->max_score }}" 
-                                                                   value="{{ old('scores.' . $rubric->id, 0) }}"
+                                                                   value="{{ $prefillScore }}"
                                                                    data-max="{{ $rubric->max_score }}"
                                                                    data-weight="{{ $rubric->weight }}"
                                                                    onchange="calculateTotal()">
@@ -153,7 +162,7 @@
                                         <div class="col-md-6">
                                             <div class="form-group">
                                                 <label for="feedback">Teacher Feedback</label>
-                                                <textarea class="form-control" id="feedback" name="feedback" rows="4" placeholder="Provide constructive feedback to the student...">{{ old('feedback') }}</textarea>
+                                                <textarea class="form-control" id="feedback" name="feedback" rows="4" placeholder="Provide constructive feedback to the student...">{{ old('feedback', $submission->feedback) }}</textarea>
                                             </div>
                                         </div>
                                     </div>
@@ -167,8 +176,11 @@
                                 <h5 class="card-title">Quick Grade</h5>
                                 <p class="text-muted">Enter the score directly. Rubric setup is optional.</p>
 
-                                <form id="gradingForm" action="{{ route('lessons.activities.store-grade', [$lesson, $activity, $submission]) }}" method="POST">
+                                <form id="gradingForm" action="{{ !empty($isEditing) ? route('lessons.activities.update-grade', [$lesson, $activity, $submission]) : route('lessons.activities.store-grade', [$lesson, $activity, $submission]) }}" method="POST">
                                     @csrf
+                                    @if(!empty($isEditing))
+                                        @method('PUT')
+                                    @endif
                                     <div class="row">
                                         <div class="col-md-4">
                                             <div class="form-group mb-3">

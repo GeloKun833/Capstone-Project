@@ -566,7 +566,31 @@ class StudentController extends Controller
                 }
             })->sortBy(function($grade) {
                 return $grade->subject->subject_name ?? '';
-            });
+            })->values();
+        }
+
+        // General averages (DepEd report card footer)
+        $generalAverages = [
+            'q1' => null,
+            'q2' => null,
+            'q3' => null,
+            'q4' => null,
+            'final' => null,
+        ];
+        if ($quarterlyGrades->isNotEmpty()) {
+            foreach (['q1' => 'quarter_1', 'q2' => 'quarter_2', 'q3' => 'quarter_3', 'q4' => 'quarter_4', 'final' => 'final_grade'] as $key => $field) {
+                $values = $quarterlyGrades->pluck($field)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v) => (float) $v);
+                $generalAverages[$key] = $values->isNotEmpty() ? round($values->avg(), 2) : null;
+            }
+        }
+
+        $observedIndicators = \App\Models\ObservedValueIndicator::active()->get()->groupBy('core_value');
+        $observedRatings = collect();
+        if ($currentAcademicYear) {
+            $observedRatings = \App\Models\StudentObservedValue::where('student_id', $student->id)
+                ->where('academic_year_id', $currentAcademicYear->id)
+                ->get()
+                ->keyBy('indicator_id');
         }
         
         // Get GPA records
@@ -588,7 +612,10 @@ class StudentController extends Controller
             'gpaRecords', 
             'gradeAlerts',
             'academicYears',
-            'currentAcademicYear'
+            'currentAcademicYear',
+            'generalAverages',
+            'observedIndicators',
+            'observedRatings'
         ));
     }
 

@@ -143,17 +143,58 @@ class StudentAssignmentController extends Controller
 
         $validator = Validator::make($request->all(), [
             'comments' => 'nullable|string|max:1000',
-            'submission_file' => 'required|file|mimes:pdf,doc,docx,ppt,pptx,txt,jpg,jpeg,png|max:10240'
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        // Handle file upload
         $file = $request->file('submission_file');
-        $fileName = time() . '_' . $file->getClientOriginalName();
-        $filePath = $file->storeAs('assignment-submissions', $fileName, 'public');
+        if (! $file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            return redirect()->back()
+                ->withErrors(['submission_file' => 'Please choose a file to upload.'])
+                ->withInput();
+        }
+
+        if (! $file->isValid()) {
+            $maxMb = $assignment->submissionMaxMb();
+
+            return redirect()->back()
+                ->withErrors([
+                    'submission_file' => "The submission file failed to upload. Use a file under {$maxMb}MB and try again.",
+                ])
+                ->withInput();
+        }
+
+        $allowed = $assignment->submissionAllowedExtensions();
+        $ext = strtolower($file->getClientOriginalExtension());
+        if (! in_array($ext, $allowed, true)) {
+            $labels = $assignment->submissionAllowedLabels();
+
+            return redirect()->back()
+                ->withErrors([
+                    'submission_file' => $assignment->requires_file_upload
+                        ? "This assignment only accepts: {$labels}. Your file (.{$ext}) is not allowed."
+                        : "Invalid file type. Allowed: {$labels}.",
+                ])
+                ->withInput();
+        }
+
+        $maxMb = $assignment->submissionMaxMb();
+        if ($file->getSize() > $maxMb * 1024 * 1024) {
+            return redirect()->back()
+                ->withErrors(['submission_file' => "The file size must not exceed {$maxMb}MB."])
+                ->withInput();
+        }
+
+        try {
+            $safeName = time() . '_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+            $filePath = $file->storeAs('assignment-submissions', $safeName, 'public');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withErrors(['submission_file' => 'Could not save the file. Please try again.'])
+                ->withInput();
+        }
 
         // Calculate if submission is late
         $isLate = now() > $assignment->dueDateTime;
