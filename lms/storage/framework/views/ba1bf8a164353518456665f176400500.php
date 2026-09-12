@@ -171,67 +171,60 @@
                         $sDash = request()->routeIs('dashboard', 'home');
                         $sClasses = request()->routeIs('student.class.*');
                         $sCal = request()->routeIs('calendar.*');
-                        $sRecords = request()->routeIs('student.my-schedule', 'student.grades', 'student.recommendations', 'analytics.student-dashboard', 'student.report-card');
-                        $sAssign = request()->routeIs('student.assignments.*');
-                        $sAttend = request()->routeIs('student.attendance');
-                        $sMsg = request()->routeIs('chat.*', 'announcements.*', 'notifications.*');
-                        $sProfile = request()->routeIs('user/profile/*');
-                        $enrollments = $sidebarEnrollments ?? collect();
+                        $sRecords = request()->routeIs(
+                            'student.my-schedule',
+                            'student.grades',
+                            'student.attendance',
+                            'student.assignments.*',
+                            'student.recommendations',
+                            'analytics.student-dashboard',
+                            'announcements.*',
+                            'chat.*',
+                            'student.report-card',
+                            'notifications.*'
+                        );
                     ?>
 
                     <li class="<?php echo e($sDash ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('dashboard')); ?>"><i class="fas fa-th-large"></i> <span>Dashboard</span></a>
+                        <a href="<?php echo e(route('dashboard')); ?>"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
                     </li>
 
                     <li class="submenu <?php echo e($sClasses ? 'active' : ''); ?>">
-                        <a href="javascript:void(0);"><i class="fas fa-book-open"></i> <span>My Classes</span> <span class="menu-arrow"></span></a>
+                        <a href="javascript:void(0);"><i class="fas fa-graduation-cap"></i> <span>My Classes</span> <span class="menu-arrow"></span></a>
                         <ul>
-                            <?php $__empty_1 = true; $__currentLoopData = $enrollments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $enrollment): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                            <?php
+                                $enrollments = $sidebarEnrollments ?? collect();
+                            ?>
+                            <?php $__currentLoopData = $enrollments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $enrollment): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <li>
                                     <a href="<?php echo e(route('student.class.detail', $enrollment->id)); ?>">
-                                        <i class="far fa-bookmark"></i>
-                                        <span><?php echo e($enrollment->subject->subject_name ?? ($enrollment->subject->subject_code ?? 'Subject')); ?></span>
+                                        <i class="fas fa-book"></i>
+                                        <span><?php echo e($enrollment->subject->subject_name ?? ($enrollment->subject->subject_code ?? 'Subject ' . $enrollment->subject->id)); ?></span>
                                     </a>
                                 </li>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php if($enrollments->count() == 0): ?>
                                 <li><a href="javascript:void(0);"><i class="fas fa-info-circle"></i> <span>No classes enrolled</span></a></li>
                             <?php endif; ?>
                         </ul>
                     </li>
 
                     <li class="<?php echo e($sCal ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('calendar.index')); ?>"><i class="far fa-calendar"></i> <span>Calendar &amp; Events</span></a>
+                        <a href="<?php echo e(route('calendar.index')); ?>"><i class="fas fa-calendar"></i> <span>Calendar & Events</span></a>
                     </li>
 
-                    <li class="<?php echo e($sRecords ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('student.grades')); ?>"><i class="fas fa-chart-line"></i> <span>Academic Records</span></a>
-                    </li>
-
-                    <li class="<?php echo e($sAssign ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('student.assignments.index')); ?>"><i class="fas fa-tasks"></i> <span>Assignments</span></a>
-                    </li>
-
-                    <li class="<?php echo e($sAttend ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('student.attendance')); ?>"><i class="fas fa-user-check"></i> <span>Attendance</span></a>
-                    </li>
-
-                    <li class="<?php echo e($sMsg ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('chat.index')); ?>"><i class="far fa-comment-dots"></i> <span>Messages</span></a>
-                    </li>
-
-                    <li class="menu-title mt-3"><span>Account</span></li>
-
-                    <li>
-                        <a href="<?php echo e(route('announcements.index')); ?>"><i class="far fa-life-ring"></i> <span>Help &amp; Support</span></a>
-                    </li>
-                    <li class="<?php echo e($sProfile ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('user/profile/edit')); ?>"><i class="fas fa-cog"></i> <span>Settings</span></a>
-                    </li>
-                    <li>
-                        <a href="<?php echo e(route('user/profile/page')); ?>"><i class="far fa-user"></i> <span>My Profile</span></a>
-                    </li>
-                    <li>
-                        <a href="<?php echo e(route('logout')); ?>"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
+                    <li class="submenu <?php echo e($sRecords ? 'active' : ''); ?>">
+                        <a href="javascript:void(0);"><i class="fas fa-chart-line"></i> <span>Academic Records</span> <span class="menu-arrow"></span></a>
+                        <ul>
+                            <li><a href="<?php echo e(route('student.my-schedule')); ?>"><i class="fas fa-calendar-alt"></i> <span>My Schedule</span></a></li>
+                            <li><a href="<?php echo e(route('student.grades')); ?>"><i class="fas fa-clipboard-list"></i> <span>Grades</span></a></li>
+                            <li><a href="<?php echo e(route('student.attendance')); ?>"><i class="fas fa-user-check"></i> <span>Attendance Records</span></a></li>
+                            <li><a href="<?php echo e(route('student.assignments.index')); ?>"><i class="fas fa-tasks"></i> <span>Assignments</span></a></li>
+                            <li><a href="<?php echo e(route('student.recommendations')); ?>"><i class="fas fa-lightbulb"></i> <span>Study Recommendations</span></a></li>
+                            <li><a href="<?php echo e(route('analytics.student-dashboard')); ?>"><i class="fas fa-chart-line"></i> <span>My Analytics</span></a></li>
+                            <li><a href="<?php echo e(route('announcements.index')); ?>"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
+                            <li><a href="<?php echo e(route('chat.index')); ?>"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
+                        </ul>
                     </li>
                 <?php endif; ?>
 
@@ -380,9 +373,9 @@
     --sb-active-icon: #93c5fd;
 }
 .sidebar-role-student {
-    --sb-active: #4f46e5;
-    --sb-active-soft: rgba(79, 70, 229, 0.28);
-    --sb-active-icon: #a5b4fc;
+    --sb-active: #16a34a;
+    --sb-active-soft: rgba(22, 163, 74, 0.28);
+    --sb-active-icon: #86efac;
 }
 .sidebar-role-parent {
     --sb-active: #0d9488;

@@ -22,16 +22,24 @@
 
             e.preventDefault();
             if (!$link.hasClass('subdrop')) {
-                $('ul', $link.parents('ul:first')).slideUp(350);
-                $('a', $link.parents('ul:first')).removeClass('subdrop');
-                $submenu.slideDown(350);
+                // Close other open submenus in the same level, keep current module open
+                $('ul', $link.parents('ul:first')).not($submenu).slideUp(350);
+                $('a.subdrop', $link.parents('ul:first')).not($link).removeClass('subdrop');
+                $submenu.stop(true, true).slideDown(350);
                 $link.addClass('subdrop');
             } else {
                 $link.removeClass('subdrop');
-                $submenu.slideUp(350);
+                $submenu.stop(true, true).slideUp(350);
             }
         });
-        $('#sidebar-menu ul li.submenu a.active').parents('li:last').children('a:first').addClass('active').trigger('click');
+        // Keep the active module open without toggling (avoids bounce on page load)
+        $('#sidebar-menu li.submenu.active').each(function () {
+            var $li = $(this);
+            $li.children('a').addClass('subdrop');
+            $li.children('ul').stop(true, true).show();
+        });
+        // Never highlight nested submenu links (parent module indicator only)
+        $('#sidebar-menu .submenu ul a').removeClass('active');
     }
     init();
     $(document).on('click', '#mobile_btn', function() {

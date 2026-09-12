@@ -43,7 +43,7 @@
             <div class="top-nav-search">
                 <form>
                     <input type="text" class="form-control"
-                           placeholder="<?php echo e(Session::get('role_name') === 'Teacher' ? 'Search students, classes, assignments...' : (Session::get('role_name') === 'Student' ? 'Search...' : 'Search here')); ?>">
+                           placeholder="<?php echo e(Session::get('role_name') === 'Teacher' ? 'Search students, classes, assignments...' : 'Search here'); ?>">
                     <button class="btn" type="submit"><i class="fas fa-search"></i></button>
                 </form>
             </div>

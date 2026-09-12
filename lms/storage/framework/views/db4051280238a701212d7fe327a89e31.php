@@ -1,4 +1,3 @@
-
 <?php $__env->startSection('content'); ?>
 
 
@@ -31,11 +30,11 @@
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h5 class="mb-2">About Student Promotions</h5>
-                        <p class="mb-2">Use this at year-end to move students to the next academic year. Promotion also assigns sections and enrolls curriculum subjects for the new year.</p>
+                        <p class="mb-2">Use this feature to promote students from one grade level to the next at the end of the academic year.</p>
                         <ul class="mb-0">
-                            <li><strong>Promote:</strong> Advance grade, assign destination section, enroll new subjects</li>
-                            <li><strong>Retain:</strong> Keep the same grade in the new academic year</li>
-                            <li><strong>Graduate:</strong> Mark as graduated and close active enrollments</li>
+                            <li><strong>Promote:</strong> Advance students to the next grade level</li>
+                            <li><strong>Retain:</strong> Keep students in the same grade for another year</li>
+                            <li><strong>Graduate:</strong> Mark Grade 10 students as graduated</li>
                         </ul>
                     </div>
                 </div>

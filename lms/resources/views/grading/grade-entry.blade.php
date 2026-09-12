@@ -7,38 +7,38 @@
     $sectionName = $sections->where('id', $selectedSectionId)->first()->name ?? 'N/A';
 @endphp
 
-<div class="page-wrapper">
-    <div class="content container-fluid">
-        <div class="page-header">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h3 class="page-title">Quarterly Grade Entry</h3>
-                    <ul class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Grade Entry</li>
-                    </ul>
+    <div class="page-wrapper">
+        <div class="content container-fluid">
+            <div class="page-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h3 class="page-title">Quarterly Grade Entry</h3>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item active">Grade Entry</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
-        </div>
 
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
-        <div class="card">
-            <div class="card-header bg-primary text-white">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Select Section, Quarter & Academic Year</h5>
-            </div>
-            <div class="card-body">
+                </div>
+                <div class="card-body">
                 @if($subjects->isEmpty() || $sections->isEmpty())
                     <div class="alert alert-warning mb-3">
                         You have no subject/section assignment yet. Ask Admin to assign you under
                         <strong>Classes &amp; Subjects</strong>.
                     </div>
                 @endif
-                <form method="GET" action="{{ route('teacher.grading.grade-entry') }}" id="filterForm">
+                    <form method="GET" action="{{ route('teacher.grading.grade-entry') }}" id="filterForm">
                     <input type="hidden" name="step" value="grades">
-                    <div class="row">
+                        <div class="row">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Section *</label>
                             <select class="form-control form-select" name="section_id" id="selected_section" required @if($sections->isEmpty()) disabled @endif>
@@ -46,10 +46,10 @@
                                 @foreach($sections as $section)
                                     <option value="{{ $section->id }}" {{ (string) ($selectedSectionId ?? '') === (string) $section->id ? 'selected' : '' }}>
                                         {{ $section->name }} ({{ $section->grade_level ?? 'N/A' }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Quarter *</label>
                             <select class="form-control form-select" name="quarter" id="selected_quarter" required>
@@ -58,24 +58,24 @@
                                     <option value="{{ $num }}" {{ (int) ($selectedQuarter ?? 0) === $num ? 'selected' : '' }}>{{ $label }}</option>
                                 @endforeach
                             </select>
-                        </div>
+                            </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Academic Year *</label>
-                            <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
-                                <option value="">-- Select Academic Year --</option>
-                                @foreach($academicYears as $year)
-                                    <option value="{{ $year->id }}" {{ $currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : '' }}>
-                                        {{ $year->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
+                                    <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
+                                        <option value="">-- Select Academic Year --</option>
+                                        @foreach($academicYears as $year)
+                                            <option value="{{ $year->id }}" {{ $currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : '' }}>
+                                                {{ $year->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
                     <div class="mt-3">
                         <button type="submit" class="btn btn-primary btn-lg" @if($sections->isEmpty() || $subjects->isEmpty()) disabled @endif>
                             <i class="fas fa-search me-2"></i>Load Grade Sheet
-                        </button>
-                    </div>
+                                </button>
+                            </div>
                 </form>
             </div>
         </div>
@@ -89,7 +89,7 @@
                         <span class="badge {{ $step === 'observed' ? 'ge-badge-active' : 'ge-badge-idle' }}">2. Observed Values</span>
                         <i class="fas fa-chevron-right text-muted"></i>
                         <span class="badge {{ $step === 'summary' ? 'ge-badge-active' : 'ge-badge-idle' }}">3. Quarter Summary &amp; Print</span>
-                    </div>
+                        </div>
                 </div>
             </div>
 
@@ -136,7 +136,7 @@
                                                        data-subject-id="{{ $subject->id }}"
                                                        value="{{ $gradeMap[$key] ?? '' }}"
                                                        min="0" max="100" step="0.01" placeholder="—">
-                                            </td>
+                                        </td>
                                         @endforeach
                                     </tr>
                                 @endforeach
@@ -310,16 +310,16 @@
             <div class="alert alert-warning mt-3">No subjects for this section.</div>
         @elseif($hasFilters && $students->isEmpty())
             <div class="alert alert-warning mt-3">No students in this section.</div>
-        @else
+            @else
             <div class="card mt-4">
                 <div class="card-body text-center py-5">
                     <h4>Ready to Enter Grades</h4>
                     <p class="text-muted mb-0">Select Section, Quarter, and Academic Year to begin.</p>
                 </div>
             </div>
-        @endif
+            @endif
     </div>
-</div>
+    </div>
 
 @push('styles')
 <style>
@@ -379,7 +379,7 @@ $(document).ready(function() {
             toastr.error('Please select Section, Quarter, and Academic Year.');
             return;
         }
-
+        
         const grades = [];
         $('.quarter-subject-input').each(function() {
             const value = $(this).val();
@@ -401,7 +401,7 @@ $(document).ready(function() {
         const $btn = $(this);
         const original = $btn.html();
         $btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...').prop('disabled', true);
-
+        
         $.ajax({
             url: '{{ route("teacher.grading.store-quarterly-grades") }}',
             type: 'POST',

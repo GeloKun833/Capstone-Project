@@ -1,9 +1,9 @@
-
 <?php $__env->startSection('content'); ?>
+
 
 <div class="page-wrapper">
     <div class="content container-fluid">
-
+        
         <div class="page-header">
             <div class="row align-items-center">
                 <div class="col">
@@ -22,76 +22,46 @@
             <input type="hidden" name="from_grade" value="<?php echo e($fromGradeLevel); ?>">
             <input type="hidden" name="to_grade" value="<?php echo e($toGradeLevel); ?>">
 
+            
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="card-title mb-0 text-white">Academic Year &amp; Section</h5>
+                    <h5 class="card-title mb-0 text-white">Academic Year Information</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label class="form-label">From Academic Year <span class="text-danger">*</span></label>
                                 <select name="from_academic_year_id" class="form-control" required>
                                     <option value="">Select Academic Year</option>
                                     <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($year->id); ?>"
-                                            <?php echo e((string) old('from_academic_year_id', $fromAcademicYear->id ?? '') === (string) $year->id ? 'selected' : ''); ?>>
-                                            <?php echo e($year->name); ?>
-
-                                            <?php if($year->isCurrent()): ?> (Current) <?php endif; ?>
-                                        </option>
+                                        <option value="<?php echo e($year->id); ?>"><?php echo e($year->name); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label class="form-label">To Academic Year <span class="text-danger">*</span></label>
                                 <select name="to_academic_year_id" class="form-control" required>
                                     <option value="">Select Academic Year</option>
                                     <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($year->id); ?>"
-                                            <?php echo e((string) old('to_academic_year_id', $toAcademicYear->id ?? '') === (string) $year->id ? 'selected' : ''); ?>>
-                                            <?php echo e($year->name); ?>
-
-                                            <?php if($year->statusLabel() === 'upcoming'): ?> (Upcoming) <?php endif; ?>
-                                        </option>
+                                        <option value="<?php echo e($year->id); ?>"><?php echo e($year->name); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label class="form-label">Promotion Date <span class="text-danger">*</span></label>
-                                <input type="date" name="promotion_date" class="form-control"
-                                       value="<?php echo e(old('promotion_date', date('Y-m-d'))); ?>" required>
+                                <input type="date" name="promotion_date" class="form-control" value="<?php echo e(date('Y-m-d')); ?>" required>
                             </div>
                         </div>
-                        <?php if($toGradeLevel !== 'Graduated'): ?>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label class="form-label">Default Destination Section</label>
-                                    <select name="to_section_id" class="form-control">
-                                        <option value="">Auto-assign (by capacity)</option>
-                                        <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                            <option value="<?php echo e($section->id); ?>" <?php echo e((string) old('to_section_id') === (string) $section->id ? 'selected' : ''); ?>>
-                                                <?php echo e($section->name); ?> (<?php echo e($section->grade_level); ?>)
-                                            </option>
-                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                    </select>
-                                    <small class="text-muted">Used for promoted students unless overridden per row.</small>
-                                </div>
-                            </div>
-                        <?php endif; ?>
                     </div>
-                    <?php if($toGradeLevel !== 'Graduated' && $sections->isEmpty()): ?>
-                        <div class="alert alert-warning mb-0 mt-2">
-                            No sections found for <strong><?php echo e($toGradeLevel); ?></strong>. Students will still be promoted; assign sections later if needed.
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
 
+            
             <div class="card">
                 <div class="card-header">
                     <div class="row align-items-center">
@@ -115,28 +85,24 @@
                                 <thead>
                                     <tr>
                                         <th width="50">
-                                            <input type="checkbox" id="checkAll" class="form-check-input" checked>
+                                            <input type="checkbox" id="checkAll" class="form-check-input">
                                         </th>
                                         <th>Student ID</th>
                                         <th>Name</th>
                                         <th>Current Grade</th>
                                         <th>GPA</th>
                                         <th>Status</th>
-                                        <?php if($toGradeLevel !== 'Graduated'): ?>
-                                            <th>Section Override</th>
-                                        <?php endif; ?>
                                         <th>Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php $__currentLoopData = $students; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $student): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <?php $latestGpa = $student->gpaRecords->first(); ?>
                                         <tr>
                                             <td class="text-center">
-                                                <input type="checkbox" name="students[]" value="<?php echo e($student->id); ?>"
+                                                <input type="checkbox" name="students[]" value="<?php echo e($student->id); ?>" 
                                                        class="form-check-input student-checkbox" checked>
                                             </td>
-                                            <td><?php echo e($student->admission_id ?? 'STU-'.$student->id); ?></td>
+                                            <td><?php echo e($student->admission_id ?? 'STU-' . $student->id); ?></td>
                                             <td>
                                                 <strong><?php echo e($student->first_name); ?> <?php echo e($student->last_name); ?></strong>
                                                 <br>
@@ -144,6 +110,9 @@
                                             </td>
                                             <td><?php echo e($student->year_level); ?></td>
                                             <td>
+                                                <?php
+                                                    $latestGpa = $student->gpaRecords->first();
+                                                ?>
                                                 <?php if($latestGpa): ?>
                                                     <span class="badge bg-<?php echo e($latestGpa->gpa >= 3.0 ? 'success' : ($latestGpa->gpa >= 2.0 ? 'warning' : 'danger')); ?>">
                                                         <?php echo e(number_format($latestGpa->gpa, 2)); ?>
@@ -154,43 +123,17 @@
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <select name="promotion_status[<?php echo e($student->id); ?>]"
-                                                        class="form-control form-control-sm status-select"
-                                                        data-student="<?php echo e($student->id); ?>">
+                                                <select name="promotion_status[<?php echo e($student->id); ?>]" class="form-control form-control-sm">
+                                                    <option value="promoted" selected>Promote</option>
+                                                    <option value="retained">Retain</option>
                                                     <?php if($toGradeLevel === 'Graduated'): ?>
-                                                        <option value="graduated" selected>Graduate</option>
-                                                        <option value="retained">Retain (same grade)</option>
-                                                    <?php else: ?>
-                                                        <option value="promoted" selected>Promote</option>
-                                                        <option value="retained">Retain</option>
-                                                        <?php if($fromGradeLevel === 'Grade 10'): ?>
-                                                            <option value="graduated">Graduate</option>
-                                                        <?php endif; ?>
+                                                        <option value="graduated">Graduate</option>
                                                     <?php endif; ?>
                                                 </select>
                                             </td>
-                                            <?php if($toGradeLevel !== 'Graduated'): ?>
-                                                <td>
-                                                    <select name="student_sections[<?php echo e($student->id); ?>]"
-                                                            class="form-control form-control-sm section-select"
-                                                            data-student="<?php echo e($student->id); ?>">
-                                                        <option value="">Use default / auto</option>
-                                                        <optgroup label="Promote → <?php echo e($toGradeLevel); ?>">
-                                                            <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                                <option value="<?php echo e($section->id); ?>"><?php echo e($section->name); ?></option>
-                                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                                        </optgroup>
-                                                        <optgroup label="Retain → <?php echo e($fromGradeLevel); ?>">
-                                                            <?php $__currentLoopData = $retainSections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                                <option value="<?php echo e($section->id); ?>"><?php echo e($section->name); ?></option>
-                                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                                        </optgroup>
-                                                    </select>
-                                                </td>
-                                            <?php endif; ?>
                                             <td>
-                                                <input type="text" name="remarks[<?php echo e($student->id); ?>]"
-                                                       class="form-control form-control-sm"
+                                                <input type="text" name="remarks[<?php echo e($student->id); ?>]" 
+                                                       class="form-control form-control-sm" 
                                                        placeholder="Optional remarks">
                                             </td>
                                         </tr>
@@ -227,6 +170,7 @@
 <?php $__env->startSection('script'); ?>
 <script>
 $(document).ready(function() {
+    // Select/Deselect All
     $('#checkAll').on('change', function() {
         $('.student-checkbox').prop('checked', $(this).is(':checked'));
     });
@@ -247,34 +191,29 @@ $(document).ready(function() {
         $('#checkAll').prop('checked', false);
     });
 
+    // Form validation
     $('#promotionForm').on('submit', function(e) {
         var checkedStudents = $('.student-checkbox:checked').length;
+        
         if (checkedStudents === 0) {
             e.preventDefault();
             alert('Please select at least one student to promote.');
             return false;
         }
 
-        var fromAy = $('select[name="from_academic_year_id"]').val();
-        var toAy = $('select[name="to_academic_year_id"]').val();
-        if (fromAy && toAy && fromAy === toAy) {
-            e.preventDefault();
-            alert('From and To academic years should be different.');
-            return false;
-        }
-
-        if (!confirm('Process promotion for ' + checkedStudents + ' student(s)? This updates grade levels, sections, and subject enrollments.')) {
+        if (!confirm(`Are you sure you want to promote ${checkedStudents} student(s)?`)) {
             e.preventDefault();
             return false;
         }
     });
 
+    // DataTable
     if ($('#studentsTable tbody tr').length > 10) {
         $('#studentsTable').DataTable({
             pageLength: 25,
             order: [[2, 'asc']],
             columnDefs: [
-                { orderable: false, targets: [0, 5, 6, 7] }
+                { orderable: false, targets: [0, 5, 6] }
             ]
         });
     }
@@ -282,5 +221,6 @@ $(document).ready(function() {
 </script>
 <?php $__env->stopSection(); ?>
 <?php $__env->stopSection(); ?>
+
 
 <?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views\promotions\create.blade.php ENDPATH**/ ?>

@@ -6,38 +6,38 @@
     $sectionName = $sections->where('id', $selectedSectionId)->first()->name ?? 'N/A';
 ?>
 
-<div class="page-wrapper">
-    <div class="content container-fluid">
-        <div class="page-header">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h3 class="page-title">Quarterly Grade Entry</h3>
-                    <ul class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Grade Entry</li>
-                    </ul>
+    <div class="page-wrapper">
+        <div class="content container-fluid">
+            <div class="page-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h3 class="page-title">Quarterly Grade Entry</h3>
+                        <ul class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
+                            <li class="breadcrumb-item active">Grade Entry</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
-        </div>
 
         <?php if(session('success')): ?>
             <div class="alert alert-success"><?php echo e(session('success')); ?></div>
         <?php endif; ?>
 
-        <div class="card">
-            <div class="card-header bg-primary text-white">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Select Section, Quarter & Academic Year</h5>
-            </div>
-            <div class="card-body">
+                </div>
+                <div class="card-body">
                 <?php if($subjects->isEmpty() || $sections->isEmpty()): ?>
                     <div class="alert alert-warning mb-3">
                         You have no subject/section assignment yet. Ask Admin to assign you under
                         <strong>Classes &amp; Subjects</strong>.
                     </div>
                 <?php endif; ?>
-                <form method="GET" action="<?php echo e(route('teacher.grading.grade-entry')); ?>" id="filterForm">
+                    <form method="GET" action="<?php echo e(route('teacher.grading.grade-entry')); ?>" id="filterForm">
                     <input type="hidden" name="step" value="grades">
-                    <div class="row">
+                        <div class="row">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Section *</label>
                             <select class="form-control form-select" name="section_id" id="selected_section" required <?php if($sections->isEmpty()): ?> disabled <?php endif; ?>>
@@ -45,10 +45,10 @@
                                 <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <option value="<?php echo e($section->id); ?>" <?php echo e((string) ($selectedSectionId ?? '') === (string) $section->id ? 'selected' : ''); ?>>
                                         <?php echo e($section->name); ?> (<?php echo e($section->grade_level ?? 'N/A'); ?>)
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                        </div>
+                                            </option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
+                                </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Quarter *</label>
                             <select class="form-control form-select" name="quarter" id="selected_quarter" required>
@@ -57,25 +57,25 @@
                                     <option value="<?php echo e($num); ?>" <?php echo e((int) ($selectedQuarter ?? 0) === $num ? 'selected' : ''); ?>><?php echo e($label); ?></option>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
-                        </div>
+                            </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Academic Year *</label>
-                            <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
-                                <option value="">-- Select Academic Year --</option>
-                                <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($year->id); ?>" <?php echo e($currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : ''); ?>>
-                                        <?php echo e($year->name); ?>
+                                    <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
+                                        <option value="">-- Select Academic Year --</option>
+                                        <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($year->id); ?>" <?php echo e($currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : ''); ?>>
+                                                <?php echo e($year->name); ?>
 
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                        </div>
-                    </div>
+                                            </option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
+                                </div>
+                            </div>
                     <div class="mt-3">
                         <button type="submit" class="btn btn-primary btn-lg" <?php if($sections->isEmpty() || $subjects->isEmpty()): ?> disabled <?php endif; ?>>
                             <i class="fas fa-search me-2"></i>Load Grade Sheet
-                        </button>
-                    </div>
+                                </button>
+                            </div>
                 </form>
             </div>
         </div>
@@ -89,7 +89,7 @@
                         <span class="badge <?php echo e($step === 'observed' ? 'ge-badge-active' : 'ge-badge-idle'); ?>">2. Observed Values</span>
                         <i class="fas fa-chevron-right text-muted"></i>
                         <span class="badge <?php echo e($step === 'summary' ? 'ge-badge-active' : 'ge-badge-idle'); ?>">3. Quarter Summary &amp; Print</span>
-                    </div>
+                        </div>
                 </div>
             </div>
 
@@ -136,7 +136,7 @@
                                                        data-subject-id="<?php echo e($subject->id); ?>"
                                                        value="<?php echo e($gradeMap[$key] ?? ''); ?>"
                                                        min="0" max="100" step="0.01" placeholder="—">
-                                            </td>
+                                        </td>
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </tr>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -312,16 +312,16 @@
             <div class="alert alert-warning mt-3">No subjects for this section.</div>
         <?php elseif($hasFilters && $students->isEmpty()): ?>
             <div class="alert alert-warning mt-3">No students in this section.</div>
-        <?php else: ?>
+            <?php else: ?>
             <div class="card mt-4">
                 <div class="card-body text-center py-5">
                     <h4>Ready to Enter Grades</h4>
                     <p class="text-muted mb-0">Select Section, Quarter, and Academic Year to begin.</p>
                 </div>
             </div>
-        <?php endif; ?>
+            <?php endif; ?>
     </div>
-</div>
+    </div>
 
 <?php $__env->startPush('styles'); ?>
 <style>
@@ -381,7 +381,7 @@ $(document).ready(function() {
             toastr.error('Please select Section, Quarter, and Academic Year.');
             return;
         }
-
+        
         const grades = [];
         $('.quarter-subject-input').each(function() {
             const value = $(this).val();
@@ -403,7 +403,7 @@ $(document).ready(function() {
         const $btn = $(this);
         const original = $btn.html();
         $btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...').prop('disabled', true);
-
+        
         $.ajax({
             url: '<?php echo e(route("teacher.grading.store-quarterly-grades")); ?>',
             type: 'POST',

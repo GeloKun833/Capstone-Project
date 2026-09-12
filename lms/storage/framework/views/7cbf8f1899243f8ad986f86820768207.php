@@ -41,8 +41,8 @@
                 <button type="button" id="curriculumSearchClear" class="ams-search-clear d-none" aria-label="Clear">
                     <i class="fas fa-times"></i>
                 </button>
-            </div>
-        </div>
+                    </div>
+                </div>
 
         <div class="row g-3" id="curriculumGrid">
             <?php $__currentLoopData = $curricula; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $curriculum): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -90,16 +90,16 @@
                         </div>
                         <div class="ams-curr-hint mt-3">
                             Click to manage <i class="fas fa-arrow-right ms-1"></i>
-                        </div>
+                    </div>
                     </button>
                 </div>
             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </div>
         <div id="curriculumEmpty" class="alert alert-light border text-center d-none mt-3">
             No curriculum matches your search.
-        </div>
-    </div>
-</div>
+                    </div>
+                </div>
+                    </div>
 
 
 <div class="modal fade" id="curriculumModal" tabindex="-1" aria-hidden="true">
@@ -118,20 +118,20 @@
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     <span class="ams-stat-badge ams-stat-badge--linked" id="currModalLinked">0 linked</span>
                     <span class="ams-stat-badge ams-stat-badge--catalog" id="currModalCatalog">0 in catalog</span>
-                </div>
+        </div>
 
                 <div class="ams-curr-subjects mb-3" id="currModalSubjects"></div>
                 <div id="currModalEmpty" class="alert alert-warning d-none mb-0">
                     No subjects linked yet. Click <strong>Sync from Catalog</strong> to pull subjects for this grade.
                 </div>
-            </div>
+                                </div>
             <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
                 <form id="currSyncForm" method="POST" action="" class="d-inline">
-                    <?php echo csrf_field(); ?>
+                                    <?php echo csrf_field(); ?>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-sync-alt me-1"></i> Sync from Catalog
                     </button>
-                </form>
+                                </form>
                 <a href="#" id="currAssignBtn" class="btn btn-outline-primary">
                     <i class="fas fa-check-square me-1"></i> Choose Subjects
                 </a>
@@ -145,8 +145,8 @@
                 <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
-    </div>
-</div>
+            </div>
+        </div>
 
 
 <div class="modal fade" id="curriculumEditModal" tabindex="-1" aria-hidden="true">
@@ -186,8 +186,8 @@
                 </div>
             </form>
         </div>
-    </div>
-</div>
+                        </div>
+                    </div>
 
 
 <div class="modal custom-modal fade" id="curriculumDeleteModal" tabindex="-1" aria-hidden="true">
@@ -309,14 +309,22 @@
 <?php $__env->stopPush(); ?>
 
 <?php $__env->startPush('scripts'); ?>
+<?php
+    $subjectsByCurriculumJson = $curricula->mapWithKeys(function ($c) {
+        return [
+            (string) $c->id => $c->subjects->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->subject_name,
+                ];
+            })->values(),
+        ];
+    });
+?>
 <script>
 (function () {
     const csrfToken = <?php echo json_encode(csrf_token(), 15, 512) ?>;
-    const subjectsById = <?php echo json_encode(
-        $curricula->mapWithKeys(function ($c) {
-            return [
-                (string) $c->id => $c->subjects->map(fn ($s) => [
-                    'id' => $s->id, 'name' => $s->subject_name, ])->values()) ?>;
+    const subjectsById = <?php echo json_encode($subjectsByCurriculumJson, 15, 512) ?>;
 
     let active = null;
     const searchInput = document.getElementById('curriculumSearch');

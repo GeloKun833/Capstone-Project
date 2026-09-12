@@ -1,4 +1,3 @@
-
 <?php $__env->startSection('content'); ?>
 
 
@@ -170,17 +169,11 @@
                             <tbody>
                                 <?php $__currentLoopData = $promotions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $promotion): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <tr>
-                                        <td><?php echo e(optional($promotion->promotion_date)->format('M d, Y') ?? '—'); ?></td>
+                                        <td><?php echo e($promotion->promotion_date->format('M d, Y')); ?></td>
                                         <td>
-                                            <?php if($promotion->student): ?>
-                                                <a href="<?php echo e(route('promotions.student-history', $promotion->student_id)); ?>">
-                                                    <strong><?php echo e($promotion->student->first_name); ?> <?php echo e($promotion->student->last_name); ?></strong>
-                                                </a>
-                                                <br>
-                                                <small class="text-muted"><?php echo e($promotion->student->admission_id ?? 'STU-'.$promotion->student->id); ?></small>
-                                            <?php else: ?>
-                                                <span class="text-muted">Student removed</span>
-                                            <?php endif; ?>
+                                            <strong><?php echo e($promotion->student->first_name); ?> <?php echo e($promotion->student->last_name); ?></strong>
+                                            <br>
+                                            <small class="text-muted"><?php echo e($promotion->student->admission_id ?? 'STU-' . $promotion->student->id); ?></small>
                                         </td>
                                         <td><?php echo e($promotion->from_year_level); ?></td>
                                         <td><?php echo e($promotion->to_year_level); ?></td>
@@ -213,13 +206,6 @@
                                                     <i class="fas fa-ellipsis-v"></i>
                                                 </button>
                                                 <ul class="dropdown-menu">
-                                                    <?php if($promotion->student): ?>
-                                                        <li>
-                                                            <a class="dropdown-item" href="<?php echo e(route('promotions.student-history', $promotion->student_id)); ?>">
-                                                                <i class="fas fa-user"></i> Student History
-                                                            </a>
-                                                        </li>
-                                                    <?php endif; ?>
                                                     <?php if($promotion->remarks): ?>
                                                         <li>
                                                             <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#remarksModal<?php echo e($promotion->id); ?>">
@@ -228,7 +214,7 @@
                                                         </li>
                                                     <?php endif; ?>
                                                     <li>
-                                                        <form action="<?php echo e(route('promotions.destroy', $promotion->id)); ?>" method="POST"
+                                                        <form action="<?php echo e(route('promotions.destroy', $promotion->id)); ?>" method="POST" 
                                                               onsubmit="return confirm('Are you sure? This will rollback the student to their previous grade level.')">
                                                             <?php echo csrf_field(); ?>
                                                             <?php echo method_field('DELETE'); ?>
