@@ -20,7 +20,7 @@ class ClassSubjectController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(['auth', 'role:Admin|Registrar']);
+        $this->middleware(['auth', 'role:Admin']);
     }
 
     /**

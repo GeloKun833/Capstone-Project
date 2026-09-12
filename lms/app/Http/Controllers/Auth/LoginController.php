@@ -68,13 +68,16 @@ class LoginController extends Controller
                 $request->session()->regenerate();
 
                 $user = Auth::user();
-                $accessLimits = app(SystemAccessLimitService::class);
-                if (!$accessLimits->isAllowed($user)) {
-                    Auth::logout();
-                    $request->session()->invalidate();
-                    $request->session()->regenerateToken();
-                    Toastr::error($accessLimits->message(), 'Limited Access');
-                    return redirect()->route('login')->with('error', $accessLimits->message());
+                // Fast path: admins never need the access-limit settings lookup.
+                if (! in_array($user->role_name, ['Admin', 'Registrar'], true)) {
+                    $accessLimits = app(SystemAccessLimitService::class);
+                    if (!$accessLimits->isAllowed($user)) {
+                        Auth::logout();
+                        $request->session()->invalidate();
+                        $request->session()->regenerateToken();
+                        Toastr::error($accessLimits->message(), 'Limited Access');
+                        return redirect()->route('login')->with('error', $accessLimits->message());
+                    }
                 }
 
                 Session::put('name', $user->name);
@@ -94,7 +97,7 @@ class LoginController extends Controller
             Toastr::error('fail, WRONG USERNAME OR PASSWORD :)','Error');
             return redirect('login');
         } catch (\Exception $e) {
-            \Log::error('Login failed: '.$e->getMessage());
+            logger()->error('Login failed: '.$e->getMessage());
             Toastr::error('Unable to complete the operation. Please try again.','Error');
             return redirect()->back();
         }

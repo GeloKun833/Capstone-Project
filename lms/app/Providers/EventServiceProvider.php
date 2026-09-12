@@ -32,23 +32,30 @@ class EventServiceProvider extends ServiceProvider
     {
         parent::boot();
 
+        // Defer activity writes until after the response so login/logout stay fast on remote DB.
         Event::listen(Login::class, function ($event) {
             if (!$event->user) {
                 return;
             }
-            activity()
-                ->causedBy($event->user)
-                ->performedOn($event->user)
-                ->log('logged in');
+            $user = $event->user;
+            dispatch(function () use ($user) {
+                activity()
+                    ->causedBy($user)
+                    ->performedOn($user)
+                    ->log('logged in');
+            })->afterResponse();
         });
         Event::listen(Logout::class, function ($event) {
             if (!$event->user) {
                 return;
             }
-            activity()
-                ->causedBy($event->user)
-                ->performedOn($event->user)
-                ->log('logged out');
+            $user = $event->user;
+            dispatch(function () use ($user) {
+                activity()
+                    ->causedBy($user)
+                    ->performedOn($user)
+                    ->log('logged out');
+            })->afterResponse();
         });
     }
 

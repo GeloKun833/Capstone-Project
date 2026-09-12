@@ -179,12 +179,12 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 
     // ----------------------- subject -----------------------------//
     Route::controller(SubjectController::class)->group(function () {
-        Route::get('subject/list/page', 'subjectList')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/list/page');
-        Route::get('subject/add/page', 'subjectAdd')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/add/page');
-        Route::post('subject/save', 'saveRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/save');
-        Route::post('subject/update', 'updateRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/update');
-        Route::post('subject/delete', 'deleteRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('subject/delete');
-        Route::get('subject/edit/{subject_id}', 'subjectEdit')->middleware(['auth', 'role:Admin|Registrar']);
+        Route::get('subject/list/page', 'subjectList')->middleware(['auth', 'role:Admin'])->name('subject/list/page');
+        Route::get('subject/add/page', 'subjectAdd')->middleware(['auth', 'role:Admin'])->name('subject/add/page');
+        Route::post('subject/save', 'saveRecord')->middleware(['auth', 'role:Admin'])->name('subject/save');
+        Route::post('subject/update', 'updateRecord')->middleware(['auth', 'role:Admin'])->name('subject/update');
+        Route::post('subject/delete', 'deleteRecord')->middleware(['auth', 'role:Admin'])->name('subject/delete');
+        Route::get('subject/edit/{subject_id}', 'subjectEdit')->middleware(['auth', 'role:Admin']);
     });
 
     // ----------------------- invoice -----------------------------//
@@ -220,12 +220,9 @@ Route::resource('academic_years', AcademicYearController::class)->middleware('au
 Route::resource('semesters', SemesterController::class)->middleware('auth');
 Route::resource('sections', SectionController::class)->middleware('auth');
 
-// Enrollment routes (Admin + Registrar for subject catalog / teacher assignment)
+// Enrollment routes (Admin only)
 Route::group(['middleware' => ['auth', 'role:Admin']], function () {
     Route::resource('enrollments', EnrollmentController::class);
-});
-
-Route::group(['middleware' => ['auth', 'role:Admin|Registrar']], function () {
     Route::get('class-subject/unified-management', [App\Http\Controllers\ClassSubjectController::class, 'unifiedManagementForm'])->name('class-subject.unified-management');
     Route::post('class-subject/unified-management', [App\Http\Controllers\ClassSubjectController::class, 'handleAssignment'])->name('class-subject.handle-assignment');
     Route::post('class-subject/import-defaults', [App\Http\Controllers\ClassSubjectController::class, 'importDefaultSubjects'])->name('class-subject.import-defaults');

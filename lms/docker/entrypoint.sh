@@ -21,16 +21,17 @@ if [ -z "${APP_KEY}" ]; then
     exit 1
 fi
 
-php artisan package:discover --ansi || true
 php artisan storage:link --force || true
 
-# Cache config and routes. View cache is best-effort (some optional stubs can fail).
+# Cache config/routes/views once per container boot (keeps requests fast).
 php artisan config:cache
 php artisan route:cache || true
 php artisan view:cache || true
 php artisan event:cache || true
 
-if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+# Default OFF so cold starts / free-tier wake-ups are not blocked by migrate.
+# Set RUN_MIGRATIONS=true once after schema changes, then turn it off again.
+if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php artisan migrate --force
 fi
 

@@ -36,6 +36,7 @@ class SystemAccessLimitService
     public function clearCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        SchoolSetting::clearSettingsCache();
     }
 
     /**
@@ -47,11 +48,11 @@ class SystemAccessLimitService
             return true;
         }
 
-        if (!$this->enabled()) {
+        if (in_array($user->role_name, ['Admin', 'Registrar'], true)) {
             return true;
         }
 
-        if (in_array($user->role_name, ['Admin', 'Registrar'], true)) {
+        if (!$this->enabled()) {
             return true;
         }
 
@@ -74,7 +75,7 @@ class SystemAccessLimitService
             return [];
         }
 
-        return Cache::remember(self::CACHE_KEY, 60, function () {
+        return Cache::remember(self::CACHE_KEY, 300, function () {
             $settings = $this->settings();
             $grades = $this->normalizedGrades($settings->access_allowed_grades);
             $ids = [];

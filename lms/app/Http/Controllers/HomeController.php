@@ -378,7 +378,7 @@ class HomeController extends Controller
     private function loadAdminData()
     {
         try {
-            return Cache::remember('admin.dashboard.data.v3', 180, function () {
+            return Cache::remember('admin.dashboard.data.v3', 300, function () {
                 return $this->queryAdminDashboardData();
             });
         } catch (\Throwable $e) {
@@ -449,14 +449,20 @@ class HomeController extends Controller
                 (SELECT COUNT(*) FROM subjects) AS total_subjects,
                 (SELECT COUNT(*) FROM sections) AS total_sections,
                 {$enrollmentCountSql} AS total_enrollments,
-                (SELECT COUNT(*) FROM attendances) AS total_attendance,
-                (SELECT SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) FROM attendances) AS present_count,
-                (SELECT SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) FROM attendances) AS absent_count,
-                (SELECT SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) FROM attendances) AS late_count,
                 (SELECT COUNT(*) FROM grades) AS total_grades,
                 (SELECT COUNT(*) FROM announcements) AS total_announcements,
                 (SELECT COUNT(*) FROM students WHERE gender IN ('Male', 'male') ".($studentDeletedClause ? 'AND deleted_at IS NULL' : '').") AS male_students,
                 (SELECT COUNT(*) FROM students WHERE gender IN ('Female', 'female') ".($studentDeletedClause ? 'AND deleted_at IS NULL' : '').") AS female_students
+        ");
+
+        // One attendance scan with conditional aggregates (was 4 full-table subqueries).
+        $attendanceAgg = DB::selectOne("
+            SELECT
+                COUNT(*) AS total_attendance,
+                SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present_count,
+                SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
+                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_count
+            FROM attendances
         ");
 
         $totalStudents = (int) ($counts->total_students ?? 0);
@@ -464,14 +470,14 @@ class HomeController extends Controller
         $totalSubjects = (int) ($counts->total_subjects ?? 0);
         $totalSections = (int) ($counts->total_sections ?? 0);
         $totalEnrollments = (int) ($counts->total_enrollments ?? 0);
-        $totalAttendance = (int) ($counts->total_attendance ?? 0);
+        $totalAttendance = (int) ($attendanceAgg->total_attendance ?? 0);
         $totalGrades = (int) ($counts->total_grades ?? 0);
         $totalAnnouncements = (int) ($counts->total_announcements ?? 0);
         $maleStudents = (int) ($counts->male_students ?? 0);
         $femaleStudents = (int) ($counts->female_students ?? 0);
-        $presentCount = (int) ($counts->present_count ?? 0);
-        $absentCount = (int) ($counts->absent_count ?? 0);
-        $lateCount = (int) ($counts->late_count ?? 0);
+        $presentCount = (int) ($attendanceAgg->present_count ?? 0);
+        $absentCount = (int) ($attendanceAgg->absent_count ?? 0);
+        $lateCount = (int) ($attendanceAgg->late_count ?? 0);
 
         $attendanceStats = (object) [
             'total_records' => $totalAttendance,
@@ -784,7 +790,7 @@ class HomeController extends Controller
             ];
         }
 
-        return Cache::remember('teacher.dashboard.v3.'.$teacher->id, 90, function () use ($teacher, $user) {
+        return Cache::remember('teacher.dashboard.v3.'.$teacher->id, 180, function () use ($teacher, $user) {
         // Get teacher's subjects with sections, grouped by grade level
         $subjectCollection = $teacher->subjects()
             ->with(['sections'])
@@ -862,6 +868,25 @@ class HomeController extends Controller
             ->orderBy('start_time')
             ->get();
 
+        $sectionIdsForCounts = collect($assignedSectionIds)
+            ->merge($schedules->pluck('section_id'))
+            ->merge($teacherSections->pluck('id'))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $sectionStudentCounts = empty($sectionIdsForCounts)
+            ? collect()
+            : DB::table('student_section_assignments as ssa')
+                ->join('students as s', 's.id', '=', 'ssa.student_id')
+                ->whereNull('s.deleted_at')
+                ->whereIn('ssa.section_id', $sectionIdsForCounts)
+                ->groupBy('ssa.section_id')
+                ->selectRaw('ssa.section_id, COUNT(DISTINCT ssa.student_id) as c')
+                ->pluck('c', 'section_id');
+
         if ($schedules->isEmpty() && ($options['subjects']->isNotEmpty() || $options['sections']->isNotEmpty())) {
             // Fallback class cards from assignments when no schedule rows exist
             $myClasses = collect();
@@ -875,7 +900,7 @@ class HomeController extends Controller
                     if (! $subject) {
                         continue;
                     }
-                    $studentCount = Student::whereHas('sections', fn ($q) => $q->where('sections.id', $section->id))->count();
+                    $studentCount = (int) ($sectionStudentCounts[$section->id] ?? 0);
                     $myClasses->push((object) [
                         'grade_level' => $section->grade_level ?? ($subject->class ?? '—'),
                         'subject_name' => $subject->subject_name,
@@ -889,10 +914,10 @@ class HomeController extends Controller
                 }
             }
         } else {
-            $myClasses = $schedules->map(function (ClassSchedule $row) {
+            $myClasses = $schedules->map(function (ClassSchedule $row) use ($sectionStudentCounts) {
                 $section = $row->section;
                 $studentCount = $section
-                    ? Student::whereHas('sections', fn ($q) => $q->where('sections.id', $section->id))->count()
+                    ? (int) ($sectionStudentCounts[$section->id] ?? 0)
                     : 0;
                 $start = $row->start_time ? Carbon::parse($row->start_time)->format('g:i A') : '';
                 $end = $row->end_time ? Carbon::parse($row->end_time)->format('g:i A') : '';
@@ -915,10 +940,10 @@ class HomeController extends Controller
         }
 
         $todayName = strtolower(now()->format('l'));
-        $todaysSchedule = $schedules->where('day_of_week', $todayName)->values()->map(function (ClassSchedule $row) {
+        $todaysSchedule = $schedules->where('day_of_week', $todayName)->values()->map(function (ClassSchedule $row) use ($sectionStudentCounts) {
             $section = $row->section;
             $studentCount = $section
-                ? Student::whereHas('sections', fn ($q) => $q->where('sections.id', $section->id))->count()
+                ? (int) ($sectionStudentCounts[$section->id] ?? 0)
                 : 0;
 
             return (object) [
@@ -932,11 +957,18 @@ class HomeController extends Controller
             ];
         });
 
-        $activeLessonsCount = Lesson::where('teacher_id', $teacher->id)
-            ->where(function ($q) {
-                $q->where('status', 'published')->orWhere('is_active', true);
-            })
-            ->count();
+        $lessonStats = Lesson::where('teacher_id', $teacher->id)
+            ->selectRaw("
+                SUM(CASE WHEN status = 'published' OR is_active = 1 THEN 1 ELSE 0 END) as active_count,
+                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_count,
+                SUM(CASE WHEN status = 'published' AND lesson_date IS NOT NULL AND lesson_date < ? THEN 1 ELSE 0 END) as completed_count,
+                SUM(CASE WHEN lesson_date IS NOT NULL AND lesson_date >= ? THEN 1
+                         WHEN lesson_date IS NULL AND status IN ('draft', 'published') THEN 1
+                         ELSE 0 END) as remaining_count
+            ", [now()->toDateString(), now()->toDateString()])
+            ->first();
+
+        $activeLessonsCount = (int) ($lessonStats->active_count ?? 0);
 
         $upcomingLessonPlans = Lesson::with(['subject', 'section'])
             ->where('teacher_id', $teacher->id)
@@ -949,58 +981,65 @@ class HomeController extends Controller
             ->take(6)
             ->get();
 
-        $assignmentWorkload = Assignment::with(['subject', 'section'])
+        $assignmentRows = Assignment::with(['subject', 'section'])
             ->where('teacher_id', $teacher->id)
             ->where('is_active', true)
             ->whereIn('status', ['published', 'closed', 'draft'])
             ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('due_date')
             ->take(8)
-            ->get()
-            ->map(function (Assignment $assignment) {
-                $submitted = $assignment->submissions()->whereIn('status', ['submitted', 'late', 'graded'])->count();
-                $graded = $assignment->submissions()->where('status', 'graded')->count();
-                $pending = max(0, $submitted - $graded);
-                $pct = $submitted > 0 ? round(($graded / $submitted) * 100) : 0;
+            ->get();
 
-                return (object) [
-                    'id' => $assignment->id,
-                    'title' => $assignment->title,
-                    'subject_name' => $assignment->subject->subject_name ?? '—',
-                    'class_label' => trim(($assignment->section->grade_level ?? '').' '.($assignment->section->name ?? '')) ?: '—',
-                    'due_date' => $assignment->due_date,
-                    'status' => $assignment->status,
-                    'submitted' => $submitted,
-                    'graded' => $graded,
-                    'pending' => $pending,
-                    'progress_pct' => $pct,
-                ];
-            });
+        $assignmentIds = $assignmentRows->pluck('id')->all();
+        $submissionStats = empty($assignmentIds)
+            ? collect()
+            : AssignmentSubmission::whereIn('assignment_id', $assignmentIds)
+                ->whereIn('status', ['submitted', 'late', 'graded'])
+                ->selectRaw("
+                    assignment_id,
+                    COUNT(*) as submitted,
+                    SUM(CASE WHEN status = 'graded' THEN 1 ELSE 0 END) as graded
+                ")
+                ->groupBy('assignment_id')
+                ->get()
+                ->keyBy('assignment_id');
+
+        $assignmentWorkload = $assignmentRows->map(function (Assignment $assignment) use ($submissionStats) {
+            $stats = $submissionStats->get($assignment->id);
+            $submitted = (int) ($stats->submitted ?? 0);
+            $graded = (int) ($stats->graded ?? 0);
+            $pending = max(0, $submitted - $graded);
+            $pct = $submitted > 0 ? round(($graded / $submitted) * 100) : 0;
+
+            return (object) [
+                'id' => $assignment->id,
+                'title' => $assignment->title,
+                'subject_name' => $assignment->subject->subject_name ?? '—',
+                'class_label' => trim(($assignment->section->grade_level ?? '').' '.($assignment->section->name ?? '')) ?: '—',
+                'due_date' => $assignment->due_date,
+                'status' => $assignment->status,
+                'submitted' => $submitted,
+                'graded' => $graded,
+                'pending' => $pending,
+                'progress_pct' => $pct,
+            ];
+        });
 
         $pendingTasksCount = (int) $assignmentWorkload->sum('pending')
-            + Lesson::where('teacher_id', $teacher->id)->where('status', 'draft')->count();
+            + (int) ($lessonStats->draft_count ?? 0);
 
-        $lessonsCompleted = Lesson::where('teacher_id', $teacher->id)
-            ->where(function ($q) {
-                $q->where('status', 'published')
-                    ->whereDate('lesson_date', '<', now()->toDateString());
-            })
-            ->count();
-        $lessonsRemaining = Lesson::where('teacher_id', $teacher->id)
-            ->where(function ($q) {
-                $q->whereDate('lesson_date', '>=', now()->toDateString())
-                    ->orWhere(function ($qq) {
-                        $qq->whereNull('lesson_date')->whereIn('status', ['draft', 'published']);
-                    });
-            })
-            ->count();
+        $lessonsCompleted = (int) ($lessonStats->completed_count ?? 0);
+        $lessonsRemaining = (int) ($lessonStats->remaining_count ?? 0);
 
-        $assignmentsGraded = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('teacher_id', $teacher->id))
-            ->where('status', 'graded')
-            ->count();
-        $assignmentsPendingGrade = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('teacher_id', $teacher->id))
-            ->whereIn('status', ['submitted', 'late'])
-            ->count();
+        $assignmentGradeStats = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('teacher_id', $teacher->id))
+            ->selectRaw("
+                SUM(CASE WHEN status = 'graded' THEN 1 ELSE 0 END) as graded_count,
+                SUM(CASE WHEN status IN ('submitted', 'late') THEN 1 ELSE 0 END) as pending_count
+            ")
+            ->first();
+
+        $assignmentsGraded = (int) ($assignmentGradeStats->graded_count ?? 0);
+        $assignmentsPendingGrade = (int) ($assignmentGradeStats->pending_count ?? 0);
         $attendanceRecorded = (int) ($attendanceStats->total_records ?? 0);
 
         $lessonTotal = max(1, $lessonsCompleted + $lessonsRemaining);
@@ -1110,7 +1149,7 @@ class HomeController extends Controller
             }
         }
 
-        return Cache::remember('student.dashboard.v2.'.$student->id, 90, function () use ($student) {
+        return Cache::remember('student.dashboard.v2.'.$student->id, 180, function () use ($student) {
         $student->load(['sections', 'enrollmentApplication.documents']);
 
         $enrollments = $student->enrollments()
@@ -1133,7 +1172,7 @@ class HomeController extends Controller
     {
         return Cache::remember(
             'parent.dashboard.v2.'.auth()->id().'.'.request()->input('child_id', 'first').'.'.request()->input('date', now()->toDateString()),
-            30,
+            90,
             function () {
         try {
             $parent = auth()->user();
@@ -1551,7 +1590,7 @@ class HomeController extends Controller
      */
     private function loadRegistrarData()
     {
-        return Cache::remember('registrar.dashboard.data', 90, function () {
+        return Cache::remember('registrar.dashboard.data', 180, function () {
         $applicationsByStatus = \App\Models\EnrollmentApplication::selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');

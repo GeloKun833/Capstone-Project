@@ -72,7 +72,6 @@
                     @php
                         $rDash = request()->routeIs('dashboard', 'home');
                         $rEnroll = request()->routeIs('enrollment.registrar.*', 'enrollment.portal.*');
-                        $rSubjects = request()->routeIs('class-subject.*', 'subject/list/page', 'subject/add/page');
                         $rChat = request()->routeIs('chat.*');
                     @endphp
 
@@ -87,15 +86,6 @@
                             <li><a href="{{ route('enrollment.registrar.statistics') }}"><i class="fas fa-chart-bar"></i> <span>Statistics</span></a></li>
                             <li><a href="{{ route('enrollment.registrar.archive') }}"><i class="fas fa-archive"></i> <span>Archive</span></a></li>
                             <li><a href="{{ route('enrollment.portal.index') }}" target="_blank"><i class="fas fa-external-link-alt"></i> <span>Portal View</span></a></li>
-                        </ul>
-                    </li>
-
-                    <li class="submenu {{ $rSubjects ? 'active' : '' }}">
-                        <a href="javascript:void(0);"><i class="fas fa-book"></i> <span>Classes &amp; Subjects</span> <span class="menu-arrow"></span></a>
-                        <ul>
-                            <li><a href="{{ route('class-subject.unified-management') }}"><i class="fas fa-cogs"></i> <span>Subject Catalog</span></a></li>
-                            <li><a href="{{ route('subject/list/page') }}"><i class="fas fa-list"></i> <span>All Subjects</span></a></li>
-                            <li><a href="{{ route('subject/add/page') }}"><i class="fas fa-plus"></i> <span>Add Subject</span></a></li>
                         </ul>
                     </li>
 

@@ -13,7 +13,12 @@ class EnforceSystemAccessLimits
     public function handle(Request $request, Closure $next)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
+            return $next($request);
+        }
+
+        // Admins/registrars always bypass — no settings DB lookup.
+        if (in_array($user->role_name, ['Admin', 'Registrar'], true)) {
             return $next($request);
         }
 

@@ -67,6 +67,9 @@ class Setting extends Controller
             $settings->save();
 
             $accessLimits->clearCache();
+            SchoolSetting::clearSettingsCache();
+            Cache::forget('school.contact.cards');
+            Cache::forget('admin.dashboard.data.v3');
 
             Toastr::success(
                 $settings->access_limits_enabled
@@ -151,6 +154,7 @@ class Setting extends Controller
 
             $settings->save();
 
+            SchoolSetting::clearSettingsCache();
             Cache::forget('school.contact.cards');
 
             Toastr::success('Settings updated successfully!', 'Success');
