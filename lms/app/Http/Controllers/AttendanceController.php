@@ -15,6 +15,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\AttendanceExport;
 use App\Models\User;
 use App\Models\Section;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
@@ -387,47 +388,92 @@ class AttendanceController extends Controller
             return back()->with('error', 'You do not have permission to mark attendance for this section/subject.');
         }
 
+        // One permission check (2 queries max), then batch upsert — no per-student round-trips.
+        $rows = [];
+        $absentStudentIds = [];
+        $now = now();
         foreach ($request->attendance as $studentId => $data) {
-            $attendance = Attendance::updateOrCreate(
-                [
-                    'student_id' => $studentId,
-                    'subject_id' => $request->subject_id,
-                    'date' => $request->date,
-                ],
-                [
-                    'status' => $data['status'],
-                    'remarks' => $data['remarks'] ?? null,
-                    'teacher_id' => $teacher->id,
-                ]
-            );
+            $studentId = (int) $studentId;
+            $rows[] = [
+                'student_id' => $studentId,
+                'subject_id' => (int) $request->subject_id,
+                'date' => $request->date,
+                'status' => $data['status'],
+                'remarks' => $data['remarks'] ?? null,
+                'teacher_id' => $teacher->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            if (($data['status'] ?? '') === 'absent') {
+                $absentStudentIds[] = $studentId;
+            }
+        }
 
-            if ($data['status'] === 'absent') {
-                $student = \App\Models\Student::with('user')->find($studentId);
-                if ($student) {
-                    $attendance->load('subject');
-                    $missedDays = Attendance::where('student_id', $studentId)
-                        ->where('status', 'absent')
-                        ->whereMonth('date', now()->month)
-                        ->count();
+        if (! empty($rows)) {
+            $studentIds = array_column($rows, 'student_id');
+            // 2 queries total (delete+insert) instead of N×updateOrCreate — no unique index required.
+            DB::transaction(function () use ($rows, $request, $studentIds) {
+                Attendance::where('subject_id', (int) $request->subject_id)
+                    ->whereDate('date', $request->date)
+                    ->whereIn('student_id', $studentIds)
+                    ->delete();
+                Attendance::insert($rows);
+            });
+        }
 
-                    if ($student->user) {
-                        $student->user->notify(new \App\Notifications\AttendanceAlertNotification(
-                            $attendance, $student, $attendance->subject, $missedDays
-                        ));
+        // Notify after the response so save feels instant on remote MySQL.
+        if (! empty($absentStudentIds)) {
+            $subjectId = (int) $request->subject_id;
+            $date = $request->date;
+            $teacherId = $teacher->id;
+            dispatch(function () use ($absentStudentIds, $subjectId, $date, $teacherId) {
+                $subject = \App\Models\Subject::find($subjectId);
+                $students = \App\Models\Student::with('user')
+                    ->whereIn('id', $absentStudentIds)
+                    ->get()
+                    ->keyBy('id');
+
+                $missedCounts = Attendance::query()
+                    ->selectRaw('student_id, COUNT(*) as c')
+                    ->whereIn('student_id', $absentStudentIds)
+                    ->where('status', 'absent')
+                    ->whereMonth('date', now()->month)
+                    ->groupBy('student_id')
+                    ->pluck('c', 'student_id');
+
+                $parentEmails = $students->pluck('parent_email')->filter()->unique()->values();
+                $parents = $parentEmails->isEmpty()
+                    ? collect()
+                    : \App\Models\User::where('role_name', 'Parent')
+                        ->whereIn('email', $parentEmails->all())
+                        ->get()
+                        ->keyBy('email');
+
+                foreach ($absentStudentIds as $studentId) {
+                    $student = $students->get($studentId);
+                    if (! $student) {
+                        continue;
                     }
-
-                    if ($student->parent_email) {
-                        $parentUser = \App\Models\User::where('email', $student->parent_email)
-                            ->where('role_name', 'Parent')
-                            ->first();
-                        if ($parentUser) {
-                            $parentUser->notify(new \App\Notifications\AttendanceAlertNotification(
-                                $attendance, $student, $attendance->subject, $missedDays
-                            ));
-                        }
+                    $attendance = Attendance::where([
+                        'student_id' => $studentId,
+                        'subject_id' => $subjectId,
+                        'date' => $date,
+                    ])->first();
+                    if (! $attendance) {
+                        continue;
+                    }
+                    $missedDays = (int) ($missedCounts[$studentId] ?? 0);
+                    $notification = new \App\Notifications\AttendanceAlertNotification(
+                        $attendance, $student, $subject, $missedDays
+                    );
+                    if ($student->user) {
+                        $student->user->notify($notification);
+                    }
+                    if ($student->parent_email && ($parent = $parents->get($student->parent_email))) {
+                        $parent->notify($notification);
                     }
                 }
-            }
+            })->afterResponse();
         }
 
         $redirectParams = [

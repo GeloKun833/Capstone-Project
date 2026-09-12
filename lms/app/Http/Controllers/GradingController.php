@@ -450,7 +450,6 @@ class GradingController extends Controller
             ?? Semester::where('academic_year_id', $academicYearId)->orderBy('id')->value('id')
             ?? Semester::latest()->value('id');
 
-        $syncService = app(\App\Services\QuarterlyGradeSyncService::class);
         $savedQuarterlyGrades = [];
         $touchedSubjectIds = [];
 
@@ -488,25 +487,30 @@ class GradingController extends Controller
                 }
 
                 $quarterlyGrade->save();
-                $savedQuarterlyGrades[] = $quarterlyGrade->fresh();
+                $savedQuarterlyGrades[] = $quarterlyGrade;
                 $touchedSubjectIds[$subjectId] = true;
                 $savedCount++;
             }
 
             if ($savedCount > 0 && $semesterId) {
-                try {
-                    $affectedStudentIds = $syncService->syncBatch($savedQuarterlyGrades, $semesterId);
-                    $performance = app(\App\Services\StudentPerformanceService::class);
-                    $performance->recalculateForStudents($affectedStudentIds, $academicYearId, (int) $semesterId);
-                    $performance->checkAlertsForSubjects(array_keys($touchedSubjectIds), $academicYearId, (int) $semesterId);
-                } catch (\Exception $syncException) {
-                    Log::warning('Quarterly grades saved but post-save sync failed', [
-                        'error' => $syncException->getMessage(),
-                        'section_id' => $sectionId,
-                        'quarter' => $quarter,
-                        'academic_year_id' => $academicYearId,
-                    ]);
-                }
+                $gradesForSync = $savedQuarterlyGrades;
+                $touched = array_keys($touchedSubjectIds);
+                $yearId = $academicYearId;
+                $semId = (int) $semesterId;
+                // Heavy GPA/alert recalculation after response — save returns immediately.
+                dispatch(function () use ($gradesForSync, $semId, $touched, $yearId) {
+                    try {
+                        $syncService = app(\App\Services\QuarterlyGradeSyncService::class);
+                        $affectedStudentIds = $syncService->syncBatch($gradesForSync, $semId);
+                        $performance = app(\App\Services\StudentPerformanceService::class);
+                        $performance->recalculateForStudents($affectedStudentIds, $yearId, $semId);
+                        $performance->checkAlertsForSubjects($touched, $yearId, $semId);
+                    } catch (\Exception $syncException) {
+                        \Illuminate\Support\Facades\Log::warning('Post-save grade sync failed', [
+                            'error' => $syncException->getMessage(),
+                        ]);
+                    }
+                })->afterResponse();
             }
 
             DB::commit();

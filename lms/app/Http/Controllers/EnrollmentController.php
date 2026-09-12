@@ -11,9 +11,7 @@ use App\Models\Subject;
 use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use App\Support\SafeSchema;
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -33,15 +31,13 @@ class EnrollmentController extends Controller
         $perPage = 15;
         $page = max(1, (int) request('page', 1));
 
-        $hasEnrollmentStatus = SafeSchema::columnExists('enrollments', 'status');
-        $hasEnrollmentDate = SafeSchema::columnExists('enrollments', 'enrollment_date');
-        $hasStudentEnrollmentStatus = SafeSchema::columnExists('students', 'enrollment_status');
+        $hasEnrollmentStatus = true;
+        $hasEnrollmentDate = true;
+        $hasStudentEnrollmentStatus = true;
 
-        $statusExpr = $hasEnrollmentStatus ? 'e.status' : "'active'";
-        $dateExpr = $hasEnrollmentDate ? 'e.enrollment_date' : 'e.created_at';
-        $portalStatusExpr = $hasStudentEnrollmentStatus
-            ? "COALESCE(s.enrollment_status, 'active')"
-            : "'active'";
+        $statusExpr = 'e.status';
+        $dateExpr = 'e.enrollment_date';
+        $portalStatusExpr = "COALESCE(s.enrollment_status, 'active')";
 
         $legacy = DB::table('enrollments as e')
             ->leftJoin('students as s', 's.id', '=', 'e.student_id')
@@ -76,9 +72,7 @@ class EnrollmentController extends Controller
                 s.created_at as created_at
             ";
 
-        $portal = SafeSchema::columnExists('students', 'enrollment_application_id')
-            ? DB::table('students as s')->whereNotNull('s.enrollment_application_id')->selectRaw($portalSelect)
-            : DB::table('students as s')->whereRaw('1 = 0')->selectRaw($portalSelect);
+        $portal = DB::table('students as s')->whereNotNull('s.enrollment_application_id')->selectRaw($portalSelect);
 
         $union = $legacy->unionAll($portal);
 

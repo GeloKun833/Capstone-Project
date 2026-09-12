@@ -29,7 +29,9 @@ class SidebarMenu
         $role = session('role_name') ?: $user->role_name;
 
         return [
-            'sidebarParentUsers' => $role === 'Teacher' ? self::teacherParents($user) : collect(),
+            'sidebarParentUsers' => ($role === 'Teacher' && request()->routeIs('chat.*'))
+                ? self::teacherParents($user)
+                : collect(),
             'sidebarEnrollments' => $role === 'Student' ? self::studentEnrollments($user) : collect(),
             'sidebarChildren' => $role === 'Parent' ? self::parentChildren($user) : collect(),
         ];

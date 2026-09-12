@@ -286,14 +286,22 @@ class AnnouncementController extends Controller
                 return;
             }
 
-            $users = User::query()->whereIn('role_name', $roleNames)->get();
+            $users = User::query()->whereIn('role_name', $roleNames)->get(['id', 'role_name']);
 
-            foreach ($users as $user) {
-                $user->notify(new \App\Notifications\AnnouncementNotification($announcement));
-                Cache::forget('header.notifs.' . $user->id);
-            }
+            // After response — announcement create/update stays fast on Render+Aiven.
+            $announcementId = $announcement->id;
+            dispatch(function () use ($users, $announcementId) {
+                $announcement = Announcement::with('creator')->find($announcementId);
+                if (! $announcement) {
+                    return;
+                }
+                foreach ($users as $user) {
+                    $user->notify(new \App\Notifications\AnnouncementNotification($announcement));
+                    Cache::forget('header.notifs.'.$user->id);
+                }
+            })->afterResponse();
 
-            Log::info('Announcement notifications sent', [
+            Log::info('Announcement notifications queued after response', [
                 'announcement_id' => $announcement->id,
                 'roles' => $roleNames,
                 'recipients' => $users->count(),

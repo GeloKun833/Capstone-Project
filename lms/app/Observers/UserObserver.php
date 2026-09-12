@@ -54,20 +54,18 @@ class UserObserver
         Cache::forget('header.notifs.'.$user->id);
         SidebarMenu::forgetForUser($user);
 
-        // Sync updated user information to teacher record
+        // Only sync Teacher when name/phone actually changed (skip password/status noise).
+        if ($user->role_name !== 'Teacher' || ! $user->wasChanged(['name', 'phone_number'])) {
+            return;
+        }
+
         try {
-            if ($user->role_name === 'Teacher') {
-                $teacher = Teacher::where('user_id', $user->user_id)->first();
-                if ($teacher) {
-                    $teacher->update([
-                        'full_name' => $user->name,
-                        'phone_number' => $user->phone_number ?: $teacher->phone_number,
-                    ]);
-                    Log::info("✅ Updated Teacher record for user: {$user->name} (ID: {$user->user_id})");
-                }
-            }
+            Teacher::where('user_id', $user->user_id)->update([
+                'full_name' => $user->name,
+                'phone_number' => $user->phone_number ?: null,
+            ]);
         } catch (\Exception $e) {
-            Log::error("Failed to sync user update to teacher record {$user->user_id}: " . $e->getMessage());
+            Log::error("Failed to sync user update to teacher record {$user->user_id}: ".$e->getMessage());
         }
     }
 

@@ -136,18 +136,18 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
     {
         parent::boot();
         self::creating(function ($model) {
-            $getUser = self::orderBy('user_id', 'desc')->first();
-
-            if ($getUser) {
-                $latestID = intval(substr($getUser->user_id, 3));
-                $nextID = $latestID + 1;
-            } else {
-                $nextID = 1;
+            // Single MAX lookup instead of ORDER BY + while-exists loop (saves RTTs on Aiven).
+            $latest = self::query()->max('user_id');
+            $latestID = 0;
+            if (is_string($latest) && preg_match('/(\d+)$/', $latest, $m)) {
+                $latestID = (int) $m[1];
             }
-            $model->user_id = '000' . sprintf("%03s", $nextID);
-            while (self::where('user_id', $model->user_id)->exists()) {
+            $nextID = $latestID + 1;
+            $model->user_id = '000'.sprintf('%03s', $nextID);
+            // Rare collision only — one retry max.
+            if (self::where('user_id', $model->user_id)->exists()) {
                 $nextID++;
-                $model->user_id = '000' . sprintf("%03s", $nextID);
+                $model->user_id = '000'.sprintf('%03s', $nextID);
             }
         });
     }

@@ -6,6 +6,7 @@ use App\Models\Section;
 use App\Models\Teacher;
 use App\Services\GradeSubjectCatalogService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class SectionController extends Controller
 {
@@ -17,10 +18,16 @@ class SectionController extends Controller
     public function index()
     {
         $catalog = app(GradeSubjectCatalogService::class);
-        $catalog->normalizeSectionGradeLabels();
+        // Normalize once per day — never on every page view (was writing to DB on GET).
+        Cache::remember('sections.grade_labels.normalized', 86400, function () use ($catalog) {
+            $catalog->normalizeSectionGradeLabels();
+            return 1;
+        });
 
-        $sections = Section::with('adviser')->orderBy('grade_level')->orderBy('name')->get();
-        $sectionsByGrade = $catalog->sectionsGroupedByGrade();
+        $sectionsByGrade = Cache::remember('sections.grouped.by.grade', 120, function () use ($catalog) {
+            return $catalog->sectionsGroupedByGrade();
+        });
+        $sections = $sectionsByGrade->flatten();
         $gradeLevels = GradeSubjectCatalogService::gradeLevels();
 
         return view('sections.index', compact('sections', 'sectionsByGrade', 'gradeLevels'));
@@ -58,6 +65,8 @@ class SectionController extends Controller
             'capacity' => $request->capacity ?: 25,
             'description' => $request->description,
         ]);
+
+        Cache::forget('sections.grouped.by.grade');
 
         return redirect()->route('sections.index')
             ->with('success', 'Section created. It will appear as a Block Section option for ' . $request->grade_level . ' on enrollment.');
@@ -102,6 +111,8 @@ class SectionController extends Controller
             'description' => $request->description,
         ]);
 
+        Cache::forget('sections.grouped.by.grade');
+
         return redirect()->route('sections.index')
             ->with('success', 'Section updated. Enrollment Block Section list uses this catalog.');
     }
@@ -109,6 +120,7 @@ class SectionController extends Controller
     public function destroy(Section $section)
     {
         $section->delete();
+        Cache::forget('sections.grouped.by.grade');
         return redirect()->route('sections.index')->with('success', 'Section deleted successfully.');
     }
 
