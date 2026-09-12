@@ -434,13 +434,8 @@ class HomeController extends Controller
 
     private function queryAdminDashboardData(): array
     {
-        $enrollmentCountSql = SafeSchema::columnExists('enrollments', 'status')
-            ? "(SELECT COUNT(*) FROM enrollments WHERE status = 'active')"
-            : '(SELECT COUNT(*) FROM enrollments)';
-
-        $studentDeletedClause = SafeSchema::columnExists('students', 'deleted_at')
-            ? 'WHERE deleted_at IS NULL'
-            : '';
+        $enrollmentCountSql = "(SELECT COUNT(*) FROM enrollments WHERE status = 'active')";
+        $studentDeletedClause = 'WHERE deleted_at IS NULL';
 
         $counts = DB::selectOne("
             SELECT
@@ -496,13 +491,11 @@ class HomeController extends Controller
             'late' => $totalAttendance > 0 ? round(($lateCount / $totalAttendance) * 100, 1) : 0,
         ];
 
-        $recentEnrollmentQuery = \App\Models\Enrollment::with(['student', 'subject'])
+        $recentEnrollments = \App\Models\Enrollment::with(['student', 'subject'])
+            ->where('status', 'active')
             ->orderByDesc('created_at')
-            ->take(5);
-        if (SafeSchema::columnExists('enrollments', 'status')) {
-            $recentEnrollmentQuery->where('status', 'active');
-        }
-        $recentEnrollments = $recentEnrollmentQuery->get();
+            ->take(5)
+            ->get();
 
         $recentAnnouncements = \App\Models\Announcement::with(['creator'])
             ->orderByDesc('created_at')
@@ -562,14 +555,10 @@ class HomeController extends Controller
         ];
 
         try {
-            $deletedClause = SafeSchema::columnExists('students', 'deleted_at')
-                ? 'AND students.deleted_at IS NULL'
-                : '';
-
             $rows = DB::table('grades')
                 ->join('students', 'grades.student_id', '=', 'students.id')
                 ->whereNotNull('grades.percentage')
-                ->whereRaw('1=1 '.$deletedClause)
+                ->whereNull('students.deleted_at')
                 ->selectRaw('students.year_level as label, ROUND(AVG(grades.percentage), 1) as avg_pct, COUNT(*) as grade_count')
                 ->groupBy('students.year_level')
                 ->havingRaw('COUNT(*) > 0')
@@ -694,22 +683,20 @@ class HomeController extends Controller
         $items = collect();
 
         try {
-            if (SafeSchema::tableExists('activity_log')) {
-                $logs = \Spatie\Activitylog\Models\Activity::query()
-                    ->with('causer')
-                    ->orderByDesc('created_at')
-                    ->take(8)
-                    ->get();
+            $logs = \Spatie\Activitylog\Models\Activity::query()
+                ->with('causer:id,name')
+                ->orderByDesc('created_at')
+                ->take(8)
+                ->get(['id', 'description', 'event', 'log_name', 'causer_id', 'causer_type', 'created_at']);
 
-                foreach ($logs as $log) {
-                    $items->push([
-                        'title' => ucfirst(trim((string) ($log->description ?: $log->event ?: 'System activity'))),
-                        'meta' => optional($log->causer)->name ?? ($log->log_name ?: 'System'),
-                        'at' => optional($log->created_at)?->toIso8601String(),
-                        'icon' => 'fa-history',
-                        'tone' => 'neutral',
-                    ]);
-                }
+            foreach ($logs as $log) {
+                $items->push([
+                    'title' => ucfirst(trim((string) ($log->description ?: $log->event ?: 'System activity'))),
+                    'meta' => optional($log->causer)->name ?? ($log->log_name ?: 'System'),
+                    'at' => optional($log->created_at)?->toIso8601String(),
+                    'icon' => 'fa-history',
+                    'tone' => 'neutral',
+                ]);
             }
         } catch (\Throwable $e) {
             // Fall through to enrollment/announcement feed
@@ -792,12 +779,11 @@ class HomeController extends Controller
 
         return Cache::remember('teacher.dashboard.v3.'.$teacher->id, 180, function () use ($teacher, $user) {
         // Get teacher's subjects with sections, grouped by grade level
-        $subjectCollection = $teacher->subjects()
-            ->with(['sections'])
-            ->get();
+        $subjectCollection = $teacher->subjects()->with('sections')->get();
         $subjectIds = $subjectCollection->pluck('id');
         $teacherSubjects = $subjectCollection->groupBy('class')->sortKeys();
-        $hasEnrollmentStatus = SafeSchema::columnExists('enrollments', 'status');
+        // Production schema always has enrollments.status (avoid INFORMATION_SCHEMA on Aiven).
+        $hasEnrollmentStatus = true;
 
         // Get total classes (sections where teacher is adviser)
         $totalClasses = Section::where('adviser_id', $teacher->id)->count();
@@ -858,8 +844,7 @@ class HomeController extends Controller
         $teacherSections = $teacher->sections()->get();
 
         // ---- UI enrichment (same modules; additional presentation data) ----
-        $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
-        $assignedSectionIds = $options['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $assignedSectionIds = $teacherSections->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         $schedules = ClassSchedule::with(['subject', 'section', 'room'])
             ->where('teacher_id', $teacher->id)
@@ -868,9 +853,20 @@ class HomeController extends Controller
             ->orderBy('start_time')
             ->get();
 
+        $options = null;
+        if ($schedules->isEmpty()) {
+            // Only hit assignment service when there are no schedule rows to build cards from.
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $assignedSectionIds = collect($assignedSectionIds)
+                ->merge($options['sections']->pluck('id'))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
         $sectionIdsForCounts = collect($assignedSectionIds)
             ->merge($schedules->pluck('section_id'))
-            ->merge($teacherSections->pluck('id'))
             ->filter()
             ->map(fn ($id) => (int) $id)
             ->unique()
@@ -887,7 +883,7 @@ class HomeController extends Controller
                 ->selectRaw('ssa.section_id, COUNT(DISTINCT ssa.student_id) as c')
                 ->pluck('c', 'section_id');
 
-        if ($schedules->isEmpty() && ($options['subjects']->isNotEmpty() || $options['sections']->isNotEmpty())) {
+        if ($schedules->isEmpty() && $options && ($options['subjects']->isNotEmpty() || $options['sections']->isNotEmpty())) {
             // Fallback class cards from assignments when no schedule rows exist
             $myClasses = collect();
             foreach ($options['subjectsBySection'] as $sectionId => $subjectIdsForSection) {
@@ -1064,14 +1060,23 @@ class HomeController extends Controller
                 'time' => optional($history->start_time)->diffForHumans() ?? '',
             ]);
         }
-        foreach (Lesson::where('teacher_id', $teacher->id)->latest()->take(2)->get() as $lesson) {
+        // One batched recent-items query instead of 3 sequential latest() hits.
+        $recentLessons = Lesson::where('teacher_id', $teacher->id)
+            ->latest('id')
+            ->take(2)
+            ->get(['id', 'title', 'created_at']);
+        foreach ($recentLessons as $lesson) {
             $recentActivity->push((object) [
                 'icon' => 'fa-book',
                 'text' => 'Created lesson "'.$lesson->title.'"',
                 'time' => optional($lesson->created_at)->diffForHumans() ?? '',
             ]);
         }
-        foreach (Assignment::where('teacher_id', $teacher->id)->latest()->take(2)->get() as $asg) {
+        $recentAssignments = Assignment::where('teacher_id', $teacher->id)
+            ->latest('id')
+            ->take(2)
+            ->get(['id', 'title', 'created_at']);
+        foreach ($recentAssignments as $asg) {
             $recentActivity->push((object) [
                 'icon' => 'fa-tasks',
                 'text' => 'Published assignment "'.$asg->title.'"',
@@ -1079,12 +1084,17 @@ class HomeController extends Controller
             ]);
         }
         if (class_exists(ClassPost::class)) {
-            foreach (ClassPost::where('teacher_id', $teacher->id)->latest()->take(1)->get() as $post) {
-                $recentActivity->push((object) [
-                    'icon' => 'fa-bullhorn',
-                    'text' => 'Posted: '.($post->title ?? 'Class update'),
-                    'time' => optional($post->created_at)->diffForHumans() ?? '',
-                ]);
+            try {
+                $post = ClassPost::where('teacher_id', $teacher->id)->latest('id')->first(['id', 'title', 'created_at']);
+                if ($post) {
+                    $recentActivity->push((object) [
+                        'icon' => 'fa-bullhorn',
+                        'text' => 'Posted: '.($post->title ?? 'Class update'),
+                        'time' => optional($post->created_at)->diffForHumans() ?? '',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // class_posts table may be missing on older DBs
             }
         }
         $recentActivity = $recentActivity->take(8)->values();
@@ -1150,42 +1160,62 @@ class HomeController extends Controller
         }
 
         return Cache::remember('student.dashboard.v2.'.$student->id, 180, function () use ($student) {
-        $student->load(['sections', 'enrollmentApplication.documents']);
+        $student->load([
+            'sections:id,name,grade_level,adviser_id',
+            'sections.adviser:id,full_name',
+            'enrollmentApplication.documents',
+        ]);
 
         $enrollments = $student->enrollments()
-            ->with(['subject', 'academicYear', 'semester'])
-            ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
+            ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
+            ->where('status', 'active')
             ->get();
+
+        $catalogSubjects = [];
+        $app = $student->enrollmentApplication;
+        if ($app && $app->grade_level_applying_for) {
+            $catalogSubjects = Cache::remember(
+                'catalog.subjects.'.md5((string) $app->grade_level_applying_for),
+                600,
+                fn () => app(GradeSubjectCatalogService::class)->subjectNamesForGrade($app->grade_level_applying_for)
+            );
+        }
 
         return [
             'student' => $student,
             'enrollments' => $enrollments,
-            'hasStudent' => true
+            'hasStudent' => true,
+            'catalogSubjects' => $catalogSubjects,
         ];
         });
     }
 
     /**
-     * Load parent dashboard data
+     * Load parent dashboard data (critical path only; secondary lists are lean + cached).
      */
     private function loadParentData()
     {
-        return Cache::remember(
-            'parent.dashboard.v2.'.auth()->id().'.'.request()->input('child_id', 'first').'.'.request()->input('date', now()->toDateString()),
-            90,
-            function () {
+        $parentId = auth()->id();
+        $childKey = request()->input('child_id', 'first');
+        // Do not include date in cache key — date-specific attendance is fetched cheaply inside.
+        $cacheKey = 'parent.dashboard.v3.'.$parentId.'.'.$childKey;
+
+        return Cache::remember($cacheKey, 180, function () {
         try {
             $parent = auth()->user();
-            
+
             if ($parent->role_name !== 'Parent') {
                 return null;
             }
 
-            // Get all children linked to this parent (with sections and adviser)
             $children = Student::where('parent_email', $parent->email)
-                ->with(['sections.adviser', 'enrollmentApplication.documents'])
+                ->with([
+                    'sections:id,name,grade_level,adviser_id',
+                    'sections.adviser:id,full_name',
+                    'enrollmentApplication.documents',
+                ])
                 ->get();
-            
+
             if ($children->isEmpty()) {
                 return [
                     'children' => collect(),
@@ -1198,53 +1228,114 @@ class HomeController extends Controller
                     'performanceInsights' => [],
                     'currentAcademicYear' => null,
                     'currentSemester' => null,
-                    'noChildren' => true
+                    'noChildren' => true,
                 ];
             }
 
-            // Get selected child (default to first child)
             $selectedChildId = request()->input('child_id', $children->first()->id);
-            $selectedChild = $children->find($selectedChildId);
-            
-            if (!$selectedChild) {
-                $selectedChild = $children->first();
+            $selectedChild = $children->find($selectedChildId) ?: $children->first();
+
+            $currentAcademicYear = Cache::remember('academic.year.latest', 600, fn () => \App\Models\AcademicYear::latest('id')->first());
+            $currentSemester = Cache::remember('academic.semester.latest', 600, fn () => \App\Models\Semester::latest('id')->first());
+
+            $hasEnrollmentStatus = true;
+            $enrollments = Enrollment::where('student_id', $selectedChild->id)
+                ->when($hasEnrollmentStatus, fn ($q) => $q->where('status', 'active'))
+                ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
+                ->get();
+            $enrolledSubjectIds = $enrollments->pluck('subject_id')->filter()->unique()->values();
+
+            $grades = collect();
+            if ($currentAcademicYear && $currentSemester) {
+                $grades = \App\Models\Grade::with(['subject:id,subject_name'])
+                    ->where('student_id', $selectedChild->id)
+                    ->where('academic_year_id', $currentAcademicYear->id)
+                    ->where('semester_id', $currentSemester->id)
+                    ->orderByDesc('created_at')
+                    ->limit(50)
+                    ->get();
             }
 
-            // Get current academic year and semester (fallback to latest if no active ones)
-            $currentAcademicYear = \App\Models\AcademicYear::latest()->first();
-            $currentSemester = \App\Models\Semester::latest()->first();
+            $date = request()->input('date', now()->format('Y-m-d'));
+            $attendance = Attendance::with(['subject:id,subject_name'])
+                ->where('student_id', $selectedChild->id)
+                ->whereDate('date', $date)
+                ->get();
 
-            $enrolledSubjectIds = \App\Models\Enrollment::where('student_id', $selectedChild->id)
-                ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
-                ->pluck('subject_id');
-
-            $grades = $this->getChildGrades($selectedChild, $currentAcademicYear, $currentSemester);
-            $attendance = $this->getChildAttendance($selectedChild, request());
-            $lessons = $this->getChildLessons($selectedChild, $currentAcademicYear, $currentSemester, $enrolledSubjectIds);
-            $activities = $this->getChildActivities($selectedChild, $currentAcademicYear, $currentSemester, $enrolledSubjectIds);
-            $submissions = $this->getChildSubmissions($selectedChild, $currentAcademicYear, $currentSemester, $enrolledSubjectIds);
-            $performanceInsights = $this->getPerformanceInsights($selectedChild, $currentAcademicYear, $currentSemester);
-
-            $attendanceStats = \App\Models\Attendance::where('student_id', $selectedChild->id)
+            $attendanceStats = Attendance::where('student_id', $selectedChild->id)
                 ->selectRaw('
                     COUNT(*) as total_records,
                     SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
                     SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
                 ')->first();
 
-            $enrollments = \App\Models\Enrollment::where('student_id', $selectedChild->id)
-                ->when(SafeSchema::columnExists('enrollments', 'status'), fn ($q) => $q->where('status', 'active'))
-                ->with(['subject', 'academicYear', 'semester'])
-                ->get();
-
+            $lessons = collect();
+            $activities = collect();
+            $submissions = collect();
             $upcomingEvents = collect();
-            if ($enrolledSubjectIds->isNotEmpty()) {
-                $upcomingEvents = \App\Models\CalendarEvent::whereIn('subject_id', $enrolledSubjectIds)
-                    ->where('start_time', '>=', now())
-                    ->orderBy('start_time', 'asc')
+
+            if ($currentAcademicYear && $currentSemester && $enrolledSubjectIds->isNotEmpty()) {
+                $yearId = $currentAcademicYear->id;
+                $semId = $currentSemester->id;
+                $subjectIds = $enrolledSubjectIds->all();
+
+                $lessons = Lesson::with(['subject:id,subject_name'])
+                    ->whereIn('subject_id', $subjectIds)
+                    ->where('academic_year_id', $yearId)
+                    ->where('semester_id', $semId)
+                    ->orderByDesc('created_at')
                     ->take(5)
                     ->get();
+
+                $activities = \App\Models\Activity::query()
+                    ->select('activities.*')
+                    ->join('lessons', 'lessons.id', '=', 'activities.lesson_id')
+                    ->with(['lesson.subject:id,subject_name'])
+                    ->whereIn('lessons.subject_id', $subjectIds)
+                    ->where('lessons.academic_year_id', $yearId)
+                    ->where('lessons.semester_id', $semId)
+                    ->orderBy('activities.due_date')
+                    ->take(5)
+                    ->get();
+
+                $submissions = \App\Models\ActivitySubmission::query()
+                    ->select('activity_submissions.*')
+                    ->join('activities', 'activities.id', '=', 'activity_submissions.activity_id')
+                    ->join('lessons', 'lessons.id', '=', 'activities.lesson_id')
+                    ->with(['activity.lesson.subject:id,subject_name'])
+                    ->where('activity_submissions.student_id', $selectedChild->id)
+                    ->whereIn('lessons.subject_id', $subjectIds)
+                    ->where('lessons.academic_year_id', $yearId)
+                    ->where('lessons.semester_id', $semId)
+                    ->orderByDesc('activity_submissions.submitted_at')
+                    ->take(5)
+                    ->get();
+
+                $upcomingEvents = CalendarEvent::whereIn('subject_id', $subjectIds)
+                    ->where('start_time', '>=', now())
+                    ->orderBy('start_time')
+                    ->take(5)
+                    ->get(['id', 'title', 'start_time', 'subject_id']);
             }
+
+            $gpa = null;
+            if ($currentAcademicYear && $currentSemester) {
+                $gpa = \App\Models\StudentGpa::where('student_id', $selectedChild->id)
+                    ->where('academic_year_id', $currentAcademicYear->id)
+                    ->where('semester_id', $currentSemester->id)
+                    ->value('gpa');
+            }
+
+            $attendancePercentage = $attendanceStats && $attendanceStats->total_records > 0
+                ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
+                : 0;
+
+            $performanceInsights = [
+                'gpa' => $gpa,
+                'attendancePercentage' => $attendancePercentage,
+                'academicYear' => $currentAcademicYear->name ?? null,
+                'semester' => $currentSemester->name ?? null,
+            ];
 
             return compact(
                 'children',
@@ -1262,14 +1353,11 @@ class HomeController extends Controller
                 'upcomingEvents'
             );
         } catch (\Exception $e) {
-            // Log the error for debugging
-            Log::error('Parent Dashboard Error: ' . $e->getMessage(), [
+            Log::error('Parent Dashboard Error: '.$e->getMessage(), [
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
             ]);
-            
-            // Return a simple error state
+
             return [
                 'children' => collect(),
                 'selectedChild' => null,
@@ -1281,11 +1369,10 @@ class HomeController extends Controller
                 'performanceInsights' => [],
                 'currentAcademicYear' => null,
                 'currentSemester' => null,
-                'error' => 'An error occurred while loading the dashboard.'
+                'error' => 'An error occurred while loading the dashboard.',
             ];
         }
-            }
-        );
+        });
     }
 
 

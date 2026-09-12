@@ -43,8 +43,9 @@ class ProfileRequestPerformance extends Command
         );
 
         $this->newLine();
-        $this->comment('Local query ms is NOT Railway TTFB. On Railway each query is typically one WAN RTT to Aiven MySQL (often 150–400ms) plus TLS on a new connection.');
-        $this->comment('Estimated Railway TTFB ≈ PDO TLS connect + (query count × remote RTT) + PHP render.');
+        $this->comment('Local query ms is NOT Render TTFB. On Render each query is typically one WAN RTT to Aiven (often 80–400ms) plus TLS on a new connection.');
+        $this->comment('Estimated Render TTFB ≈ PDO TLS connect + (query count × remote RTT) + PHP render.');
+        $this->comment('Example: 30 queries × 250ms RTT ≈ 7.5s before HTML, even if local query ms looks fine.');
 
         return self::SUCCESS;
     }

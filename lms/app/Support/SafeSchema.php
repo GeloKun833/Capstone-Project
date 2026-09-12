@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Schema;
 
 class SafeSchema
 {
+    /** @var array<string, bool> */
+    private static array $memory = [];
+
     public static function addColumn(string $table, string $column, Closure $definition): void
     {
         if (!Schema::hasTable($table) || Schema::hasColumn($table, $column)) {
@@ -50,19 +53,29 @@ class SafeSchema
 
     public static function tableExists(string $table): bool
     {
+        $key = 'schema.table.'.$table;
+        if (array_key_exists($key, self::$memory)) {
+            return self::$memory[$key];
+        }
+
         try {
-            return Cache::remember('schema.table.'.$table, 3600, fn () => Schema::hasTable($table));
+            return self::$memory[$key] = Cache::remember($key, 86400, fn () => Schema::hasTable($table));
         } catch (\Throwable $e) {
-            return Schema::hasTable($table);
+            return self::$memory[$key] = Schema::hasTable($table);
         }
     }
 
     public static function columnExists(string $table, string $column): bool
     {
+        $key = 'schema.column.'.$table.'.'.$column;
+        if (array_key_exists($key, self::$memory)) {
+            return self::$memory[$key];
+        }
+
         try {
-            return Cache::remember('schema.column.'.$table.'.'.$column, 3600, fn () => Schema::hasColumn($table, $column));
+            return self::$memory[$key] = Cache::remember($key, 86400, fn () => Schema::hasColumn($table, $column));
         } catch (\Throwable $e) {
-            return Schema::hasColumn($table, $column);
+            return self::$memory[$key] = Schema::hasColumn($table, $column);
         }
     }
 }

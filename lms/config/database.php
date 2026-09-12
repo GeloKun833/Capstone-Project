@@ -33,13 +33,20 @@ if (extension_loaded('pdo_mysql')) {
         : filter_var($persistentEnv, FILTER_VALIDATE_BOOLEAN);
 
     $mysqlPdoOptions = $mysqlSslOptions + [
-        PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 10),
+        PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 5),
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     ];
     if ($usePersistent) {
         $mysqlPdoOptions[PDO::ATTR_PERSISTENT] = true;
     }
+    // Soft query/read timeout when supported by the MySQL PDO driver (seconds).
+    if (defined('PDO::MYSQL_ATTR_READ_TIMEOUT')) {
+        $mysqlPdoOptions[PDO::MYSQL_ATTR_READ_TIMEOUT] = (int) env('DB_READ_TIMEOUT', 15);
+    }
+    if (defined('PDO::MYSQL_ATTR_WRITE_TIMEOUT')) {
+        $mysqlPdoOptions[PDO::MYSQL_ATTR_WRITE_TIMEOUT] = (int) env('DB_WRITE_TIMEOUT', 15);
+    }
 }
-
 return [
 
     /*
@@ -113,7 +120,8 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
-            'sslmode' => 'prefer',
+            // Prefer Aiven's pooled port (typically 1xxxx) + require SSL.
+            'sslmode' => env('DB_SSLMODE', 'require'),
         ],
 
         'sqlsrv' => [

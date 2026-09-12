@@ -1,5 +1,5 @@
-@if(!isset($student['hasStudent']) || !$student['hasStudent'])
-    {{-- No student data found - show setup message --}}
+<?php if(!isset($student['hasStudent']) || !$student['hasStudent']): ?>
+    
     <div class="row">
         <div class="col-12">
             <div class="card">
@@ -13,21 +13,21 @@
                         <i class="fas fa-info-circle me-2"></i>
                         <strong>Note:</strong> If you just completed enrollment, your student profile may take a few minutes to be created.
                     </div>
-                    <a href="{{ route('dashboard') }}" class="btn btn-primary">
+                    <a href="<?php echo e(route('dashboard')); ?>" class="btn btn-primary">
                         <i class="fas fa-home me-2"></i>Return to Dashboard
                     </a>
                 </div>
             </div>
         </div>
     </div>
-@else
+<?php else: ?>
 <div class="page-header">
     <div class="row">
         <div class="col-sm-12">
             <div class="page-sub-header">
-                <h3 class="page-title">Welcome {{ $student['student']->first_name ?? $student['student']->name ?? 'Student' }}!</h3>
+                <h3 class="page-title">Welcome <?php echo e($student['student']->first_name ?? $student['student']->name ?? 'Student'); ?>!</h3>
                 <ul class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('home') }}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Home</a></li>
                     <li class="breadcrumb-item active">Student</li>
                 </ul>
             </div>
@@ -35,7 +35,7 @@
     </div>
 </div>
 
-{{-- Modern Student Information Card --}}
+
 <style>
 .student-hero-card {
     background: #ffffff;
@@ -112,16 +112,17 @@
                 <div class="row align-items-center">
                     <div class="col-md-3 text-center mb-4 mb-md-0">
                         <div class="student-photo-wrapper">
-                            @if(!empty($student['student']->upload))
-                                <img src="{{ asset('storage/' . $student['student']->upload) }}" alt="Student Photo" class="student-photo">
-                            @else
-                                <img src="{{ URL::to('assets/img/profiles/avatar-01.jpg') }}" alt="Student Photo" class="student-photo">
-                            @endif
+                            <?php if(!empty($student['student']->upload)): ?>
+                                <img src="<?php echo e(asset('storage/' . $student['student']->upload)); ?>" alt="Student Photo" class="student-photo">
+                            <?php else: ?>
+                                <img src="<?php echo e(URL::to('assets/img/profiles/avatar-01.jpg')); ?>" alt="Student Photo" class="student-photo">
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="col-md-9">
                         <h2 class="text-dark mb-1 fw-bold" style="font-size: 2rem;">
-                            {{ $student['student']->first_name }} {{ $student['student']->middle_name }} {{ $student['student']->last_name }}
+                            <?php echo e($student['student']->first_name); ?> <?php echo e($student['student']->middle_name); ?> <?php echo e($student['student']->last_name); ?>
+
                         </h2>
                         <p class="mb-4 text-muted" style="font-size: 1.1rem;">Student Dashboard</p>
                         
@@ -130,31 +131,31 @@
                                 <div class="info-pill text-center">
                                     <i class="fas fa-id-card"></i>
                                     <small>Student ID</small>
-                                    <div class="value">{{ $student['student']->user_id ?? 'N/A' }}</div>
+                                    <div class="value"><?php echo e($student['student']->user_id ?? 'N/A'); ?></div>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="info-pill text-center">
                                     <i class="fas fa-graduation-cap"></i>
                                     <small>Grade Level</small>
-                                    <div class="value">{{ $student['student']->year_level ?? 'Not Set' }}</div>
+                                    <div class="value"><?php echo e($student['student']->year_level ?? 'Not Set'); ?></div>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="info-pill text-center">
                                     <i class="fas fa-users"></i>
                                     <small>My Section</small>
-                                    @php
+                                    <?php
                                         $studentSection = $student['student']->sections->first();
-                                    @endphp
-                                    @if($studentSection)
-                                        <div class="value">{{ $studentSection->name }}</div>
-                                        @if($studentSection->adviser)
-                                            <small class="text-muted" style="font-size: 0.7rem; text-transform: none;">Adviser: {{ $studentSection->adviser->full_name ?? 'TBA' }}</small>
-                                        @endif
-                                    @else
+                                    ?>
+                                    <?php if($studentSection): ?>
+                                        <div class="value"><?php echo e($studentSection->name); ?></div>
+                                        <?php if($studentSection->adviser): ?>
+                                            <small class="text-muted" style="font-size: 0.7rem; text-transform: none;">Adviser: <?php echo e($studentSection->adviser->full_name ?? 'TBA'); ?></small>
+                                        <?php endif; ?>
+                                    <?php else: ?>
                                         <div class="value"><span class="badge bg-warning text-dark" style="font-size: 0.85rem;">Not Assigned</span></div>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -164,7 +165,7 @@
         </div>
     </div>
 </div>
-{{-- Modern Lessons & Courses Section --}}
+
 <style>
 .modern-card {
     border-radius: 20px;
@@ -277,28 +278,28 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse(isset($student['enrollments']) ? $student['enrollments'] : [] as $enrollment)
+                            <?php $__empty_1 = true; $__currentLoopData = isset($student['enrollments']) ? $student['enrollments'] : []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $enrollment): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <div class="subject-icon me-3" style="width: 40px; height: 40px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #4b5563;">
                                             <i class="fas fa-book"></i>
                                         </div>
-                                        <strong>{{ $enrollment->subject->subject_name ?? 'Subject' }}</strong>
+                                        <strong><?php echo e($enrollment->subject->subject_name ?? 'Subject'); ?></strong>
                                     </div>
                                 </td>
-                                <td>{{ $enrollment->subject->description ?? 'Lesson Description' }}</td>
+                                <td><?php echo e($enrollment->subject->description ?? 'Lesson Description'); ?></td>
                                 <td>
                                     <div>
-                                        <div class="fw-semibold">{{ $enrollment->academicYear->name ?? 'N/A' }}</div>
-                                        <small class="text-muted">{{ $enrollment->semester->name ?? 'N/A' }}</small>
+                                        <div class="fw-semibold"><?php echo e($enrollment->academicYear->name ?? 'N/A'); ?></div>
+                                        <small class="text-muted"><?php echo e($enrollment->semester->name ?? 'N/A'); ?></small>
                                     </div>
                                 </td>
                                 <td class="text-center">
                                     <span class="status-badge">Active</span>
                                 </td>
                             </tr>
-                            @empty
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                             <tr>
                                 <td colspan="4" class="text-center text-muted py-5">
                                     <div>
@@ -308,7 +309,7 @@
                                     </div>
                                 </td>
                             </tr>
-                            @endforelse
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -323,42 +324,42 @@
                 </h5>
             </div>
             <div class="card-body">
-                @forelse(isset($student['enrollments']) ? $student['enrollments'] : [] as $enrollment)
+                <?php $__empty_1 = true; $__currentLoopData = isset($student['enrollments']) ? $student['enrollments'] : []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $enrollment): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                 <div class="course-card">
                     <div class="d-flex align-items-center">
                         <div class="course-icon me-3">
                             <i class="fas fa-book"></i>
                         </div>
                         <div class="flex-grow-1">
-                            <h6 class="mb-1 fw-bold">{{ $enrollment->subject->subject_name ?? 'Subject' }}</h6>
-                            <p class="text-muted mb-0 small">{{ $enrollment->academicYear->name ?? 'N/A' }} - {{ $enrollment->semester->name ?? 'N/A' }}</p>
+                            <h6 class="mb-1 fw-bold"><?php echo e($enrollment->subject->subject_name ?? 'Subject'); ?></h6>
+                            <p class="text-muted mb-0 small"><?php echo e($enrollment->academicYear->name ?? 'N/A'); ?> - <?php echo e($enrollment->semester->name ?? 'N/A'); ?></p>
                         </div>
                         <div>
                             <span class="status-badge">Active</span>
                         </div>
                     </div>
                 </div>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <div class="text-center text-muted py-5">
                     <i class="fas fa-inbox fa-3x mb-3 opacity-25"></i>
                     <p class="mb-0">No courses yet</p>
                     <small>Courses will appear after enrollment</small>
                 </div>
-                @endforelse
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
 
-{{-- Enrollment Application Status --}}
-@php
+
+<?php
     $enrollmentApplication = null;
     if (isset($student['student']) && $student['student']->enrollmentApplication) {
         $enrollmentApplication = $student['student']->enrollmentApplication;
     }
-@endphp
+?>
 
-@if($enrollmentApplication)
+<?php if($enrollmentApplication): ?>
 <div class="row mb-4">
     <div class="col-12">
         <div class="card modern-card">
@@ -368,7 +369,7 @@
                 </h5>
             </div>
             <div class="card-body">
-                @php
+                <?php
                     $requiredDocuments = [
                         'birth_certificate' => 'Birth Certificate',
                         'sf9' => 'SF9 (Learner\'s Permanent Record)',
@@ -380,7 +381,7 @@
                     
                     $uploadedTypes = $enrollmentApplication->documents->pluck('document_type')->toArray();
                     $missingDocuments = array_diff(array_keys($requiredDocuments), $uploadedTypes);
-                @endphp
+                ?>
                 
                 <div class="row mb-4 g-3">
                     <div class="col-md-6">
@@ -388,8 +389,9 @@
                             <i class="fas fa-info-circle" style="color: #3b82f6;"></i>
                             <small style="color: #1e40af;">Application Status</small>
                             <div class="value">
-                                <span class="badge" style="background: linear-gradient(135deg, {{ $enrollmentApplication->status === 'approved' ? '#10b981, #059669' : ($enrollmentApplication->status === 'rejected' ? '#ef4444, #dc2626' : '#f59e0b, #d97706') }}); padding: 8px 20px; font-size: 0.9rem;">
-                                    {{ ucfirst(str_replace('_', ' ', $enrollmentApplication->status)) }}
+                                <span class="badge" style="background: linear-gradient(135deg, <?php echo e($enrollmentApplication->status === 'approved' ? '#10b981, #059669' : ($enrollmentApplication->status === 'rejected' ? '#ef4444, #dc2626' : '#f59e0b, #d97706')); ?>); padding: 8px 20px; font-size: 0.9rem;">
+                                    <?php echo e(ucfirst(str_replace('_', ' ', $enrollmentApplication->status))); ?>
+
                                 </span>
                             </div>
                         </div>
@@ -398,32 +400,32 @@
                         <div class="info-pill" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%); border: 2px solid rgba(16, 185, 129, 0.2); color: #065f46;">
                             <i class="fas fa-file-upload" style="color: #10b981;"></i>
                             <small style="color: #065f46;">Documents Uploaded</small>
-                            <div class="value">{{ $enrollmentApplication->documents->count() }}/6 Complete</div>
+                            <div class="value"><?php echo e($enrollmentApplication->documents->count()); ?>/6 Complete</div>
                         </div>
                     </div>
                 </div>
                 
-                @if(count($missingDocuments) > 0)
+                <?php if(count($missingDocuments) > 0): ?>
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <strong>Missing Required Documents:</strong>
                         <ul class="mb-0 mt-2">
-                            @foreach($missingDocuments as $missingType)
-                                <li>{{ $requiredDocuments[$missingType] }}</li>
-                            @endforeach
+                            <?php $__currentLoopData = $missingDocuments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $missingType): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <li><?php echo e($requiredDocuments[$missingType]); ?></li>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </ul>
                         <small class="mt-2 d-block">
                             <i class="fas fa-info-circle me-1"></i>
                             Please upload these documents to complete your enrollment. Contact the registrar's office for assistance.
                         </small>
                     </div>
-                @else
+                <?php else: ?>
                     <div class="alert alert-success">
                         <i class="fas fa-check-circle me-2"></i>
                         <strong>All Required Documents Uploaded!</strong>
                         <p class="mb-0 mt-1">Your enrollment application has all the necessary documents for review.</p>
                     </div>
-                @endif
+                <?php endif; ?>
                 
                 <div class="text-center">
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#studentEnrollmentModal">
@@ -435,7 +437,7 @@
     </div>
 </div>
 
-{{-- Enrollment Application Details Modal for Student --}}
+
 <div class="modal fade" id="studentEnrollmentModal" tabindex="-1" aria-labelledby="studentEnrollmentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -446,27 +448,28 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                {{-- Application Status --}}
-                <div class="alert alert-{{ $enrollmentApplication->status === 'approved' ? 'success' : ($enrollmentApplication->status === 'rejected' ? 'danger' : 'info') }}">
+                
+                <div class="alert alert-<?php echo e($enrollmentApplication->status === 'approved' ? 'success' : ($enrollmentApplication->status === 'rejected' ? 'danger' : 'info')); ?>">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
                             <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Application Status</h6>
                             <p class="mb-0 mt-1">
                                 <strong>Status:</strong> 
-                                <span class="badge bg-{{ $enrollmentApplication->status === 'approved' ? 'success' : ($enrollmentApplication->status === 'rejected' ? 'danger' : 'warning') }}">
-                                    {{ ucfirst(str_replace('_', ' ', $enrollmentApplication->status)) }}
+                                <span class="badge bg-<?php echo e($enrollmentApplication->status === 'approved' ? 'success' : ($enrollmentApplication->status === 'rejected' ? 'danger' : 'warning')); ?>">
+                                    <?php echo e(ucfirst(str_replace('_', ' ', $enrollmentApplication->status))); ?>
+
                                 </span>
                             </p>
-                            <p class="mb-0"><strong>Application Number:</strong> {{ $enrollmentApplication->application_number }}</p>
-                            <p class="mb-0"><strong>Submitted:</strong> {{ $enrollmentApplication->created_at->format('M d, Y g:i A') }}</p>
-                            @if($enrollmentApplication->reviewed_at)
-                                <p class="mb-0"><strong>Reviewed:</strong> {{ $enrollmentApplication->reviewed_at->format('M d, Y g:i A') }}</p>
-                            @endif
+                            <p class="mb-0"><strong>Application Number:</strong> <?php echo e($enrollmentApplication->application_number); ?></p>
+                            <p class="mb-0"><strong>Submitted:</strong> <?php echo e($enrollmentApplication->created_at->format('M d, Y g:i A')); ?></p>
+                            <?php if($enrollmentApplication->reviewed_at): ?>
+                                <p class="mb-0"><strong>Reviewed:</strong> <?php echo e($enrollmentApplication->reviewed_at->format('M d, Y g:i A')); ?></p>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
 
-                {{-- Personal Information --}}
+                
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         <h6 class="mb-0"><i class="fas fa-user me-2"></i>Personal Information</h6>
@@ -477,19 +480,19 @@
                                 <table class="table table-borderless table-sm">
                                     <tr>
                                         <td class="fw-bold" style="width: 40%;">Full Name:</td>
-                                        <td>{{ $enrollmentApplication->full_name }}</td>
+                                        <td><?php echo e($enrollmentApplication->full_name); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Date of Birth:</td>
-                                        <td>{{ \Carbon\Carbon::parse($enrollmentApplication->date_of_birth)->format('M d, Y') }}</td>
+                                        <td><?php echo e(\Carbon\Carbon::parse($enrollmentApplication->date_of_birth)->format('M d, Y')); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Gender:</td>
-                                        <td>{{ $enrollmentApplication->gender }}</td>
+                                        <td><?php echo e($enrollmentApplication->gender); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Email:</td>
-                                        <td>{{ $enrollmentApplication->email }}</td>
+                                        <td><?php echo e($enrollmentApplication->email); ?></td>
                                     </tr>
                                 </table>
                             </div>
@@ -497,19 +500,19 @@
                                 <table class="table table-borderless table-sm">
                                     <tr>
                                         <td class="fw-bold" style="width: 40%;">Phone:</td>
-                                        <td>{{ $enrollmentApplication->phone_number }}</td>
+                                        <td><?php echo e($enrollmentApplication->phone_number); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Address:</td>
-                                        <td>{{ $enrollmentApplication->address }}</td>
+                                        <td><?php echo e($enrollmentApplication->address); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Grade Level:</td>
-                                        <td><span class="badge bg-primary">{{ $enrollmentApplication->grade_level_applying_for }}</span></td>
+                                        <td><span class="badge bg-primary"><?php echo e($enrollmentApplication->grade_level_applying_for); ?></span></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Previous School:</td>
-                                        <td>{{ $enrollmentApplication->previous_school ?: 'N/A' }}</td>
+                                        <td><?php echo e($enrollmentApplication->previous_school ?: 'N/A'); ?></td>
                                     </tr>
                                 </table>
                             </div>
@@ -517,7 +520,7 @@
                     </div>
                 </div>
 
-                {{-- Parent/Guardian Information --}}
+                
                 <div class="card mb-3">
                     <div class="card-header bg-info text-white">
                         <h6 class="mb-0"><i class="fas fa-users me-2"></i>Parent/Guardian Information</h6>
@@ -528,11 +531,11 @@
                                 <table class="table table-borderless table-sm">
                                     <tr>
                                         <td class="fw-bold" style="width: 40%;">Name:</td>
-                                        <td>{{ $enrollmentApplication->parent_name }}</td>
+                                        <td><?php echo e($enrollmentApplication->parent_name); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Email:</td>
-                                        <td>{{ $enrollmentApplication->parent_email }}</td>
+                                        <td><?php echo e($enrollmentApplication->parent_email); ?></td>
                                     </tr>
                                 </table>
                             </div>
@@ -540,11 +543,11 @@
                                 <table class="table table-borderless table-sm">
                                     <tr>
                                         <td class="fw-bold" style="width: 40%;">Phone:</td>
-                                        <td>{{ $enrollmentApplication->parent_phone }}</td>
+                                        <td><?php echo e($enrollmentApplication->parent_phone); ?></td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Relationship:</td>
-                                        <td>{{ $enrollmentApplication->parent_relationship ?? 'N/A' }}</td>
+                                        <td><?php echo e($enrollmentApplication->parent_relationship ?? 'N/A'); ?></td>
                                     </tr>
                                 </table>
                             </div>
@@ -552,7 +555,7 @@
                     </div>
                 </div>
 
-                {{-- Emergency Contact --}}
+                
                 <div class="card mb-3">
                     <div class="card-header bg-warning text-dark">
                         <h6 class="mb-0"><i class="fas fa-phone-alt me-2"></i>Emergency Contact</h6>
@@ -560,22 +563,22 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <p><strong>Name:</strong> {{ $enrollmentApplication->emergency_contact_name ?? 'N/A' }}</p>
+                                <p><strong>Name:</strong> <?php echo e($enrollmentApplication->emergency_contact_name ?? 'N/A'); ?></p>
                             </div>
                             <div class="col-md-6">
-                                <p><strong>Phone:</strong> {{ $enrollmentApplication->emergency_contact_phone ?? 'N/A' }}</p>
+                                <p><strong>Phone:</strong> <?php echo e($enrollmentApplication->emergency_contact_phone ?? 'N/A'); ?></p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {{-- Uploaded Documents --}}
+                
                 <div class="card mb-3">
                     <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="fas fa-file-upload me-2"></i>Uploaded Documents ({{ $enrollmentApplication->documents->count() }}/6)</h6>
+                        <h6 class="mb-0"><i class="fas fa-file-upload me-2"></i>Uploaded Documents (<?php echo e($enrollmentApplication->documents->count()); ?>/6)</h6>
                     </div>
                     <div class="card-body">
-                        @if($enrollmentApplication->documents->count() > 0)
+                        <?php if($enrollmentApplication->documents->count() > 0): ?>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-sm">
                                     <thead class="table-light">
@@ -587,77 +590,79 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($enrollmentApplication->documents as $doc)
+                                        <?php $__currentLoopData = $enrollmentApplication->documents; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $doc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <tr>
-                                                <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type }}</td>
-                                                <td>{{ $doc->file_name }}</td>
+                                                <td><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type); ?></td>
+                                                <td><?php echo e($doc->file_name); ?></td>
                                                 <td>
-                                                    <span class="badge bg-{{ $doc->status === 'verified' ? 'success' : ($doc->status === 'rejected' ? 'danger' : 'warning') }}">
-                                                        {{ ucfirst($doc->status) }}
+                                                    <span class="badge bg-<?php echo e($doc->status === 'verified' ? 'success' : ($doc->status === 'rejected' ? 'danger' : 'warning')); ?>">
+                                                        <?php echo e(ucfirst($doc->status)); ?>
+
                                                     </span>
-                                                    @if($doc->verification_notes)
-                                                        <br><small class="text-muted">{{ $doc->verification_notes }}</small>
-                                                    @endif
+                                                    <?php if($doc->verification_notes): ?>
+                                                        <br><small class="text-muted"><?php echo e($doc->verification_notes); ?></small>
+                                                    <?php endif; ?>
                                                 </td>
-                                                <td>{{ $doc->created_at->format('M d, Y') }}</td>
+                                                <td><?php echo e($doc->created_at->format('M d, Y')); ?></td>
                                             </tr>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </tbody>
                                 </table>
                             </div>
-                        @else
+                        <?php else: ?>
                             <p class="text-muted text-center">No documents uploaded yet.</p>
-                        @endif
+                        <?php endif; ?>
                     </div>
                 </div>
 
-                {{-- Subjects for Grade Level --}}
-                @if($enrollmentApplication->grade_level_applying_for)
-                    @php
+                
+                <?php if($enrollmentApplication->grade_level_applying_for): ?>
+                    <?php
                         $subjects = !empty($student['catalogSubjects'])
                             ? $student['catalogSubjects']
                             : \App\Helpers\GradeSubjectsHelper::getSubjectsForGrade($enrollmentApplication->grade_level_applying_for);
-                    @endphp
-                    @if($subjects)
+                    ?>
+                    <?php if($subjects): ?>
                         <div class="card">
                             <div class="card-header bg-primary text-white">
-                                <h6 class="mb-0"><i class="fas fa-book me-2"></i>Subjects for {{ $enrollmentApplication->grade_level_applying_for }}</h6>
+                                <h6 class="mb-0"><i class="fas fa-book me-2"></i>Subjects for <?php echo e($enrollmentApplication->grade_level_applying_for); ?></h6>
                             </div>
                             <div class="card-body">
                                 <div class="row">
-                                    @foreach($subjects as $subject)
+                                    <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <div class="col-md-4 col-sm-6 mb-2">
                                             <div class="badge bg-success fs-6 p-2 w-100 text-start">
-                                                <i class="fas fa-book me-2"></i>{{ $subject }}
+                                                <i class="fas fa-book me-2"></i><?php echo e($subject); ?>
+
                                             </div>
                                         </div>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
                                 <div class="mt-3 text-center">
                                     <small class="text-muted">
                                         <i class="fas fa-info-circle me-1"></i>
-                                        Total: {{ count($subjects) }} subjects
+                                        Total: <?php echo e(count($subjects)); ?> subjects
                                     </small>
                                 </div>
                             </div>
                         </div>
-                    @endif
-                @endif
+                    <?php endif; ?>
+                <?php endif; ?>
 
-                {{-- Notes/Messages --}}
-                @if($enrollmentApplication->notes)
+                
+                <?php if($enrollmentApplication->notes): ?>
                     <div class="alert alert-info mt-3">
                         <h6 class="fw-bold"><i class="fas fa-sticky-note me-2"></i>Registrar Notes:</h6>
-                        <p class="mb-0">{{ $enrollmentApplication->notes }}</p>
+                        <p class="mb-0"><?php echo e($enrollmentApplication->notes); ?></p>
                     </div>
-                @endif
+                <?php endif; ?>
 
-                @if($enrollmentApplication->rejection_reason)
+                <?php if($enrollmentApplication->rejection_reason): ?>
                     <div class="alert alert-danger mt-3">
                         <h6 class="fw-bold"><i class="fas fa-times-circle me-2"></i>Rejection Reason:</h6>
-                        <p class="mb-0">{{ $enrollmentApplication->rejection_reason }}</p>
+                        <p class="mb-0"><?php echo e($enrollmentApplication->rejection_reason); ?></p>
                     </div>
-                @endif
+                <?php endif; ?>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -668,52 +673,56 @@
     </div>
 </div>
 
-{{-- Subjects Preview --}}
-@if($enrollmentApplication && $enrollmentApplication->grade_level_applying_for)
+
+<?php if($enrollmentApplication && $enrollmentApplication->grade_level_applying_for): ?>
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-book text-success me-2"></i>My Subjects for {{ $enrollmentApplication->grade_level_applying_for }}
+                    <i class="fas fa-book text-success me-2"></i>My Subjects for <?php echo e($enrollmentApplication->grade_level_applying_for); ?>
+
                 </h5>
             </div>
             <div class="card-body">
-                @php
+                <?php
                     $subjects = !empty($student['catalogSubjects'])
                         ? $student['catalogSubjects']
                         : \App\Helpers\GradeSubjectsHelper::getSubjectsForGrade($enrollmentApplication->grade_level_applying_for);
                     $subjectCount = count($subjects);
-                @endphp
+                ?>
                 
-                @if($subjects)
+                <?php if($subjects): ?>
                     <div class="row">
-                        @foreach($subjects as $subject)
+                        <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <div class="col-md-4 col-sm-6 mb-2">
                                 <div class="badge bg-success fs-6 p-2 w-100 text-start">
-                                    <i class="fas fa-book me-2"></i>{{ $subject }}
+                                    <i class="fas fa-book me-2"></i><?php echo e($subject); ?>
+
                                 </div>
                             </div>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
                     
                     <div class="mt-3 text-center">
                         <small class="text-muted">
                             <i class="fas fa-info-circle me-1"></i>
-                            You will be enrolled in {{ $subjectCount }} subjects for {{ $enrollmentApplication->grade_level_applying_for }}
+                            You will be enrolled in <?php echo e($subjectCount); ?> subjects for <?php echo e($enrollmentApplication->grade_level_applying_for); ?>
+
                         </small>
                     </div>
-                @else
+                <?php else: ?>
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <strong>Subjects Not Available</strong>
-                        <p class="mb-0 mt-1">Subject information for {{ $enrollmentApplication->grade_level_applying_for }} is not yet configured.</p>
+                        <p class="mb-0 mt-1">Subject information for <?php echo e($enrollmentApplication->grade_level_applying_for); ?> is not yet configured.</p>
                     </div>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
-@endif
-@endif
-@endif
+<?php endif; ?>
+<?php endif; ?>
+<?php endif; ?>
+<?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/partials/student_dashboard.blade.php ENDPATH**/ ?>

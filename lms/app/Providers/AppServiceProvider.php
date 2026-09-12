@@ -78,16 +78,18 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
-                if (!SafeSchema::tableExists('notifications')) {
-                    $view->with($empty);
-                    return;
-                }
-
                 $header = Cache::remember($cacheKey, 90, function () use ($user) {
-                    return [
-                        'headerUnreadCount' => $user->unreadNotifications()->count(),
-                        'headerNotifications' => $user->notifications()->latest()->limit(5)->get(),
-                    ];
+                    try {
+                        return [
+                            'headerUnreadCount' => $user->unreadNotifications()->count(),
+                            'headerNotifications' => $user->notifications()->latest()->limit(5)->get(),
+                        ];
+                    } catch (\Throwable $e) {
+                        return [
+                            'headerUnreadCount' => 0,
+                            'headerNotifications' => collect(),
+                        ];
+                    }
                 });
                 $view->with($header);
             } catch (\Throwable $e) {

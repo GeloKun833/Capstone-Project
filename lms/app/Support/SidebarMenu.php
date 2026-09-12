@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class SidebarMenu
 {
@@ -43,33 +44,34 @@ class SidebarMenu
 
     private static function teacherParents(User $user): Collection
     {
-        return Cache::remember('sidebar.teacher.parents.'.$user->id, 90, function () use ($user) {
+        return Cache::remember('sidebar.teacher.parents.v2.'.$user->id, 180, function () use ($user) {
             try {
                 $teacher = $user->teacher;
                 if (!$teacher) {
                     return collect();
                 }
 
+                // Two indexed queries beat one nested correlated subquery on remote MySQL.
+                $parentEmails = DB::table('class_schedules')
+                    ->join('enrollments', 'enrollments.subject_id', '=', 'class_schedules.subject_id')
+                    ->join('students', 'students.id', '=', 'enrollments.student_id')
+                    ->where('class_schedules.teacher_id', $teacher->id)
+                    ->whereNotNull('students.parent_email')
+                    ->when(SafeSchema::columnExists('students', 'deleted_at'), fn ($q) => $q->whereNull('students.deleted_at'))
+                    ->distinct()
+                    ->limit(200)
+                    ->pluck('students.parent_email')
+                    ->filter()
+                    ->values();
+
+                if ($parentEmails->isEmpty()) {
+                    return collect();
+                }
+
                 return User::query()
                     ->select('users.id', 'users.name')
                     ->where('users.role_name', 'Parent')
-                    ->whereIn('users.email', function ($query) use ($teacher) {
-                        $query->select('students.parent_email')
-                            ->from('students')
-                            ->whereNotNull('students.parent_email')
-                            ->whereIn('students.id', function ($sub) use ($teacher) {
-                                $sub->select('enrollments.student_id')
-                                    ->from('enrollments')
-                                    ->whereIn('enrollments.subject_id', function ($inner) use ($teacher) {
-                                        $inner->select('class_schedules.subject_id')
-                                            ->from('class_schedules')
-                                            ->where('class_schedules.teacher_id', $teacher->id);
-                                    });
-                            });
-                        if (SafeSchema::columnExists('students', 'deleted_at')) {
-                            $query->whereNull('students.deleted_at');
-                        }
-                    })
+                    ->whereIn('users.email', $parentEmails->all())
                     ->orderBy('users.name')
                     ->get();
             } catch (\Throwable $e) {
@@ -80,24 +82,28 @@ class SidebarMenu
 
     private static function studentEnrollments(User $user): Collection
     {
-        return Cache::remember('sidebar.student.classes.'.$user->id, 90, function () use ($user) {
+        return Cache::remember('sidebar.student.classes.'.$user->id, 180, function () use ($user) {
             $student = $user->student;
             if (!$student) {
                 return collect();
             }
 
-            $query = $student->enrollments()->with('subject');
-            if (SafeSchema::columnExists('enrollments', 'status')) {
-                $query->where('status', 'active');
+            // Reuse dashboard payload when warm to avoid a duplicate enrollments round-trip.
+            $dash = Cache::get('student.dashboard.v2.'.$student->id);
+            if (is_array($dash) && isset($dash['enrollments'])) {
+                return $dash['enrollments'];
             }
 
-            return $query->get();
+            return $student->enrollments()
+                ->with('subject:id,subject_name,class')
+                ->where('status', 'active')
+                ->get();
         });
     }
 
     private static function parentChildren(User $user): Collection
     {
-        return Cache::remember('sidebar.parent.children.'.$user->id, 90, function () use ($user) {
+        return Cache::remember('sidebar.parent.children.'.$user->id, 180, function () use ($user) {
             return Student::query()
                 ->select('id', 'first_name', 'last_name')
                 ->where('parent_email', $user->email)

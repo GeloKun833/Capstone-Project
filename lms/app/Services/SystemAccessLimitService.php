@@ -20,7 +20,9 @@ class SystemAccessLimitService
 
     public function enabled(): bool
     {
-        return (bool) $this->settings()->access_limits_enabled;
+        return (bool) Cache::remember('system.access_limits.enabled_flag', 300, function () {
+            return (bool) $this->settings()->access_limits_enabled;
+        });
     }
 
     public function message(): string
@@ -36,6 +38,7 @@ class SystemAccessLimitService
     public function clearCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        Cache::forget('system.access_limits.enabled_flag');
         SchoolSetting::clearSettingsCache();
     }
 
