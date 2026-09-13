@@ -118,14 +118,52 @@ class SubjectController extends Controller
     {
         DB::beginTransaction();
         try {
+            $subject = Subject::where('subject_id', $request->subject_id)->first()
+                ?? Subject::find($request->id);
 
-            Subject::where('subject_id',$request->subject_id)->delete();
+            if (!$subject) {
+                Toastr::error('Subject not found.', 'Error');
+                return redirect()->back();
+            }
+
+            $subjectId = $subject->id;
+            $grade = (string) ($subject->class ?? '');
+            $studentIds = \App\Models\Enrollment::where('subject_id', $subjectId)->pluck('student_id')->unique()->filter();
+
+            $subject->teachers()->detach();
+            $subject->sections()->detach();
+            if (method_exists($subject, 'curricula')) {
+                $subject->curricula()->detach();
+            }
+            if (\Illuminate\Support\Facades\Schema::hasTable('class_schedules')) {
+                DB::table('class_schedules')->where('subject_id', $subjectId)->delete();
+            }
+            if (\Illuminate\Support\Facades\Schema::hasTable('curriculum_subject')) {
+                DB::table('curriculum_subject')->where('subject_id', $subjectId)->delete();
+            }
+
+            \App\Models\Enrollment::where('subject_id', $subjectId)->delete();
+
+            foreach ($studentIds as $studentId) {
+                \Illuminate\Support\Facades\Cache::forget('student.dashboard.v2.'.$studentId);
+                $student = \App\Models\Student::with('user')->find($studentId);
+                if ($student && $student->user) {
+                    \App\Support\SidebarMenu::forgetForUser($student->user);
+                }
+            }
+
+            if ($grade !== '') {
+                \Illuminate\Support\Facades\Cache::forget('catalog.subjects.'.md5($grade));
+            }
+
+            $subject->delete();
             DB::commit();
-            Toastr::success('Deleted record successfully :)','Success');
+            Toastr::success('Subject deleted. Student classes updated.','Success');
             return redirect()->back();
         } catch(\Exception $e) {
             DB::rollback();
-            Toastr::error('Deleted record fail :)','Error');
+            \Illuminate\Support\Facades\Log::error('Subject delete failed: '.$e->getMessage());
+            Toastr::error('Deleted record fail: '.$e->getMessage(),'Error');
             return redirect()->back();
         }
     }

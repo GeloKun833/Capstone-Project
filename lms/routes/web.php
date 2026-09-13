@@ -227,6 +227,7 @@ Route::group(['middleware' => ['auth', 'role:Admin']], function () {
     Route::post('class-subject/unified-management', [App\Http\Controllers\ClassSubjectController::class, 'handleAssignment'])->name('class-subject.handle-assignment');
     Route::post('class-subject/import-defaults', [App\Http\Controllers\ClassSubjectController::class, 'importDefaultSubjects'])->name('class-subject.import-defaults');
     Route::post('class-subject/quick-add-subject', [App\Http\Controllers\ClassSubjectController::class, 'quickAddSubject'])->name('class-subject.quick-add-subject');
+    Route::post('class-subject/quick-delete-subject', [App\Http\Controllers\ClassSubjectController::class, 'quickDeleteSubject'])->name('class-subject.quick-delete-subject');
     Route::post('class-subject/quick-add-section', [App\Http\Controllers\ClassSubjectController::class, 'quickAddSection'])->name('class-subject.quick-add-section');
 });
 // Attendance routes (available to teachers and admins)

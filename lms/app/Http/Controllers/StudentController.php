@@ -257,10 +257,11 @@ class StudentController extends Controller
             return redirect()->back()->with('error', 'Student profile not found.');
         }
         
-        // Get student's enrollments with related data
+        // Get student's enrollments with related data (skip orphan rows if subject was deleted)
         $enrollments = $student->enrollments()
             ->with(['subject', 'academicYear', 'semester'])
             ->where('status', 'active')
+            ->whereHas('subject')
             ->get();
         
         // Calculate comprehensive statistics

@@ -148,7 +148,7 @@
 </div>
 
         {{-- Teacher Assignment by Grade --}}
-        <div class="card ams-panel">
+        <div class="card ams-panel mb-4">
             <div class="card-header ams-panel-header">
                 <div>
                     <h5 class="mb-0">Assign Teacher by Grade</h5>
@@ -258,6 +258,97 @@
         </form>
                     </div>
                 </div>
+
+        {{-- Teacher Unassign by Grade --}}
+        <div class="card ams-panel">
+            <div class="card-header ams-panel-header">
+                <div>
+                    <h5 class="mb-0">Unassign Teacher by Grade</h5>
+                    <small class="text-muted">
+                        Removes the teacher from <strong>all subjects</strong> in the selected grade.
+                    </small>
+                </div>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ route('class-subject.unified-management') }}" id="teacherGradeUnassignForm">
+                    @csrf
+                    <input type="hidden" name="operation_type" value="teacher_grade_unassign">
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="unassign_grade_level">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-control" name="grade_level" id="unassign_grade_level" required>
+                                <option value="">Select Grade</option>
+                                @foreach($gradeLevels as $grade)
+                                    <option value="{{ $grade }}">
+                                        {{ $grade }}
+                                        ({{ ($subjectsByGrade->get($grade) ?? collect())->count() }} subjects)
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="unassign_academic_year_id">Academic Year <span class="text-danger">*</span></label>
+                            <select class="form-control" name="academic_year_id" id="unassign_academic_year_id" required>
+                                <option value="">Select Academic Year</option>
+                                @foreach($academicYears as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="unassign_semester_id">Semester <span class="text-danger">*</span></label>
+                            <select class="form-control" name="semester_id" id="unassign_semester_id" required>
+                                <option value="">Select Semester</option>
+                                @foreach($semesters as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="unassign_section_id">Section <span class="text-muted">(optional)</span></label>
+                            <select class="form-control" name="section_id" id="unassign_section_id">
+                                <option value="">Keep section links</option>
+                                @foreach($sections as $section)
+                                    <option value="{{ $section->id }}" data-grade="{{ $section->grade_level }}">
+                                        {{ $section->name }} ({{ $section->grade_level }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">If set, also removes teacher from that section.</small>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <label class="form-label ams-label">Teachers to Unassign <span class="text-danger">*</span></label>
+                    @if($teachers->isEmpty())
+                        <div class="alert alert-warning mb-0">No teachers available.</div>
+                    @else
+                        <div class="row g-2">
+                            @foreach($teachers as $teacher)
+                                <div class="col-md-4 col-sm-6">
+                                    <label class="ams-teacher-card">
+                                        <input class="form-check-input me-2" type="checkbox" name="teacher_ids[]" value="{{ $teacher->id }}">
+                                        <span>
+                                            <strong>{{ $teacher->full_name ?: ($teacher->user->name ?? 'Unknown') }}</strong>
+                                            <br><small class="text-muted">{{ $teacher->user_id ?? '' }}</small>
+                                        </span>
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <div class="text-end mt-4">
+                        <button type="submit" class="btn btn-outline-danger" id="submitGradeUnassign" @disabled($teachers->isEmpty())
+                            onclick="return confirm('Unassign selected teacher(s) from all subjects in this grade?');">
+                            <i class="fas fa-user-minus me-1"></i> Unassign Teacher(s) from Grade
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
                     </div>
                 </div>
 
@@ -489,6 +580,15 @@
         font-weight: 600;
         margin: 0 0.35rem 0.5rem 0;
     }
+    .ams-subject-chip .ams-chip-del {
+        border: 0;
+        background: transparent;
+        color: #b91c1c;
+        padding: 0 0 0 0.25rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .ams-subject-chip .ams-chip-del:hover { color: #7f1d1d; }
 </style>
 @endpush
 
@@ -508,9 +608,43 @@
             return;
         }
         list.innerHTML = subjects.map(function (s) {
-            return '<span class="ams-subject-chip"><i class="fas fa-book"></i> ' + (s.name || s.subject_name) + '</span>';
+            const id = s.id;
+            const name = s.name || s.subject_name || 'Subject';
+            return '<span class="ams-subject-chip" data-subject-id="' + id + '">' +
+                '<i class="fas fa-book"></i> ' + name +
+                '<button type="button" class="ams-chip-del" title="Remove subject" data-id="' + id + '" data-name="' + name.replace(/"/g, '&quot;') + '" data-grade="' + grade + '">' +
+                '<i class="fas fa-times"></i></button></span>';
         }).join('');
     }
+
+    document.getElementById('catalogSubjectsList')?.addEventListener('click', function (e) {
+        const btn = e.target.closest('.ams-chip-del');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        const name = btn.getAttribute('data-name') || 'this subject';
+        const grade = btn.getAttribute('data-grade') || '';
+        if (!id) return;
+        if (!confirm('Delete "' + name + '" from ' + grade + '? This also removes it from student class lists.')) return;
+
+        btn.disabled = true;
+        $.ajax({
+            url: @json(route('class-subject.quick-delete-subject')),
+            method: 'POST',
+            data: { _token: csrfToken, subject_id: id },
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        }).done(function (res) {
+            refreshSubjectsFromApi(grade).catch(function () {
+                subjectsByGrade[grade] = (subjectsByGrade[grade] || []).filter(function (s) { return String(s.id) !== String(id); });
+                renderSubjectChips(grade, subjectsByGrade[grade]);
+                updateSubjectTile(grade, subjectsByGrade[grade]);
+            });
+            if (window.toastr) toastr.success(res.message || 'Subject deleted.');
+        }).fail(function (xhr) {
+            const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Failed to delete subject.';
+            if (window.toastr) toastr.error(msg); else alert(msg);
+            btn.disabled = false;
+        });
+    });
 
     function renderSectionChips(grade, sections) {
         const list = document.getElementById('sectionList');
@@ -801,6 +935,39 @@
             return false;
         }
         $('#submitGradeAssign').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Assigning...');
+    });
+
+    const unassignGradeSelect = document.getElementById('unassign_grade_level');
+    const unassignSectionSelect = document.getElementById('unassign_section_id');
+
+    function filterUnassignSections(grade) {
+        if (!unassignSectionSelect) return;
+        Array.from(unassignSectionSelect.options).forEach(function (opt, idx) {
+            if (idx === 0) return;
+            const g = opt.getAttribute('data-grade') || '';
+            const match = !grade || g === grade;
+            opt.hidden = !match;
+            if (!match && opt.selected) {
+                opt.selected = false;
+                unassignSectionSelect.value = '';
+            }
+        });
+    }
+
+    if (unassignGradeSelect) {
+        unassignGradeSelect.addEventListener('change', function () {
+            filterUnassignSections(unassignGradeSelect.value || '');
+        });
+        filterUnassignSections(unassignGradeSelect.value || '');
+    }
+
+    $('#teacherGradeUnassignForm').on('submit', function (e) {
+        if ($('#teacherGradeUnassignForm input[name="teacher_ids[]"]:checked').length === 0) {
+            e.preventDefault();
+            alert('Please select at least one teacher to unassign.');
+            return false;
+        }
+        $('#submitGradeUnassign').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Unassigning...');
     });
 })();
 </script>

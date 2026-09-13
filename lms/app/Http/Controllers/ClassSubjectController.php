@@ -353,6 +353,10 @@ class ClassSubjectController extends Controller
             return $this->assignTeachersToGrade($request);
         }
 
+        if ($operationType === 'teacher_grade_unassign') {
+            return $this->unassignTeachersFromGrade($request);
+        }
+
         if ($operationType === 'teacher_subject') {
             // Legacy single-subject path kept for compatibility
             return $this->assignTeachersToSubject($request);
@@ -440,6 +444,162 @@ class ClassSubjectController extends Controller
             Toastr::error('Failed to assign teachers: ' . $e->getMessage(), 'Error');
             return back()->withInput();
         }
+    }
+
+    /**
+     * Unassign teacher(s) from ALL subjects under a grade level.
+     */
+    private function unassignTeachersFromGrade(Request $request)
+    {
+        $request->validate([
+            'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'section_id' => 'nullable|exists:sections,id',
+            'teacher_ids' => 'required|array|min:1',
+            'teacher_ids.*' => 'exists:teachers,id',
+        ]);
+
+        $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
+
+        if ($subjects->isEmpty()) {
+            Toastr::error(
+                'No subjects found for ' . $request->grade_level . '.',
+                'Error'
+            );
+            return back()->withInput();
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $unlinkCount = 0;
+            $subjectIds = $subjects->pluck('id')->all();
+
+            foreach ($request->teacher_ids as $teacherId) {
+                $teacher = Teacher::findOrFail($teacherId);
+
+                foreach ($subjects as $subject) {
+                    if ($subject->teachers()->where('teacher_id', $teacherId)->exists()) {
+                        $subject->teachers()->detach($teacherId);
+                        $unlinkCount++;
+                    }
+                }
+
+                // Optional: unlink from selected section only when requested
+                if ($request->filled('section_id')) {
+                    $teacher->sections()->detach((int) $request->section_id);
+                }
+            }
+
+            DB::commit();
+
+            $teacherCount = count($request->teacher_ids);
+
+            if ($unlinkCount > 0) {
+                Toastr::success(
+                    "Unassigned {$teacherCount} teacher(s) from subjects in {$request->grade_level} ({$unlinkCount} link(s) removed).",
+                    'Success'
+                );
+            } else {
+                Toastr::info(
+                    'Selected teacher(s) were not assigned to subjects in ' . $request->grade_level . '.',
+                    'Info'
+                );
+            }
+
+            return redirect()->route('class-subject.unified-management');
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Failed to unassign teachers from grade: ' . $e->getMessage());
+            Toastr::error('Failed to unassign teachers: ' . $e->getMessage(), 'Error');
+            return back()->withInput();
+        }
+    }
+
+    /**
+     * Remove a subject from the grade catalog and clean student enrollments.
+     */
+    public function quickDeleteSubject(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $subject = Subject::findOrFail($request->subject_id);
+            $grade = $subject->class;
+            $name = $subject->subject_name;
+
+            $this->purgeSubjectAndRelated($subject);
+
+            DB::commit();
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "{$name} removed from {$grade}. Student class lists updated.",
+                    'grade_level' => $grade,
+                ]);
+            }
+
+            Toastr::success("{$name} removed from {$grade}.", 'Success');
+            return redirect()->route('class-subject.unified-management');
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Failed to delete subject: '.$e->getMessage());
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to delete subject: '.$e->getMessage(),
+                ], 500);
+            }
+
+            Toastr::error('Failed to delete subject.', 'Error');
+            return back();
+        }
+    }
+
+    /**
+     * Delete subject + related links/enrollments and bust student caches.
+     */
+    private function purgeSubjectAndRelated(Subject $subject): void
+    {
+        $subjectId = $subject->id;
+        $grade = (string) ($subject->class ?? '');
+
+        $studentIds = Enrollment::where('subject_id', $subjectId)->pluck('student_id')->unique()->filter();
+
+        $subject->teachers()->detach();
+        $subject->sections()->detach();
+        if (method_exists($subject, 'curricula')) {
+            $subject->curricula()->detach();
+        }
+
+        if (DB::getSchemaBuilder()->hasTable('class_schedules')) {
+            DB::table('class_schedules')->where('subject_id', $subjectId)->delete();
+        }
+        if (DB::getSchemaBuilder()->hasTable('curriculum_subject')) {
+            DB::table('curriculum_subject')->where('subject_id', $subjectId)->delete();
+        }
+
+        Enrollment::where('subject_id', $subjectId)->delete();
+
+        foreach ($studentIds as $studentId) {
+            \Illuminate\Support\Facades\Cache::forget('student.dashboard.v2.'.$studentId);
+            $student = Student::with('user')->find($studentId);
+            if ($student && $student->user) {
+                \App\Support\SidebarMenu::forgetForUser($student->user);
+            }
+        }
+
+        if ($grade !== '') {
+            \Illuminate\Support\Facades\Cache::forget('catalog.subjects.'.md5($grade));
+        }
+
+        $subject->delete();
     }
 
     /**

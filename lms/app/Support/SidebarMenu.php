@@ -99,6 +99,7 @@ class SidebarMenu
             return $student->enrollments()
                 ->with('subject:id,subject_name,class')
                 ->where('status', 'active')
+                ->whereHas('subject')
                 ->get();
         });
     }

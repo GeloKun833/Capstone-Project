@@ -243,15 +243,15 @@ unset($__errorArgs, $__bag); ?>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>Date of Birth</label>
-                                        <input type="date" class="form-control <?php $__errorArgs = ['date_of_birth'];
+                                        <input type="date" class="form-control js-dob <?php $__errorArgs = ['date_of_birth'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
 $message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?>" 
-                                               name="date_of_birth" value="<?php echo e(old('date_of_birth')); ?>">
+unset($__errorArgs, $__bag); ?>"
+                                               name="date_of_birth" max="<?php echo e(date('Y-m-d')); ?>" min="1950-01-01" value="<?php echo e(old('date_of_birth')); ?>">
                                         <?php $__errorArgs = ['date_of_birth'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :

@@ -31,6 +31,17 @@ input.form-control.datetimepicker:focus {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
+/* One calendar icon only (custom). Hide browser native indicator. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    right: 0;
+    width: 2.5rem;
+    height: 100%;
+    cursor: pointer;
+}
+
 .mdp-field::after,
 .calendar-icon.mdp-ready::after {
     content: "\f073";
@@ -43,6 +54,7 @@ input.form-control.datetimepicker:focus {
     color: #64748b;
     pointer-events: none;
     font-size: 14px;
+    z-index: 1;
 }
 
 .mdp-field label + .form-control ~ .mdp-hint,
@@ -91,6 +103,33 @@ input.form-control.datetimepicker:focus {
 .bootstrap-datetimepicker-widget .picker-switch {
     font-weight: 700;
     color: #1e293b;
+}
+
+/* Time: up/down only — hide scrollable hour/minute grids */
+.bootstrap-datetimepicker-widget .timepicker-hours,
+.bootstrap-datetimepicker-widget .timepicker-minutes {
+    display: none !important;
+}
+
+.bootstrap-datetimepicker-widget .timepicker-picker {
+    overflow: hidden !important;
+}
+
+.bootstrap-datetimepicker-widget .timepicker-picker .table-condensed {
+    width: auto;
+    margin: 0 auto;
+}
+
+.bootstrap-datetimepicker-widget .timepicker-picker a[data-action] {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+}
+
+.bootstrap-datetimepicker-widget .timepicker-picker span.timepicker-hour,
+.bootstrap-datetimepicker-widget .timepicker-picker span.timepicker-minute {
+    pointer-events: none; /* prevent opening scrollable grid */
+    font-weight: 700;
+    font-size: 1.35rem;
 }
 
 /* Academic year dual select */

@@ -1169,6 +1169,7 @@ class HomeController extends Controller
         $enrollments = $student->enrollments()
             ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
             ->where('status', 'active')
+            ->whereHas('subject')
             ->get();
 
         $catalogSubjects = [];

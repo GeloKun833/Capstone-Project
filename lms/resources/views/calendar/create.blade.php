@@ -58,8 +58,9 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Start Date & Time <span class="text-danger">*</span></label>
-                                            <input type="datetime-local" class="form-control js-event-start js-event-datetime" name="start_time" 
-                                                   value="{{ old('start_time', request('start_date') ? request('start_date') . 'T09:00' : '') }}" required>
+                                            <input type="text" class="form-control js-event-start js-event-datetime" name="start_time"
+                                                   value="{{ old('start_time', request('start_date') ? request('start_date') . ' 09:00' : '') }}"
+                                                   placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                             @error('start_time')
                                                 <span class="text-danger">{{ $message }}</span>
                                             @enderror
@@ -68,8 +69,9 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>End Date & Time <span class="text-danger">*</span></label>
-                                            <input type="datetime-local" class="form-control js-event-end js-event-datetime" name="end_time" 
-                                                   value="{{ old('end_time', request('end_date') ? request('end_date') . 'T10:00' : '') }}" required>
+                                            <input type="text" class="form-control js-event-end js-event-datetime" name="end_time"
+                                                   value="{{ old('end_time', request('end_date') ? request('end_date') . ' 10:00' : '') }}"
+                                                   placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                             <small class="mdp-hint">Normal events may span up to 3 days.</small>
                                             @error('end_time')
                                                 <span class="text-danger">{{ $message }}</span>
@@ -247,20 +249,23 @@ $(document).ready(function() {
         }
     });
 
-    // Show/hide time inputs for all-day events
     $('#is_all_day').change(function() {
-        if ($(this).is(':checked')) {
-            $('input[name="start_time"], input[name="end_time"]').attr('type', 'date');
-        } else {
-            $('input[name="start_time"], input[name="end_time"]').attr('type', 'datetime-local');
+        if (window.ModernDatepicker) {
+            window.ModernDatepicker.setEventPickerMode($(this).is(':checked'));
         }
     });
 
     // Form validation
     $('#eventForm').submit(function(e) {
-        const startTime = new Date($('input[name="start_time"]').val());
-        const endTime = new Date($('input[name="end_time"]').val());
-        
+        var $start = $('input[name="start_time"]');
+        var $end = $('input[name="end_time"]');
+        if (window.ModernDatepicker) {
+            $start.val(window.ModernDatepicker.toApiValue($start.val()));
+            $end.val(window.ModernDatepicker.toApiValue($end.val()));
+        }
+        const startTime = new Date($start.val());
+        const endTime = new Date($end.val());
+
         if (endTime <= startTime) {
             e.preventDefault();
             toastr.error('End time must be after start time');

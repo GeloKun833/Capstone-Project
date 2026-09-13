@@ -198,14 +198,14 @@
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
-                                <input type="datetime-local" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" required>
+                                <input type="text" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
                                 </div>
                                     </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
-                                <input type="datetime-local" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" required>
+                                <input type="text" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
                                 <small class="mdp-hint">Normal events may span up to 3 days.</small>
                                 </div>
@@ -637,7 +637,17 @@ let selectedEvent = null;
         const d = (date instanceof Date) ? date : new Date(date);
         const pad = (n) => String(n).padStart(2, '0');
         return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
-            + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+            + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function setStartEnd(startVal, endVal) {
+        if (window.ModernDatepicker) {
+            window.ModernDatepicker.setValue('#form_start_time', startVal);
+            window.ModernDatepicker.setValue('#form_end_time', endVal);
+        } else {
+            $('#form_start_time').val(startVal || '');
+            $('#form_end_time').val(endVal || '');
+        }
     }
 
     function clearFieldErrors() {
@@ -663,7 +673,11 @@ let selectedEvent = null;
         $('#calendarEventForm')[0].reset();
         $('#form_is_all_day, #form_is_recurring').prop('checked', false);
         $('#recurrence_options').hide();
-        $('#form_start_time, #form_end_time').attr('type', 'datetime-local').prop('disabled', false);
+        $('#form_start_time, #form_end_time').prop('disabled', false);
+        if (window.ModernDatepicker) {
+            window.ModernDatepicker.setEventPickerMode(false);
+            window.ModernDatepicker.refresh();
+        }
         $('#available_slots_panel').empty();
         $('#conflict_results_panel').html('<p class="text-muted small mb-0">Run conflict check before saving when a teacher or room is assigned.</p>');
         $('#subject_preference_hint').addClass('d-none').empty();
@@ -682,8 +696,7 @@ let selectedEvent = null;
             if (base.getHours() < 8) base.setHours(9);
         }
         const end = new Date(base.getTime() + 60 * 60 * 1000);
-        $('#form_start_time').val(localInputValue(base));
-        $('#form_end_time').val(localInputValue(end));
+        setStartEnd(localInputValue(base), localInputValue(end));
         $('#slot_date').val(localInputValue(base).slice(0, 10));
 
         const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('eventFormModal'));
@@ -704,12 +717,12 @@ let selectedEvent = null;
         $('#form_title').val(event.title || '');
         $('#form_event_type').val(p.event_type || '');
         $('#form_description').val(p.description || '');
-        $('#form_start_time').val(p.start_local || localInputValue(event.start));
-        $('#form_end_time').val(p.end_local || localInputValue(event.end));
+        setStartEnd(p.start_local || localInputValue(event.start), p.end_local || localInputValue(event.end));
         $('#form_subject_id').val(p.subject_id || '');
         $('#form_teacher_id').val(p.teacher_id || '');
         $('#form_room_id').val(p.room_id || '');
         $('#form_is_all_day').prop('checked', !!p.is_all_day);
+        if (window.ModernDatepicker) window.ModernDatepicker.setEventPickerMode(!!p.is_all_day);
         $('#form_is_recurring').prop('checked', !!p.is_recurring);
         $('#form_recurrence_pattern').val(p.recurrence_pattern || '');
         $('#form_recurrence_end_date').val(p.recurrence_end_date || '');
@@ -725,18 +738,22 @@ let selectedEvent = null;
         const allDay = $('#form_is_all_day').is(':checked');
         const start = $('#form_start_time');
         const end = $('#form_end_time');
+        let s = (start.val() || '').replace('T', ' ').slice(0, 16);
+        let e = (end.val() || s).replace('T', ' ').slice(0, 16);
         if (allDay) {
-            const s = (start.val() || '').slice(0, 10);
-            const e = (end.val() || s).slice(0, 10);
-            start.attr('type', 'date').val(s);
-            end.attr('type', 'date').val(e || s);
+            s = s.slice(0, 10);
+            e = (e || s).slice(0, 10);
         } else {
-            let s = start.val();
-            let e = end.val();
-            if (s && s.length === 10) s += 'T09:00';
-            if (e && e.length === 10) e += 'T17:00';
-            start.attr('type', 'datetime-local').val(s);
-            end.attr('type', 'datetime-local').val(e);
+            if (s && s.length === 10) s += ' 09:00';
+            if (e && e.length === 10) e += ' 17:00';
+        }
+        if (window.ModernDatepicker) {
+            window.ModernDatepicker.setEventPickerMode(allDay);
+            window.ModernDatepicker.setValue('#form_start_time', s);
+            window.ModernDatepicker.setValue('#form_end_time', e || s);
+        } else {
+            start.val(s);
+            end.val(e || s);
         }
     }
 
@@ -754,7 +771,14 @@ let selectedEvent = null;
         const allDay = $('#form_is_all_day').is(':checked');
         let start = $('#form_start_time').val();
         let end = $('#form_end_time').val();
-        if (allDay) {
+        if (window.ModernDatepicker) {
+            start = window.ModernDatepicker.toApiValue(start);
+            end = window.ModernDatepicker.toApiValue(end);
+            if (allDay) {
+                if (start) start = start.slice(0, 10) + 'T00:00';
+                if (end) end = end.slice(0, 10) + 'T23:59';
+            }
+        } else if (allDay) {
             if (start && start.length === 10) start += 'T00:00';
             if (end && end.length === 10) end += 'T23:59';
         }
@@ -1013,9 +1037,8 @@ let selectedEvent = null;
         const start = btn.getAttribute('data-start');
         const end = btn.getAttribute('data-end');
         $('#form_is_all_day').prop('checked', false);
-        toggleAllDay();
-        $('#form_start_time').val(date + 'T' + start);
-        $('#form_end_time').val(date + 'T' + end);
+        if (window.ModernDatepicker) window.ModernDatepicker.setEventPickerMode(false);
+        setStartEnd(date + ' ' + start, date + ' ' + end);
         $('#slot_date').val(date);
         loadWorkload();
         runConflictCheck();
