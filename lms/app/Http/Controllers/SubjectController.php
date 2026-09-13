@@ -63,7 +63,15 @@ class SubjectController extends Controller
                 $saveRecord->class          = $request->class;
                 $saveRecord->save();
 
-                Toastr::success('Subject added. It will now appear on the enrollment form for ' . $request->class . '.', 'Success');
+                $enrolled = app(GradeSubjectCatalogService::class)
+                    ->syncMissingEnrollmentsForGrade($request->class);
+                $msg = 'Subject added for ' . $request->class . '.';
+                if ($enrolled > 0) {
+                    $msg .= " Enrolled {$enrolled} student class link(s) so it appears on My Classes.";
+                } else {
+                    $msg .= ' It will appear on the enrollment form for new students.';
+                }
+                Toastr::success($msg, 'Success');
                 DB::commit();
             return redirect()->route('subject/list/page', ['search_class' => $request->class]);
            

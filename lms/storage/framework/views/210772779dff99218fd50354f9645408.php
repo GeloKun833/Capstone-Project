@@ -134,23 +134,23 @@
                                             <td><?php echo e($list->phone_number); ?></td>
                                             <td>110 Sen Sok Steet,PP</td>
                                             <td class="text-end">
-                                                <div class="actions">
+                                                <div class="actions d-flex flex-wrap gap-2 justify-content-end align-items-center">
                                                     <?php if(!empty($list->user_id)): ?>
-                                                        <a href="<?php echo e(route('student.sis', $list->user_id)); ?>" class="btn btn-sm bg-success-light" title="View Student Information System">
+                                                        <a href="<?php echo e(route('student.sis', $list->user_id)); ?>" class="btn btn-sm btn-success" title="View SIS">
                                                             <i class="fas fa-database me-1"></i>SIS
                                                         </a>
                                                     <?php endif; ?>
-                                                    <a href="<?php echo e(url('student/edit/'.$list->id)); ?>" class="btn btn-sm bg-danger-light">
-                                                        <i class="far fa-edit me-2"></i>
+                                                    <a href="<?php echo e(url('student/edit/'.$list->id)); ?>" class="btn btn-sm btn-primary" title="Edit">
+                                                        <i class="far fa-edit"></i>
                                                     </a>
                                                     <?php if($showingArchived): ?>
-                                                        <form action="<?php echo e(url('student/restore/'.$list->id)); ?>" method="POST" style="display:inline-block;">
+                                                        <form action="<?php echo e(url('student/restore/'.$list->id)); ?>" method="POST" class="d-inline">
                                                             <?php echo csrf_field(); ?>
-                                                            <button type="submit" class="btn btn-sm btn-success">Restore</button>
+                                                            <button type="submit" class="btn btn-sm btn-outline-success">Restore</button>
                                                         </form>
                                                     <?php else: ?>
-                                                        <a class="btn btn-sm bg-danger-light student_delete" data-bs-toggle="modal" data-bs-target="#studentUser">
-                                                            <i class="far fa-trash-alt me-2"></i>
+                                                        <a class="btn btn-sm btn-danger student_delete" data-bs-toggle="modal" data-bs-target="#studentUser" title="Delete">
+                                                            <i class="far fa-trash-alt"></i>
                                                         </a>
                                                     <?php endif; ?>
                                                 </div>

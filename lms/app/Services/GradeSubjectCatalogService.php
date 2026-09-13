@@ -200,15 +200,154 @@ class GradeSubjectCatalogService
                     if ($exists) {
                         continue;
                     }
-                    Subject::create([
+                    $subject = Subject::create([
                         'subject_name' => $name,
                         'class' => $grade,
                     ]);
+                    $this->enrollGradeStudentsInSubject($subject);
                     $created++;
                 }
             }
         });
 
         return $created;
+    }
+
+    /**
+     * When admin adds a subject, enroll existing students in that grade so it shows on My Classes.
+     */
+    public function enrollGradeStudentsInSubject(Subject $subject): int
+    {
+        $grade = trim((string) ($subject->class ?? ''));
+        if ($grade === '' || !$subject->id) {
+            return 0;
+        }
+
+        $aliases = self::gradeAliases($grade);
+
+        $studentIds = collect();
+
+        // Students already enrolled in other subjects of this grade
+        $siblingSubjectIds = Subject::query()
+            ->whereIn('class', $aliases)
+            ->where('id', '!=', $subject->id)
+            ->pluck('id');
+
+        if ($siblingSubjectIds->isNotEmpty()) {
+            $studentIds = $studentIds->merge(
+                \App\Models\Enrollment::query()
+                    ->whereIn('subject_id', $siblingSubjectIds)
+                    ->where('status', 'active')
+                    ->pluck('student_id')
+            );
+        }
+
+        // Students whose profile / application grade matches
+        $studentIds = $studentIds->merge(
+            \App\Models\Student::query()
+                ->where(function ($q) use ($aliases) {
+                    $q->whereIn('year_level', $aliases)
+                        ->orWhereIn('class', $aliases)
+                        ->orWhereHas('enrollmentApplication', function ($app) use ($aliases) {
+                            $app->whereIn('grade_level_applying_for', $aliases);
+                        });
+                })
+                ->pluck('id')
+        )->unique()->filter()->values();
+
+        if ($studentIds->isEmpty()) {
+            \Illuminate\Support\Facades\Cache::forget('catalog.subjects.'.md5($grade));
+            return 0;
+        }
+
+        [$defaultYearId, $defaultSemesterId] = $this->resolveDefaultAcademicPeriod();
+
+        $created = 0;
+        $students = \App\Models\Student::with('user')->whereIn('id', $studentIds)->get();
+
+        foreach ($students as $student) {
+            $period = \App\Models\Enrollment::query()
+                ->where('student_id', $student->id)
+                ->where('status', 'active')
+                ->when($siblingSubjectIds->isNotEmpty(), fn ($q) => $q->whereIn('subject_id', $siblingSubjectIds))
+                ->latest('id')
+                ->first(['academic_year_id', 'semester_id']);
+
+            $yearId = $period->academic_year_id ?? $defaultYearId;
+            $semesterId = $period->semester_id ?? $defaultSemesterId;
+
+            if (!$yearId || !$semesterId) {
+                continue;
+            }
+
+            $exists = \App\Models\Enrollment::query()
+                ->where('student_id', $student->id)
+                ->where('subject_id', $subject->id)
+                ->where('academic_year_id', $yearId)
+                ->where('semester_id', $semesterId)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            \App\Models\Enrollment::create([
+                'student_id' => $student->id,
+                'subject_id' => $subject->id,
+                'academic_year_id' => $yearId,
+                'semester_id' => $semesterId,
+                'enrollment_date' => now(),
+                'status' => 'active',
+            ]);
+            $created++;
+
+            \Illuminate\Support\Facades\Cache::forget('student.dashboard.v2.'.$student->id);
+            if ($student->user) {
+                \App\Support\SidebarMenu::forgetForUser($student->user);
+            }
+        }
+
+        \Illuminate\Support\Facades\Cache::forget('catalog.subjects.'.md5($grade));
+
+        return $created;
+    }
+
+    /**
+     * Ensure every student in a grade has enrollments for every catalog subject in that grade.
+     */
+    public function syncMissingEnrollmentsForGrade(string $grade): int
+    {
+        $total = 0;
+        foreach ($this->subjectsForGrade($grade) as $subject) {
+            $total += $this->enrollGradeStudentsInSubject($subject);
+        }
+
+        return $total;
+    }
+
+    /**
+     * @return array{0: ?int, 1: ?int}
+     */
+    private function resolveDefaultAcademicPeriod(): array
+    {
+        $today = now()->toDateString();
+        $year = \App\Models\AcademicYear::query()
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
+            ->orderByDesc('start_date')
+            ->first()
+            ?? \App\Models\AcademicYear::query()->latest('id')->first();
+
+        if (!$year) {
+            return [null, null];
+        }
+
+        $semester = \App\Models\Semester::query()
+            ->where('academic_year_id', $year->id)
+            ->orderBy('id')
+            ->first()
+            ?? \App\Models\Semester::query()->latest('id')->first();
+
+        return [$year->id, $semester?->id];
     }
 }

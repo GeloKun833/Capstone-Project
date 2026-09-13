@@ -114,7 +114,19 @@ class ClassSubjectController extends Controller
         $created = app(GradeSubjectCatalogService::class)->importMissingFromConfig($grade);
 
         if ($created > 0) {
-            Toastr::success("Imported {$created} subject(s) into the catalog.", 'Success');
+            if ($grade) {
+                $links = app(GradeSubjectCatalogService::class)->syncMissingEnrollmentsForGrade($grade);
+                $extra = $links > 0 ? " Also enrolled {$links} student class link(s)." : '';
+                Toastr::success("Imported {$created} subject(s) into the catalog.{$extra}", 'Success');
+            } else {
+                $links = 0;
+                $catalog = app(GradeSubjectCatalogService::class);
+                foreach (GradeSubjectCatalogService::gradeLevels() as $g) {
+                    $links += $catalog->syncMissingEnrollmentsForGrade($g);
+                }
+                $extra = $links > 0 ? " Also enrolled {$links} student class link(s)." : '';
+                Toastr::success("Imported {$created} subject(s) into the catalog.{$extra}", 'Success');
+            }
         } else {
             Toastr::info('All default subjects for the selected grade(s) already exist.', 'Info');
         }
@@ -158,10 +170,19 @@ class ClassSubjectController extends Controller
             'class' => $request->grade_level,
         ]);
 
+        // Link existing students in this grade (and backfill any older missing subjects)
+        $enrolled = app(GradeSubjectCatalogService::class)
+            ->syncMissingEnrollmentsForGrade($subject->class);
+
+        $msg = $subject->subject_name . ' added to ' . $subject->class . '.';
+        if ($enrolled > 0) {
+            $msg .= " Enrolled {$enrolled} student class link(s).";
+        }
+
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => $subject->subject_name . ' added to ' . $subject->class . '.',
+                'message' => $msg,
                 'subject' => [
                     'id' => $subject->id,
                     'name' => $subject->subject_name,
@@ -169,10 +190,11 @@ class ClassSubjectController extends Controller
                     'class' => $subject->class,
                 ],
                 'grade_level' => $subject->class,
+                'enrolled_students' => $enrolled,
             ]);
         }
 
-        Toastr::success($subject->subject_name . ' added to ' . $subject->class . '.', 'Success');
+        Toastr::success($msg, 'Success');
         return redirect()->route('class-subject.unified-management');
     }
 
