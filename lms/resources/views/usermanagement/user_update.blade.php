@@ -48,7 +48,7 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Date Of Birth</label>
-                                            <input type="date" class="form-control" name="date_of_birth" max="{{ date('Y-m-d') }}" value="{{ old('date_of_birth', $users->date_of_birth ? \Illuminate\Support\Str::of($users->date_of_birth)->substr(0, 10) : '') }}">
+                                            <input type="date" class="form-control js-dob" name="date_of_birth" max="{{ date('Y-m-d') }}" min="1950-01-01" value="{{ old('date_of_birth', $users->date_of_birth ? \Illuminate\Support\Str::of($users->date_of_birth)->substr(0, 10) : '') }}">
                                             @error('date_of_birth')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>

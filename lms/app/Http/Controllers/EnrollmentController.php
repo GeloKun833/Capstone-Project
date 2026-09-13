@@ -118,7 +118,7 @@ class EnrollmentController extends Controller
             'phone_number' => 'nullable|string|max:20',
             'department' => 'nullable|string|max:255',
             'position' => 'nullable|string|max:255',
-            'date_of_birth' => 'nullable|date',
+            'date_of_birth' => \App\Support\FormRules::DOB,
             
             
             // Teacher-specific fields

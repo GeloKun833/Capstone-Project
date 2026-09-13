@@ -82,10 +82,21 @@ class AcademicYearController extends Controller
     public function update(Request $request, AcademicYear $academicYear)
     {
         $data = $request->validate([
-            'name' => 'required|string|max:255|unique:academic_years,name,' . $academicYear->id,
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name,' . $academicYear->id, 'regex:/^\d{4}\s*[–\-]\s*\d{4}$/'],
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+        ], [
+            'name.regex' => 'Academic year must look like 2026–2027 (years only).',
         ]);
+
+        $data['name'] = preg_replace('/\s*[–\-]\s*/', '–', $data['name']);
+
+        if (empty($data['start_date']) || empty($data['end_date'])) {
+            if (preg_match('/(\d{4})\s*[–\-]\s*(\d{4})/', $data['name'], $m)) {
+                $data['start_date'] = $m[1].'-06-01';
+                $data['end_date'] = $m[2].'-05-31';
+            }
+        }
 
         $academicYear->update($data);
         $academicYear->loadCount('semesters');

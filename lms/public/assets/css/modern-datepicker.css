@@ -1,0 +1,139 @@
+/* Modern datepicker — consistent look across native + bootstrap-datetimepicker */
+
+.mdp-field {
+    position: relative;
+}
+
+.mdp-field .form-control.js-date,
+.mdp-field .form-control.js-dob,
+.mdp-field .form-control.js-event-date,
+.mdp-field .form-control.js-event-datetime,
+input.form-control.js-date,
+input.form-control.js-dob,
+input.form-control.js-event-date,
+input.form-control.js-event-datetime,
+input.form-control.datetimepicker {
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding-right: 2.5rem;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+input.form-control.js-date:focus,
+input.form-control.js-dob:focus,
+input.form-control.js-event-date:focus,
+input.form-control.js-event-datetime:focus,
+input.form-control.datetimepicker:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.mdp-field::after,
+.calendar-icon.mdp-ready::after {
+    content: "\f073";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    pointer-events: none;
+    font-size: 14px;
+}
+
+.mdp-field label + .form-control ~ .mdp-hint,
+.mdp-hint {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+.mdp-hint.is-error {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* Bootstrap datetimepicker panel polish */
+.bootstrap-datetimepicker-widget {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16) !important;
+    padding: 8px !important;
+    overflow: hidden;
+}
+
+.bootstrap-datetimepicker-widget table td.active,
+.bootstrap-datetimepicker-widget table td.active:hover,
+.bootstrap-datetimepicker-widget table td span.active {
+    background-color: #2563eb !important;
+    text-shadow: none !important;
+    border-radius: 8px;
+}
+
+.bootstrap-datetimepicker-widget table td.disabled,
+.bootstrap-datetimepicker-widget table td.disabled:hover,
+.bootstrap-datetimepicker-widget table td span.disabled {
+    color: #cbd5e1 !important;
+    background: #f8fafc !important;
+    opacity: 0.7;
+}
+
+.bootstrap-datetimepicker-widget table th {
+    font-weight: 700;
+    color: #334155;
+}
+
+.bootstrap-datetimepicker-widget .picker-switch {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* Academic year dual select */
+.mdp-year-range {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.mdp-year-range .mdp-year-sep {
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: #64748b;
+    padding-bottom: 0.65rem;
+    text-align: center;
+}
+
+.mdp-year-range .form-select,
+.mdp-year-range select.form-control {
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+}
+
+.mdp-year-preview {
+    margin-top: 0.65rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    font-weight: 700;
+}
+
+@media (max-width: 575.98px) {
+    .mdp-year-range {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    .mdp-year-range .mdp-year-sep {
+        padding: 0;
+        display: none;
+    }
+}

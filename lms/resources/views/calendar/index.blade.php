@@ -198,15 +198,16 @@
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
-                                <input type="datetime-local" class="form-control" name="start_time" id="form_start_time" required>
+                                <input type="datetime-local" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
                                 </div>
                                     </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
-                                <input type="datetime-local" class="form-control" name="end_time" id="form_end_time" required>
+                                <input type="datetime-local" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
+                                <small class="mdp-hint">Normal events may span up to 3 days.</small>
                                 </div>
                                     </div>
                                 </div>
@@ -241,7 +242,7 @@
                         <div class="col-md-6">
                             <div class="form-group mb-0">
                                 <label>Until</label>
-                                <input type="date" class="form-control" name="recurrence_end_date" id="form_recurrence_end_date">
+                                <input type="date" class="form-control js-event-date" name="recurrence_end_date" id="form_recurrence_end_date">
                                 <div class="invalid-feedback field-error" data-field="recurrence_end_date"></div>
                 </div>
             </div>
@@ -295,7 +296,7 @@
                         <div class="col-md-4">
                             <div class="form-group mb-2">
                                 <label>Date</label>
-                                <input type="date" class="form-control" id="slot_date">
+                                <input type="date" class="form-control js-event-date" id="slot_date">
                             </div>
                         </div>
                         <div class="col-md-4">

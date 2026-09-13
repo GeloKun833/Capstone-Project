@@ -155,12 +155,22 @@
             <form id="yearForm">
                 <div class="modal-body pt-3">
                     <div id="yearFormMsg" class="mb-2"></div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" for="yearName">Academic Year</label>
-                        <input type="text" class="form-control" id="yearName" name="name" required
-                            placeholder="e.g. 2026–2027" pattern="\d{4}\s*[–\-]\s*\d{4}"
-                            title="Use year range only, e.g. 2026-2027">
-                        <small class="text-muted">Years only (example: 2026–2027). Start/end dates are set automatically.</small>
+                    <div class="mb-3" data-mdp-academic-year>
+                        <label class="form-label fw-semibold">Academic Year</label>
+                        <div class="mdp-year-range">
+                            <div>
+                                <label class="form-label small text-muted mb-1" for="yearStartSelect">Start year</label>
+                                <select class="form-control form-select" id="yearStartSelect" data-mdp-year-start></select>
+                            </div>
+                            <div class="mdp-year-sep">–</div>
+                            <div>
+                                <label class="form-label small text-muted mb-1" for="yearEndSelect">End year</label>
+                                <select class="form-control form-select" id="yearEndSelect" data-mdp-year-end></select>
+                            </div>
+                        </div>
+                        <input type="hidden" id="yearName" name="name" data-mdp-year-name required value="">
+                        <div class="mdp-year-preview" data-mdp-year-preview>Academic Year: —</div>
+                        <small class="text-muted">Select years only (example: 2026–2027). Start/end dates are set automatically.</small>
                     </div>
                     <div class="row g-2 d-none" id="yearDateRow">
                         <div class="col-md-6">
@@ -321,7 +331,14 @@
         document.getElementById('yearFormEyebrow').textContent = 'New Academic Year';
         document.getElementById('yearFormTitle').textContent = 'Add Academic Year';
         document.getElementById('yearForm').reset();
+        document.getElementById('yearStart').value = '';
+        document.getElementById('yearEnd').value = '';
         document.getElementById('yearFormMsg').innerHTML = '';
+        const yearRoot = document.querySelector('[data-mdp-academic-year]');
+        if (yearRoot) yearRoot.dataset.mdpReady = '';
+        setTimeout(function () {
+            if (window.ModernDatepicker) window.ModernDatepicker.refresh();
+        }, 100);
     });
 
     document.getElementById('yearEditBtn')?.addEventListener('click', function () {
@@ -334,15 +351,18 @@
         document.getElementById('yearEnd').value = active.end;
         document.getElementById('yearFormMsg').innerHTML = '';
         detailModal?.hide();
-        setTimeout(function () { formModal?.show(); }, 200);
+        setTimeout(function () {
+            formModal?.show();
+            if (window.ModernDatepicker) window.ModernDatepicker.refresh();
+        }, 200);
     });
 
     document.getElementById('yearForm')?.addEventListener('submit', function (e) {
         e.preventDefault();
         const payload = {
             name: document.getElementById('yearName').value.trim(),
-            start_date: document.getElementById('yearStart').value,
-            end_date: document.getElementById('yearEnd').value,
+            start_date: '',
+            end_date: '',
             _token: csrf
         };
         const url = mode === 'edit' && active ? active.updateUrl : storeUrl;

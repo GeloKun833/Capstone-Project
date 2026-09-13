@@ -74,7 +74,7 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms calendar-icon">
                                             <label>Date Of Birth <span class="login-danger">*</span></label>
-                                            <input class="form-control @error('date_of_birth') is-invalid @enderror" name="date_of_birth" type="date" max="{{ date('Y-m-d') }}" value="{{ old('date_of_birth', $studentEdit->date_of_birth ? \Illuminate\Support\Str::of($studentEdit->date_of_birth)->substr(0,10) : '') }}">
+                                            <input class="form-control js-dob @error('date_of_birth') is-invalid @enderror" name="date_of_birth" type="date" max="{{ date('Y-m-d') }}" min="1950-01-01" value="{{ old('date_of_birth', $studentEdit->date_of_birth ? \Illuminate\Support\Str::of($studentEdit->date_of_birth)->substr(0,10) : '') }}">
                                             @error('date_of_birth')
                                                 <span class="invalid-feedback" role="alert">
                                                     <strong>{{ $message }}</strong>

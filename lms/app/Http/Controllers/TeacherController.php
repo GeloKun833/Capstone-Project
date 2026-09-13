@@ -76,7 +76,7 @@ class TeacherController extends Controller
             'full_name'     => 'required|string',
             'gender'        => 'required|string',
             'experience'    => 'required|string',
-            'date_of_birth' => 'required|string',
+            'date_of_birth' => \App\Support\FormRules::DOB_REQUIRED,
             'qualification' => 'required|string',
             'phone_number'  => 'required|string',
             'address'       => 'required|string',

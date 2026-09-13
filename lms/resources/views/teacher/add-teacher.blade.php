@@ -100,7 +100,7 @@
                                 <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms calendar-icon">
                                         <label>Qualification <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control datetimepicker @error('qualification') is-invalid @enderror" name="qualification" placeholder="DD-MM-YYYY" value="{{ old('qualification') }}">
+                                        <input type="text" class="form-control @error('qualification') is-invalid @enderror" name="qualification" placeholder="e.g. BSEd, MA Education" value="{{ old('qualification') }}">
                                         @error('qualification')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
@@ -111,7 +111,7 @@
                                 <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms calendar-icon">
                                         <label>Date Of Birth <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control datetimepicker @error('date_of_birth') is-invalid @enderror" name="date_of_birth" placeholder="DD-MM-YYYY" value="{{ old('date_of_birth') }}">
+                                        <input type="date" class="form-control js-dob @error('date_of_birth') is-invalid @enderror" name="date_of_birth" max="{{ date('Y-m-d') }}" min="1950-01-01" value="{{ old('date_of_birth') }}" required>
                                         @error('date_of_birth')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>

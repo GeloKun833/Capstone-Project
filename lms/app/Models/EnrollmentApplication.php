@@ -217,13 +217,72 @@ class EnrollmentApplication extends Model
         ]);
     }
 
+    /**
+     * Next unique APP-YYYY-###### (includes soft-deleted rows; safe for 500k+ / year).
+     */
+    public static function nextApplicationNumber(?string $year = null): string
+    {
+        $year = $year ?: date('Y');
+        $prefix = 'APP-'.$year.'-';
+
+        // Zero-padded sequences sort correctly as strings (…000099 < …000100)
+        $latest = static::withTrashed()
+            ->where('application_number', 'like', $prefix.'%')
+            ->orderByDesc('application_number')
+            ->value('application_number');
+
+        $next = 1;
+        if ($latest && preg_match('/(\d{6})$/', (string) $latest, $m)) {
+            $next = ((int) $m[1]) + 1;
+        }
+
+        // Guard against gaps / races: skip any number that already exists (incl. trashed)
+        for ($i = 0; $i < 10000; $i++) {
+            $candidate = $prefix.str_pad((string) ($next + $i), 6, '0', STR_PAD_LEFT);
+            $exists = static::withTrashed()
+                ->where('application_number', $candidate)
+                ->exists();
+
+            if (! $exists) {
+                return $candidate;
+            }
+        }
+
+        return $prefix.str_pad((string) random_int(900000, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Create application with retry if a rare duplicate-number race occurs.
+     */
+    public static function createUnique(array $attributes, int $attempts = 8): self
+    {
+        $lastException = null;
+
+        for ($i = 0; $i < $attempts; $i++) {
+            try {
+                $attributes['application_number'] = static::nextApplicationNumber();
+
+                return static::create($attributes);
+            } catch (\Illuminate\Database\QueryException $e) {
+                $lastException = $e;
+                $msg = $e->getMessage();
+                if (! str_contains($msg, 'application_number') && ! str_contains($msg, '1062')) {
+                    throw $e;
+                }
+                usleep(25000 + ($i * 10000));
+            }
+        }
+
+        throw $lastException ?? new \RuntimeException('Unable to create enrollment application with a unique number.');
+    }
+
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($model) {
             if (empty($model->application_number)) {
-                $model->application_number = 'APP-' . date('Y') . '-' . str_pad(EnrollmentApplication::count() + 1, 6, '0', STR_PAD_LEFT);
+                $model->application_number = static::nextApplicationNumber();
             }
         });
     }

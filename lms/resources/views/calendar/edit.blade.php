@@ -59,7 +59,7 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Start Date & Time <span class="text-danger">*</span></label>
-                                            <input type="datetime-local" class="form-control" name="start_time" 
+                                            <input type="datetime-local" class="form-control js-event-start js-event-datetime" name="start_time" 
                                                    value="{{ old('start_time', $calendarEvent->start_time->format('Y-m-d\TH:i')) }}" required>
                                             @error('start_time')
                                                 <span class="text-danger">{{ $message }}</span>
@@ -69,8 +69,9 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>End Date & Time <span class="text-danger">*</span></label>
-                                            <input type="datetime-local" class="form-control" name="end_time" 
+                                            <input type="datetime-local" class="form-control js-event-end js-event-datetime" name="end_time" 
                                                    value="{{ old('end_time', $calendarEvent->end_time->format('Y-m-d\TH:i')) }}" required>
+                                            <small class="mdp-hint">Normal events may span up to 3 days.</small>
                                             @error('end_time')
                                                 <span class="text-danger">{{ $message }}</span>
                                             @enderror

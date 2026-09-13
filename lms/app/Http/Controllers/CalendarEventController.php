@@ -267,18 +267,8 @@ class CalendarEventController extends Controller
         }
 
         // School events: max 3 calendar days
-        try {
-            $start = \Carbon\Carbon::parse($request->start_time)->startOfDay();
-            $end = \Carbon\Carbon::parse($request->end_time)->startOfDay();
-            if ($start->diffInDays($end) > 2) {
-                $msg = 'Event duration cannot exceed 3 days. Use a single day or short multi-day event.';
-                if ($request->ajax()) {
-                    return response()->json(['error' => $msg, 'errors' => ['end_time' => [$msg]]], 422);
-                }
-                return redirect()->back()->withErrors(['end_time' => $msg])->withInput();
-            }
-        } catch (\Throwable $e) {
-            // fall through to conflict checks
+        if ($tooLong = $this->rejectIfEventTooLong($request)) {
+            return $tooLong;
         }
 
         // Check for scheduling conflicts
@@ -409,6 +399,10 @@ class CalendarEventController extends Controller
                 'end_time' => 'required|date|after:start_time',
             ]);
 
+            if ($tooLong = $this->rejectIfEventTooLong($request)) {
+                return $tooLong;
+            }
+
             $conflicts = CalendarEvent::checkConflicts(
                 $request->start_time,
                 $request->end_time,
@@ -472,6 +466,10 @@ class CalendarEventController extends Controller
                 return response()->json(['errors' => $validator->errors(), 'error' => 'Unable to update event. Please check the highlighted fields.'], 422);
             }
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        if ($tooLong = $this->rejectIfEventTooLong($request)) {
+            return $tooLong;
         }
 
         // Check for scheduling conflicts (excluding current event)
@@ -671,6 +669,28 @@ class CalendarEventController extends Controller
             'suggestions' => $suggestions,
             'workload' => $workload,
         ]);
+    }
+
+    /**
+     * Normal school events may span at most 3 calendar days.
+     */
+    protected function rejectIfEventTooLong(Request $request)
+    {
+        try {
+            $start = Carbon::parse($request->start_time)->startOfDay();
+            $end = Carbon::parse($request->end_time)->startOfDay();
+            if ($start->diffInDays($end) > 2) {
+                $msg = 'Event duration cannot exceed 3 days. Use a single day or short multi-day event.';
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['error' => $msg, 'errors' => ['end_time' => [$msg]]], 422);
+                }
+                return redirect()->back()->withErrors(['end_time' => $msg])->withInput();
+            }
+        } catch (\Throwable $e) {
+            // ignore parse issues; other validators will catch
+        }
+
+        return null;
     }
 
     /**

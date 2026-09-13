@@ -135,7 +135,8 @@
         return false;
     });
 
-    if ($('.datetimepicker').length > 0 && $.fn.datetimepicker) {
+    // Date fields are initialized by modern-datepicker.js (DOB limits, open-on-focus, etc.)
+    if (false && $('.datetimepicker').length > 0 && $.fn.datetimepicker) {
         $('.datetimepicker').datetimepicker({
             format: 'DD-MM-YYYY',
             icons: {

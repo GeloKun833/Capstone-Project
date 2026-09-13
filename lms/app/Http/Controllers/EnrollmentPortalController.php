@@ -228,8 +228,8 @@ class EnrollmentPortalController extends Controller
                 ? (int) $request->input('selected_section_id')
                 : null;
             
-            // Create the enrollment application
-            $application = EnrollmentApplication::create($applicationData);
+            // Create the enrollment application (unique APP-YYYY-######, incl. soft-deleted)
+            $application = EnrollmentApplication::createUnique($applicationData);
 
             // Process required documents
             $requiredDocuments = [
@@ -997,7 +997,7 @@ class EnrollmentPortalController extends Controller
             }
 
             // Create enrollment application for old student
-            $application = EnrollmentApplication::create([
+            $application = EnrollmentApplication::createUnique([
                 'student_category' => 'old_student',
                 'existing_student_id' => $student->id,
                 'first_name' => $student->first_name,
