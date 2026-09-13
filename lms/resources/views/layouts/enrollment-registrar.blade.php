@@ -67,6 +67,7 @@
     <script src="{{ URL::to('assets/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/jquery-3.6.0.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/toastr.min.js') }}"></script>
+    <script src="{{ URL::to('assets/js/no-emoji.js') }}"></script>
     <script src="{{ asset('assets/js/enrollment-portal.js') }}"></script>
     @yield('scripts')
     @include('partials.toastr-scripts')

@@ -20,16 +20,20 @@
             <div class="col-md-8">
                 <div class="card">
                     <div class="card-body">
-                        <form action="{{ route('user/profile/update') }}" method="POST">
+                        <form action="{{ route('user/profile/update') }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="form-group">
                                 <label>Name</label>
-                                <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $user->name) }}">
-                                @error('name')
-                                    <span class="invalid-feedback" role="alert">
-                                        <strong>{{ $message }}</strong>
-                                    </span>
-                                @enderror
+                                @if($user->role_name === \App\Models\User::ROLE_STUDENT)
+                                    <input type="text" class="form-control" value="{{ $user->name }}" readonly>
+                                    <input type="hidden" name="name" value="{{ $user->name }}">
+                                    <small class="text-muted">Students cannot change their registered name. Contact the administrator or registrar for corrections.</small>
+                                @else
+                                    <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $user->name) }}">
+                                    @error('name')
+                                        <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
+                                    @enderror
+                                @endif
                             </div>
                             <div class="form-group">
                                 <label>Email</label>
@@ -39,6 +43,17 @@
                                         <strong>{{ $message }}</strong>
                                     </span>
                                 @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Profile Photo</label>
+                                <input type="file" name="avatar" class="form-control @error('avatar') is-invalid @enderror" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp">
+                                <small class="text-muted">JPG, PNG, GIF, or WEBP. Max 2MB.</small>
+                                @error('avatar')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                <div class="mt-2">
+                                    <img src="{{ \App\Support\AvatarUploader::url($user->avatar) }}" alt="Profile" class="rounded-circle" style="width:72px;height:72px;object-fit:cover;">
+                                </div>
                             </div>
                             @if($user->role_name === \App\Models\User::ROLE_STUDENT && $student)
                             <div class="form-group">

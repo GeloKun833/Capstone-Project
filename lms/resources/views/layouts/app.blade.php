@@ -932,6 +932,7 @@
     <script src="{{ URL::to('assets/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <!-- Toastr JS -->
     <script src="{{ URL::to('assets/js/toastr.min.js') }}"></script>
+    <script src="{{ URL::to('assets/js/no-emoji.js') }}"></script>
     @include('partials.toastr-scripts')
     
     <script>

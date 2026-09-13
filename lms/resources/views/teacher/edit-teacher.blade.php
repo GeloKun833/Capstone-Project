@@ -56,7 +56,7 @@
                                 <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms calendar-icon">
                                         <label>Date Of Birth <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control datetimepicker @error('date_of_birth') is-invalid @enderror" name="date_of_birth" placeholder="DD-MM-YYYY" value="{{ $teacher->date_of_birth }}">
+                                        <input type="date" class="form-control @error('date_of_birth') is-invalid @enderror" name="date_of_birth" max="{{ date('Y-m-d') }}" value="{{ old('date_of_birth', $teacher->date_of_birth ? \Illuminate\Support\Str::of($teacher->date_of_birth)->substr(0,10) : '') }}">
                                         @error('date_of_birth')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
@@ -78,7 +78,7 @@
                                 <div class="col-12 col-sm-4 local-forms">
                                     <div class="form-group local-forms calendar-icon">
                                         <label>Qualification <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control datetimepicker @error('qualification') is-invalid @enderror" name="qualification" placeholder="Enter Joining Date" value="{{ $teacher->qualification }}">
+                                        <input type="text" class="form-control @error('qualification') is-invalid @enderror" name="qualification" placeholder="e.g. Bachelor of Education" value="{{ old('qualification', $teacher->qualification) }}">
                                         @error('qualification')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
@@ -100,72 +100,98 @@
                                 <div class="col-12">
                                     <h5 class="form-title"><span>Address</span></h5>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms">
-                                        <label>Address <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control @error('address') is-invalid @enderror" name="address" placeholder="Enter address" value="{{ $teacher->address }}">
-                                        @error('address')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
-                                        @enderror
+                                        <label>Country <span class="login-danger">*</span></label>
+                                        <select class="form-control" name="country" id="teacher_country" required>
+                                            <option value="Philippines" {{ old('country', $teacher->country ?: 'Philippines') === 'Philippines' ? 'selected' : '' }}>Philippines</option>
+                                        </select>
                                     </div>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms">
-                                        <label>Phone <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control @error('phone_number') is-invalid @enderror" name="phone_number" placeholder="Enter phone number" value="{{ $teacher->phone_number }}">
-                                        @error('phone_number')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
-                                        @enderror
+                                        <label>State / Province <span class="login-danger">*</span></label>
+                                        <select class="form-control" name="state" id="teacher_state" required>
+                                            @php
+                                                $provinces = ['Laguna','Metro Manila','Cavite','Batangas','Rizal','Quezon','Bulacan','Pampanga','Other'];
+                                                $curState = old('state', $teacher->state);
+                                            @endphp
+                                            <option value="">Select Province</option>
+                                            @foreach($provinces as $p)
+                                                <option value="{{ $p }}" {{ $curState === $p ? 'selected' : '' }}>{{ $p }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 </div>
                                 <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms">
                                         <label>City <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control @error('city') is-invalid @enderror" name="city" placeholder="Enter City" value="{{ $teacher->city }}">
-                                        @error('city')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
+                                        <select class="form-control" name="city" id="teacher_city" required>
+                                            @php
+                                                $cities = [
+                                                    'Laguna' => ['City of Santa Rosa','Biñan','Cabuyao','Calamba','San Pedro','Los Baños','Other'],
+                                                    'Metro Manila' => ['Manila','Quezon City','Makati','Pasig','Taguig','Other'],
+                                                    'Cavite' => ['Bacoor','Imus','Dasmariñas','General Trias','Other'],
+                                                    'Other' => ['Other'],
+                                                ];
+                                                $curCity = old('city', $teacher->city);
+                                                $cityOpts = $cities[$curState] ?? ['Other'];
+                                            @endphp
+                                            <option value="">Select City</option>
+                                            @foreach($cityOpts as $c)
+                                                <option value="{{ $c }}" {{ $curCity === $c ? 'selected' : '' }}>{{ $c }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-sm-8">
+                                    <div class="form-group local-forms">
+                                        <label>Street / Barangay Address <span class="login-danger">*</span></label>
+                                        <input type="text" class="form-control @error('address') is-invalid @enderror" name="address" placeholder="Street, barangay, subdivision" value="{{ old('address', $teacher->address) }}">
+                                        @error('address')
+                                            <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
                                         @enderror
                                     </div>
                                 </div>
                                 <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms">
-                                        <label>State <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control @error('state') is-invalid @enderror" name="state" placeholder="Enter State" value="{{ $teacher->state }}">
-                                        @error('state')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
-                                        @enderror
+                                        <label>Zip Code</label>
+                                        <input type="text" class="form-control" name="zip_code" value="{{ old('zip_code', $teacher->zip_code) }}" pattern="[0-9A-Za-z\-\s]+">
                                     </div>
                                 </div>
                                 <div class="col-12 col-sm-4">
                                     <div class="form-group local-forms">
-                                        <label>Zip Code <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control @error('zip_code') is-invalid @enderror" name="zip_code" placeholder="Enter Zip" value="{{ $teacher->zip_code }}">
-                                        @error('zip_code')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
+                                        <label>Phone <span class="login-danger">*</span></label>
+                                        <input type="tel" class="form-control @error('phone_number') is-invalid @enderror" name="phone_number" inputmode="numeric" pattern="[0-9+\-\s()]+" placeholder="09xxxxxxxxx" value="{{ old('phone_number', $teacher->phone_number) }}">
+                                        @error('phone_number')
+                                            <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
                                         @enderror
                                     </div>
                                 </div>
-                                <div class="col-12 col-sm-4">
-                                    <div class="form-group local-forms">
-                                        <label>Country <span class="login-danger">*</span></label>
-                                        <input type="text" class="form-control @error('country') is-invalid @enderror" name="country" placeholder="Enter Country" value="{{ $teacher->country }}">
-                                        @error('country')
-                                            <span class="invalid-feedback" role="alert">
-                                                <strong>{{ $message }}</strong>
-                                            </span>
-                                        @enderror
-                                    </div>
-                                </div>
+                                @push('script')
+                                <script>
+                                (function(){
+                                    const map = {
+                                        'Laguna': ['City of Santa Rosa','Biñan','Cabuyao','Calamba','San Pedro','Los Baños','Other'],
+                                        'Metro Manila': ['Manila','Quezon City','Makati','Pasig','Taguig','Other'],
+                                        'Cavite': ['Bacoor','Imus','Dasmariñas','General Trias','Other'],
+                                        'Batangas': ['Batangas City','Lipa','Tanauan','Other'],
+                                        'Rizal': ['Antipolo','Cainta','Taytay','Other'],
+                                        'Quezon': ['Lucena','Other'],
+                                        'Bulacan': ['Malolos','Meycauayan','Other'],
+                                        'Pampanga': ['Angeles','San Fernando','Other'],
+                                        'Other': ['Other']
+                                    };
+                                    const state = document.getElementById('teacher_state');
+                                    const city = document.getElementById('teacher_city');
+                                    if (!state || !city) return;
+                                    state.addEventListener('change', function(){
+                                        const list = map[this.value] || ['Other'];
+                                        city.innerHTML = '<option value="">Select City</option>' + list.map(c => `<option value="${c}">${c}</option>`).join('');
+                                    });
+                                })();
+                                </script>
+                                @endpush
                                 <div class="col-12">
                                     <div class="student-submit">
                                         <button type="submit" class="btn btn-primary">Submit</button>

@@ -41,7 +41,6 @@
                             <li><a href="{{ route('admin.schedules.index') }}"><i class="fas fa-clock"></i> <span>Class Schedules</span></a></li>
                             <li><a href="{{ route('academic_years.index') }}"><i class="fas fa-calendar-alt"></i> <span>Academic Years</span></a></li>
                             <li><a href="{{ route('semesters.index') }}"><i class="fas fa-calendar-week"></i> <span>Semesters</span></a></li>
-                            <li><a href="{{ route('curriculum.index') }}"><i class="fas fa-book"></i> <span>Curriculum</span></a></li>
                             <li><a href="{{ route('promotions.index') }}"><i class="fas fa-user-graduate"></i> <span>Student Promotions</span></a></li>
                         </ul>
                     </li>
@@ -56,7 +55,6 @@
                             <li><a href="{{ route('analytics.admin-dashboard') }}"><i class="fas fa-chart-bar"></i> <span>School Analytics</span></a></li>
                             <li><a href="{{ route('admin.grading.performance-hub') }}"><i class="fas fa-chart-line"></i> <span>Performance Hub</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
-                            <li><a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
                             <li><a href="{{ route('setting/page') }}"><i class="fas fa-cog"></i> <span>System Settings</span></a></li>
                             <li><a href="{{ route('admin.backup.index') }}"><i class="fas fa-database"></i> <span>Backup & Recovery</span></a></li>
                         </ul>
@@ -264,123 +262,3 @@
         </div>
     </div>
 </div>
-
-@push('scripts')
-<script>
-(function ($) {
-    'use strict';
-    $(function () {
-        // Parent-module indicator only + no bounce for Student/Parent/Admin/Teacher
-        $('#sidebar-menu .submenu ul a').removeClass('active');
-        $('#sidebar-menu li.submenu.active').each(function () {
-            var $li = $(this);
-            $li.children('a').addClass('subdrop');
-            $li.children('ul').stop(true, true).show();
-        });
-    });
-})(jQuery);
-</script>
-@endpush
-
-<style>
-.sidebar-menu .divider {
-    height: 1px;
-    background-color: rgba(255, 255, 255, 0.1);
-    margin: 8px 15px;
-    border: none;
-}
-
-.sidebar-menu > ul > li > a {
-    cursor: pointer;
-}
-
-.submenu > ul {
-    display: none;
-    background: rgba(0, 0, 0, 0.1);
-    border-left: 3px solid rgba(255, 255, 255, 0.2);
-}
-
-.submenu.active > a,
-.submenu > a.subdrop {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-}
-
-.submenu.active > a .menu-arrow,
-.submenu > a.subdrop .menu-arrow {
-    transform: rotate(90deg);
-    transition: transform 0.2s ease;
-}
-
-.submenu > a .menu-arrow {
-    transition: transform 0.2s ease;
-}
-
-.submenu > a.subdrop + ul,
-.submenu.active > ul {
-    display: block;
-}
-
-.submenu ul li a {
-    padding: 10px 20px 10px 50px;
-    font-size: 0.9rem;
-    transition: background 0.2s ease;
-}
-
-.submenu ul li a:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.submenu ul li a i {
-    margin-right: 8px;
-    width: 16px;
-    text-align: center;
-}
-
-.submenu {
-    overflow: hidden;
-}
-
-/* Role active colors — parent module only (no child blue bars) */
-.sidebar-role-teacher {
-    --sb-active: #e67e22;
-    --sb-active-soft: rgba(230, 126, 34, 0.28);
-    --sb-active-icon: #ffb266;
-}
-.sidebar-role-admin,
-.sidebar-role-registrar {
-    --sb-active: #2563eb;
-    --sb-active-soft: rgba(37, 99, 235, 0.28);
-    --sb-active-icon: #93c5fd;
-}
-.sidebar-role-student {
-    --sb-active: #16a34a;
-    --sb-active-soft: rgba(22, 163, 74, 0.28);
-    --sb-active-icon: #86efac;
-}
-.sidebar-role-parent {
-    --sb-active: #0d9488;
-    --sb-active-soft: rgba(13, 148, 136, 0.28);
-    --sb-active-icon: #5eead4;
-}
-
-.sidebar-menu > ul > li.active > a,
-.sidebar-menu > ul > li.submenu.active > a {
-    background: var(--sb-active-soft, rgba(230, 126, 34, 0.28)) !important;
-    border-left: 3px solid var(--sb-active, #e67e22);
-    color: #fff !important;
-    font-weight: 600;
-}
-.sidebar-menu > ul > li.active > a i,
-.sidebar-menu > ul > li.submenu.active > a i,
-.sidebar-menu > ul > li.submenu.active > a .menu-arrow {
-    color: var(--sb-active-icon, #ffb266);
-}
-/* No separate active indicator on nested items */
-.sidebar-menu .submenu ul li a.active {
-    background: transparent !important;
-    border-left: none !important;
-    font-weight: inherit;
-    color: inherit;
-}
-</style>

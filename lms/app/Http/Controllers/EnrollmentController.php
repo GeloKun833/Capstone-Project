@@ -12,9 +12,11 @@ use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 
 class EnrollmentController extends Controller
 {
@@ -154,7 +156,7 @@ class EnrollmentController extends Controller
             
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Failed to create enrollment user: '.$e->getMessage());
+            Log::error('Failed to create enrollment user: '.$e->getMessage());
             Toastr::error('Unable to complete the operation. Please try again.', 'Error');
             return back()->withInput()->with('error', 'Unable to complete the operation. Please try again.');
         }
@@ -174,12 +176,14 @@ class EnrollmentController extends Controller
      */
     public function edit(Enrollment $enrollment)
     {
-        $subjects = Subject::all();
-        $sections = Section::all();
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
-        
-        return view('enrollments.edit', compact('enrollment', 'subjects', 'sections', 'academicYears', 'semesters'));
+        $enrollment->load(['student', 'subject', 'academicYear', 'semester']);
+        $students = Student::orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'last_name']);
+        $subjects = Subject::orderBy('subject_name')->get();
+        $sections = Section::orderBy('name')->get();
+        $academicYears = AcademicYear::orderByDesc('id')->get();
+        $semesters = Semester::orderByDesc('id')->get();
+
+        return view('enrollments.edit', compact('enrollment', 'students', 'subjects', 'sections', 'academicYears', 'semesters'));
     }
 
     /**

@@ -23,21 +23,25 @@ class PromotionController extends Controller
     public function index()
     {
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-        
-        // Get students grouped by grade level
-        $gradeLevels = ['Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 
+
+        $gradeLevels = ['Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4',
                        'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
-        
+
+        // Count by year_level OR class so From-grade is never empty when students exist
         $studentsByGrade = [];
         foreach ($gradeLevels as $grade) {
-            $count = Student::where('year_level', $grade)
-                ->where('enrollment_status', 'active')
+            $count = Student::query()
+                ->where(function ($q) use ($grade) {
+                    $q->where('year_level', $grade)->orWhere('class', $grade);
+                })
+                ->where(function ($q) {
+                    $q->whereNull('enrollment_status')
+                        ->orWhereIn('enrollment_status', ['active', 'enrolled', 'Active']);
+                })
                 ->count();
-            if ($count > 0) {
-                $studentsByGrade[$grade] = $count;
-            }
+            $studentsByGrade[$grade] = $count;
         }
-        
+
         return view('promotions.index', compact('academicYears', 'studentsByGrade', 'gradeLevels'));
     }
 
@@ -55,9 +59,14 @@ class PromotionController extends Controller
         }
         
         // Get students from the selected grade level
-        $students = Student::where('year_level', $fromGradeLevel)
-            ->where('enrollment_status', 'active')
-            ->with(['user', 'gpaRecords' => function($query) {
+        $students = Student::where(function ($q) use ($fromGradeLevel) {
+                $q->where('year_level', $fromGradeLevel)->orWhere('class', $fromGradeLevel);
+            })
+            ->where(function ($q) {
+                $q->whereNull('enrollment_status')
+                    ->orWhereIn('enrollment_status', ['active', 'enrolled', 'Active']);
+            })
+            ->with(['user', 'gpaRecords' => function ($query) {
                 $query->latest();
             }])
             ->orderBy('last_name')

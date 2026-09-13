@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\StudentSisService;
 use Illuminate\Http\Request;
 use Brian2694\Toastr\Facades\Toastr;
@@ -151,28 +152,61 @@ class StudentController extends Controller
     {
         DB::beginTransaction();
         try {
+            $request->validate([
+                'id' => 'required|exists:students,id',
+                'first_name' => \App\Support\FormRules::NAME,
+                'last_name' => \App\Support\FormRules::NAME,
+                'middle_name' => \App\Support\FormRules::NAME_OPTIONAL,
+                'date_of_birth' => \App\Support\FormRules::DOB,
+                'phone_number' => \App\Support\FormRules::PHONE,
+                'upload' => \App\Support\FormRules::AVATAR,
+            ], \App\Support\FormRules::messages());
 
-            if (!empty($request->upload)) {
-                unlink(storage_path('app/public/student-photos/'.$request->image_hidden));
-                $upload_file = rand() . '.' . $request->upload->extension();
-                $request->upload->move(storage_path('app/public/student-photos/'), $upload_file);
-            } else {
-                $upload_file = $request->image_hidden;
+            $student = Student::findOrFail($request->id);
+            $upload_file = $student->upload;
+
+            if ($request->hasFile('upload') && $request->file('upload')->isValid()) {
+                $upload_file = rand().'.'.$request->upload->extension();
+                $dest = storage_path('app/public/student-photos');
+                if (! is_dir($dest)) {
+                    mkdir($dest, 0755, true);
+                }
+                $request->upload->move($dest, $upload_file);
+                if ($request->image_hidden && is_file($dest.'/'.$request->image_hidden)) {
+                    @unlink($dest.'/'.$request->image_hidden);
+                }
             }
-           
-            $updateRecord = [
+
+            $student->update([
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'middle_name' => $request->middle_name,
+                'date_of_birth' => $request->date_of_birth,
+                'phone_number' => $request->phone_number,
+                'gender' => $request->gender,
+                'address' => $request->address,
                 'upload' => $upload_file,
-            ];
-            Student::where('id',$request->id)->update($updateRecord);
-            
-            Toastr::success('Has been update successfully :)','Success');
+            ]);
+
+            // Sync linked user name (students cannot change role to Admin here)
+            if ($student->user_id) {
+                User::where('user_id', $student->user_id)->update([
+                    'name' => trim($request->first_name.' '.$request->last_name),
+                    'phone_number' => $request->phone_number,
+                    'date_of_birth' => $request->date_of_birth,
+                ]);
+            }
+
+            Toastr::success('Student updated successfully.', 'Success');
             DB::commit();
             return redirect()->back();
-           
-        } catch(\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollback();
-            Toastr::error('fail, update student  :)','Error');
-            return redirect()->back();
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollback();
+            Toastr::error('Failed to update student: '.$e->getMessage(), 'Error');
+            return redirect()->back()->withInput();
         }
     }
 

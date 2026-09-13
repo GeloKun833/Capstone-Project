@@ -36,10 +36,24 @@ class AcademicYearController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name' => 'required|string|max:255|unique:academic_years,name',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name', 'regex:/^\d{4}\s*[–\-]\s*\d{4}$/'],
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+        ], [
+            'name.regex' => 'Academic year must look like 2026–2027 (years only).',
         ]);
+
+        // Derive dates from year label when dates omitted (e.g. 2026-2027)
+        if (empty($data['start_date']) || empty($data['end_date'])) {
+            if (preg_match('/(\d{4})\s*[–\-]\s*(\d{4})/', $data['name'], $m)) {
+                $data['start_date'] = $m[1].'-06-01';
+                $data['end_date'] = $m[2].'-05-31';
+            } else {
+                return back()->withErrors(['name' => 'Invalid academic year format.'])->withInput();
+            }
+        }
+
+        $data['name'] = preg_replace('/\s*[–\-]\s*/', '–', $data['name']);
 
         $year = AcademicYear::create($data);
         $year->loadCount('semesters');

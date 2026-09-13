@@ -132,8 +132,10 @@ class ClassSubjectController extends Controller
         $request->merge(['grade_level' => $grade]);
 
         $request->validate([
-            'subject_name' => 'required|string|max:255',
+            'subject_name' => ['required', 'string', 'max:255', 'regex:/^[\p{L}\p{M}\p{N}\s\'\-\.\,\&\(\)]+$/u'],
             'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+        ], [
+            'subject_name.regex' => 'Subject name cannot contain emojis.',
         ]);
 
         $exists = Subject::where('subject_name', $request->subject_name)

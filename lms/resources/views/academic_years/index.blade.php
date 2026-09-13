@@ -156,21 +156,23 @@
                 <div class="modal-body pt-3">
                     <div id="yearFormMsg" class="mb-2"></div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold" for="yearName">Name</label>
+                        <label class="form-label fw-semibold" for="yearName">Academic Year</label>
                         <input type="text" class="form-control" id="yearName" name="name" required
-                            placeholder="e.g. 2025-2026">
+                            placeholder="e.g. 2026–2027" pattern="\d{4}\s*[–\-]\s*\d{4}"
+                            title="Use year range only, e.g. 2026-2027">
+                        <small class="text-muted">Years only (example: 2026–2027). Start/end dates are set automatically.</small>
                     </div>
-                    <div class="row g-2">
+                    <div class="row g-2 d-none" id="yearDateRow">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" for="yearStart">Start Date</label>
-                            <input type="date" class="form-control" id="yearStart" name="start_date" required>
+                            <input type="date" class="form-control" id="yearStart" name="start_date">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" for="yearEnd">End Date</label>
-                            <input type="date" class="form-control" id="yearEnd" name="end_date" required>
+                            <input type="date" class="form-control" id="yearEnd" name="end_date">
                         </div>
                     </div>
-                    <p class="text-muted small mt-2 mb-0">Status (Current / Upcoming / Completed) is based on these dates.</p>
+                    <p class="text-muted small mt-2 mb-0">School year status is derived from the year label.</p>
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>

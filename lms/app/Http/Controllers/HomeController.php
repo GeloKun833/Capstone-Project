@@ -97,7 +97,7 @@ class HomeController extends Controller
                 $attendancePercentage = $totalAttendance > 0 ? round(($presentCount / $totalAttendance) * 100, 1) : 0;
 
                 // Get section assignment
-                $sectionAssignment = \DB::table('student_section_assignments')
+                $sectionAssignment = DB::table('student_section_assignments')
                     ->join('sections', 'student_section_assignments.section_id', '=', 'sections.id')
                     ->join('academic_years', 'student_section_assignments.academic_year_id', '=', 'academic_years.id')
                     ->join('semesters', 'student_section_assignments.semester_id', '=', 'semesters.id')
@@ -1552,27 +1552,39 @@ class HomeController extends Controller
     {
         $user = auth()->user();
         $user = \App\Models\User::find($user->id);
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
-        ]);
-        $user->name = $request->name;
+
+        $rules = [
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            'avatar' => \App\Support\FormRules::AVATAR,
+        ];
+
+        if ($user->role_name === \App\Models\User::ROLE_STUDENT) {
+            $rules['name'] = 'nullable|string';
+        } else {
+            $rules['name'] = \App\Support\FormRules::NAME;
+        }
+
+        $request->validate($rules, \App\Support\FormRules::messages());
+
+        if ($user->role_name !== \App\Models\User::ROLE_STUDENT) {
+            $user->name = $request->name;
+        }
         $user->email = $request->email;
+
+        $stored = \App\Support\AvatarUploader::store($request->file('avatar'), $user->avatar);
+        if ($stored) {
+            $user->avatar = $stored;
+            session(['avatar' => $stored]);
+        }
+
         $user->save();
+
         activity()
             ->causedBy($user)
             ->performedOn($user)
-            ->withProperties(['attributes' => $request->only(['name', 'email'])])
+            ->withProperties(['attributes' => ['email' => $request->email]])
             ->log('updated profile');
-        // Role-specific updates (future extension)
-        if ($user->role_name === \App\Models\User::ROLE_STUDENT && $user->student) {
-            // Example: $user->student->admission_id = $request->student_id; (if editable)
-            $user->student->save();
-        }
-        if ($user->role_name === \App\Models\User::ROLE_TEACHER && $user->teacher) {
-            // Example: $user->teacher->teacher_id = $request->teacher_id; (if editable)
-            $user->teacher->save();
-        }
+
         return redirect()->route('user/profile/page')->with('success', 'Profile updated successfully.');
     }
 

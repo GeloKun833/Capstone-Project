@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/plugins/bootstrap/css/bootstrap.min.css')); ?>">
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/plugins/fontawesome/css/all.min.css')); ?>">
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/style.css')); ?>">
+    <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/sidebar-modern.css')); ?>">
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/toastr.min.css')); ?>">
     <?php if($loadFormPlugins ?? true): ?>
         <link rel="stylesheet" href="<?php echo e(URL::to('assets/plugins/feather/feather.css')); ?>">
@@ -220,6 +221,7 @@
     <?php if($loadCircleProgress ?? false): ?>
         <script src="<?php echo e(URL::to('assets/js/circle-progress.min.js')); ?>"></script>
     <?php endif; ?>
+    <script src="<?php echo e(URL::to('assets/js/no-emoji.js')); ?>"></script>
     <script src="<?php echo e(URL::to('assets/js/script.js')); ?>"></script>
     <?php echo $__env->yieldContent('script'); ?>
     <?php echo $__env->yieldPushContent('scripts'); ?>
@@ -303,8 +305,8 @@
     
     /* Sidebar Open State - Footer adjusts to sidebar */
     body.sidebar-open footer {
-        margin-left: 259px; /* Full sidebar width */
-        width: calc(100% - 259px); /* Constrain width when sidebar is open */
+        margin-left: 300px; /* Full sidebar width */
+        width: calc(100% - 300px); /* Constrain width when sidebar is open */
         transition: all 0.3s ease;
     }
     
@@ -484,8 +486,8 @@
                 } else {
                     body.removeClass('sidebar-closed').addClass('sidebar-open');
                     footer.css({
-                        'margin-left': '259px', // Full sidebar width
-                        'width': 'calc(100% - 259px)'
+                        'margin-left': '300px', // Full sidebar width
+                        'width': 'calc(100% - 300px)'
                     });
                 }
             }

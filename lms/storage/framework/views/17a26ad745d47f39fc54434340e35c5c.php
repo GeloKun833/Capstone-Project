@@ -932,6 +932,7 @@
     <script src="<?php echo e(URL::to('assets/plugins/bootstrap/js/bootstrap.bundle.min.js')); ?>"></script>
     <!-- Toastr JS -->
     <script src="<?php echo e(URL::to('assets/js/toastr.min.js')); ?>"></script>
+    <script src="<?php echo e(URL::to('assets/js/no-emoji.js')); ?>"></script>
     <?php echo $__env->make('partials.toastr-scripts', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?>
     
     <script>

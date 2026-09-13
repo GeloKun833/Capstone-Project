@@ -79,8 +79,23 @@ class UserManagementController extends Controller
             Toastr::error('User not found.', 'Error');
             return redirect()->route('list/users');
         }
-        $role = DB::table('role_type_users')->get();
-        return view('usermanagement.user_update', compact('users', 'role'));
+        $role = DB::table('role_type_users')
+            ->whereIn('role_type', ['Admin', 'Registrar', 'Teacher', 'Student', 'Parent'])
+            ->orderByRaw("FIELD(role_type, 'Admin', 'Registrar', 'Teacher', 'Student', 'Parent')")
+            ->get();
+
+        // Ensure Parent always appears even if migration not yet run
+        if ($role->where('role_type', 'Parent')->isEmpty()) {
+            $role->push((object) ['role_type' => 'Parent']);
+        }
+        if ($role->where('role_type', 'Teacher')->isEmpty()) {
+            $role->push((object) ['role_type' => 'Teacher']);
+        }
+
+        $isSoleAdmin = $users->role_name === 'Admin'
+            && User::where('role_name', 'Admin')->where('status', 'Active')->count() <= 1;
+
+        return view('usermanagement.user_update', compact('users', 'role', 'isSoleAdmin'));
     }
 
     /** user Update */
@@ -96,18 +111,18 @@ class UserManagementController extends Controller
 
             $request->validate([
                 'user_id' => 'required|string',
-                'name' => 'required|string|max:255',
+                'name' => \App\Support\FormRules::NAME,
                 'email' => 'required|email|max:255',
-                'phone_number' => 'nullable|string|max:50',
-                'date_of_birth' => 'nullable|string|max:50',
+                'phone_number' => \App\Support\FormRules::PHONE_REQUIRED,
+                'date_of_birth' => \App\Support\FormRules::DOB,
                 'status' => 'required|string|max:50',
-                'role_name' => 'required|string|max:50',
-                'position' => 'nullable|string|max:100',
-                'department' => 'nullable|string|max:100',
-                'avatar' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:2048',
+                'role_name' => 'required|string|in:Admin,Registrar,Teacher,Student,Parent',
+                'position' => \App\Support\FormRules::TEXT_REQUIRED,
+                'department' => \App\Support\FormRules::TEXT_REQUIRED,
+                'avatar' => \App\Support\FormRules::AVATAR,
                 'hidden_avatar' => 'nullable|string|max:255',
                 'new_password' => 'nullable|string|min:8|confirmed',
-            ]);
+            ], \App\Support\FormRules::messages());
 
             $user = User::where('user_id', $request->user_id)->first();
             if (!$user) {
@@ -116,34 +131,27 @@ class UserManagementController extends Controller
                 return redirect()->back();
             }
 
-            $imageName = $user->avatar ?: 'photo_defaults.jpg';
-            $uploaded = $request->file('avatar');
-
-            if ($uploaded && $uploaded->isValid()) {
-                $newName = time() . '_' . uniqid() . '.' . strtolower($uploaded->getClientOriginalExtension());
-                $destination = public_path('images');
-
-                if (!is_dir($destination)) {
-                    mkdir($destination, 0755, true);
+            // Protect the only active Admin from role/status downgrade
+            $activeAdmins = User::where('role_name', 'Admin')->where('status', 'Active')->count();
+            if ($user->role_name === 'Admin' && $activeAdmins <= 1) {
+                if ($request->role_name !== 'Admin') {
+                    DB::rollBack();
+                    Toastr::error('Cannot change role: this is the only active administrator.', 'Protected');
+                    return redirect()->back()->withInput();
                 }
-
-                $uploaded->move($destination, $newName);
-
-                // Remove old custom avatar safely (never delete the default image)
-                $oldName = $request->input('hidden_avatar', $user->avatar);
-                if (
-                    $oldName
-                    && $oldName !== 'photo_defaults.jpg'
-                    && $oldName !== $newName
-                    && is_file(public_path('images/' . $oldName))
-                ) {
-                    @unlink(public_path('images/' . $oldName));
+                if ($request->status !== 'Active') {
+                    DB::rollBack();
+                    Toastr::error('Cannot disable the only active administrator.', 'Protected');
+                    return redirect()->back()->withInput();
                 }
-
-                $imageName = $newName;
             }
 
-            // Empty DOB from form should be null (avoids SQL date errors)
+            $imageName = $user->avatar ?: 'photo_defaults.jpg';
+            $stored = \App\Support\AvatarUploader::store($request->file('avatar'), $request->input('hidden_avatar', $user->avatar));
+            if ($stored) {
+                $imageName = $stored;
+            }
+
             $dob = trim((string) $request->input('date_of_birth', ''));
             if ($dob === '') {
                 $dob = null;
@@ -154,7 +162,7 @@ class UserManagementController extends Controller
                 'role_name' => $request->role_name,
                 'email' => $request->email,
                 'position' => $request->position,
-                'phone_number' => $request->phone_number,
+                'phone_number' => preg_replace('/[^\d+\-\s()]/', '', (string) $request->phone_number),
                 'date_of_birth' => $dob,
                 'department' => $request->department,
                 'status' => $request->status,
@@ -175,7 +183,7 @@ class UserManagementController extends Controller
             throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('User update failed: ' . $e->getMessage(), [
+            Log::error('User update failed: ' . $e->getMessage(), [
                 'user_id' => $request->user_id ?? null,
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -276,22 +284,28 @@ class UserManagementController extends Controller
     public function getUsersData(Request $request)
     {
         $draw            = $request->get('draw');
-        $start           = $request->get("start");
-        $rowPerPage      = $request->get("length"); // total number of rows per page
-        $columnIndex_arr = $request->get('order');
-        $columnName_arr  = $request->get('columns');
-        $order_arr       = $request->get('order');
-        $search_arr      = $request->get('search');
+        $start           = (int) $request->get('start', 0);
+        $rowPerPage      = (int) $request->get('length', 10);
+        if ($rowPerPage < 1 || $rowPerPage > 100) {
+            $rowPerPage = 10;
+        }
+        $columnIndex_arr = $request->get('order') ?? [['column' => 0, 'dir' => 'asc']];
+        $columnName_arr  = $request->get('columns') ?? [];
+        $search_arr      = $request->get('search') ?? ['value' => ''];
 
-        // Custom search parameters
         $searchId = $request->get('search_id');
         $searchName = $request->get('search_name');
         $searchPhone = $request->get('search_phone');
 
-        $columnIndex     = $columnIndex_arr[0]['column']; // Column index
-        $columnName      = $columnName_arr[$columnIndex]['data']; // Column name
-        $columnSortOrder = $order_arr[0]['dir']; // asc or desc
-        $searchValue     = $search_arr['value']; // Search value
+        $columnIndex     = (int) ($columnIndex_arr[0]['column'] ?? 0);
+        $columnName      = $columnName_arr[$columnIndex]['data'] ?? 'user_id';
+        $columnSortOrder = $columnIndex_arr[0]['dir'] ?? 'asc';
+        $searchValue     = $search_arr['value'] ?? '';
+
+        $allowedSort = ['user_id', 'name', 'email', 'phone_number', 'join_date', 'position', 'status'];
+        if (! in_array($columnName, $allowedSort, true)) {
+            $columnName = 'user_id';
+        }
 
         $users = DB::table('users');
 
@@ -351,11 +365,12 @@ class UserManagementController extends Controller
                     </div>
                 </td>
             ';
+            $avatarUrl = \App\Support\AvatarUploader::url($record->avatar);
             $avatar = '
                 <td>
                     <h2 class="table-avatar">
                         <a class="avatar-sm me-2">
-                            <img class="avatar-img rounded-circle avatar" data-avatar='.$record->avatar.' src="/images/'.$record->avatar.'"alt="'.$record->name.'">
+                            <img class="avatar-img rounded-circle avatar" data-avatar="'.e($record->avatar).'" src="'.e($avatarUrl).'" alt="'.e($record->name).'">
                         </a>
                     </h2>
                 </td>

@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use App\Models\User;
 use App\Observers\UserObserver;
+use Illuminate\Support\Facades\Validator;
+use App\Support\NoEmoji;
 use App\Support\PageAssets;
 use App\Support\SafeSchema;
 use App\Support\SidebarMenu;
@@ -34,6 +36,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Paginator::useBootstrapFive();
+
+        Validator::extend('no_emoji', function ($attribute, $value, $parameters, $validator) {
+            if ($value === null || $value === '') {
+                return true;
+            }
+            if (! is_string($value)) {
+                return true;
+            }
+
+            return ! NoEmoji::contains($value);
+        }, 'Emojis are not allowed in this field.');
 
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
@@ -71,6 +84,10 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 $user = auth()->user();
+                if (! $user instanceof User) {
+                    $view->with($empty);
+                    return;
+                }
                 $cacheKey = 'header.notifs.'.$user->id;
                 $cached = Cache::get($cacheKey);
                 if (is_array($cached)) {

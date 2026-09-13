@@ -21,25 +21,44 @@
             }
 
             e.preventDefault();
-            if (!$link.hasClass('subdrop')) {
-                // Close other open submenus in the same level, keep current module open
-                $('ul', $link.parents('ul:first')).not($submenu).slideUp(350);
-                $('a.subdrop', $link.parents('ul:first')).not($link).removeClass('subdrop');
-                $submenu.stop(true, true).slideDown(350);
+            var $parent = $link.parent('li.submenu');
+            var isOpen = $parent.hasClass('is-open');
+
+            $link.closest('ul').children('li.submenu.is-open').not($parent).each(function () {
+                $(this).removeClass('is-open').children('a').removeClass('subdrop');
+            });
+
+            if (!isOpen) {
+                $parent.addClass('is-open');
                 $link.addClass('subdrop');
             } else {
+                $parent.removeClass('is-open');
                 $link.removeClass('subdrop');
-                $submenu.stop(true, true).slideUp(350);
             }
         });
-        // Keep the active module open without toggling (avoids bounce on page load)
+        var path = window.location.pathname.replace(/\/$/, '');
+        $('#sidebar-menu a[href]').each(function () {
+            var href = $(this).attr('href');
+            if (!href || href.indexOf('javascript') === 0) {
+                return;
+            }
+            try {
+                var linkPath = new URL(href, window.location.origin).pathname.replace(/\/$/, '');
+                if (linkPath.length > 1 && path === linkPath) {
+                    $(this).addClass('active');
+                    var $submenuLi = $(this).closest('li.submenu');
+                    if ($submenuLi.length) {
+                        $submenuLi.addClass('active is-open')
+                            .children('a').addClass('subdrop');
+                    }
+                }
+            } catch (e) {}
+        });
         $('#sidebar-menu li.submenu.active').each(function () {
             var $li = $(this);
+            $li.addClass('is-open');
             $li.children('a').addClass('subdrop');
-            $li.children('ul').stop(true, true).show();
         });
-        // Never highlight nested submenu links (parent module indicator only)
-        $('#sidebar-menu .submenu ul a').removeClass('active');
     }
     init();
     $(document).on('click', '#mobile_btn', function() {
@@ -206,10 +225,10 @@
         if ($(window).width() > 991) {
             if ($('body').hasClass('mini-sidebar')) {
                 $('body').removeClass('mini-sidebar');
-                $('.subdrop + ul').slideDown();
+                $('li.submenu .subdrop').parent('li.submenu').addClass('is-open');
             } else {
                 $('body').addClass('mini-sidebar');
-                $('.subdrop + ul').slideUp();
+                $('li.submenu.is-open').removeClass('is-open');
             }
         } else {
             // Mobile: fallback to mobile sidebar logic

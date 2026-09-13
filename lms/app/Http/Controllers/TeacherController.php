@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use DB;
-use Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Models\ClassPost;
 use App\Models\ClassSchedule;
@@ -135,7 +135,7 @@ class TeacherController extends Controller
             
         } catch(\Exception $e) {
             DB::rollback();
-            \Log::error('Teacher save error: ' . $e->getMessage());
+            Log::error('Teacher save error: ' . $e->getMessage());
             Toastr::error('Failed to save teacher details: ' . $e->getMessage(), 'Error');
             return redirect()->back()->withInput();
         }
@@ -155,31 +155,52 @@ class TeacherController extends Controller
     {
         DB::beginTransaction();
         try {
+            $request->validate([
+                'id' => 'required|exists:teachers,id',
+                'full_name' => \App\Support\FormRules::NAME,
+                'phone_number' => \App\Support\FormRules::PHONE,
+                'date_of_birth' => \App\Support\FormRules::DOB,
+                'qualification' => \App\Support\FormRules::TEXT,
+                'experience' => \App\Support\FormRules::TEXT,
+                'address' => \App\Support\FormRules::TEXT,
+                'city' => \App\Support\FormRules::TEXT,
+                'state' => \App\Support\FormRules::TEXT,
+                'country' => \App\Support\FormRules::TEXT,
+                'zip_code' => 'nullable|string|max:20|regex:/^[0-9A-Za-z\-\s]+$/',
+            ], \App\Support\FormRules::messages());
 
-            $updateRecord = [
-                'full_name'     => $request->full_name,
-                'gender'        => $request->gender,
+            $teacher = Teacher::findOrFail($request->id);
+            $teacher->update([
+                'full_name' => $request->full_name,
+                'gender' => $request->gender,
                 'date_of_birth' => $request->date_of_birth,
                 'qualification' => $request->qualification,
-                'experience'    => $request->experience,
-                'phone_number'  => $request->phone_number,
-                'address'       => $request->address,
-                'city'          => $request->city,
-                'state'         => $request->state,
-                'zip_code'      => $request->zip_code,
-                'country'      => $request->country,
-            ];
-            Teacher::where('id',$request->id)->update($updateRecord);
-            
-            Toastr::success('Has been update successfully :)','Success');
+                'experience' => $request->experience,
+                'phone_number' => $request->phone_number,
+                'address' => $request->address,
+                'city' => $request->city,
+                'state' => $request->state,
+                'zip_code' => $request->zip_code,
+                'country' => $request->country ?: 'Philippines',
+            ]);
+
+            User::where('user_id', $teacher->user_id)->update([
+                'name' => $request->full_name,
+                'phone_number' => $request->phone_number,
+                'date_of_birth' => $request->date_of_birth,
+            ]);
+
+            Toastr::success('Teacher updated successfully.', 'Success');
             DB::commit();
             return redirect()->back();
-           
-        } catch(\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollback();
-            \Log::info($e);
-            Toastr::error('fail, update record  :)','Error');
-            return redirect()->back();
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Teacher update failed: '.$e->getMessage());
+            Toastr::error('Failed to update teacher.', 'Error');
+            return redirect()->back()->withInput();
         }
     }
 
@@ -200,7 +221,7 @@ class TeacherController extends Controller
             return redirect()->back();
         } catch(\Exception $e) {
             DB::rollback();
-            \Log::info($e);
+            Log::info($e);
             Toastr::error('Deleted record fail :)','Error');
             return redirect()->back();
         }

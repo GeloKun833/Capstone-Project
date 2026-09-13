@@ -242,8 +242,8 @@ class CalendarEventController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'title' => \App\Support\FormRules::TITLE_NO_EMOJI,
+            'description' => 'nullable|string|max:2000',
             'event_type' => 'required|in:exam,activity,meeting,deadline,holiday,other',
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
@@ -254,7 +254,7 @@ class CalendarEventController extends Controller
             'is_recurring' => 'boolean',
             'recurrence_pattern' => 'nullable|in:daily,weekly,monthly,custom',
             'recurrence_end_date' => 'nullable|date|after:start_time'
-        ]);
+        ], \App\Support\FormRules::messages());
 
         if ($validator->fails()) {
             if ($request->ajax()) {
@@ -264,6 +264,21 @@ class CalendarEventController extends Controller
                 ], 422);
             }
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        // School events: max 3 calendar days
+        try {
+            $start = \Carbon\Carbon::parse($request->start_time)->startOfDay();
+            $end = \Carbon\Carbon::parse($request->end_time)->startOfDay();
+            if ($start->diffInDays($end) > 2) {
+                $msg = 'Event duration cannot exceed 3 days. Use a single day or short multi-day event.';
+                if ($request->ajax()) {
+                    return response()->json(['error' => $msg, 'errors' => ['end_time' => [$msg]]], 422);
+                }
+                return redirect()->back()->withErrors(['end_time' => $msg])->withInput();
+            }
+        } catch (\Throwable $e) {
+            // fall through to conflict checks
         }
 
         // Check for scheduling conflicts

@@ -125,12 +125,18 @@
             serverSide: true,
             ordering: true,
             searching: true,
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            deferRender: true,
             ajax: {
                 url:"{{ route('get-users-data') }}",
                 data: function(d) {
                     d.search_id = $('#search_id').val();
                     d.search_name = $('#search_name').val();
                     d.search_phone = $('#search_phone').val();
+                },
+                error: function(xhr) {
+                    console.error('Users DataTable error', xhr.responseText);
                 }
             },
             columns: [

@@ -18,9 +18,7 @@
                     </ul>
                 </div>
                 <div class="col-auto">
-                    <a href="{{ route('analytics.export-report', request()->query()) }}" class="btn btn-outline-primary">
-                        <i class="fas fa-download me-1"></i> Export CSV
-                    </a>
+                    {{-- CSV export removed: incomplete report (IT review). Use Performance Hub / Reports instead. --}}
                 </div>
             </div>
         </div>

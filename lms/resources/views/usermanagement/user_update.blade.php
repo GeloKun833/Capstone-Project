@@ -27,48 +27,57 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Name <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="name" value="{{ $users->name }}">
+                                            <input type="text" class="form-control" name="name" value="{{ old('name', $users->name) }}" pattern="[\p{L}\p{M}\s'\-\.]+" title="Letters only — no emojis">
                                             <input type="hidden" class="form-control" name="user_id" value="{{ $users->user_id }}">
+                                            @error('name')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Email <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="email" value="{{ $users->email }}">
+                                            <input type="email" class="form-control" name="email" value="{{ old('email', $users->email) }}">
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Phone Number <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="phone_number" value="{{ $users->phone_number }}">
+                                            <input type="tel" class="form-control" name="phone_number" value="{{ old('phone_number', $users->phone_number) }}" inputmode="numeric" pattern="[0-9+\-\s()]+" title="Numbers only">
+                                            @error('phone_number')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Date Of Birth <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control datetimepicker" name="date_of_birth" placeholder="DD-MM-YYYY" value="{{ $users->date_of_birth }}">
+                                            <label>Date Of Birth</label>
+                                            <input type="date" class="form-control" name="date_of_birth" max="{{ date('Y-m-d') }}" value="{{ old('date_of_birth', $users->date_of_birth ? \Illuminate\Support\Str::of($users->date_of_birth)->substr(0, 10) : '') }}">
+                                            @error('date_of_birth')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Status <span class="login-danger">*</span></label>
-                                            <select class="form-control select" name="status">
+                                            <select class="form-control select" name="status" @if(!empty($isSoleAdmin)) data-sole-admin="1" @endif>
                                                 <option disabled>Select Status</option>
-                                                <option value="Active" {{ $users->status == 'Active' ? 'selected' : '' }}>Active</option>
-                                                <option value="Disable" {{ $users->status == 'Disable' ? 'selected' : '' }}>Disable</option>
-                                                <option value="Inactive" {{ $users->status == 'Inactive' ? 'selected' : '' }}>Inactive</option>
+                                                <option value="Active" {{ old('status', $users->status) == 'Active' ? 'selected' : '' }}>Active</option>
+                                                <option value="Disable" {{ old('status', $users->status) == 'Disable' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Disable</option>
+                                                <option value="Inactive" {{ old('status', $users->status) == 'Inactive' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Inactive</option>
                                             </select>
+                                            @if(!empty($isSoleAdmin))
+                                                <small class="text-warning">This is the only active Admin — status/role are locked.</small>
+                                            @endif
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Role Name <span class="login-danger">*</span></label>
-                                            <select class="form-control select" name="role_name" id="role_name">
-                                                <option selected disabled>Role Type</option>
+                                            <select class="form-control select" name="role_name" id="role_name" @if(!empty($isSoleAdmin)) disabled @endif>
+                                                <option disabled>Role Type</option>
                                                 @foreach ($role as $name)
-                                                    <option value="{{ $name->role_type }}" {{ $users->role_name == $name->role_type ? 'selected' : '' }}>{{ $name->role_type }}</option>
+                                                    <option value="{{ $name->role_type }}" {{ old('role_name', $users->role_name) == $name->role_type ? 'selected' : '' }}>{{ $name->role_type }}</option>
                                                 @endforeach
                                             </select>
+                                            @if(!empty($isSoleAdmin))
+                                                <input type="hidden" name="role_name" value="Admin">
+                                            @endif
                                         </div>
                                     </div>
                                     
@@ -83,7 +92,7 @@
                                             @enderror
                                             @if(!empty($users->avatar))
                                                 <div class="user-img mt-2">
-                                                    <img class="rounded-circle" src="{{ URL::to('/images/'. $users->avatar) }}"
+                                                    <img class="rounded-circle" src="{{ \App\Support\AvatarUploader::url($users->avatar) }}"
                                                          alt="Current profile" style="width:64px;height:64px;object-fit:cover;">
                                                 </div>
                                             @endif
@@ -94,13 +103,15 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Position <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="position" value="{{ $users->position }}">
+                                            <input type="text" class="form-control" name="position" value="{{ old('position', $users->position) }}">
+                                            @error('position')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Department <span class="login-danger">*</span></label>
-                                            <input type="text" class="form-control" name="department" value="{{ $users->department }}">
+                                            <input type="text" class="form-control" name="department" value="{{ old('department', $users->department) }}">
+                                            @error('department')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
