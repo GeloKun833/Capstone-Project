@@ -8,25 +8,25 @@
     };
 
     function init() {
-        var $this = Sidemenu;
-        $('#sidebar-menu a').on('click', function(e) {
+        // Event delegation — survives DOM refreshes / late binds
+        $(document).off('click.sidemenu', '#sidebar-menu a').on('click.sidemenu', '#sidebar-menu a', function (e) {
             var $link = $(this);
+            var $parent = $link.parent('li');
             var $submenu = $link.next('ul');
-            var isSubmenuToggle = $link.parent().hasClass('submenu') && $submenu.length > 0;
+            var isSubmenuToggle = $parent.hasClass('submenu') && $submenu.length > 0;
 
-            // Only block navigation when this link actually opens a nested submenu.
-            // Leaf links (Dashboard, Reports, etc.) must navigate normally.
             if (!isSubmenuToggle) {
                 return;
             }
 
             e.preventDefault();
-            var $parent = $link.parent('li.submenu');
-            var isOpen = $parent.hasClass('is-open');
+            e.stopPropagation();
 
-            $link.closest('ul').children('li.submenu.is-open').not($parent).each(function () {
-                $(this).removeClass('is-open').children('a').removeClass('subdrop');
-            });
+            var isOpen = $parent.hasClass('is-open') || $link.hasClass('subdrop');
+
+            // Close sibling dropdowns
+            $parent.siblings('li.submenu').removeClass('is-open')
+                .children('a').removeClass('subdrop');
 
             if (!isOpen) {
                 $parent.addClass('is-open');
@@ -36,6 +36,7 @@
                 $link.removeClass('subdrop');
             }
         });
+
         var path = window.location.pathname.replace(/\/$/, '');
         $('#sidebar-menu a[href]').each(function () {
             var href = $(this).attr('href');
@@ -52,12 +53,11 @@
                             .children('a').addClass('subdrop');
                     }
                 }
-            } catch (e) {}
+            } catch (err) {}
         });
+
         $('#sidebar-menu li.submenu.active').each(function () {
-            var $li = $(this);
-            $li.addClass('is-open');
-            $li.children('a').addClass('subdrop');
+            $(this).addClass('is-open').children('a').addClass('subdrop');
         });
     }
     init();
@@ -202,24 +202,26 @@
         });
     }
     if ($slimScrolls.length > 0) {
-        $slimScrolls.slimScroll({
-            height: 'auto',
-            width: '100%',
-            position: 'right',
-            size: '7px',
-            color: '#ccc',
-            allowPageScroll: false,
-            wheelStep: 10,
-            touchScrollStep: 100
-        });
-        var wHeight = $(window).height() - 60;
-        $slimScrolls.height(wHeight);
-        $('.sidebar .slimScrollDiv').height(wHeight);
-        $(window).resize(function() {
-            var rHeight = $(window).height() - 60;
-            $slimScrolls.height(rHeight);
-            $('.sidebar .slimScrollDiv').height(rHeight);
-        });
+        // Do not apply slimScroll to the sidebar — it clips accordion submenus
+        var $scrollTargets = $slimScrolls.not('.sidebar .slimscroll, .sidebar-inner');
+        if ($scrollTargets.length > 0) {
+            $scrollTargets.slimScroll({
+                height: 'auto',
+                width: '100%',
+                position: 'right',
+                size: '7px',
+                color: '#ccc',
+                allowPageScroll: false,
+                wheelStep: 10,
+                touchScrollStep: 100
+            });
+            var wHeight = $(window).height() - 60;
+            $scrollTargets.height(wHeight);
+            $(window).resize(function() {
+                var rHeight = $(window).height() - 60;
+                $scrollTargets.height(rHeight);
+            });
+        }
     }
     $(document).on('click', '#toggle_btn', function() {
         if ($(window).width() > 991) {

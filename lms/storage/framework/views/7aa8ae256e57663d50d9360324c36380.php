@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/plugins/bootstrap/css/bootstrap.min.css')); ?>">
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/plugins/fontawesome/css/all.min.css')); ?>">
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/style.css')); ?>">
-    <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/sidebar-modern.css')); ?>">
+    <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/sidebar-modern.css')); ?>?v=<?php echo e(filemtime(public_path('assets/css/sidebar-modern.css'))); ?>">
     <link rel="stylesheet" href="<?php echo e(URL::to('assets/css/toastr.min.css')); ?>">
     <?php if($loadFormPlugins ?? true): ?>
         <link rel="stylesheet" href="<?php echo e(URL::to('assets/plugins/feather/feather.css')); ?>">
@@ -222,7 +222,7 @@
         <script src="<?php echo e(URL::to('assets/js/circle-progress.min.js')); ?>"></script>
     <?php endif; ?>
     <script src="<?php echo e(URL::to('assets/js/no-emoji.js')); ?>"></script>
-    <script src="<?php echo e(URL::to('assets/js/script.js')); ?>"></script>
+    <script src="<?php echo e(URL::to('assets/js/script.js')); ?>?v=<?php echo e(filemtime(public_path('assets/js/script.js'))); ?>"></script>
     <?php echo $__env->yieldContent('script'); ?>
     <?php echo $__env->yieldPushContent('scripts'); ?>
     <?php echo $__env->make('partials.toastr-scripts', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?>
