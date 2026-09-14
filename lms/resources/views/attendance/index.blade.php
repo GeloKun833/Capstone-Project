@@ -1,509 +1,290 @@
 @extends('layouts.master')
 @section('content')
 
-    <div class="page-wrapper">
-        <div class="content container-fluid">
-
-            <div class="page-header">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h3 class="page-title">Attendance Summary</h3>
-                        <ul class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Attendance Summary</li>
-                        </ul>
-                    </div>
+<div class="page-wrapper">
+    <div class="content container-fluid dir-page att-page">
+        <div class="page-header">
+            <div class="row align-items-start">
+                <div class="col">
+                    <h3 class="page-title mb-1">Attendance</h3>
+                    <p class="dir-subtitle">Choose a class and date, then mark who is present or absent.</p>
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-0">
+                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Attendance</li>
+                    </ul>
                 </div>
             </div>
-
-            <div class="student-group-form">
-                <div class="row">
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <select class="form-control" id="subject_filter" name="subject_id">
-                <option value="">All Subjects</option>
-                @foreach($subjects as $subject)
-                    <option value="{{ $subject->id }}" {{ request('subject_id') == $subject->id ? 'selected' : '' }}>{{ $subject->subject_name }}</option>
-                @endforeach
-            </select>
-        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <input type="month" class="form-control" id="month_filter" name="month" value="{{ request('month', now()->format('Y-m')) }}">
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="search-student-btn">
-                            <button type="button" class="btn btn-primary" id="filterAttendance">Filter</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-sm-12">
-                    <div class="card card-table">
-                        <div class="card-body">
-                            <div class="page-header">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h3 class="page-title">Student Attendance Records</h3>
-                                    </div>
-                                    <div class="col-auto text-end float-end ms-auto download-grp">
-                                        <a href="{{ route('attendance.export', array_merge(request()->all(), ['format' => 'excel'])) }}" class="btn btn-outline-primary me-2">
-                                            <i class="fas fa-download"></i> Export Excel
-                                        </a>
-                                        <a href="{{ route('attendance.export', array_merge(request()->all(), ['format' => 'pdf'])) }}" class="btn btn-outline-danger me-2">
-                                            <i class="fas fa-file-pdf"></i> Export PDF
-                                        </a>
-                                        <a href="{{ route('attendance.create') }}" class="btn btn-primary">
-                                            <i class="fas fa-plus"></i> Mark Attendance
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Attendance Summary Cards -->
-                            <div class="row mb-4">
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-primary text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="totalStudents">{{ $students->count() }}</h4>
-                                                    <p class="mb-0">Total Students</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-users fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-success text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="avgAttendance">{{ number_format($students->count() > 0 ? collect($summary)->avg('percentage') : 0, 1) }}%</h4>
-                                                    <p class="mb-0">Average Attendance</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-chart-line fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-warning text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="totalDays">{{ count($days) }}</h4>
-                                                    <p class="mb-0">Total Days</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-calendar fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <div class="card bg-info text-white">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <div>
-                                                    <h4 class="mb-0" id="presentToday">{{ collect($summary)->sum('present') }}</h4>
-                                                    <p class="mb-0">Total Present</p>
-                                                </div>
-                                                <div class="align-self-center">
-                                                    <i class="fas fa-check-circle fa-2x"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-        </div>
-        </div>
         </div>
 
-    <div class="table-responsive">
-                                <table class="table border-0 star-student table-hover table-center mb-0 datatable table-striped">
-                                    <thead class="student-thread">
-                                        <tr>
-                                            <th>
-                                                <div class="form-check check-tables">
-                                                    <input class="form-check-input" type="checkbox" value="something" id="selectAllAttendance">
-                                                </div>
-                                            </th>
-                                            <th>Student Name</th>
-                    @foreach($days as $day)
-                        <th class="text-center">{{ $day }}</th>
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
                     @endforeach
-                    <th class="text-center">Present</th>
-                    <th class="text-center">Total</th>
-                                            <th class="text-center">Percentage</th>
-                                            <th class="text-end">Action</th>
-                </tr>
-            </thead>
-                                    <tbody id="attendanceTableBody">
-                @forelse($students as $student)
-                    <tr>
-                                                <td>
-                                                    <div class="form-check check-tables">
-                                                        <input class="form-check-input" type="checkbox" value="{{ $student->id }}">
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <h2>
-                                                        <a>{{ $student->first_name }} {{ $student->last_name }}</a>
-                                                    </h2>
-                                                    <small class="text-muted">Student ID: {{ $student->id }}</small>
-                                                </td>
-                        @foreach($days as $day)
-                            <td class="text-center">
-                                @php $status = $attendanceMap[$student->id][$day] ?? null; @endphp
-                                @if($status === 'present')
-                                    <span class="badge bg-success">P</span>
-                                @elseif($status === 'absent')
-                                    <span class="badge bg-danger">A</span>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                        @endforeach
-                                                <td class="text-center">
-                                                    <strong>{{ $summary[$student->id]['present'] ?? 0 }}</strong>
-                                                </td>
-                                                <td class="text-center">
-                                                    <strong>{{ $summary[$student->id]['total'] ?? 0 }}</strong>
-                                                </td>
-                                                <td class="text-center">
-                                                    @php
-                                                        $percentage = $summary[$student->id]['percentage'] ?? 0;
-                                                        $badgeClass = $percentage >= 90 ? 'bg-success' : ($percentage >= 75 ? 'bg-warning' : 'bg-danger');
-                                                    @endphp
-                                                    <span class="badge {{ $badgeClass }}">{{ $percentage }}%</span>
-                                                </td>
-                                                <td class="text-end">
-                                                    <div class="actions">
-                                                        <a href="#" class="btn btn-sm bg-danger-light">
-                                                            <i class="far fa-eye"></i>
-                                                        </a>
-                                                        <a href="#" class="btn btn-sm bg-danger-light">
-                                                            <i class="far fa-edit"></i>
-                                                        </a>
-                                                    </div>
-                                                </td>
-                    </tr>
-                @empty
-                    <tr>
-                                                <td colspan="{{ count($days) + 7 }}" class="text-center py-5">
-                                                    <div class="text-muted">
-                                                        <i class="fas fa-users fa-3x mb-3"></i>
-                                                        <h5>No students found</h5>
-                                                        <p>No students are enrolled in the selected criteria.</p>
-                                                    </div>
-                                                </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+                </ul>
+            </div>
+        @endif
+
+        <div class="att-card">
+            <div class="att-card-head">
+                <h5>1. Select class</h5>
+                <p>Pick the section and subject you are teaching, then the date.</p>
+            </div>
+            <form method="GET" action="{{ route('attendance.index') }}" class="att-pick" id="attFilterForm">
+                <div class="row g-2 align-items-end">
+                    <div class="col-lg-6">
+                        <label class="form-label" for="class">Class</label>
+                        <select class="form-control" name="class" id="class" required>
+                            <option value="">Select a class</option>
+                            @foreach($classes as $class)
+                                <option value="{{ $class['key'] }}" {{ $selectedKey === $class['key'] ? 'selected' : '' }}>
+                                    {{ $class['label'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-3">
+                        <label class="form-label" for="date">Date</label>
+                        <input type="date" class="form-control" name="date" id="date" value="{{ $date }}">
+                    </div>
+                    <div class="col-lg-3">
+                        <button type="submit" class="btn btn-primary dir-btn w-100">Show students</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        @if($classes->isEmpty())
+            <div class="att-card">
+                <div class="dir-empty">
+                    <i class="fas fa-chalkboard-teacher d-block"></i>
+                    <h5 class="mt-2 mb-1">No classes assigned</h5>
+                    <p class="mb-0">Ask Admin to assign you a class schedule first.</p>
+                </div>
+            </div>
+        @elseif(!$ready)
+            <div class="att-card">
+                <div class="dir-empty">
+                    <i class="fas fa-user-check d-block"></i>
+                    <h5 class="mt-2 mb-1">Choose a class to begin</h5>
+                    <p class="mb-0">Select your class and date above, then mark attendance.</p>
+                </div>
+            </div>
+        @else
+            <form method="POST" action="{{ route('attendance.store') }}" id="attendanceForm">
+                @csrf
+                <input type="hidden" name="section_id" value="{{ $sectionId }}">
+                <input type="hidden" name="subject_id" value="{{ $subjectId }}">
+                <input type="hidden" name="date" value="{{ $date }}">
+
+                <div class="att-card">
+                    <div class="att-card-head att-card-head-row">
+                        <div>
+                            <h5>2. Mark attendance</h5>
+                            <p>{{ $selectedSection }} · {{ $selectedSubject }} · {{ \Carbon\Carbon::parse($date)->format('M j, Y') }} · {{ $students->count() }} students</p>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-secondary dir-btn" id="markAllPresent">Mark all present</button>
+                            <button type="submit" class="btn btn-primary dir-btn">
+                                <i class="fas fa-save me-1"></i> Save
+                            </button>
+                        </div>
+                    </div>
+
+                    @if($students->isEmpty())
+                        <div class="dir-empty">
+                            <i class="fas fa-user-graduate d-block"></i>
+                            <h5 class="mt-2 mb-1">No students in this section</h5>
+                            <p class="mb-0">There are no students assigned to {{ $selectedSection }}.</p>
+                        </div>
+                    @else
+                        <div class="att-list">
+                            @foreach($students as $student)
+                                @php $status = $existing[$student->id]['status'] ?? ''; @endphp
+                                <div class="att-row">
+                                    <div class="att-name">
+                                        <strong>{{ $student->last_name }}, {{ $student->first_name }}</strong>
+                                    </div>
+                                    <div class="att-choices">
+                                        <label class="att-choice is-present">
+                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="present" {{ $status === 'present' ? 'checked' : '' }} required>
+                                            Present
+                                        </label>
+                                        <label class="att-choice is-absent">
+                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="absent" {{ $status === 'absent' ? 'checked' : '' }} required>
+                                            Absent
+                                        </label>
+                                    </div>
+                                    <input type="text" class="form-control att-note" name="attendance[{{ $student->id }}][remarks]"
+                                           value="{{ $existing[$student->id]['remarks'] ?? '' }}" placeholder="Note (optional)">
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="att-footer">
+                            <button type="submit" class="btn btn-primary dir-btn">
+                                <i class="fas fa-save me-1"></i> Save attendance
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            </form>
+
+            @if($students->isNotEmpty())
+                <div class="att-card">
+                    <div class="att-card-head">
+                        <h5>This month</h5>
+                        <p>{{ \Carbon\Carbon::parse($date)->format('F Y') }} totals for this class.</p>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table dir-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th class="text-center">Present</th>
+                                    <th class="text-center">Absent</th>
+                                    <th class="text-center">Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($students as $student)
+                                    @php $row = $summary[$student->id] ?? ['present'=>0,'absent'=>0,'percentage'=>0]; @endphp
+                                    <tr>
+                                        <td>{{ $student->last_name }}, {{ $student->first_name }}</td>
+                                        <td class="text-center">{{ $row['present'] }}</td>
+                                        <td class="text-center">{{ $row['absent'] }}</td>
+                                        <td class="text-center">
+                                            <span class="dir-badge {{ ($row['percentage'] ?? 0) >= 90 ? 'dir-badge--active' : (($row['percentage'] ?? 0) >= 75 ? 'dir-badge--inactive' : 'dir-badge--disabled') }}">
+                                                {{ $row['percentage'] }}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+        @endif
     </div>
 </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+@endsection
 
 @push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914m">
 <style>
-/* Admin-style form controls */
-.student-group-form {
+.att-page .page-header { margin-bottom: 0.85rem; }
+.att-card {
     background: #fff;
-    padding: 20px;
+    border: 1px solid #e8eef7;
+    border-radius: 18px;
+    box-shadow: 0 14px 32px rgba(79, 114, 205, 0.05);
+    margin-bottom: 0.9rem;
+    overflow: hidden;
+}
+.att-card-head { padding: 1rem 1.15rem 0.35rem; }
+.att-card-head h5 { margin: 0; font-size: 1.02rem; font-weight: 750; color: #1e293b; }
+.att-card-head p { margin: 0.2rem 0 0; font-size: 0.8rem; color: #94a3b8; }
+.att-card-head-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding-bottom: 0.75rem;
+}
+.att-pick { padding: 0 1.15rem 1.1rem; }
+.att-pick .form-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+.att-pick .form-control {
+    min-height: 42px;
     border-radius: 10px;
-    box-shadow: 0 0 31px 3px rgba(44,50,63,.02);
-    margin-bottom: 20px;
 }
-
-.student-group-form .form-group {
-    margin-bottom: 0;
-}
-
-.student-group-form .form-control {
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    height: 45px;
-    padding: 10px 15px;
-    font-size: 15px;
-}
-
-.student-group-form .form-control:focus {
-    border-color: #3d5ee1;
-    box-shadow: none;
-    outline: 0;
-}
-
-.search-student-btn .btn {
-    height: 45px;
-    padding: 10px 20px;
-    font-weight: 600;
-}
-
-/* Card styling */
-.card-table {
-    border: 0;
-    border-radius: 10px;
-    box-shadow: 0 0 31px 3px rgba(44,50,63,.02);
-    margin-bottom: 1.875rem;
-}
-
-.card-table .card-body {
-    padding: 1.5rem;
-}
-
-/* Summary cards */
-.card.bg-primary {
-    background-color: #3d5ee1 !important;
-}
-
-.card.bg-success {
-    background-color: #7bb13c !important;
-}
-
-.card.bg-warning {
-    background-color: #ffc107 !important;
-}
-
-.card.bg-info {
-    background-color: #17a2b8 !important;
-}
-
-/* Table styling */
-.table {
-    color: #333;
-    max-width: 100%;
-    margin-bottom: 0;
-    width: 100%;
-}
-
-.table thead th {
-    vertical-align: bottom;
-    border-bottom: 1px solid #dee2e6;
-    font-weight: 600;
-    color: #000;
-    background-color: #f8f9fa;
-    border-color: #eff2f7;
-    padding: 15px;
-}
-
-.table tbody tr {
-    border-bottom: 1px solid #dee2e6;
-}
-
-.table tbody td {
-    padding: 15px;
-    vertical-align: middle;
-}
-
-.table-hover tbody tr:hover {
-    background-color: #f7f7f7;
-}
-
-.table-hover tbody tr:hover td {
-    color: #474648;
-}
-
-/* Buttons */
-.btn {
-    border-radius: 5px;
-    font-weight: 600;
-    transition: all .4s ease;
-}
-
-.btn-primary {
-    background-color: #3d5ee1;
-    border: 1px solid #3d5ee1;
-}
-
-.btn-primary:hover {
-    background-color: #18aefa;
-    border: 1px solid #18aefa;
-}
-
-.btn-outline-primary {
-    color: #3d5ee1;
-    border-color: #3d5ee1;
-}
-
-.btn-outline-primary:hover {
-    background-color: #18aefa;
-    border-color: #18aefa;
-    color: #fff;
-}
-
-.btn-outline-danger {
-    color: #dc3545;
-    border-color: #dc3545;
-}
-
-.btn-outline-danger:hover {
-    background-color: #dc3545;
-    border-color: #dc3545;
-    color: #fff;
-}
-
-/* Actions */
-.actions {
-    display: flex;
-    justify-content: end;
-}
-
-.actions a {
-    width: 32px;
-    height: 32px;
-    display: flex;
+.att-list { padding: 0.35rem 0.7rem 0.7rem; }
+.att-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 1.2fr) auto minmax(140px, 1fr);
+    gap: 0.75rem;
     align-items: center;
-    justify-content: center;
-    margin-left: 5px;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid #edf1f7;
+    border-radius: 14px;
+    margin-bottom: 0.5rem;
 }
-
-.actions a:hover {
-    background-color: #3d5ee1 !important;
-    color: #fff !important;
+.att-name strong { color: #1e293b; }
+.att-choices { display: flex; gap: 0.4rem; }
+.att-choice {
+    min-width: 96px;
+    text-align: center;
+    padding: 0.45rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    margin: 0;
 }
-
-/* Checkbox styling */
-.form-check-input {
-    width: 18px;
-    height: 18px;
-    margin-top: 0;
+.att-choice input { display: none; }
+.att-choice.is-present:has(input:checked) {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
 }
-
-.form-check-input:checked {
-    background-color: #3d5ee1;
-    border-color: #3d5ee1;
+.att-choice.is-absent:has(input:checked) {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #991b1b;
 }
-
-/* Badge styling */
-.badge {
-    font-size: 0.75rem;
-    padding: 0.375rem 0.75rem;
-}
-
-.badge.bg-primary {
-    background-color: #3d5ee1 !important;
-}
-
-.badge.bg-success {
-    background-color: #7bb13c !important;
-}
-
-.badge.bg-warning {
-    background-color: #ffc107 !important;
-    color: #000 !important;
-}
-
-.badge.bg-danger {
-    background-color: #dc3545 !important;
-}
-
-.badge.bg-info {
-    background-color: #17a2b8 !important;
-}
-
-/* Page header */
-.page-header {
-    margin-bottom: 1.875rem;
-}
-
-.page-header .breadcrumb {
-    background-color: transparent;
-    color: #6c757d;
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 0;
-    padding: 0;
-    margin-left: auto;
-}
-
-.page-header .breadcrumb a {
-    color: #333;
-}
-
-.page-title {
-    font-size: 22px;
-    font-weight: 500;
-    color: #2c323f;
-    margin-bottom: 5px;
-}
-
-/* Download group */
-.download-grp {
+.att-note { border-radius: 10px; min-height: 40px; }
+.att-footer {
     display: flex;
-    align-items: center;
+    justify-content: flex-end;
+    padding: 0.85rem 1.15rem;
+    border-top: 1px solid #eef2f7;
 }
-
-/* Text styling */
-.text-muted {
-    color: #6c757d !important;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .student-group-form {
-        padding: 15px;
-    }
-    
-    .card-table .card-body {
-        padding: 1rem;
-    }
-    
-    .table-responsive {
-        font-size: 0.875rem;
-    }
-    
-    .table th, .table td {
-        padding: 10px 8px;
-    }
+@media (max-width: 767px) {
+    .att-row { grid-template-columns: 1fr; }
 }
 </style>
 @endpush
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    // Filter attendance
-    $('#filterAttendance').on('click', function() {
-        const subjectId = $('#subject_filter').val();
-        const month = $('#month_filter').val();
-        
-        // Show loading state
-        $(this).html('<i class="fas fa-spinner fa-spin me-2"></i>Filtering...').prop('disabled', true);
-        
-        // Build URL with parameters
-        let url = '{{ route("attendance.index") }}?';
-        if (subjectId) url += 'subject_id=' + subjectId + '&';
-        if (month) url += 'month=' + month;
-        
-        // Redirect to filtered page
-        window.location.href = url;
+$(document).ready(function () {
+    $('#class, #date').on('change', function () {
+        if ($('#class').val()) {
+            $('#attFilterForm').submit();
+        }
     });
-    
-    // Select all functionality
-    $('#selectAllAttendance').on('change', function() {
-        $('.form-check-input').prop('checked', $(this).is(':checked'));
+
+    $('#markAllPresent').on('click', function () {
+        $('input[name$="[status]"][value="present"]').prop('checked', true);
     });
-    
-    // Auto-submit form on filter change
-    $('#subject_filter, #month_filter').on('change', function() {
-        $('#filterAttendance').click();
+
+    $('#attendanceForm').on('submit', function (e) {
+        const total = $('.att-row').length;
+        const marked = $('input[name$="[status]"]:checked').length;
+        if (total > 0 && marked < total) {
+            e.preventDefault();
+            alert('Mark Present or Absent for every student, or use Mark all present.');
+            return false;
+        }
     });
 });
 </script>
 @endpush
-
-@endsection 

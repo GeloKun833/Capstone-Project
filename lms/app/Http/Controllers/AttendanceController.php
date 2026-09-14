@@ -15,6 +15,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\AttendanceExport;
 use App\Models\User;
 use App\Models\Section;
+use App\Services\TeacherClassAssignmentService;
 use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
@@ -31,244 +32,145 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
+     * Teacher attendance workspace: pick a class + date, mark present/absent.
      */
     public function index(Request $request)
     {
         $teacher = auth()->user()->teacher;
-        
-        // Get all subjects and sections the teacher teaches
-        $subjects = collect();
-        $sections = collect();
+        $classes = collect();
         $students = collect();
-        
-        if ($teacher) {
-            // Get all sections where this teacher has active class schedules
-            $sections = Section::whereHas('classSchedules', function($query) use ($teacher) {
-                $query->where('teacher_id', $teacher->id)
-                      ->where('is_active', true);
-            })->get();
-            
-            // Get all subjects the teacher teaches
-            $subjects = Subject::whereHas('classSchedules', function($query) use ($teacher) {
-                $query->where('teacher_id', $teacher->id)
-                      ->where('is_active', true);
-            })->get();
-        } else {
-            // Admin view
-            $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
-            $sections = Section::select('id', 'name')->orderBy('name')->get();
-        }
-        
-        $subjectId = $request->input('subject_id');
-        $sectionId = $request->input('section_id');
-        $month = $request->input('month', now()->format('Y-m'));
-        $year = substr($month, 0, 4);
-        $monthNum = substr($month, 5, 2);
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $monthNum, $year);
-        $days = range(1, $daysInMonth);
-
-        // Get students based on teacher's assigned sections/subjects
-        if ($teacher) {
-            if ($subjectId) {
-                // Get sections where teacher teaches the selected subject
-                $sectionsForSubject = Section::whereHas('classSchedules', function($query) use ($teacher, $subjectId) {
-                    $query->where('teacher_id', $teacher->id)
-                          ->where('subject_id', $subjectId)
-                          ->where('is_active', true);
-                })->pluck('id');
-                
-                // Get students from these sections
-                $studentsQuery = Student::whereHas('sections', function($query) use ($sectionsForSubject, $sectionId) {
-                    $query->whereIn('sections.id', $sectionsForSubject);
-                    if ($sectionId) {
-                        $query->where('sections.id', $sectionId);
-                    }
-                });
-                
-                $students = $studentsQuery->orderBy('last_name')
-                    ->orderBy('first_name')
-                    ->get();
-            } else {
-                // Show all students from all sections where teacher teaches
-                $allTeacherSections = Section::whereHas('classSchedules', function($query) use ($teacher) {
-                    $query->where('teacher_id', $teacher->id)
-                          ->where('is_active', true);
-                })->pluck('id');
-                
-                if ($allTeacherSections->isNotEmpty()) {
-                    $studentsQuery = Student::whereHas('sections', function($query) use ($allTeacherSections, $sectionId) {
-                        $query->whereIn('sections.id', $allTeacherSections);
-                        if ($sectionId) {
-                            $query->where('sections.id', $sectionId);
-                        }
-                    });
-                    
-                    $students = $studentsQuery->orderBy('last_name')
-                        ->orderBy('first_name')
-                        ->get();
-                }
-            }
-        } else {
-            // Admin view - original logic
-            if ($sectionId) {
-                $students = Student::whereHas('sections', function($q) use ($sectionId) {
-                    $q->where('sections.id', $sectionId);
-                });
-                if ($subjectId) {
-                    $students->whereHas('subjects', function($q) use ($subjectId) {
-                        $q->where('subjects.id', $subjectId);
-                    });
-                }
-                $students = $students->orderBy('first_name')->get();
-            }
-        }
-
-        // Get attendance records
-        $attendanceQuery = Attendance::whereYear('date', $year)->whereMonth('date', $monthNum);
-        if ($subjectId) {
-            $attendanceQuery->where('subject_id', $subjectId);
-        }
-        if ($teacher) {
-            $attendanceQuery->where('teacher_id', $teacher->id);
-        }
-        $attendances = $attendanceQuery->get();
-
-        // Build attendance map and summary
-        $attendanceMap = [];
-        foreach ($attendances as $attendance) {
-            $day = (int)date('j', strtotime($attendance->date));
-            $attendanceMap[$attendance->student_id][$day] = $attendance->status;
-        }
-
+        $existing = [];
         $summary = [];
-        foreach ($students as $student) {
-            $present = 0;
-            $total = 0;
-            foreach ($days as $day) {
-                if (isset($attendanceMap[$student->id][$day])) {
-                    $total++;
-                    if ($attendanceMap[$student->id][$day] === 'present') {
-                        $present++;
-                    }
-                }
-            }
-            $percentage = $total > 0 ? round(($present / $total) * 100, 2) : null;
-            $summary[$student->id] = [
-                'present' => $present,
-                'total' => $total,
-                'percentage' => $percentage,
-            ];
+
+        $sectionId = (int) $request->input('section_id');
+        $subjectId = (int) $request->input('subject_id');
+        $date = $request->input('date', now()->toDateString());
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
+            $date = now()->toDateString();
         }
 
-        return view('attendance.index', compact('subjects', 'sections', 'students', 'days', 'attendanceMap', 'summary', 'subjectId', 'sectionId'));
+        if ($request->filled('class') && str_contains($request->input('class'), '_')) {
+            [$sectionId, $subjectId] = array_map('intval', explode('_', $request->input('class'), 2));
+        }
+
+        if ($teacher) {
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $subjectIds = collect($options['subjectsBySection'])->flatten()->unique()->filter()->values();
+            $sectionIds = collect(array_keys($options['subjectsBySection']));
+
+            $subjectModels = Subject::whereIn('id', $subjectIds)->orderBy('subject_name')->get()->keyBy('id');
+            $sectionModels = Section::whereIn('id', $sectionIds)->orderBy('name')->get()->keyBy('id');
+
+            foreach ($options['subjectsBySection'] as $sid => $subjIds) {
+                $section = $sectionModels->get((int) $sid);
+                if (! $section) {
+                    continue;
+                }
+                foreach ($subjIds as $subId) {
+                    $subject = $subjectModels->get((int) $subId);
+                    if (! $subject) {
+                        continue;
+                    }
+                    $classes->push([
+                        'key' => $section->id . '_' . $subject->id,
+                        'section_id' => $section->id,
+                        'subject_id' => $subject->id,
+                        'label' => $section->name . ' · ' . $subject->subject_name,
+                    ]);
+                }
+            }
+            $classes = $classes->sortBy('label')->values();
+        } else {
+            $sectionModels = Section::orderBy('name')->get()->keyBy('id');
+            $subjectModels = Subject::orderBy('subject_name')->get()->keyBy('id');
+            foreach ($sectionModels as $section) {
+                foreach ($subjectModels as $subject) {
+                    $classes->push([
+                        'key' => $section->id . '_' . $subject->id,
+                        'section_id' => $section->id,
+                        'subject_id' => $subject->id,
+                        'label' => $section->name . ' · ' . $subject->subject_name,
+                    ]);
+                }
+            }
+        }
+
+        if ($classes->count() === 1 && ! $sectionId && ! $subjectId) {
+            $sectionId = (int) $classes->first()['section_id'];
+            $subjectId = (int) $classes->first()['subject_id'];
+        }
+
+        $selectedKey = ($sectionId && $subjectId) ? $sectionId . '_' . $subjectId : '';
+        $ready = $sectionId > 0 && $subjectId > 0;
+
+        if ($ready) {
+            $students = Student::whereHas('sections', function ($query) use ($sectionId) {
+                $query->where('sections.id', $sectionId);
+            })->orderBy('last_name')->orderBy('first_name')->get();
+
+            $dayRecords = Attendance::query()
+                ->where('subject_id', $subjectId)
+                ->whereDate('date', $date)
+                ->when($teacher, fn ($q) => $q->where('teacher_id', $teacher->id))
+                ->whereIn('student_id', $students->pluck('id')->all() ?: [0])
+                ->get()
+                ->keyBy('student_id');
+
+            foreach ($dayRecords as $studentId => $row) {
+                $existing[$studentId] = [
+                    'status' => $row->status,
+                    'remarks' => $row->remarks,
+                ];
+            }
+
+            $monthStart = \Carbon\Carbon::parse($date)->startOfMonth()->toDateString();
+            $monthEnd = \Carbon\Carbon::parse($date)->endOfMonth()->toDateString();
+            $monthRows = Attendance::query()
+                ->where('subject_id', $subjectId)
+                ->whereBetween('date', [$monthStart, $monthEnd])
+                ->when($teacher, fn ($q) => $q->where('teacher_id', $teacher->id))
+                ->whereIn('student_id', $students->pluck('id')->all() ?: [0])
+                ->get()
+                ->groupBy('student_id');
+
+            foreach ($students as $student) {
+                $rows = $monthRows->get($student->id, collect());
+                $present = $rows->where('status', 'present')->count();
+                $absent = $rows->where('status', 'absent')->count();
+                $total = $present + $absent;
+                $summary[$student->id] = [
+                    'present' => $present,
+                    'absent' => $absent,
+                    'total' => $total,
+                    'percentage' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
+                ];
+            }
+        }
+
+        $selectedSection = $sectionId ? (Section::find($sectionId)?->name) : null;
+        $selectedSubject = $subjectId ? (Subject::find($subjectId)?->subject_name) : null;
+
+        return view('attendance.index', compact(
+            'classes',
+            'students',
+            'existing',
+            'summary',
+            'sectionId',
+            'subjectId',
+            'date',
+            'selectedKey',
+            'ready',
+            'selectedSection',
+            'selectedSubject'
+        ));
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Mark attendance now lives on the index page.
      */
     public function create(Request $request)
     {
-        $teacher = auth()->user()->teacher;
-        
-        // Get all subjects the teacher teaches (from class schedules)
-        $subjects = collect();
-        $sections = collect();
-        $students = collect();
-        $existing = [];
-        
-        if ($teacher) {
-            // Get all sections where this teacher has active class schedules
-            $teacherSections = Section::whereHas('classSchedules', function($query) use ($teacher) {
-                $query->where('teacher_id', $teacher->id)
-                      ->where('is_active', true);
-            })->get();
-            
-            // Get all subjects the teacher teaches
-            $teacherSubjects = Subject::whereHas('classSchedules', function($query) use ($teacher) {
-                $query->where('teacher_id', $teacher->id)
-                      ->where('is_active', true);
-            })->get();
-            
-            $subjects = $teacherSubjects;
-            $sections = $teacherSections;
-            
-            // Get subject and section from request (for filtering)
-            $subjectId = $request->input('subject_id');
-            $sectionId = $request->input('section_id');
-            $date = $request->input('date', now()->toDateString());
-            
-            // If subject is selected, get students from sections where teacher teaches that subject
-            if ($subjectId) {
-                // Get sections where teacher teaches the selected subject
-                $sectionsForSubject = Section::whereHas('classSchedules', function($query) use ($teacher, $subjectId) {
-                    $query->where('teacher_id', $teacher->id)
-                          ->where('subject_id', $subjectId)
-                          ->where('is_active', true);
-                })->pluck('id');
-                
-                // Get students from these sections
-                $studentsQuery = Student::whereHas('sections', function($query) use ($sectionsForSubject, $sectionId) {
-                    $query->whereIn('sections.id', $sectionsForSubject);
-                    if ($sectionId) {
-                        $query->where('sections.id', $sectionId);
-                    }
-                });
-                
-                $students = $studentsQuery->orderBy('last_name')
-                    ->orderBy('first_name')
-                    ->get();
-                
-                // Get existing attendance records for the selected date and subject
-                if ($students->isNotEmpty()) {
-                    $existing = Attendance::where('subject_id', $subjectId)
-                        ->where('date', $date)
-                        ->whereIn('student_id', $students->pluck('id'))
-                        ->pluck('status', 'student_id')
-                        ->toArray();
-                }
-            } else {
-                // If no subject selected, show all students from all sections where teacher teaches
-                $allTeacherSections = Section::whereHas('classSchedules', function($query) use ($teacher) {
-                    $query->where('teacher_id', $teacher->id)
-                          ->where('is_active', true);
-                })->pluck('id');
-                
-                if ($allTeacherSections->isNotEmpty()) {
-                    $students = Student::whereHas('sections', function($query) use ($allTeacherSections) {
-                        $query->whereIn('sections.id', $allTeacherSections);
-                    })->orderBy('last_name')
-                      ->orderBy('first_name')
-                      ->get();
-                }
-            }
-        } else {
-            // Admin view - show all
-            $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
-            $sections = Section::select('id', 'name')->orderBy('name')->get();
-            $subjectId = $request->input('subject_id');
-            $sectionId = $request->input('section_id');
-            $date = $request->input('date', now()->toDateString());
-            
-            if ($sectionId && $subjectId) {
-                $students = Student::whereHas('sections', function($q) use ($sectionId) {
-                    $q->where('sections.id', $sectionId);
-                })->whereHas('subjects', function($q) use ($subjectId) {
-                    $q->where('subjects.id', $subjectId);
-                })->get();
-                
-                $existing = Attendance::where('subject_id', $subjectId)
-                    ->where('date', $date)
-                    ->pluck('status', 'student_id')
-                    ->toArray();
-            }
-        }
-        
-        $subjectId = $request->input('subject_id');
-        $sectionId = $request->input('section_id');
-        $date = $request->input('date', now()->toDateString());
-
-        return view('attendance.create', compact('subjects', 'sections', 'students', 'subjectId', 'sectionId', 'date', 'existing'));
+        return redirect()->route('attendance.index', $request->only(['section_id', 'subject_id', 'date', 'class']));
     }
 
     public function studentView(Request $request)
@@ -365,7 +267,7 @@ class AttendanceController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'section_id' => 'nullable|exists:sections,id',
+            'section_id' => 'required|exists:sections,id',
             'subject_id' => 'required|exists:subjects,id',
             'date' => 'required|date',
             'attendance' => 'required|array',
@@ -378,14 +280,20 @@ class AttendanceController extends Controller
             return back()->with('error', 'Only teachers can mark attendance.');
         }
 
-        // Verify teacher has access to this section/subject
-        $hasAccess = $teacher->subjects()->where('subjects.id', $request->subject_id)->exists() ||
-                    Section::where('id', $request->section_id)
-                        ->where('adviser_id', $teacher->id)
-                        ->exists();
+        $hasAccess = ClassSchedule::where('teacher_id', $teacher->id)
+            ->where('subject_id', $request->subject_id)
+            ->where('section_id', $request->section_id)
+            ->where('is_active', true)
+            ->exists();
 
-        if (!$hasAccess && !auth()->user()->hasRole(User::ROLE_ADMIN)) {
-            return back()->with('error', 'You do not have permission to mark attendance for this section/subject.');
+        if (! $hasAccess) {
+            $pairs = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $allowedSubjects = $pairs['subjectsBySection'][(int) $request->section_id] ?? [];
+            $hasAccess = in_array((int) $request->subject_id, array_map('intval', $allowedSubjects), true);
+        }
+
+        if (! $hasAccess && ! auth()->user()->hasRole(User::ROLE_ADMIN)) {
+            return back()->with('error', 'You do not have permission to mark attendance for this class.');
         }
 
         // One permission check (2 queries max), then batch upsert — no per-student round-trips.
@@ -477,16 +385,14 @@ class AttendanceController extends Controller
         }
 
         $redirectParams = [
+            'class' => $request->section_id . '_' . $request->subject_id,
+            'section_id' => $request->section_id,
             'subject_id' => $request->subject_id,
             'date' => $request->date,
         ];
-        
-        if ($request->section_id) {
-            $redirectParams['section_id'] = $request->section_id;
-        }
-        
-        return redirect()->route('attendance.create', $redirectParams)
-            ->with('success', 'Attendance saved successfully.');
+
+        return redirect()->route('attendance.index', $redirectParams)
+            ->with('success', 'Attendance saved.');
     }
 
     /**

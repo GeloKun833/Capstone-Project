@@ -213,30 +213,6 @@
                     @endforelse
                 </div>
             </section>
-
-            {{-- Keep assigned subjects (existing functionality) in compact form --}}
-            @if(isset($t['teacherSubjects']) && $t['teacherSubjects']->count() > 0)
-            <section class="td-panel">
-                <div class="td-panel-head">
-                    <h2>Assigned Subjects by Grade</h2>
-                </div>
-                @foreach($t['teacherSubjects'] as $gradeLevel => $subjects)
-                    <div class="td-grade-block">
-                        <h4>{{ $gradeLevel }}</h4>
-                        <div class="td-subject-chips">
-                            @foreach($subjects as $subject)
-                                <span class="td-chip">
-                                    {{ $subject->subject_name }}
-                                    @if($subject->sections && $subject->sections->isNotEmpty())
-                                        <em>{{ $subject->sections->pluck('name')->join(', ') }}</em>
-                                    @endif
-                                </span>
-                            @endforeach
-                        </div>
-                    </div>
-                @endforeach
-            </section>
-            @endif
         </div>
 
         {{-- RIGHT COLUMN --}}

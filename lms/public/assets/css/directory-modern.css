@@ -573,6 +573,84 @@
     margin-top: 0.45rem;
 }
 
+.dir-avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #e5e7eb;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px #e5e7eb;
+}
+
+.dir-profile-hero {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.35rem;
+}
+
+.dir-dl {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 0.45rem 1rem;
+    margin: 0;
+}
+
+.dir-dl dt {
+    color: var(--dir-muted);
+    font-size: 0.82rem;
+    font-weight: 650;
+    margin: 0;
+}
+
+.dir-dl dd {
+    margin: 0;
+    color: var(--dir-ink);
+    font-weight: 600;
+}
+
+.dir-tabs {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.65rem 1.15rem 0;
+    border-bottom: 1px solid var(--dir-line);
+    background: linear-gradient(180deg, #fff, var(--dir-soft));
+}
+
+.dir-tabs .nav-link {
+    border: 0;
+    background: transparent;
+    color: var(--dir-muted);
+    font-weight: 700;
+    padding: 0.65rem 0.9rem;
+    border-radius: 10px 10px 0 0;
+}
+
+.dir-tabs .nav-link.active {
+    color: var(--dir-blue);
+    background: #fff;
+    box-shadow: 0 -1px 0 #fff;
+}
+
+.dir-page .card {
+    border: 1px solid var(--dir-line);
+    border-radius: 16px;
+    box-shadow: var(--dir-shadow);
+    overflow: hidden;
+}
+
+.dir-page .card + .card {
+    margin-top: 1rem;
+}
+
+.dir-page .card-header {
+    background: linear-gradient(180deg, #fff, var(--dir-soft)) !important;
+    color: var(--dir-ink) !important;
+    border-bottom: 1px solid var(--dir-line);
+    font-weight: 750;
+}
+
 .dir-tip {
     border: 1px solid var(--dir-line);
     background: #f8faff;
@@ -657,4 +735,147 @@
 .dir-modal .form-select:focus {
     border-color: #a5b4fc;
     box-shadow: 0 0 0 3px rgba(61, 94, 225, 0.15);
+}
+
+.dir-stat {
+    padding: 1rem 1.1rem;
+}
+
+.dir-stat-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--dir-muted);
+    margin-bottom: 0.25rem;
+}
+
+.dir-stat-value {
+    font-size: 1.45rem;
+    font-weight: 750;
+    color: var(--dir-ink);
+    line-height: 1.15;
+}
+
+.dir-sched-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 280px);
+}
+
+.dir-sched-grid {
+    display: grid;
+    grid-template-columns: 84px repeat(7, minmax(118px, 1fr));
+    min-width: 960px;
+    align-items: start;
+}
+
+.dir-sched-time,
+.dir-sched-day {
+    display: grid;
+    grid-template-rows: 44px;
+    grid-auto-rows: 54px;
+    min-width: 0;
+}
+
+.dir-sched-time {
+    background: #f8fafc;
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+
+.dir-sched-head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--dir-line);
+    border-right: 1px solid #f1f5f9;
+}
+
+.dir-sched-slot,
+.dir-sched-empty {
+    border-bottom: 1px solid #f1f5f9;
+    border-right: 1px solid #f1f5f9;
+}
+
+.dir-sched-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.74rem;
+    font-weight: 650;
+    color: #64748b;
+}
+
+.dir-sched-day.is-today {
+    background: #fafafe;
+}
+
+.dir-sched-day.is-today .dir-sched-head {
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.dir-sched-block {
+    margin: 3px;
+    padding: 0.4rem 0.5rem;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 0.78rem;
+    overflow: hidden;
+    min-height: 0;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+}
+
+.dir-sched-block-code {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    opacity: 0.9;
+    margin-bottom: 0.1rem;
+}
+
+.dir-sched-block-name {
+    font-weight: 750;
+    line-height: 1.25;
+    margin-bottom: 0.12rem;
+}
+
+.dir-sched-block-meta {
+    opacity: 0.92;
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
+.dir-today-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.85rem 1.15rem 1rem;
+    border-bottom: 1px solid var(--dir-line);
+}
+
+.dir-today-item {
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--dir-line);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.dir-today-item strong {
+    font-size: 0.86rem;
+    color: var(--dir-ink);
 }

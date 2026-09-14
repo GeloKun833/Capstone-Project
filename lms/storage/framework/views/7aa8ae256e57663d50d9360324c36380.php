@@ -171,7 +171,6 @@
                             </div>
                         </div>
                         <a class="dropdown-item" href="<?php echo e(route('user/profile/page')); ?>">My Profile</a>
-                        <a class="dropdown-item" href="<?php echo e(route('notifications.index')); ?>">Notifications</a>
                         <a class="dropdown-item" href="<?php echo e(route('logout')); ?>">Logout</a>
                     </div>
                 </li>

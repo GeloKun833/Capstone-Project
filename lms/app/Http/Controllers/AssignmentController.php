@@ -48,7 +48,8 @@ class AssignmentController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $query = Assignment::with(['teacher', 'subject', 'section', 'academicYear', 'semester']);
+        $query = Assignment::with(['teacher', 'subject', 'section', 'academicYear', 'semester'])
+            ->withCount('submissions');
 
         // Filter by teacher if not admin
         if ($user->role_name === 'Teacher') {
@@ -79,11 +80,21 @@ class AssignmentController extends Controller
             });
         }
 
+        $stats = [
+            'total' => (clone $query)->count(),
+            'published' => (clone $query)->where('status', 'published')->count(),
+            'draft' => (clone $query)->where('status', 'draft')->count(),
+            'due_soon' => (clone $query)->where('status', 'published')
+                ->whereDate('due_date', '>=', now()->toDateString())
+                ->whereDate('due_date', '<=', now()->addDays(7)->toDateString())
+                ->count(),
+        ];
+
         $assignments = $query->orderBy('created_at', 'desc')->paginate(15);
         $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
         $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
 
-        return view('assignments.index', compact('assignments', 'subjects', 'sections'));
+        return view('assignments.index', compact('assignments', 'subjects', 'sections', 'stats'));
     }
 
     /**

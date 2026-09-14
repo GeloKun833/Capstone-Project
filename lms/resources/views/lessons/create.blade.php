@@ -2,17 +2,27 @@
 @section('content')
 
     <div class="page-wrapper">
-        <div class="content container-fluid">
+        <div class="content container-fluid dir-page">
 
             <div class="page-header">
-                <div class="row align-items-center">
+                <div class="row align-items-start">
                     <div class="col">
-                        <h3 class="page-title">Create Lesson</h3>
-                        <ul class="breadcrumb">
+                        <h3 class="page-title mb-1">Create Lesson</h3>
+                        <p class="dir-subtitle">Select your assigned class first, then fill in the lesson details.</p>
+                    </div>
+                    <div class="col-auto text-end">
+                        <ul class="breadcrumb justify-content-end mb-2">
                             <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('lessons.index') }}">Lesson Planner</a></li>
-                            <li class="breadcrumb-item active">Create Lesson</li>
+                            <li class="breadcrumb-item"><a href="{{ route('lessons.index') }}">My Lessons</a></li>
+                            <li class="breadcrumb-item active">Create</li>
                         </ul>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{{ route('lessons.index') }}" class="btn btn-outline-secondary dir-btn">Back</a>
+                            <button type="submit" form="lessonForm" class="btn btn-primary dir-btn" id="submitBtn" @if($subjects->isEmpty() || $sections->isEmpty()) disabled @endif>
+                                <i class="fas fa-save me-1"></i> <span id="submitText">Create Lesson</span>
+                                <span id="submitSpinner" class="spinner-border spinner-border-sm ms-2" style="display: none;"></span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -39,26 +49,8 @@
 
             <div class="row">
                 <div class="col-sm-12">
-                    <div class="card card-table">
-                        <div class="card-body">
-                            <div class="page-header">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h3 class="page-title">Create Lesson</h3>
-                                        <p class="text-muted mb-0">Select your assigned class first, then fill in the lesson details</p>
-                                    </div>
-                                    <div class="col-auto text-end float-end ms-auto download-grp">
-                                        <a href="{{ route('lessons.index') }}" class="btn btn-outline-secondary me-2">
-                                            <i class="fas fa-arrow-left"></i> Back to Lessons
-                                        </a>
-                                        <button type="submit" form="lessonForm" class="btn btn-primary" id="submitBtn" @if($subjects->isEmpty() || $sections->isEmpty()) disabled @endif>
-                                            <i class="fas fa-save"></i> <span id="submitText">Create Lesson</span>
-                                            <span id="submitSpinner" class="spinner-border spinner-border-sm ms-2" style="display: none;"></span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
+                    <div class="dir-card">
+                        <div class="p-3 p-md-4">
                             @if($subjects->isEmpty() || $sections->isEmpty())
                                 <div class="alert alert-warning">
                                     <i class="fas fa-info-circle me-2"></i>
@@ -253,6 +245,7 @@
     </div>
 
 @push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914e">
 <style>
 .student-group-form {
     background: #fff;

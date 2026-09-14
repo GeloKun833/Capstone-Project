@@ -133,6 +133,14 @@ class HomeController extends Controller
             }
         }
 
+        if ($user->role_name === User::ROLE_TEACHER) {
+            $data['teacher'] = $user->teacher;
+        }
+
+        if ($user->role_name === User::ROLE_PARENT) {
+            $data['children'] = $user->children();
+        }
+
         return view('dashboard.profile', $data);
     }
 
@@ -1557,6 +1565,7 @@ class HomeController extends Controller
         $rules = [
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'avatar' => \App\Support\FormRules::AVATAR,
+            'phone_number' => \App\Support\FormRules::PHONE,
         ];
 
         if ($user->role_name === \App\Models\User::ROLE_STUDENT) {
@@ -1571,14 +1580,21 @@ class HomeController extends Controller
             $user->name = $request->name;
         }
         $user->email = $request->email;
+        $user->phone_number = $request->phone_number;
 
         $stored = \App\Support\AvatarUploader::store($request->file('avatar'), $user->avatar);
         if ($stored) {
             $user->avatar = $stored;
-            session(['avatar' => $stored]);
         }
 
         $user->save();
+
+        session([
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone_number' => $user->phone_number,
+            'avatar' => $user->avatar,
+        ]);
 
         activity()
             ->causedBy($user)

@@ -1,5 +1,4 @@
-@extends('layouts.master')
-@section('content')
+<?php $__env->startSection('content'); ?>
 
     <div class="page-wrapper">
         <div class="content container-fluid dir-page">
@@ -12,24 +11,24 @@
                     </div>
                     <div class="col-auto text-end">
                         <ul class="breadcrumb justify-content-end mb-2">
-                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('attendance.index') }}">Attendance</a></li>
+                            <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="<?php echo e(route('attendance.index')); ?>">Attendance</a></li>
                             <li class="breadcrumb-item active">Mark</li>
                         </ul>
-                        <a href="{{ route('attendance.index') }}" class="btn btn-outline-secondary dir-btn">Back</a>
+                        <a href="<?php echo e(route('attendance.index')); ?>" class="btn btn-outline-secondary dir-btn">Back</a>
                     </div>
                 </div>
             </div>
 
-            @if($errors->any())
+            <?php if($errors->any()): ?>
                 <div class="alert alert-danger">
                     <ul class="mb-0">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
+                        <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <li><?php echo e($error); ?></li>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </ul>
                 </div>
-            @endif
+            <?php endif; ?>
 
             <div class="row">
                 <div class="col-sm-12">
@@ -41,8 +40,8 @@
                                 </button>
                             </div>
 
-                            <form action="{{ route('attendance.store') }}" method="POST" id="attendanceForm">
-                                @csrf
+                            <form action="<?php echo e(route('attendance.store')); ?>" method="POST" id="attendanceForm">
+                                <?php echo csrf_field(); ?>
                                 
                                 <!-- Filter Section -->
                                 <div class="student-group-form">
@@ -50,57 +49,100 @@
                                         <div class="col-lg-4 col-md-6">
                                             <div class="form-group">
                                                 <label class="form-label">Subject (Learning Area) *</label>
-                                                <select name="subject_id" id="subject_id" class="form-control @error('subject_id') is-invalid @enderror">
+                                                <select name="subject_id" id="subject_id" class="form-control <?php $__errorArgs = ['subject_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
                                                     <option value="">Select Subject</option>
-                                                    @foreach($subjects as $subject)
-                                                        <option value="{{ $subject->id }}" {{ old('subject_id', $subjectId ?? '') == $subject->id ? 'selected' : '' }}>
-                                                            {{ $subject->subject_name }}
+                                                    <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($subject->id); ?>" <?php echo e(old('subject_id', $subjectId ?? '') == $subject->id ? 'selected' : ''); ?>>
+                                                            <?php echo e($subject->subject_name); ?>
+
                                                         </option>
-                                                    @endforeach
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                                 </select>
-                                                @error('subject_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                <?php $__errorArgs = ['subject_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="invalid-feedback"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                                 <small class="text-muted">Select a subject to view assigned students</small>
                                             </div>
                                         </div>
                                         <div class="col-lg-4 col-md-6">
                                             <div class="form-group">
                                                 <label class="form-label">Section (Optional)</label>
-                                                <select name="section_id" id="section_id" class="form-control @error('section_id') is-invalid @enderror">
+                                                <select name="section_id" id="section_id" class="form-control <?php $__errorArgs = ['section_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
                                                     <option value="">All Sections</option>
-                                                    @foreach($sections as $section)
-                                                        <option value="{{ $section->id }}" {{ old('section_id', $sectionId ?? '') == $section->id ? 'selected' : '' }}>
-                                                            {{ $section->name }} (Grade {{ $section->grade_level }})
+                                                    <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($section->id); ?>" <?php echo e(old('section_id', $sectionId ?? '') == $section->id ? 'selected' : ''); ?>>
+                                                            <?php echo e($section->name); ?> (Grade <?php echo e($section->grade_level); ?>)
                                                         </option>
-                                                    @endforeach
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                                 </select>
-                                                @error('section_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                <?php $__errorArgs = ['section_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="invalid-feedback"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                                 <small class="text-muted">Filter by section (optional)</small>
                                             </div>
                                         </div>
                                         <div class="col-lg-4 col-md-6">
                                             <div class="form-group">
                                                 <label class="form-label">Date *</label>
-                                                <input type="date" name="date" id="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', $date ?? now()->toDateString()) }}" required>
-                                                @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                <input type="date" name="date" id="date" class="form-control <?php $__errorArgs = ['date'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" value="<?php echo e(old('date', $date ?? now()->toDateString())); ?>" required>
+                                                <?php $__errorArgs = ['date'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="invalid-feedback"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                             </div>
                                         </div>
                                     </div>
-                                    @if($students->isEmpty() && !$subjectId)
+                                    <?php if($students->isEmpty() && !$subjectId): ?>
                                         <div class="alert alert-info mt-3">
                                             <i class="fas fa-info-circle me-2"></i>
                                             <strong>Note:</strong> Please select a Subject to view all assigned students. All students from sections where you teach the selected subject will be displayed automatically.
                                         </div>
-                                    @elseif($students->isEmpty() && $subjectId)
+                                    <?php elseif($students->isEmpty() && $subjectId): ?>
                                         <div class="alert alert-warning mt-3">
                                             <i class="fas fa-exclamation-triangle me-2"></i>
                                             <strong>No students found</strong> for the selected subject. Please verify that students are assigned to sections where you teach this subject.
                                         </div>
-                                    @else
+                                    <?php else: ?>
                                         <div class="alert alert-success mt-3">
                                             <i class="fas fa-check-circle me-2"></i>
-                                            <strong>{{ $students->count() }} student(s)</strong> found for the selected criteria.
+                                            <strong><?php echo e($students->count()); ?> student(s)</strong> found for the selected criteria.
                                         </div>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
 
                                 <!-- Students Table -->
@@ -121,38 +163,52 @@
                                             </tr>
                                         </thead>
                                         <tbody id="studentsTableBody">
-                                            @forelse($students as $student)
+                                            <?php $__empty_1 = true; $__currentLoopData = $students; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $student): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                                 <tr>
                                                     <td>
                                                         <div class="form-check check-tables">
-                                                            <input class="form-check-input student-checkbox" type="checkbox" value="{{ $student->id }}">
+                                                            <input class="form-check-input student-checkbox" type="checkbox" value="<?php echo e($student->id); ?>">
                                                         </div>
                                                     </td>
                                                     <td>
                                                         <h2>
-                                                            <a>{{ $student->first_name }} {{ $student->last_name }}</a>
+                                                            <a><?php echo e($student->first_name); ?> <?php echo e($student->last_name); ?></a>
                                                         </h2>
-                                                        <small class="text-muted">Student ID: {{ $student->id }}</small>
+                                                        <small class="text-muted">Student ID: <?php echo e($student->id); ?></small>
                                                     </td>
                                                     <td class="text-center">
                                                         <div class="form-check form-check-inline">
-                                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="present" 
-                                                                class="form-check-input @error('attendance.' . $student->id . '.status') is-invalid @enderror"
-                                                                {{ (old('attendance.' . $student->id . '.status', $existing[$student->id]['status'] ?? '') == 'present') ? 'checked' : '' }} required>
+                                                            <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="present" 
+                                                                class="form-check-input <?php $__errorArgs = ['attendance.' . $student->id . '.status'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>"
+                                                                <?php echo e((old('attendance.' . $student->id . '.status', $existing[$student->id]['status'] ?? '') == 'present') ? 'checked' : ''); ?> required>
                                                             <label class="form-check-label">Present</label>
                                                         </div>
                                                     </td>
                                                     <td class="text-center">
                                                         <div class="form-check form-check-inline">
-                                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="absent" 
-                                                                class="form-check-input @error('attendance.' . $student->id . '.status') is-invalid @enderror"
-                                                                {{ (old('attendance.' . $student->id . '.status', $existing[$student->id]['status'] ?? '') == 'absent') ? 'checked' : '' }} required>
+                                                            <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="absent" 
+                                                                class="form-check-input <?php $__errorArgs = ['attendance.' . $student->id . '.status'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>"
+                                                                <?php echo e((old('attendance.' . $student->id . '.status', $existing[$student->id]['status'] ?? '') == 'absent') ? 'checked' : ''); ?> required>
                                                             <label class="form-check-label">Absent</label>
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <input type="text" name="attendance[{{ $student->id }}][remarks]" class="form-control form-control-sm"
-                                                            value="{{ old('attendance.' . $student->id . '.remarks', $existing[$student->id]['remarks'] ?? '') }}"
+                                                        <input type="text" name="attendance[<?php echo e($student->id); ?>][remarks]" class="form-control form-control-sm"
+                                                            value="<?php echo e(old('attendance.' . $student->id . '.remarks', $existing[$student->id]['remarks'] ?? '')); ?>"
                                                             placeholder="Optional remarks">
                                                     </td>
                                                     <td class="text-end">
@@ -166,7 +222,7 @@
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            @empty
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                                 <tr>
                                                     <td colspan="6" class="text-center py-5">
                                                         <div class="text-muted">
@@ -176,7 +232,7 @@
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            @endforelse
+                                            <?php endif; ?>
                                         </tbody>
                                     </table>
                                 </div>
@@ -188,8 +244,8 @@
         </div>
     </div>
 
-@push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914k">
+<?php $__env->startPush('styles'); ?>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914k">
 <style>
 /* Admin-style form controls */
 .student-group-form {
@@ -435,9 +491,9 @@
     }
 }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script>
 $(document).ready(function() {
     const sectionSelect = document.getElementById('section_id');
@@ -485,7 +541,7 @@ $(document).ready(function() {
         
         if (subjectId && date) {
             // Build URL with parameters
-            let url = `{{ route('attendance.create') }}?subject_id=${subjectId}&date=${date}`;
+            let url = `<?php echo e(route('attendance.create')); ?>?subject_id=${subjectId}&date=${date}`;
             if (sectionId) {
                 url += `&section_id=${sectionId}`;
             }
@@ -515,6 +571,7 @@ $(document).ready(function() {
     });
 });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@endsection 
+<?php $__env->stopSection(); ?> 
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/attendance/create.blade.php ENDPATH**/ ?>

@@ -1,10 +1,10 @@
-@extends('layouts.master')
-@section('content')
 
-@php
+<?php $__env->startSection('content'); ?>
+
+<?php
     $canCreate = auth()->user()->role_name === 'Teacher';
     $postTotal = method_exists($posts, 'total') ? $posts->total() : $posts->count();
-@endphp
+?>
 
 <div class="page-wrapper">
     <div class="content container-fluid dir-page asg-page">
@@ -15,55 +15,57 @@
                     <p class="dir-subtitle">Share announcements, resources, and reminders with your classes.</p>
                 </div>
                 <div class="col-auto text-end">
-                    <ul class="breadcrumb justify-content-end {{ $canCreate ? 'mb-2' : 'mb-0' }}">
-                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                    <ul class="breadcrumb justify-content-end <?php echo e($canCreate ? 'mb-2' : 'mb-0'); ?>">
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">Class Posts</li>
                     </ul>
-                    @if($canCreate)
-                        <a href="{{ route('class-posts.create') }}" class="btn btn-primary dir-btn">
+                    <?php if($canCreate): ?>
+                        <a href="<?php echo e(route('class-posts.create')); ?>" class="btn btn-primary dir-btn">
                             <i class="fas fa-plus me-1"></i> Create Post
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
 
         <div class="asg-card asg-filters">
-            <form method="GET" action="{{ route('class-posts.index') }}">
+            <form method="GET" action="<?php echo e(route('class-posts.index')); ?>">
                 <div class="row g-2 align-items-end">
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Search</label>
-                        <input type="text" name="search" class="form-control" placeholder="Title or content" value="{{ request('search') }}">
+                        <input type="text" name="search" class="form-control" placeholder="Title or content" value="<?php echo e(request('search')); ?>">
                     </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label">Subject</label>
                         <select name="subject_id" class="form-control">
                             <option value="">All Subjects</option>
-                            @foreach($subjects as $subject)
-                                <option value="{{ $subject->id }}" {{ (string) request('subject_id') === (string) $subject->id ? 'selected' : '' }}>
-                                    {{ $subject->subject_name }}
+                            <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($subject->id); ?>" <?php echo e((string) request('subject_id') === (string) $subject->id ? 'selected' : ''); ?>>
+                                    <?php echo e($subject->subject_name); ?>
+
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label">Section</label>
                         <select name="section_id" class="form-control">
                             <option value="">All Sections</option>
-                            @foreach($sections as $section)
-                                <option value="{{ $section->id }}" {{ (string) request('section_id') === (string) $section->id ? 'selected' : '' }}>
-                                    {{ $section->name }}
+                            <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($section->id); ?>" <?php echo e((string) request('section_id') === (string) $section->id ? 'selected' : ''); ?>>
+                                    <?php echo e($section->name); ?>
+
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label">Type</label>
                         <select name="type" class="form-control">
                             <option value="">All Types</option>
-                            @foreach(['announcement','resource','discussion','reminder'] as $type)
-                                <option value="{{ $type }}" {{ request('type') == $type ? 'selected' : '' }}>{{ ucfirst($type) }}</option>
-                            @endforeach
+                            <?php $__currentLoopData = ['announcement','resource','discussion','reminder']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($type); ?>" <?php echo e(request('type') == $type ? 'selected' : ''); ?>><?php echo e(ucfirst($type)); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                     <div class="col-lg-3 col-md-6 pb-1">
@@ -71,7 +73,7 @@
                             <button type="submit" class="btn btn-primary dir-btn flex-fill">
                                 <i class="fas fa-filter me-1"></i> Filter
                             </button>
-                            <a href="{{ route('class-posts.index') }}" class="btn btn-outline-secondary dir-btn">Clear</a>
+                            <a href="<?php echo e(route('class-posts.index')); ?>" class="btn btn-outline-secondary dir-btn">Clear</a>
                         </div>
                     </div>
                 </div>
@@ -82,75 +84,75 @@
             <div class="asg-toolbar">
                 <div>
                     <h5>All posts</h5>
-                    <span>{{ $postTotal }} post{{ $postTotal === 1 ? '' : 's' }}</span>
+                    <span><?php echo e($postTotal); ?> post<?php echo e($postTotal === 1 ? '' : 's'); ?></span>
                 </div>
             </div>
 
-            @if($posts->count() > 0)
+            <?php if($posts->count() > 0): ?>
                 <div class="asg-list">
-                    @foreach($posts as $post)
-                        @php
+                    <?php $__currentLoopData = $posts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $post): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                             $teacherName = $post->teacher->full_name ?? $post->teacher->name ?? 'Unknown';
-                        @endphp
-                        <article class="asg-item {{ $post->is_pinned ? 'is-live' : '' }}">
+                        ?>
+                        <article class="asg-item <?php echo e($post->is_pinned ? 'is-live' : ''); ?>">
                             <div class="asg-item-main">
-                                <a href="{{ route('class-posts.show', $post->id) }}" class="asg-title">{{ $post->title }}</a>
-                                <p class="asg-desc">{{ Str::limit(strip_tags($post->content), 140) }}</p>
+                                <a href="<?php echo e(route('class-posts.show', $post->id)); ?>" class="asg-title"><?php echo e($post->title); ?></a>
+                                <p class="asg-desc"><?php echo e(Str::limit(strip_tags($post->content), 140)); ?></p>
                                 <div class="asg-meta">
-                                    @if($post->is_pinned)
+                                    <?php if($post->is_pinned): ?>
                                         <span class="asg-status is-live"><i class="fas fa-thumbtack me-1"></i>Pinned</span>
-                                    @endif
-                                    <span class="asg-pill">{{ ucfirst($post->type) }}</span>
-                                    <span class="asg-pill asg-pill-soft">{{ ucfirst($post->priority) }}</span>
-                                    <span class="asg-pill asg-pill-soft">{{ $post->subject->subject_name ?? 'N/A' }}</span>
-                                    <span class="asg-pill asg-pill-soft">{{ $post->section->name ?? 'N/A' }}</span>
-                                    @if($post->file_path)
+                                    <?php endif; ?>
+                                    <span class="asg-pill"><?php echo e(ucfirst($post->type)); ?></span>
+                                    <span class="asg-pill asg-pill-soft"><?php echo e(ucfirst($post->priority)); ?></span>
+                                    <span class="asg-pill asg-pill-soft"><?php echo e($post->subject->subject_name ?? 'N/A'); ?></span>
+                                    <span class="asg-pill asg-pill-soft"><?php echo e($post->section->name ?? 'N/A'); ?></span>
+                                    <?php if($post->file_path): ?>
                                         <span class="asg-pill asg-pill-soft"><i class="fas fa-paperclip me-1"></i>Attachment</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="asg-item-side">
                                 <div class="asg-due">
-                                    <strong>{{ $teacherName }}</strong>
-                                    <small>{{ $post->created_at->diffForHumans() }}</small>
+                                    <strong><?php echo e($teacherName); ?></strong>
+                                    <small><?php echo e($post->created_at->diffForHumans()); ?></small>
                                 </div>
                             </div>
                             <div class="asg-item-actions">
-                                <a href="{{ route('class-posts.show', $post->id) }}" class="dir-icon-btn" title="View"><i class="far fa-eye"></i></a>
-                                @if($canCreate && auth()->user()->teacher && $post->teacher_id == auth()->user()->teacher->id)
-                                    <a href="{{ route('class-posts.edit', $post->id) }}" class="dir-icon-btn" title="Edit"><i class="far fa-edit"></i></a>
-                                    <form action="{{ route('class-posts.destroy', $post->id) }}" method="POST" onsubmit="return confirm('Delete this post?');">
-                                        @csrf
-                                        @method('DELETE')
+                                <a href="<?php echo e(route('class-posts.show', $post->id)); ?>" class="dir-icon-btn" title="View"><i class="far fa-eye"></i></a>
+                                <?php if($canCreate && auth()->user()->teacher && $post->teacher_id == auth()->user()->teacher->id): ?>
+                                    <a href="<?php echo e(route('class-posts.edit', $post->id)); ?>" class="dir-icon-btn" title="Edit"><i class="far fa-edit"></i></a>
+                                    <form action="<?php echo e(route('class-posts.destroy', $post->id)); ?>" method="POST" onsubmit="return confirm('Delete this post?');">
+                                        <?php echo csrf_field(); ?>
+                                        <?php echo method_field('DELETE'); ?>
                                         <button type="submit" class="dir-icon-btn is-danger" title="Delete"><i class="far fa-trash-alt"></i></button>
                                     </form>
-                                @endif
+                                <?php endif; ?>
                             </div>
                         </article>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
-                @if($posts->hasPages())
-                    <div class="p-3 d-flex justify-content-center">{{ $posts->links() }}</div>
-                @endif
-            @else
+                <?php if($posts->hasPages()): ?>
+                    <div class="p-3 d-flex justify-content-center"><?php echo e($posts->links()); ?></div>
+                <?php endif; ?>
+            <?php else: ?>
                 <div class="dir-empty">
                     <i class="fas fa-inbox d-block"></i>
                     <h5 class="mt-2 mb-1">No class posts yet</h5>
                     <p class="mb-3">Share a note, resource, or reminder with one of your classes.</p>
-                    @if($canCreate)
-                        <a href="{{ route('class-posts.create') }}" class="btn btn-primary dir-btn">
+                    <?php if($canCreate): ?>
+                        <a href="<?php echo e(route('class-posts.create')); ?>" class="btn btn-primary dir-btn">
                             <i class="fas fa-plus me-1"></i> Create Post
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
-            @endif
+            <?php endif; ?>
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914k">
+<?php $__env->startPush('styles'); ?>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914k">
 <style>
 .asg-page .page-header { margin-bottom: 0.85rem; }
 .asg-card {
@@ -234,4 +236,6 @@
     .asg-due { text-align: left; }
 }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/class-posts/index.blade.php ENDPATH**/ ?>

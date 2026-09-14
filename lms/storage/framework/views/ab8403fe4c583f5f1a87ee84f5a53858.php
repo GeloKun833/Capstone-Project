@@ -1,10 +1,9 @@
-@extends('layouts.master')
-@section('content')
+<?php $__env->startSection('content'); ?>
 
-@php
+<?php
     $canCreate = auth()->user()->role_name === 'Teacher';
     $assignmentTotal = $stats['total'] ?? (method_exists($assignments, 'total') ? $assignments->total() : $assignments->count());
-@endphp
+?>
 
 <div class="page-wrapper">
     <div class="content container-fluid dir-page asg-page">
@@ -15,15 +14,15 @@
                     <p class="dir-subtitle">Create, publish, and grade work for your classes.</p>
                 </div>
                 <div class="col-auto text-end">
-                    <ul class="breadcrumb justify-content-end {{ $canCreate ? 'mb-2' : 'mb-0' }}">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                    <ul class="breadcrumb justify-content-end <?php echo e($canCreate ? 'mb-2' : 'mb-0'); ?>">
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">All Assignments</li>
                     </ul>
-                    @if($canCreate)
-                        <a href="{{ route('assignments.create') }}" class="btn btn-primary dir-btn">
+                    <?php if($canCreate): ?>
+                        <a href="<?php echo e(route('assignments.create')); ?>" class="btn btn-primary dir-btn">
                             <i class="fas fa-plus me-1"></i> Create Assignment
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -31,58 +30,60 @@
         <div class="asg-stats">
             <div class="asg-stat">
                 <span>Total</span>
-                <strong>{{ $stats['total'] ?? $assignmentTotal }}</strong>
+                <strong><?php echo e($stats['total'] ?? $assignmentTotal); ?></strong>
             </div>
             <div class="asg-stat">
                 <span>Published</span>
-                <strong>{{ $stats['published'] ?? 0 }}</strong>
+                <strong><?php echo e($stats['published'] ?? 0); ?></strong>
             </div>
             <div class="asg-stat">
                 <span>Draft</span>
-                <strong>{{ $stats['draft'] ?? 0 }}</strong>
+                <strong><?php echo e($stats['draft'] ?? 0); ?></strong>
             </div>
             <div class="asg-stat">
                 <span>Due this week</span>
-                <strong>{{ $stats['due_soon'] ?? 0 }}</strong>
+                <strong><?php echo e($stats['due_soon'] ?? 0); ?></strong>
             </div>
         </div>
 
         <div class="asg-card asg-filters">
-            <form method="GET" action="{{ route('assignments.index') }}">
+            <form method="GET" action="<?php echo e(route('assignments.index')); ?>">
                 <div class="row g-2 align-items-end">
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label" for="search">Search</label>
-                        <input type="text" class="form-control" id="search" name="search" value="{{ request('search') }}" placeholder="Title or description">
+                        <input type="text" class="form-control" id="search" name="search" value="<?php echo e(request('search')); ?>" placeholder="Title or description">
                     </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label" for="subject_id">Subject</label>
                         <select class="form-control" id="subject_id" name="subject_id">
                             <option value="">All Subjects</option>
-                            @foreach($subjects as $subject)
-                                <option value="{{ $subject->id }}" {{ (string) request('subject_id') === (string) $subject->id ? 'selected' : '' }}>
-                                    {{ $subject->subject_name }}
+                            <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($subject->id); ?>" <?php echo e((string) request('subject_id') === (string) $subject->id ? 'selected' : ''); ?>>
+                                    <?php echo e($subject->subject_name); ?>
+
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label" for="section_id">Section</label>
                         <select class="form-control" id="section_id" name="section_id">
                             <option value="">All Sections</option>
-                            @foreach($sections as $section)
-                                <option value="{{ $section->id }}" {{ (string) request('section_id') === (string) $section->id ? 'selected' : '' }}>
-                                    {{ $section->name }}
+                            <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($section->id); ?>" <?php echo e((string) request('section_id') === (string) $section->id ? 'selected' : ''); ?>>
+                                    <?php echo e($section->name); ?>
+
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label" for="status">Status</label>
                         <select class="form-control" id="status" name="status">
                             <option value="">All Status</option>
-                            <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Draft</option>
-                            <option value="published" {{ request('status') == 'published' ? 'selected' : '' }}>Published</option>
-                            <option value="closed" {{ request('status') == 'closed' ? 'selected' : '' }}>Closed</option>
+                            <option value="draft" <?php echo e(request('status') == 'draft' ? 'selected' : ''); ?>>Draft</option>
+                            <option value="published" <?php echo e(request('status') == 'published' ? 'selected' : ''); ?>>Published</option>
+                            <option value="closed" <?php echo e(request('status') == 'closed' ? 'selected' : ''); ?>>Closed</option>
                         </select>
                     </div>
                     <div class="col-lg-3 col-md-6 pb-1">
@@ -90,7 +91,7 @@
                             <button type="submit" class="btn btn-primary dir-btn flex-fill">
                                 <i class="fas fa-filter me-1"></i> Filter
                             </button>
-                            <a href="{{ route('assignments.index') }}" class="btn btn-outline-secondary dir-btn">Clear</a>
+                            <a href="<?php echo e(route('assignments.index')); ?>" class="btn btn-outline-secondary dir-btn">Clear</a>
                         </div>
                     </div>
                 </div>
@@ -101,14 +102,14 @@
             <div class="asg-toolbar">
                 <div>
                     <h5>Assignment list</h5>
-                    <span>{{ $assignmentTotal }} assignment{{ $assignmentTotal === 1 ? '' : 's' }}</span>
+                    <span><?php echo e($assignmentTotal); ?> assignment<?php echo e($assignmentTotal === 1 ? '' : 's'); ?></span>
                 </div>
             </div>
 
-            @if($assignments->count() > 0)
+            <?php if($assignments->count() > 0): ?>
                 <div class="asg-list">
-                    @foreach($assignments as $assignment)
-                        @php
+                    <?php $__currentLoopData = $assignments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $assignment): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                             $due = $assignment->due_date ? \Carbon\Carbon::parse($assignment->due_date) : null;
                             $isOverdue = $due && $due->lt(now()->startOfDay()) && $assignment->status === 'published';
                             $isDueSoon = $due && !$isOverdue && $due->lte(now()->addDays(3)->endOfDay()) && $assignment->status === 'published';
@@ -118,82 +119,83 @@
                                 default => 'is-draft',
                             };
                             $subCount = $assignment->submissions_count ?? $assignment->submissions()->count();
-                        @endphp
-                        <article class="asg-item {{ $statusTone }}">
+                        ?>
+                        <article class="asg-item <?php echo e($statusTone); ?>">
                             <div class="asg-item-main">
-                                <a href="{{ route('assignments.show', $assignment->id) }}" class="asg-title">{{ $assignment->title }}</a>
-                                @if($assignment->description)
-                                    <p class="asg-desc">{{ Str::limit(strip_tags($assignment->description), 110) }}</p>
-                                @endif
+                                <a href="<?php echo e(route('assignments.show', $assignment->id)); ?>" class="asg-title"><?php echo e($assignment->title); ?></a>
+                                <?php if($assignment->description): ?>
+                                    <p class="asg-desc"><?php echo e(Str::limit(strip_tags($assignment->description), 110)); ?></p>
+                                <?php endif; ?>
                                 <div class="asg-meta">
-                                    <span class="asg-pill">{{ $assignment->subject->subject_name ?? 'No subject' }}</span>
-                                    <span class="asg-pill asg-pill-soft">{{ $assignment->section->name ?? 'No section' }}</span>
-                                    <span class="asg-status {{ $statusTone }}">{{ ucfirst($assignment->status) }}</span>
+                                    <span class="asg-pill"><?php echo e($assignment->subject->subject_name ?? 'No subject'); ?></span>
+                                    <span class="asg-pill asg-pill-soft"><?php echo e($assignment->section->name ?? 'No section'); ?></span>
+                                    <span class="asg-status <?php echo e($statusTone); ?>"><?php echo e(ucfirst($assignment->status)); ?></span>
                                 </div>
                             </div>
                             <div class="asg-item-side">
-                                <div class="asg-due {{ $isOverdue ? 'is-overdue' : ($isDueSoon ? 'is-soon' : '') }}">
-                                    @if($due)
-                                        <strong>{{ $due->format('M j, Y') }}</strong>
-                                        <small>{{ $isOverdue ? 'Overdue' : $due->diffForHumans() }}</small>
-                                    @else
+                                <div class="asg-due <?php echo e($isOverdue ? 'is-overdue' : ($isDueSoon ? 'is-soon' : '')); ?>">
+                                    <?php if($due): ?>
+                                        <strong><?php echo e($due->format('M j, Y')); ?></strong>
+                                        <small><?php echo e($isOverdue ? 'Overdue' : $due->diffForHumans()); ?></small>
+                                    <?php else: ?>
                                         <strong>No due date</strong>
                                         <small>Open</small>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
                                 <div class="asg-subs">
-                                    <strong>{{ $subCount }}</strong>
-                                    <small>submission{{ $subCount === 1 ? '' : 's' }}</small>
+                                    <strong><?php echo e($subCount); ?></strong>
+                                    <small>submission<?php echo e($subCount === 1 ? '' : 's'); ?></small>
                                 </div>
                             </div>
                             <div class="asg-item-actions">
-                                <a href="{{ route('assignments.show', $assignment->id) }}" class="dir-icon-btn" title="View"><i class="far fa-eye"></i></a>
-                                <a href="{{ route('assignments.edit', $assignment->id) }}" class="dir-icon-btn" title="Edit"><i class="far fa-edit"></i></a>
-                                <a href="{{ route('assignments.submissions', $assignment->id) }}" class="dir-icon-btn" title="Grade submissions"><i class="fas fa-check-circle"></i></a>
-                                @if($assignment->status === 'draft')
-                                    <form action="{{ route('assignments.publish', $assignment->id) }}" method="POST">
-                                        @csrf
+                                <a href="<?php echo e(route('assignments.show', $assignment->id)); ?>" class="dir-icon-btn" title="View"><i class="far fa-eye"></i></a>
+                                <a href="<?php echo e(route('assignments.edit', $assignment->id)); ?>" class="dir-icon-btn" title="Edit"><i class="far fa-edit"></i></a>
+                                <a href="<?php echo e(route('assignments.submissions', $assignment->id)); ?>" class="dir-icon-btn" title="Grade submissions"><i class="fas fa-check-circle"></i></a>
+                                <?php if($assignment->status === 'draft'): ?>
+                                    <form action="<?php echo e(route('assignments.publish', $assignment->id)); ?>" method="POST">
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit" class="dir-icon-btn is-success" title="Publish"><i class="fas fa-paper-plane"></i></button>
                                     </form>
-                                @elseif($assignment->status === 'published')
-                                    <form action="{{ route('assignments.close', $assignment->id) }}" method="POST">
-                                        @csrf
+                                <?php elseif($assignment->status === 'published'): ?>
+                                    <form action="<?php echo e(route('assignments.close', $assignment->id)); ?>" method="POST">
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit" class="dir-icon-btn" title="Close"><i class="fas fa-lock"></i></button>
                                     </form>
-                                @endif
-                                <form action="{{ route('assignments.destroy', $assignment->id) }}" method="POST" onsubmit="return confirm('Delete this assignment?');">
-                                    @csrf
-                                    @method('DELETE')
+                                <?php endif; ?>
+                                <form action="<?php echo e(route('assignments.destroy', $assignment->id)); ?>" method="POST" onsubmit="return confirm('Delete this assignment?');">
+                                    <?php echo csrf_field(); ?>
+                                    <?php echo method_field('DELETE'); ?>
                                     <button type="submit" class="dir-icon-btn is-danger" title="Delete"><i class="far fa-trash-alt"></i></button>
                                 </form>
                             </div>
                         </article>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
-                @if($assignments->hasPages())
+                <?php if($assignments->hasPages()): ?>
                     <div class="p-3 d-flex justify-content-center">
-                        {{ $assignments->links() }}
+                        <?php echo e($assignments->links()); ?>
+
                     </div>
-                @endif
-            @else
+                <?php endif; ?>
+            <?php else: ?>
                 <div class="dir-empty">
                     <i class="fas fa-tasks d-block"></i>
                     <h5 class="mt-2 mb-1">No assignments found</h5>
                     <p class="mb-3">Create an assignment for one of your classes to get started.</p>
-                    @if($canCreate)
-                        <a href="{{ route('assignments.create') }}" class="btn btn-primary dir-btn">
+                    <?php if($canCreate): ?>
+                        <a href="<?php echo e(route('assignments.create')); ?>" class="btn btn-primary dir-btn">
                             <i class="fas fa-plus me-1"></i> Create Assignment
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
-            @endif
+            <?php endif; ?>
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914i">
+<?php $__env->startPush('styles'); ?>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914i">
 <style>
 .asg-page .page-header { margin-bottom: 0.85rem; }
 .asg-stats {
@@ -342,4 +344,6 @@
     .asg-item-side { justify-content: flex-start; }
 }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/assignments/index.blade.php ENDPATH**/ ?>

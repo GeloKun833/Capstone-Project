@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use App\Services\TeacherClassAssignmentService;
 
 class ClassPostController extends Controller
 {
@@ -110,21 +111,34 @@ class ClassPostController extends Controller
             abort(403, 'Only teachers can create class posts.');
         }
 
-        $user = Auth::user();
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
+        $teacher = Auth::user()->teacher;
+        $academicYears = AcademicYear::orderByDesc('id')->get();
+        $semesters = Semester::orderBy('name')->get();
 
-        // Filter subjects AND sections by teacher's assignments
-        $teacher = $user->teacher;
+        $subjects = collect();
+        $sections = collect();
+        $subjectsBySection = [];
+
         if ($teacher) {
-            $subjects = $teacher->subjects()->get();
-            $sections = $teacher->sections()->get();
-        } else {
-            $subjects = Subject::all();
-            $sections = Section::all();
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $subjects = $options['subjects'];
+            $sections = $options['sections'];
+            $subjectsBySection = $options['subjectsBySection'] ?? [];
+
+            $extraSubjectIds = collect($subjectsBySection)->flatten()->unique()->diff($subjects->pluck('id'));
+            if ($extraSubjectIds->isNotEmpty()) {
+                $subjects = $subjects->concat(Subject::whereIn('id', $extraSubjectIds)->get())
+                    ->unique('id')->sortBy('subject_name')->values();
+            }
+
+            $extraSectionIds = collect(array_keys($subjectsBySection))->diff($sections->pluck('id'));
+            if ($extraSectionIds->isNotEmpty()) {
+                $sections = $sections->concat(Section::whereIn('id', $extraSectionIds)->get())
+                    ->unique('id')->sortBy(['grade_level', 'name'])->values();
+            }
         }
 
-        return view('class-posts.create', compact('subjects', 'sections', 'academicYears', 'semesters'));
+        return view('class-posts.create', compact('subjects', 'sections', 'academicYears', 'semesters', 'subjectsBySection'));
     }
 
     /**
@@ -146,7 +160,10 @@ class ClassPostController extends Controller
             'type' => 'required|in:announcement,resource,discussion,reminder',
             'priority' => 'required|in:low,normal,high,urgent',
             'expires_at' => 'nullable|date|after:today',
-            'post_file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,txt,jpg,jpeg,png|max:10240'
+            'post_file' => 'nullable|file|max:10240|extensions:pdf,docx,pptx,txt,jpg,jpeg,png',
+        ], [
+            'post_file.extensions' => 'Please upload a PDF, Word (DOCX), PowerPoint (PPTX), text, or image file.',
+            'post_file.max' => 'The attachment may not be larger than 10MB.',
         ]);
 
         if ($validator->fails()) {
@@ -158,6 +175,14 @@ class ClassPostController extends Controller
 
         if (!$teacher) {
             return redirect()->back()->with('error', 'Teacher profile not found.');
+        }
+
+        $allowedSubjects = app(TeacherClassAssignmentService::class)
+            ->optionsFor($teacher)['subjectsBySection'][(int) $request->section_id] ?? [];
+        if (! in_array((int) $request->subject_id, array_map('intval', $allowedSubjects), true)) {
+            return redirect()->back()
+                ->withErrors(['subject_id' => 'Select a subject that belongs to that section.'])
+                ->withInput();
         }
 
         $data = $request->only([
@@ -243,21 +268,34 @@ class ClassPostController extends Controller
     {
         $this->authorizePost($classPost);
         
-        $user = Auth::user();
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
+        $teacher = Auth::user()->teacher;
+        $academicYears = AcademicYear::orderByDesc('id')->get();
+        $semesters = Semester::orderBy('name')->get();
 
-        // Filter subjects AND sections by teacher's assignments
-        $teacher = $user->teacher;
+        $subjects = collect();
+        $sections = collect();
+        $subjectsBySection = [];
+
         if ($teacher) {
-            $subjects = $teacher->subjects()->get();
-            $sections = $teacher->sections()->get();
-        } else {
-            $subjects = Subject::all();
-            $sections = Section::all();
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $subjects = $options['subjects'];
+            $sections = $options['sections'];
+            $subjectsBySection = $options['subjectsBySection'] ?? [];
+
+            $extraSubjectIds = collect($subjectsBySection)->flatten()->unique()->diff($subjects->pluck('id'));
+            if ($extraSubjectIds->isNotEmpty()) {
+                $subjects = $subjects->concat(Subject::whereIn('id', $extraSubjectIds)->get())
+                    ->unique('id')->sortBy('subject_name')->values();
+            }
+
+            $extraSectionIds = collect(array_keys($subjectsBySection))->diff($sections->pluck('id'));
+            if ($extraSectionIds->isNotEmpty()) {
+                $sections = $sections->concat(Section::whereIn('id', $extraSectionIds)->get())
+                    ->unique('id')->sortBy(['grade_level', 'name'])->values();
+            }
         }
-        
-        return view('class-posts.edit', compact('classPost', 'subjects', 'sections', 'academicYears', 'semesters'));
+
+        return view('class-posts.edit', compact('classPost', 'subjects', 'sections', 'academicYears', 'semesters', 'subjectsBySection'));
     }
 
     /**
@@ -277,11 +315,25 @@ class ClassPostController extends Controller
             'type' => 'required|in:announcement,resource,discussion,reminder',
             'priority' => 'required|in:low,normal,high,urgent',
             'expires_at' => 'nullable|date|after:today',
-            'post_file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,txt,jpg,jpeg,png|max:10240'
+            'post_file' => 'nullable|file|max:10240|extensions:pdf,docx,pptx,txt,jpg,jpeg,png',
+        ], [
+            'post_file.extensions' => 'Please upload a PDF, Word (DOCX), PowerPoint (PPTX), text, or image file.',
+            'post_file.max' => 'The attachment may not be larger than 10MB.',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        $teacher = Auth::user()->teacher;
+        if ($teacher) {
+            $allowedSubjects = app(TeacherClassAssignmentService::class)
+                ->optionsFor($teacher)['subjectsBySection'][(int) $request->section_id] ?? [];
+            if (! in_array((int) $request->subject_id, array_map('intval', $allowedSubjects), true)) {
+                return redirect()->back()
+                    ->withErrors(['subject_id' => 'Select a subject that belongs to that section.'])
+                    ->withInput();
+            }
         }
 
         $data = $request->only([
@@ -376,7 +428,10 @@ class ClassPostController extends Controller
         $request->validate([
             'content' => 'required|string|max:1000',
             'parent_id' => 'nullable|exists:class_post_comments,id',
-            'comment_file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,txt,jpg,jpeg,png|max:5120'
+            'comment_file' => 'nullable|file|max:5120|extensions:pdf,docx,pptx,txt,jpg,jpeg,png',
+        ], [
+            'comment_file.extensions' => 'Please upload a PDF, Word (DOCX), PowerPoint (PPTX), text, or image file.',
+            'comment_file.max' => 'The attachment may not be larger than 5MB.',
         ]);
 
         if (!$classPost->canComment()) {

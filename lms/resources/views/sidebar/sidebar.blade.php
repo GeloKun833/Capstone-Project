@@ -101,7 +101,6 @@
                         $tClass = request()->routeIs('class-posts.*', 'attendance.*');
                         $tCal = request()->routeIs('calendar.*');
                         $tAnnounce = request()->routeIs('announcements.*');
-                        $tChat = request()->routeIs('chat.*');
                         $tReports = request()->routeIs('reports.*');
                     @endphp
 
@@ -131,7 +130,6 @@
                         <a href="javascript:void(0);"><i class="fas fa-users"></i> <span>Class Management</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('class-posts.index') }}"><i class="fas fa-list"></i> <span>All Posts</span></a></li>
-                            <li><a href="{{ route('class-posts.create') }}"><i class="fas fa-plus"></i> <span>Create Post</span></a></li>
                             <li><a href="{{ route('attendance.index') }}"><i class="fas fa-user-check"></i> <span>Attendance</span></a></li>
                         </ul>
                     </li>
@@ -142,10 +140,6 @@
 
                     <li class="{{ $tAnnounce ? 'active' : '' }}">
                         <a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a>
-                    </li>
-
-                    <li class="{{ $tChat ? 'active' : '' }}">
-                        <a href="{{ route('chat.index') }}"><i class="far fa-comments"></i> <span>Chat</span></a>
                     </li>
 
                     <li class="{{ $tReports ? 'active' : '' }}">

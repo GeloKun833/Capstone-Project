@@ -2,17 +2,26 @@
 @section('content')
 
     <div class="page-wrapper">
-        <div class="content container-fluid">
+        <div class="content container-fluid dir-page">
 
             <div class="page-header">
-                <div class="row align-items-center">
+                <div class="row align-items-start">
                     <div class="col">
-                        <h3 class="page-title">Edit Lesson</h3>
-                        <ul class="breadcrumb">
+                        <h3 class="page-title mb-1">Edit Lesson</h3>
+                        <p class="dir-subtitle">Update the lesson details for your class.</p>
+                    </div>
+                    <div class="col-auto text-end">
+                        <ul class="breadcrumb justify-content-end mb-2">
                             <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('lessons.index') }}">Lesson Planner</a></li>
-                            <li class="breadcrumb-item active">Edit Lesson</li>
+                            <li class="breadcrumb-item"><a href="{{ route('lessons.index') }}">My Lessons</a></li>
+                            <li class="breadcrumb-item active">Edit</li>
                         </ul>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{{ route('lessons.index') }}" class="btn btn-outline-secondary dir-btn">Back</a>
+                            <button type="submit" form="lessonForm" class="btn btn-primary dir-btn">
+                                <i class="fas fa-save me-1"></i> Update Lesson
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -29,24 +38,8 @@
 
             <div class="row">
                 <div class="col-sm-12">
-                    <div class="card card-table">
-                        <div class="card-body">
-                            <div class="page-header">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h3 class="page-title">Update Lesson Information</h3>
-                                    </div>
-                                    <div class="col-auto text-end float-end ms-auto download-grp">
-                                        <a href="{{ route('lessons.index') }}" class="btn btn-outline-secondary me-2">
-                                            <i class="fas fa-arrow-left"></i> Back to Lessons
-                                        </a>
-                                        <button type="submit" form="lessonForm" class="btn btn-primary">
-                                            <i class="fas fa-save"></i> Update Lesson
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
+                    <div class="dir-card">
+                        <div class="p-3 p-md-4">
                             <form action="{{ route('lessons.update', $lesson) }}" method="POST" id="lessonForm" enctype="multipart/form-data">
                                 @csrf
                                 @method('PUT')
@@ -259,6 +252,7 @@
     </div>
 
 @push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914e">
 <style>
 /* Admin-style form controls */
 .student-group-form {

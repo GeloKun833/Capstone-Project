@@ -1,25 +1,39 @@
 @extends('layouts.master')
 @section('content')
+
+@php
+    $avatarUrl = \App\Support\AvatarUploader::url($user->avatar);
+@endphp
+
 <div class="page-wrapper">
-    <div class="content container-fluid">
+    <div class="content container-fluid dir-page">
         <div class="page-header">
-            <div class="row">
+            <div class="row align-items-start">
                 <div class="col">
-                    <h3 class="page-title">Edit Profile</h3>
-                    <ul class="breadcrumb">
+                    <h3 class="page-title mb-1">Edit Profile</h3>
+                    <p class="dir-subtitle">Update the details stored on your account.</p>
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-0">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="{{ route('user/profile/page') }}">Profile</a></li>
                         <li class="breadcrumb-item active">Edit Profile</li>
                     </ul>
                 </div>
             </div>
         </div>
+
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-body">
+
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="dir-card">
+                    <div class="dir-toolbar">
+                        <h5 class="dir-toolbar-title mb-0">Account details</h5>
+                    </div>
+                    <div class="p-4">
                         <form action="{{ route('user/profile/update') }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="form-group">
@@ -39,71 +53,51 @@
                                 <label>Email</label>
                                 <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $user->email) }}">
                                 @error('email')
-                                    <span class="invalid-feedback" role="alert">
-                                        <strong>{{ $message }}</strong>
-                                    </span>
+                                    <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
                                 @enderror
                             </div>
                             <div class="form-group">
-                                <label>Profile Photo</label>
+                                <label>Mobile</label>
+                                <input type="text" name="phone_number" class="form-control @error('phone_number') is-invalid @enderror" value="{{ old('phone_number', $user->phone_number) }}">
+                                @error('phone_number')
+                                    <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
+                                @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Role</label>
+                                <input type="text" class="form-control" value="{{ $user->role_name }}" readonly>
+                            </div>
+                            @if($user->user_id)
+                                <div class="form-group">
+                                    <label>User ID</label>
+                                    <input type="text" class="form-control" value="{{ $user->user_id }}" readonly>
+                                </div>
+                            @endif
+                            <div class="form-group">
+                                <label>Profile photo</label>
                                 <input type="file" name="avatar" class="form-control @error('avatar') is-invalid @enderror" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp">
                                 <small class="text-muted">JPG, PNG, GIF, or WEBP. Max 2MB.</small>
                                 @error('avatar')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
                                 <div class="mt-2">
-                                    <img src="{{ \App\Support\AvatarUploader::url($user->avatar) }}" alt="Profile" class="rounded-circle" style="width:72px;height:72px;object-fit:cover;">
+                                    <img src="{{ $avatarUrl }}" alt="{{ $user->name }}" class="dir-avatar">
                                 </div>
                             </div>
                             @if($user->role_name === \App\Models\User::ROLE_STUDENT && $student)
-                            <div class="form-group">
-                                <label>Student ID</label>
-                                <input type="text" name="student_id" class="form-control" value="{{ old('student_id', $student->admission_id) }}" readonly>
-                            </div>
+                                <div class="form-group">
+                                    <label>Student ID</label>
+                                    <input type="text" class="form-control" value="{{ $student->admission_id ?? $student->student_id }}" readonly>
+                                </div>
                             @endif
                             @if($user->role_name === \App\Models\User::ROLE_TEACHER && $teacher)
-                            <div class="form-group">
-                                <label>Teacher ID</label>
-                                <input type="text" name="teacher_id" class="form-control" value="{{ old('teacher_id', $teacher->teacher_id) }}" readonly>
-                            </div>
+                                <div class="form-group">
+                                    <label>Teacher ID</label>
+                                    <input type="text" class="form-control" value="{{ $teacher->teacher_id }}" readonly>
+                                </div>
                             @endif
-                            <button type="submit" class="btn btn-primary">Update Profile</button>
-                        </form>
-                    </div>
-                </div>
-                <div class="card mt-4">
-                    <div class="card-body">
-                        <h5>Change Password</h5>
-                        <form action="{{ route('user/password/update') }}" method="POST">
-                            @csrf
-                            <div class="form-group">
-                                <label>Current Password</label>
-                                <input type="password" name="current_password" class="form-control @error('current_password') is-invalid @enderror">
-                                @error('current_password')
-                                    <span class="invalid-feedback" role="alert">
-                                        <strong>{{ $message }}</strong>
-                                    </span>
-                                @enderror
-                            </div>
-                            <div class="form-group">
-                                <label>New Password</label>
-                                <input type="password" name="new_password" class="form-control @error('new_password') is-invalid @enderror">
-                                @error('new_password')
-                                    <span class="invalid-feedback" role="alert">
-                                        <strong>{{ $message }}</strong>
-                                    </span>
-                                @enderror
-                            </div>
-                            <div class="form-group">
-                                <label>Confirm New Password</label>
-                                <input type="password" name="new_password_confirmation" class="form-control @error('new_password_confirmation') is-invalid @enderror">
-                                @error('new_password_confirmation')
-                                    <span class="invalid-feedback" role="alert">
-                                        <strong>{{ $message }}</strong>
-                                    </span>
-                                @enderror
-                            </div>
-                            <button type="submit" class="btn btn-warning">Change Password</button>
+                            <button type="submit" class="btn btn-primary dir-btn">Update profile</button>
+                            <a href="{{ route('user/profile/page') }}" class="btn btn-outline-secondary dir-btn">Cancel</a>
                         </form>
                     </div>
                 </div>
@@ -111,4 +105,8 @@
         </div>
     </div>
 </div>
-@endsection 
+@endsection
+
+@push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">
+@endpush

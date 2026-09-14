@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('content')
+<?php $__env->startSection('content'); ?>
 
-@php
+<?php
     $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     $dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     $allSchedules = collect($weeklySchedule ?? [])->flatten();
@@ -63,7 +62,7 @@
             ];
         })
         ->values();
-@endphp
+?>
 
 <div class="page-wrapper">
     <div class="content container-fluid dir-page plan-page">
@@ -75,7 +74,7 @@
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-0">
-                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">My Schedule</li>
                     </ul>
                 </div>
@@ -85,92 +84,92 @@
         <div class="plan-shell">
             <aside class="plan-side">
                 <div class="plan-side-card">
-                    <div class="plan-month">{{ $weekStart->format('F Y') }}</div>
-                    <div class="plan-weekdays" style="grid-template-columns: repeat({{ count($days) }}, 1fr);">
-                        @foreach($days as $index => $day)
-                            @php $date = $weekStart->copy()->addDays($index); @endphp
-                            <div class="plan-weekday {{ $date->isSameDay($today) ? 'is-today' : '' }}">
-                                <span>{{ $dayNames[$index][0] }}</span>
-                                <strong>{{ $date->format('j') }}</strong>
+                    <div class="plan-month"><?php echo e($weekStart->format('F Y')); ?></div>
+                    <div class="plan-weekdays" style="grid-template-columns: repeat(<?php echo e(count($days)); ?>, 1fr);">
+                        <?php $__currentLoopData = $days; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php $date = $weekStart->copy()->addDays($index); ?>
+                            <div class="plan-weekday <?php echo e($date->isSameDay($today) ? 'is-today' : ''); ?>">
+                                <span><?php echo e($dayNames[$index][0]); ?></span>
+                                <strong><?php echo e($date->format('j')); ?></strong>
                             </div>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
                 </div>
 
                 <div class="plan-side-card">
                     <h6>Today</h6>
-                    @forelse($todayClasses as $item)
+                    <?php $__empty_1 = true; $__currentLoopData = $todayClasses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <div class="plan-today-row">
-                            <i style="background: {{ $item->color ?: '#7c8cff' }}"></i>
+                            <i style="background: <?php echo e($item->color ?: '#7c8cff'); ?>"></i>
                             <div>
-                                <strong>{{ $item->subject->subject_name }}</strong>
-                                <span>{{ $formatMinutes($clockMinutes($item->start_time)) }} – {{ $formatMinutes($clockMinutes($item->end_time)) }}</span>
-                                <span>{{ $item->section->name }} · {{ $item->room->room_name ?? 'TBD' }}</span>
+                                <strong><?php echo e($item->subject->subject_name); ?></strong>
+                                <span><?php echo e($formatMinutes($clockMinutes($item->start_time))); ?> – <?php echo e($formatMinutes($clockMinutes($item->end_time))); ?></span>
+                                <span><?php echo e($item->section->name); ?> · <?php echo e($item->room->room_name ?? 'TBD'); ?></span>
                             </div>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <p class="plan-empty-note">No classes today.</p>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
 
                 <div class="plan-side-card">
                     <h6>Subjects</h6>
-                    @forelse($legend as $item)
+                    <?php $__empty_1 = true; $__currentLoopData = $legend; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <div class="plan-cat">
-                            <i style="background: {{ $item['color'] }}"></i>
-                            <span>{{ $item['name'] }}</span>
-                            <em>{{ $item['count'] }}</em>
+                            <i style="background: <?php echo e($item['color']); ?>"></i>
+                            <span><?php echo e($item['name']); ?></span>
+                            <em><?php echo e($item['count']); ?></em>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <p class="plan-empty-note">No subjects scheduled.</p>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </aside>
 
             <section class="plan-board">
                 <div class="plan-board-bar">
                     <div class="d-flex align-items-center gap-2">
-                        <a href="{{ route('teacher.my-schedule', ['week' => $prevWeek]) }}" class="plan-week-btn" title="Previous week"><i class="fas fa-chevron-left"></i></a>
-                        <a href="{{ route('teacher.my-schedule', ['week' => $nextWeek]) }}" class="plan-week-btn" title="Next week"><i class="fas fa-chevron-right"></i></a>
+                        <a href="<?php echo e(route('teacher.my-schedule', ['week' => $prevWeek])); ?>" class="plan-week-btn" title="Previous week"><i class="fas fa-chevron-left"></i></a>
+                        <a href="<?php echo e(route('teacher.my-schedule', ['week' => $nextWeek])); ?>" class="plan-week-btn" title="Next week"><i class="fas fa-chevron-right"></i></a>
                         <div>
-                            <div class="plan-board-title">{{ $weekStart->format('M j') }} – {{ $weekEnd->format('M j, Y') }}</div>
-                            <div class="plan-board-sub">{{ $classCount }} class{{ $classCount === 1 ? '' : 'es' }} · Monday to Saturday</div>
+                            <div class="plan-board-title"><?php echo e($weekStart->format('M j')); ?> – <?php echo e($weekEnd->format('M j, Y')); ?></div>
+                            <div class="plan-board-sub"><?php echo e($classCount); ?> class<?php echo e($classCount === 1 ? '' : 'es'); ?> · Monday to Saturday</div>
                         </div>
                     </div>
-                    @if(!$isCurrentWeek)
-                        <a href="{{ route('teacher.my-schedule') }}" class="plan-week-now">This week</a>
-                    @endif
+                    <?php if(!$isCurrentWeek): ?>
+                        <a href="<?php echo e(route('teacher.my-schedule')); ?>" class="plan-week-now">This week</a>
+                    <?php endif; ?>
                 </div>
 
-                @if($classCount === 0)
+                <?php if($classCount === 0): ?>
                     <div class="dir-empty">
                         <i class="far fa-calendar-alt d-block"></i>
                         <h5 class="mt-2 mb-1">No classes scheduled</h5>
                         <p class="mb-0">Your weekly planner will appear here after Admin assigns a class schedule to you.</p>
                     </div>
-                @else
+                <?php else: ?>
                     <div class="plan-cal">
-                        <div class="plan-heads" style="--days: {{ count($days) }};">
+                        <div class="plan-heads" style="--days: <?php echo e(count($days)); ?>;">
                             <div class="plan-head plan-head-time"></div>
-                            @foreach($days as $index => $day)
-                                @php $date = $weekStart->copy()->addDays($index); @endphp
-                                <div class="plan-head {{ $date->isSameDay($today) ? 'is-today' : '' }}">
-                                    <span>{{ strtoupper($dayNames[$index]) }}</span>
-                                    <strong>{{ $date->format('j') }}</strong>
+                            <?php $__currentLoopData = $days; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $date = $weekStart->copy()->addDays($index); ?>
+                                <div class="plan-head <?php echo e($date->isSameDay($today) ? 'is-today' : ''); ?>">
+                                    <span><?php echo e(strtoupper($dayNames[$index])); ?></span>
+                                    <strong><?php echo e($date->format('j')); ?></strong>
                                 </div>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
-                        <div class="plan-body" style="--days: {{ count($days) }}; --hours: {{ count($hourSlots) }};">
+                        <div class="plan-body" style="--days: <?php echo e(count($days)); ?>; --hours: <?php echo e(count($hourSlots)); ?>;">
                             <div class="plan-times">
-                                @foreach($hourSlots as $slot)
-                                    <div class="plan-time"><span>{{ $formatMinutes($slot) }}</span></div>
-                                @endforeach
+                                <?php $__currentLoopData = $hourSlots; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $slot): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <div class="plan-time"><span><?php echo e($formatMinutes($slot)); ?></span></div>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </div>
-                            @foreach($days as $day)
-                                @php $date = $weekStart->copy()->addDays((int) array_search($day, $days, true)); @endphp
-                                <div class="plan-col {{ $date->isSameDay($today) ? 'is-today' : '' }}">
-                                    @foreach(($weeklySchedule[$day] ?? collect()) as $schedule)
-                                        @php
+                            <?php $__currentLoopData = $days; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $date = $weekStart->copy()->addDays((int) array_search($day, $days, true)); ?>
+                                <div class="plan-col <?php echo e($date->isSameDay($today) ? 'is-today' : ''); ?>">
+                                    <?php $__currentLoopData = ($weeklySchedule[$day] ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $schedule): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <?php
                                             $startM = $clockMinutes($schedule->start_time);
                                             $endM = $clockMinutes($schedule->end_time);
                                             if ($endM <= $startM) {
@@ -181,31 +180,31 @@
                                             $color = $schedule->color ?: '#7c8cff';
                                             $startLabel = $formatMinutes($startM);
                                             $endLabel = $formatMinutes($endM);
-                                        @endphp
+                                        ?>
                                         <article class="plan-event"
-                                                 style="top: {{ $topPct }}%; --block-h: calc({{ $heightPct }}% - 4px); --event: {{ $color }};">
-                                            @if($schedule->subject->subject_id)
-                                                <div class="plan-event-code">{{ $schedule->subject->subject_id }}</div>
-                                            @endif
-                                            <div class="plan-event-name">{{ $schedule->subject->subject_name }}</div>
-                                            <div class="plan-event-time">{{ $startLabel }} – {{ $endLabel }}</div>
-                                            <div class="plan-event-meta">{{ $schedule->section->name }}@if($schedule->section?->grade_level) · {{ $schedule->section->grade_level }}@endif</div>
-                                            <div class="plan-event-meta">{{ $schedule->room->room_name ?? 'Room TBD' }}</div>
+                                                 style="top: <?php echo e($topPct); ?>%; --block-h: calc(<?php echo e($heightPct); ?>% - 4px); --event: <?php echo e($color); ?>;">
+                                            <?php if($schedule->subject->subject_id): ?>
+                                                <div class="plan-event-code"><?php echo e($schedule->subject->subject_id); ?></div>
+                                            <?php endif; ?>
+                                            <div class="plan-event-name"><?php echo e($schedule->subject->subject_name); ?></div>
+                                            <div class="plan-event-time"><?php echo e($startLabel); ?> – <?php echo e($endLabel); ?></div>
+                                            <div class="plan-event-meta"><?php echo e($schedule->section->name); ?><?php if($schedule->section?->grade_level): ?> · <?php echo e($schedule->section->grade_level); ?><?php endif; ?></div>
+                                            <div class="plan-event-meta"><?php echo e($schedule->room->room_name ?? 'Room TBD'); ?></div>
                                         </article>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
                     </div>
-                @endif
+                <?php endif; ?>
             </section>
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914h">
+<?php $__env->startPush('styles'); ?>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914h">
 <style>
 .plan-page .page-header { margin-bottom: 0.75rem; }
 .plan-shell {
@@ -320,37 +319,7 @@
 }
 .plan-board-bar {
     flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
     padding: 0.85rem 1.15rem 0.35rem;
-}
-.plan-week-btn {
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    border: 1px solid #e8eef7;
-    color: #64748b;
-    background: #fff;
-    text-decoration: none;
-}
-.plan-week-btn:hover {
-    color: #4f46e5;
-    border-color: #c7d2fe;
-    background: #f8faff;
-}
-.plan-week-now {
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #4f46e5;
-    text-decoration: none;
-    padding: 0.35rem 0.7rem;
-    border-radius: 999px;
-    background: #eef2ff;
 }
 .plan-board-title { font-size: 1.05rem; font-weight: 750; color: #1e293b; }
 .plan-board-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 0.1rem; }
@@ -469,4 +438,6 @@
     .plan-board { min-height: 70vh; }
 }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/schedule/teacher-schedule.blade.php ENDPATH**/ ?>
