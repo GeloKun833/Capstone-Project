@@ -30,15 +30,14 @@
     }
 
     function wrapField(el) {
-        if (!el || el.closest('.mdp-field')) return;
-        var parent = el.parentElement;
-        if (parent && (parent.classList.contains('form-group') || parent.classList.contains('mb-3') || parent.classList.contains('calendar-icon'))) {
-            parent.classList.add('mdp-field', 'mdp-ready');
-        } else {
-            var wrap = document.createElement('div');
-            wrap.className = 'mdp-field mdp-ready';
-            el.parentNode.insertBefore(wrap, el);
-            wrap.appendChild(el);
+        if (!el || el.parentElement && el.parentElement.classList.contains('mdp-input-wrap')) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'mdp-input-wrap';
+        el.parentNode.insertBefore(wrap, el);
+        wrap.appendChild(el);
+        var group = wrap.parentElement;
+        if (group && (group.classList.contains('form-group') || group.classList.contains('mb-3') || group.classList.contains('calendar-icon'))) {
+            group.classList.add('mdp-field', 'mdp-ready');
         }
     }
 
@@ -66,21 +65,71 @@
         }
     }
 
-    function enhanceNativeDate(el) {
-        if (el.dataset.mdpReady === '1') return;
-
-        // Event datetimes use bootstrap picker (text), not native datetime-local
+    function isDatetimeField(el) {
+        if (!el) return false;
+        if (el.type === 'datetime-local' || el.dataset.mdpOrig === 'datetime-local') return true;
         if (el.classList.contains('js-event-datetime') || el.classList.contains('js-event-start') || el.classList.contains('js-event-end')) {
-            if (el.type === 'datetime-local' || el.type === 'date') {
-                convertEventDatetimeInput(el);
-            }
+            return !isAllDayMode();
+        }
+        var key = ((el.getAttribute('name') || '') + ' ' + (el.id || '')).toLowerCase();
+        return /(start_time|end_time|scheduled_at|expires_at)/.test(key);
+    }
+
+    function fieldMinDate(el) {
+        var min = el && el.getAttribute('min');
+        if (min) return parseEventDate(min);
+        if (isDobField(el)) return parseEventDate('1950-01-01');
+        return null;
+    }
+
+    function fieldMaxDate(el) {
+        var max = el && el.getAttribute('max');
+        if (max) return parseEventDate(max);
+        if (isDobField(el)) {
+            var t = new Date();
+            t.setHours(23, 59, 59, 999);
+            return t;
+        }
+        return null;
+    }
+
+    function dateOutOfRange(el, year, month, day) {
+        var dt = new Date(year, month, day, 12, 0, 0, 0);
+        var min = fieldMinDate(el);
+        var max = fieldMaxDate(el);
+        if (min) {
+            var a = new Date(min);
+            a.setHours(0, 0, 0, 0);
+            if (dt < a) return true;
+        }
+        if (max) {
+            var b = new Date(max);
+            b.setHours(23, 59, 59, 999);
+            if (dt > b) return true;
+        }
+        return false;
+    }
+
+    function enhanceNativeDate(el) {
+        bindDateInput(el);
+    }
+
+    function bindDateInput(el) {
+        if (!el || el.tagName !== 'INPUT') return;
+        if ((el.getAttribute('name') || '') === 'qualification') {
+            el.classList.remove('datetimepicker');
             return;
         }
 
-        el.dataset.mdpReady = '1';
-
-        wrapField(el);
-        blockManualTyping(el);
+        var origType = el.dataset.mdpOrig || el.getAttribute('type') || 'text';
+        var raw = (el.value || '').trim();
+        if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+            var parts = raw.split('-');
+            raw = parts[2] + '-' + parts[1] + '-' + parts[0];
+        }
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
+            raw = raw.replace('T', ' ').slice(0, 16);
+        }
 
         if (isDobField(el)) {
             el.classList.add('js-dob');
@@ -88,180 +137,313 @@
             if (!el.getAttribute('min')) el.setAttribute('min', '1950-01-01');
         }
 
-        if (isEventField(el)) {
-            el.classList.add('js-event-date');
-        }
+        var datetime = origType === 'datetime-local' || el.classList.contains('js-event-datetime') ||
+            el.classList.contains('js-event-start') || el.classList.contains('js-event-end') ||
+            isDatetimeField(el);
 
-        el.addEventListener('focus', function () { openPicker(el); });
-        el.addEventListener('click', function () { openPicker(el); });
+        el.dataset.mdpOrig = origType;
+        el.dataset.mdpMode = datetime ? 'datetime' : 'date';
+        el.setAttribute('type', 'text');
+        el.classList.remove('datetimepicker');
+        el.readOnly = true;
+        el.placeholder = datetime && !isAllDayMode() ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD';
+        if (raw) el.value = raw;
+
+        wrapField(el);
+
+        try {
+            if ($ && $(el).data('DateTimePicker')) $(el).data('DateTimePicker').destroy();
+        } catch (e) {}
+
+        if (el.dataset.mdpBound === '1') return;
+        el.dataset.mdpBound = '1';
+        blockManualTyping(el);
+        el.addEventListener('focus', function () { openEventPopover(el); });
+        el.addEventListener('click', function () { openEventPopover(el); });
     }
 
     function convertEventDatetimeInput(el) {
-        if (!el || el.tagName !== 'INPUT') return;
-        if (el.dataset.mdpEvt === '1') {
-            if (!$(el).data('mdp-boot')) initOneEventDatetime($(el));
-            return;
-        }
-        el.dataset.mdpEvt = '1';
-
-        var raw = (el.value || '').trim();
-        // Normalize datetime-local value to picker format
-        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
-            raw = raw.replace('T', ' ').slice(0, 16);
-        }
-
-        el.setAttribute('type', 'text');
-        el.classList.add('js-event-datetime', 'datetimepicker');
-        el.readOnly = true;
-        el.placeholder = 'YYYY-MM-DD HH:mm';
-        el.value = raw;
-
-        wrapField(el);
-        blockManualTyping(el);
-        initOneEventDatetime($(el));
+        bindDateInput(el);
     }
 
-    function pickerIcons() {
-        return {
-            time: 'fas fa-clock',
-            date: 'fas fa-calendar',
-            up: 'fas fa-angle-up',
-            down: 'fas fa-angle-down',
-            previous: 'fas fa-angle-left',
-            next: 'fas fa-angle-right',
-            today: 'fas fa-crosshairs',
-            clear: 'fas fa-trash',
-            close: 'fas fa-times'
-        };
+    function pad2(n) {
+        return String(n).padStart(2, '0');
     }
 
-    function initOneEventDatetime($el) {
-        if (!$ || !$.fn.datetimepicker || !$el.length) return;
-        if ($el.data('mdp-boot')) return;
-        $el.data('mdp-boot', 1);
+    function isAllDayMode() {
+        var el = document.getElementById('form_is_all_day') || document.getElementById('is_all_day');
+        return !!(el && el.checked);
+    }
 
+    function formatEventDate(d, allDay) {
+        var out = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        if (allDay) return out;
+        return out + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+
+    function parseEventDate(str) {
+        var now = new Date();
+        if (!str) return now;
+        str = String(str).trim().replace('T', ' ');
+        var m = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+        if (!m) return now;
+        return new Date(
+            parseInt(m[1], 10),
+            parseInt(m[2], 10) - 1,
+            parseInt(m[3], 10),
+            parseInt(m[4] || '0', 10),
+            parseInt(m[5] || '0', 10),
+            0,
+            0
+        );
+    }
+
+    var eventPopover = null;
+    var eventTarget = null;
+    var eventCursor = new Date();
+    var eventViewMonth = new Date();
+
+    function hideOpenEventPickers() {
+        if (eventPopover) {
+            eventPopover.classList.remove('is-open');
+        }
+        eventTarget = null;
+        if ($ && $.fn.datetimepicker) {
+            $('.bootstrap-datetimepicker-widget').hide();
+        }
+    }
+
+    function ensureEventPopover() {
+        if (eventPopover) return eventPopover;
+
+        var pop = document.createElement('div');
+        pop.id = 'mdpEventPopover';
+        pop.className = 'mdp-event-popover';
+        pop.setAttribute('role', 'dialog');
+        pop.innerHTML =
+            '<div class="mdp-event-cal">' +
+                '<div class="mdp-event-cal-head">' +
+                    '<button type="button" class="mdp-event-nav" data-mdp="prev" aria-label="Previous month"><i class="fas fa-angle-left"></i></button>' +
+                    '<div class="mdp-event-month" data-mdp="month-label"></div>' +
+                    '<button type="button" class="mdp-event-nav" data-mdp="next" aria-label="Next month"><i class="fas fa-angle-right"></i></button>' +
+                '</div>' +
+                '<div class="mdp-event-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' +
+                '<div class="mdp-event-days" data-mdp="days"></div>' +
+                '<div class="mdp-event-cal-foot">' +
+                    '<button type="button" data-mdp="today">Today</button>' +
+                    '<button type="button" data-mdp="clear">Clear</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mdp-event-time" data-mdp="time">' +
+                '<div class="mdp-event-spin">' +
+                    '<button type="button" data-mdp="hour-up" aria-label="Hour up"><i class="fas fa-angle-up"></i></button>' +
+                    '<div class="mdp-event-spin-val" data-mdp="hour">00</div>' +
+                    '<button type="button" data-mdp="hour-down" aria-label="Hour down"><i class="fas fa-angle-down"></i></button>' +
+                '</div>' +
+                '<div class="mdp-event-colon">:</div>' +
+                '<div class="mdp-event-spin">' +
+                    '<button type="button" data-mdp="min-up" aria-label="Minute up"><i class="fas fa-angle-up"></i></button>' +
+                    '<div class="mdp-event-spin-val" data-mdp="min">00</div>' +
+                    '<button type="button" data-mdp="min-down" aria-label="Minute down"><i class="fas fa-angle-down"></i></button>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(pop);
+        eventPopover = pop;
+
+        pop.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+        });
+
+        pop.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-mdp]');
+            if (!btn) return;
+            var action = btn.getAttribute('data-mdp');
+            if (action === 'prev') {
+                eventViewMonth.setMonth(eventViewMonth.getMonth() - 1);
+                renderEventPopover();
+            } else if (action === 'next') {
+                eventViewMonth.setMonth(eventViewMonth.getMonth() + 1);
+                renderEventPopover();
+            } else if (action === 'today') {
+                eventCursor = new Date();
+                eventCursor.setSeconds(0, 0);
+                eventCursor.setMinutes(Math.round(eventCursor.getMinutes() / 5) * 5);
+                eventViewMonth = new Date(eventCursor);
+                commitEventValue();
+                renderEventPopover();
+            } else if (action === 'clear') {
+                if (eventTarget) {
+                    eventTarget.value = '';
+                    eventTarget.dispatchEvent(new Event('change', { bubbles: true }));
+                    if ($) $(eventTarget).trigger('change');
+                }
+                hideOpenEventPickers();
+            } else if (action === 'hour-up') {
+                eventCursor.setHours(eventCursor.getHours() + 1);
+                commitEventValue();
+                renderEventPopover();
+            } else if (action === 'hour-down') {
+                eventCursor.setHours(eventCursor.getHours() - 1);
+                commitEventValue();
+                renderEventPopover();
+            } else if (action === 'min-up') {
+                eventCursor.setMinutes(eventCursor.getMinutes() + 5);
+                commitEventValue();
+                renderEventPopover();
+            } else if (action === 'min-down') {
+                eventCursor.setMinutes(eventCursor.getMinutes() - 5);
+                commitEventValue();
+                renderEventPopover();
+            } else if (action === 'day') {
+                var y = parseInt(btn.getAttribute('data-y'), 10);
+                var mo = parseInt(btn.getAttribute('data-m'), 10);
+                var d = parseInt(btn.getAttribute('data-d'), 10);
+                eventCursor.setFullYear(y, mo, d);
+                commitEventValue();
+                renderEventPopover();
+            }
+        });
+
+        document.addEventListener('mousedown', function (e) {
+            if (!eventPopover || !eventPopover.classList.contains('is-open')) return;
+            if (eventPopover.contains(e.target)) return;
+            if (eventTarget && (e.target === eventTarget || eventTarget.contains(e.target))) return;
+            hideOpenEventPickers();
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') hideOpenEventPickers();
+        });
+
+        window.addEventListener('scroll', function () {
+            if (eventTarget) positionEventPopover(eventTarget);
+        }, true);
+
+        return pop;
+    }
+
+    function fieldUsesTime(el) {
+        if (!el) return false;
+        if (el.classList.contains('js-event-start') || el.classList.contains('js-event-end') || el.classList.contains('js-event-datetime') ||
+            el.id === 'form_start_time' || el.id === 'form_end_time') {
+            return !isAllDayMode();
+        }
+        return el.dataset.mdpMode === 'datetime' || el.dataset.mdpOrig === 'datetime-local';
+    }
+
+    function commitEventValue() {
+        if (!eventTarget) return;
+        var dateOnly = !fieldUsesTime(eventTarget);
+        var val = formatEventDate(eventCursor, dateOnly);
+        if (eventTarget.dataset.mdpOrig === 'datetime-local' && !dateOnly) {
+            val = val.replace(' ', 'T');
+        }
+        eventTarget.value = val;
+        eventTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        eventTarget.dispatchEvent(new Event('change', { bubbles: true }));
+        if ($) $(eventTarget).trigger('change');
+    }
+
+    function renderEventPopover() {
+        var pop = ensureEventPopover();
+        var monthLabel = pop.querySelector('[data-mdp="month-label"]');
+        var daysEl = pop.querySelector('[data-mdp="days"]');
+        var timeEl = pop.querySelector('[data-mdp="time"]');
+        var hourEl = pop.querySelector('[data-mdp="hour"]');
+        var minEl = pop.querySelector('[data-mdp="min"]');
+        var showTime = fieldUsesTime(eventTarget);
+
+        var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        monthLabel.textContent = months[eventViewMonth.getMonth()] + ' ' + eventViewMonth.getFullYear();
+        timeEl.style.display = showTime ? 'flex' : 'none';
+        hourEl.textContent = pad2(eventCursor.getHours());
+        minEl.textContent = pad2(eventCursor.getMinutes());
+
+        var year = eventViewMonth.getFullYear();
+        var month = eventViewMonth.getMonth();
+        var first = new Date(year, month, 1);
+        var startDow = first.getDay();
+        var daysInMonth = new Date(year, month + 1, 0).getDate();
+        var today = new Date();
+        var html = '';
+        var i;
+        for (i = 0; i < startDow; i++) html += '<span class="is-empty"></span>';
+        for (i = 1; i <= daysInMonth; i++) {
+            var isSel = eventCursor.getFullYear() === year && eventCursor.getMonth() === month && eventCursor.getDate() === i;
+            var isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === i;
+            var disabled = eventTarget && dateOutOfRange(eventTarget, year, month, i);
+            html += '<button type="button" data-mdp="day" data-y="' + year + '" data-m="' + month + '" data-d="' + i + '"' +
+                (disabled ? ' disabled' : '') +
+                ' class="' + (isSel ? 'is-selected' : '') + (isToday ? ' is-today' : '') + (disabled ? ' is-disabled' : '') + '">' + i + '</button>';
+        }
+        daysEl.innerHTML = html;
+        if (eventTarget) positionEventPopover(eventTarget);
+    }
+
+    function positionEventPopover(input) {
+        var pop = ensureEventPopover();
+        pop.classList.add('is-open');
+        var rect = input.getBoundingClientRect();
+        var gap = 8;
+        var pad = 12;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var w = pop.offsetWidth || 360;
+        var h = pop.offsetHeight || 320;
+
+        var left = rect.left;
+        if (left + w > vw - pad) left = rect.right - w;
+        if (left < pad) left = pad;
+
+        var top = rect.bottom + gap;
+        if (top + h > vh - pad && rect.top - gap - h > pad) {
+            top = rect.top - gap - h;
+        }
+        if (top < pad) top = pad;
+        if (top + h > vh - pad) {
+            top = Math.max(pad, vh - h - pad);
+        }
+
+        pop.style.left = Math.round(left) + 'px';
+        pop.style.top = Math.round(top) + 'px';
+    }
+
+    function openEventPopover(el) {
+        if (!el) return;
         try {
-            if ($el.data('DateTimePicker')) $el.data('DateTimePicker').destroy();
+            if ($ && $(el).data('DateTimePicker')) $(el).data('DateTimePicker').destroy();
         } catch (e) {}
 
-        var allDay = !!(document.getElementById('form_is_all_day') || document.getElementById('is_all_day'));
-        var isAllDayChecked = false;
-        var allDayEl = document.getElementById('form_is_all_day') || document.getElementById('is_all_day');
-        if (allDayEl) isAllDayChecked = !!allDayEl.checked;
-
-        $el.datetimepicker({
-            format: isAllDayChecked ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm',
-            sideBySide: !isAllDayChecked,
-            stepping: 5,
-            useCurrent: false,
-            allowInputToggle: true,
-            ignoreReadonly: true,
-            showTodayButton: true,
-            showClear: true,
-            toolbarPlacement: 'bottom',
-            icons: pickerIcons(),
-            widgetPositioning: { horizontal: 'auto', vertical: 'auto' }
-        });
-
-        $el.off('focus.mdpEvt click.mdpEvt').on('focus.mdpEvt click.mdpEvt', function () {
-            try { $el.data('DateTimePicker').show(); } catch (err) {}
-        });
-
-        $el.off('dp.change.mdpEvt').on('dp.change.mdpEvt', function () {
-            $el.trigger('change');
-        });
+        eventTarget = el;
+        eventCursor = parseEventDate(el.value);
+        eventCursor.setSeconds(0, 0);
+        eventViewMonth = new Date(eventCursor.getFullYear(), eventCursor.getMonth(), 1);
+        var pop = ensureEventPopover();
+        var modal = el.closest('.modal');
+        var host = modal || document.body;
+        if (pop.parentNode !== host) {
+            host.appendChild(pop);
+        }
+        renderEventPopover();
+        positionEventPopover(el);
     }
 
     function setEventPickerMode(allDay) {
-        $('.js-event-datetime, .js-event-start, .js-event-end').each(function () {
-            var $el = $(this);
-            if (!$el.data('DateTimePicker')) return;
-            var current = $el.data('DateTimePicker').date();
-            $el.data('DateTimePicker').destroy();
-            $el.removeData('mdp-boot');
-            $el.datetimepicker({
-                format: allDay ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm',
-                sideBySide: !allDay,
-                stepping: 5,
-                useCurrent: false,
-                allowInputToggle: true,
-                ignoreReadonly: true,
-                showTodayButton: true,
-                showClear: true,
-                toolbarPlacement: 'bottom',
-                icons: pickerIcons()
-            });
-            $el.data('mdp-boot', 1);
-            if (current) {
-                try {
-                    $el.data('DateTimePicker').date(allDay ? current.clone().startOf('day') : current);
-                } catch (e) {}
-            }
+        hideOpenEventPickers();
+        document.querySelectorAll('.js-event-datetime, .js-event-start, .js-event-end, #form_start_time, #form_end_time').forEach(function (el) {
+            if (el.tagName !== 'INPUT') return;
+            el.placeholder = allDay ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm';
+            if (!el.value) return;
+            el.value = formatEventDate(parseEventDate(el.value), !!allDay);
         });
     }
 
-    function initBootstrapDatepickers() {
-        if (!$ || !$.fn.datetimepicker) return;
-
-        // Convert any leftover native event datetime fields
-        document.querySelectorAll('.js-event-datetime, .js-event-start, .js-event-end, #form_start_time, #form_end_time').forEach(function (el) {
-            if (el.tagName === 'INPUT') convertEventDatetimeInput(el);
-        });
-
-        // DOB / date-only fields that still use .datetimepicker text inputs
-        $('.datetimepicker').not('.js-event-datetime, .js-event-start, .js-event-end').each(function () {
-            var $el = $(this);
-            var el = this;
-            if ($el.data('mdp-boot')) return;
-            $el.data('mdp-boot', 1);
-
-            // Qualification must NOT be a datepicker
-            if ((el.getAttribute('name') || '') === 'qualification') {
-                $el.removeClass('datetimepicker');
-                el.placeholder = el.placeholder && el.placeholder.indexOf('DD-MM') !== -1 ? 'e.g. BSEd, MA Ed' : el.placeholder;
-                return;
-            }
-
-            wrapField(el);
-            blockManualTyping(el);
-            el.readOnly = true;
-
-            var opts = {
-                format: 'YYYY-MM-DD',
-                useCurrent: false,
-                allowInputToggle: true,
-                ignoreReadonly: true,
-                showTodayButton: true,
-                showClear: true,
-                icons: pickerIcons()
-            };
-
-            if (isDobField(el)) {
-                $el.addClass('js-dob');
-                opts.maxDate = moment();
-                opts.minDate = moment('1950-01-01');
-                opts.viewMode = 'years';
-                opts.widgetPositioning = { horizontal: 'auto', vertical: 'bottom' };
-            }
-
-            // Convert legacy DD-MM-YYYY values if present
-            var raw = ($el.val() || '').trim();
-            if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-                var parts = raw.split('-');
-                $el.val(parts[2] + '-' + parts[1] + '-' + parts[0]);
-            }
-
-            try {
-                if ($el.data('DateTimePicker')) {
-                    $el.data('DateTimePicker').destroy();
-                }
-            } catch (e) {}
-
-            $el.datetimepicker(opts);
-
-            $el.on('focus click', function () {
-                try { $el.data('DateTimePicker').show(); } catch (err) {}
-            });
+    function initAllDateFields() {
+        document.querySelectorAll(
+            'input[type="date"], input[type="datetime-local"], input.datetimepicker, input.js-date, input.js-dob, input.js-event-date, input.js-event-datetime, input.js-event-start, input.js-event-end'
+        ).forEach(function (el) {
+            bindDateInput(el);
         });
     }
 
@@ -399,8 +581,7 @@
     }
 
     function scan() {
-        document.querySelectorAll('input[type="date"], input[type="datetime-local"]').forEach(enhanceNativeDate);
-        initBootstrapDatepickers();
+        initAllDateFields();
         bindEventSpanLimits();
         initAcademicYearPickers();
     }
@@ -410,6 +591,11 @@
         // Re-scan when modals open (dynamic forms)
         document.addEventListener('shown.bs.modal', function () {
             setTimeout(scan, 50);
+        });
+        document.addEventListener('hide.bs.modal', hideOpenEventPickers);
+        window.addEventListener('resize', function () {
+            if (eventTarget) positionEventPopover(eventTarget);
+            else hideOpenEventPickers();
         });
     }
 
@@ -431,19 +617,13 @@
             return val;
         },
         setValue: function (selector, value) {
-            var $el = $(selector);
-            if (!$el.length) return;
+            var el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+            if (!el) return;
             var v = value || '';
             if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
                 v = v.replace('T', ' ').slice(0, 16);
             }
-            if ($el.data('DateTimePicker')) {
-                try {
-                    $el.data('DateTimePicker').date(v ? moment(v, ['YYYY-MM-DD HH:mm', 'YYYY-MM-DD']) : null);
-                    return;
-                } catch (e) {}
-            }
-            $el.val(v);
+            el.value = v;
         }
     };
 })(window, document, window.jQuery);

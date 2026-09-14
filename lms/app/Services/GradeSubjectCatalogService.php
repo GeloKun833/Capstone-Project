@@ -70,7 +70,7 @@ class GradeSubjectCatalogService
     public function sectionsGroupedByGrade()
     {
         $grouped = \App\Models\Section::query()
-            ->with('adviser')
+            ->with(['adviser', 'teachers'])
             ->orderBy('grade_level')
             ->orderBy('name')
             ->get()

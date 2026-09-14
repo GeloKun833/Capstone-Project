@@ -24,13 +24,20 @@ class SectionController extends Controller
             return 1;
         });
 
-        $sectionsByGrade = Cache::remember('sections.grouped.by.grade', 120, function () use ($catalog) {
+        $sectionsByGrade = Cache::remember('sections.grouped.by.grade.v2', 120, function () use ($catalog) {
             return $catalog->sectionsGroupedByGrade();
         });
         $sections = $sectionsByGrade->flatten();
         $gradeLevels = GradeSubjectCatalogService::gradeLevels();
+        $teachers = Teacher::with('user')
+            ->whereHas('user', function ($query) {
+                $query->where('role_name', 'Teacher')
+                    ->where('status', 'active');
+            })
+            ->orderBy('full_name')
+            ->get();
 
-        return view('sections.index', compact('sections', 'sectionsByGrade', 'gradeLevels'));
+        return view('sections.index', compact('sections', 'sectionsByGrade', 'gradeLevels', 'teachers'));
     }
 
     public function create()
@@ -67,6 +74,7 @@ class SectionController extends Controller
         ]);
 
         Cache::forget('sections.grouped.by.grade');
+        Cache::forget('sections.grouped.by.grade.v2');
 
         return redirect()->route('sections.index')
             ->with('success', 'Section created. It will appear as a Block Section option for ' . $request->grade_level . ' on enrollment.');
@@ -112,6 +120,7 @@ class SectionController extends Controller
         ]);
 
         Cache::forget('sections.grouped.by.grade');
+        Cache::forget('sections.grouped.by.grade.v2');
 
         return redirect()->route('sections.index')
             ->with('success', 'Section updated. Enrollment Block Section list uses this catalog.');
@@ -121,7 +130,66 @@ class SectionController extends Controller
     {
         $section->delete();
         Cache::forget('sections.grouped.by.grade');
+        Cache::forget('sections.grouped.by.grade.v2');
         return redirect()->route('sections.index')->with('success', 'Section deleted successfully.');
+    }
+
+    /**
+     * Assign a teacher to a block section (and optionally as adviser).
+     */
+    public function assignTeacher(Request $request, Section $section)
+    {
+        $request->validate([
+            'teacher_id' => 'required|exists:teachers,id',
+        ]);
+
+        $teacherId = (int) $request->teacher_id;
+        $section->teachers()->syncWithoutDetaching([$teacherId]);
+
+        if ($request->has('set_as_adviser')) {
+            $section->adviser_id = $teacherId;
+            $section->save();
+        }
+
+        $catalog = app(GradeSubjectCatalogService::class);
+        foreach ($catalog->subjectsForGrade($section->grade_level) as $subject) {
+            if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
+                $subject->teachers()->attach($teacherId);
+            }
+        }
+
+        Cache::forget('sections.grouped.by.grade');
+        Cache::forget('sections.grouped.by.grade.v2');
+
+        $teacher = Teacher::find($teacherId);
+        $name = $teacher?->full_name ?: 'Teacher';
+
+        return redirect()->route('sections.index')
+            ->with('success', $name . ' assigned to ' . $section->name . ($request->has('set_as_adviser') ? ' as adviser.' : '.'));
+    }
+
+    /**
+     * Remove a teacher from a block section.
+     */
+    public function unassignTeacher(Request $request, Section $section)
+    {
+        $request->validate([
+            'teacher_id' => 'required|exists:teachers,id',
+        ]);
+
+        $teacherId = (int) $request->teacher_id;
+        $section->teachers()->detach($teacherId);
+
+        if ((int) $section->adviser_id === $teacherId) {
+            $section->adviser_id = null;
+            $section->save();
+        }
+
+        Cache::forget('sections.grouped.by.grade');
+        Cache::forget('sections.grouped.by.grade.v2');
+
+        return redirect()->route('sections.index')
+            ->with('success', 'Teacher unassigned from ' . $section->name . '.');
     }
 
     public function assignStudentsForm($id)

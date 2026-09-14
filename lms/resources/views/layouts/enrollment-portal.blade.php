@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ URL::to('assets/plugins/bootstrap/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ URL::to('assets/plugins/fontawesome/css/all.min.css') }}">
     <link rel="stylesheet" href="{{ URL::to('assets/css/toastr.min.css') }}">
+    <link rel="stylesheet" href="{{ URL::to('assets/css/modern-datepicker.css') }}?v={{ filemtime(public_path('assets/css/modern-datepicker.css')) }}">
     <link rel="stylesheet" href="{{ asset('assets/css/enrollment-portal.css') }}">
     @yield('styles')
 </head>
@@ -119,6 +120,7 @@
     <script src="{{ URL::to('assets/js/jquery-3.6.0.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/toastr.min.js') }}"></script>
     <script src="{{ URL::to('assets/js/no-emoji.js') }}"></script>
+    <script src="{{ URL::to('assets/js/modern-datepicker.js') }}?v={{ filemtime(public_path('assets/js/modern-datepicker.js')) }}"></script>
     <script src="{{ asset('assets/js/enrollment-portal.js') }}"></script>
     @yield('scripts')
     @include('partials.toastr-scripts')

@@ -219,6 +219,8 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 Route::resource('academic_years', AcademicYearController::class)->middleware('auth');
 Route::resource('semesters', SemesterController::class)->middleware('auth');
 Route::resource('sections', SectionController::class)->middleware('auth');
+Route::post('sections/{section}/assign-teacher', [SectionController::class, 'assignTeacher'])->middleware('auth')->name('sections.assign-teacher');
+Route::post('sections/{section}/unassign-teacher', [SectionController::class, 'unassignTeacher'])->middleware('auth')->name('sections.unassign-teacher');
 
 // Enrollment routes (Admin only)
 Route::group(['middleware' => ['auth', 'role:Admin']], function () {

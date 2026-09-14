@@ -76,21 +76,21 @@
                 <div class="card">
                     <div class="card-header bg-primary text-white">
                         <h5 class="card-title mb-0 text-white">
-                            <i class="fas fa-graduation-cap"></i> Promote Students
+                            <i class="fas fa-graduation-cap text-white"></i> Promote Students
                         </h5>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="color:#212529;">
                         <form action="<?php echo e(route('promotions.create')); ?>" method="GET">
                             <div class="row">
                                 <div class="col-md-4">
                                     <div class="form-group">
-                                        <label class="form-label">From Grade Level <span class="text-danger">*</span></label>
-                                        <select name="from_grade" class="form-control" required>
+                                        <label class="form-label text-dark fw-semibold">From Grade Level <span class="text-danger">*</span></label>
+                                        <select name="from_grade" class="form-select form-control" required style="color:#212529;background:#fff;">
                                             <option value="">Select Grade Level</option>
                                             <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                <?php if(isset($studentsByGrade[$grade])): ?>
-                                                    <option value="<?php echo e($grade); ?>"><?php echo e($grade); ?> (<?php echo e($studentsByGrade[$grade]); ?> students)</option>
-                                                <?php endif; ?>
+                                                <option value="<?php echo e($grade); ?>">
+                                                    <?php echo e($grade); ?> (<?php echo e($studentsByGrade[$grade] ?? 0); ?> students)
+                                                </option>
                                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>

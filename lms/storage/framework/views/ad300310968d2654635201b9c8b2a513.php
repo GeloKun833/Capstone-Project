@@ -1,5 +1,5 @@
-@extends('layouts.master')
-@section('content')
+
+<?php $__env->startSection('content'); ?>
 <div class="page-wrapper">
     <div class="content container-fluid ams-sections">
         <div class="page-header">
@@ -8,27 +8,27 @@
                     <h3 class="page-title">Block Sections</h3>
                     <p class="text-muted mb-0">Click a section card to view details, edit, or delete.</p>
                     <ul class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('class-subject.unified-management') }}">Classes &amp; Subjects</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('class-subject.unified-management')); ?>">Classes &amp; Subjects</a></li>
                         <li class="breadcrumb-item active">Sections</li>
                     </ul>
                 </div>
                 <div class="col-auto">
-                    <a href="{{ route('sections.create') }}" class="btn btn-primary">
+                    <a href="<?php echo e(route('sections.create')); ?>" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Add Section
                     </a>
-                    <a href="{{ route('class-subject.unified-management') }}" class="btn btn-outline-secondary">
+                    <a href="<?php echo e(route('class-subject.unified-management')); ?>" class="btn btn-outline-secondary">
                         Back
                     </a>
                 </div>
             </div>
         </div>
 
-        @if(session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
+        <?php if(session('success')): ?>
+            <div class="alert alert-success"><?php echo e(session('success')); ?></div>
+        <?php endif; ?>
 
-        {{-- Search + grade filter --}}
+        
         <div class="ams-toolbar mb-3">
             <div class="ams-search">
                 <i class="fas fa-search ams-search-icon"></i>
@@ -44,50 +44,52 @@
         </div>
         <div class="ams-filter-bar mb-4">
             <button type="button" class="ams-filter-chip is-active" data-filter="all">All</button>
-            @foreach($gradeLevels as $grade)
-                @php $count = ($sectionsByGrade->get($grade) ?? collect())->count(); @endphp
-                <button type="button" class="ams-filter-chip" data-filter="{{ $grade }}">
-                    {{ $grade }}
-                    <span class="ams-filter-count">{{ $count }}</span>
+            <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php $count = ($sectionsByGrade->get($grade) ?? collect())->count(); ?>
+                <button type="button" class="ams-filter-chip" data-filter="<?php echo e($grade); ?>">
+                    <?php echo e($grade); ?>
+
+                    <span class="ams-filter-count"><?php echo e($count); ?></span>
                 </button>
-            @endforeach
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </div>
 
-        @if($sections->isEmpty())
+        <?php if($sections->isEmpty()): ?>
             <div class="alert alert-warning mb-0">
                 No sections yet. Add one to show Block Sections on enrollment.
             </div>
-        @else
+        <?php else: ?>
             <div class="row g-3" id="sectionsGrid">
-                @foreach($sections as $section)
-                    @php
+                <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php
                         $adviserName = $section->adviser ? $section->adviser->full_name : 'To be assigned';
                         $description = $section->description ?: '';
-                    @endphp
+                    ?>
                     <div class="col-6 col-md-4 col-xl-3 section-grid-item"
-                        data-grade="{{ $section->grade_level }}"
-                        data-search="{{ strtolower($section->name.' '.$section->grade_level.' '.$adviserName.' '.($section->description ?: '')) }}">
+                        data-grade="<?php echo e($section->grade_level); ?>"
+                        data-search="<?php echo e(strtolower($section->name.' '.$section->grade_level.' '.$adviserName.' '.($section->description ?: ''))); ?>">
                         <button type="button"
                             class="ams-section-card w-100 text-start"
                             data-bs-toggle="modal"
                             data-bs-target="#sectionDetailModal"
-                            data-id="{{ $section->id }}"
-                            data-name="{{ $section->name }}"
-                            data-grade="{{ $section->grade_level }}"
-                            data-adviser="{{ $adviserName }}"
-                            data-adviser-id="{{ $section->adviser_id }}"
-                            data-teachers='@json($section->teachers->map(fn ($t) => ["id" => $t->id, "name" => ($t->full_name ?: "Teacher")])->values())'
-                            data-capacity="{{ $section->capacity ?? 25 }}"
-                            data-description="{{ $description }}"
-                            data-edit-url="{{ route('sections.edit', $section->id) }}">
+                            data-id="<?php echo e($section->id); ?>"
+                            data-name="<?php echo e($section->name); ?>"
+                            data-grade="<?php echo e($section->grade_level); ?>"
+                            data-adviser="<?php echo e($adviserName); ?>"
+                            data-adviser-id="<?php echo e($section->adviser_id); ?>"
+                            data-teachers='<?php echo json_encode($section->teachers->map(fn ($t) => ["id" => $t->id, "name" => ($t->full_name ?: "Teacher")])->values(), 512) ?>'
+                            data-capacity="<?php echo e($section->capacity ?? 25); ?>"
+                            data-description="<?php echo e($description); ?>"
+                            data-edit-url="<?php echo e(route('sections.edit', $section->id)); ?>">
                             <div class="d-flex justify-content-between align-items-start gap-2">
-                                <span class="ams-section-card-title">{{ $section->name }}</span>
-                                <span class="ams-section-cap">{{ $section->capacity ?? 25 }}</span>
+                                <span class="ams-section-card-title"><?php echo e($section->name); ?></span>
+                                <span class="ams-section-cap"><?php echo e($section->capacity ?? 25); ?></span>
                             </div>
-                            <div class="ams-section-grade mt-2">{{ $section->grade_level }}</div>
+                            <div class="ams-section-grade mt-2"><?php echo e($section->grade_level); ?></div>
                             <div class="ams-section-meta mt-2">
                                 <i class="fas fa-user-tie me-1"></i>
-                                {{ $adviserName }}
+                                <?php echo e($adviserName); ?>
+
                             </div>
                             <div class="ams-section-hint mt-3">
                                 Click for details
@@ -95,16 +97,16 @@
                             </div>
                         </button>
                     </div>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </div>
             <div id="sectionsEmptyFilter" class="alert alert-light border text-center d-none mt-3">
                 No sections match your search or grade filter.
             </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
 
-{{-- Detail / actions modal --}}
+
 <div class="modal fade" id="sectionDetailModal" tabindex="-1" aria-labelledby="sectionDetailTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content ams-section-modal">
@@ -143,16 +145,16 @@
                 <h6 class="ams-detail-label mb-2">Assign Teacher to this Section</h6>
                 <p class="text-muted small mb-2">Links the teacher to this block section. Check adviser to make them the homeroom adviser.</p>
                 <form method="POST" id="sectionAssignTeacherForm" class="row g-2 align-items-end">
-                    @csrf
+                    <?php echo csrf_field(); ?>
                     <div class="col-12">
                         <label class="form-label small mb-1" for="sectionAssignTeacherId">Teacher</label>
                         <select class="form-control" name="teacher_id" id="sectionAssignTeacherId" required>
                             <option value="">Select teacher</option>
-                            @forelse($teachers as $teacher)
-                                <option value="{{ $teacher->id }}">{{ $teacher->full_name ?: ($teacher->user->name ?? 'Teacher') }}</option>
-                            @empty
+                            <?php $__empty_1 = true; $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                <option value="<?php echo e($teacher->id); ?>"><?php echo e($teacher->full_name ?: ($teacher->user->name ?? 'Teacher')); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                 <option value="" disabled>No teachers available</option>
-                            @endforelse
+                            <?php endif; ?>
                         </select>
                     </div>
                     <div class="col-12">
@@ -162,13 +164,13 @@
                         </div>
                     </div>
                     <div class="col-12 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary btn-sm" @disabled($teachers->isEmpty())>
+                        <button type="submit" class="btn btn-primary btn-sm" <?php if($teachers->isEmpty()): echo 'disabled'; endif; ?>>
                             <i class="fas fa-user-plus me-1"></i> Assign to Section
                         </button>
                     </div>
                 </form>
                 <form method="POST" id="sectionUnassignTeacherForm" class="mt-2 d-none">
-                    @csrf
+                    <?php echo csrf_field(); ?>
                     <input type="hidden" name="teacher_id" id="sectionUnassignTeacherId" value="">
                     <button type="submit" class="btn btn-outline-danger btn-sm" id="sectionUnassignTeacherBtn"
                         onclick="return confirm('Unassign this teacher from the section?');">
@@ -193,7 +195,7 @@
     </div>
 </div>
 
-{{-- Delete Section Modal --}}
+
 <div class="modal custom-modal fade" id="deleteSectionModal" tabindex="-1" role="dialog" aria-labelledby="deleteSectionModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -208,8 +210,8 @@
                 </div>
                 <div class="modal-btn delete-action">
                     <form id="deleteSectionForm" method="POST" action="">
-                        @csrf
-                        @method('DELETE')
+                        <?php echo csrf_field(); ?>
+                        <?php echo method_field('DELETE'); ?>
                         <div class="row">
                             <div class="col-6">
                                 <button type="submit" class="btn btn-primary paid-continue-btn w-100">Delete</button>
@@ -225,10 +227,10 @@
     </div>
 </div>
 
-<div id="sectionsPageConfig" class="d-none" data-destroy-base="{{ url('sections') }}" aria-hidden="true"></div>
-@endsection
+<div id="sectionsPageConfig" class="d-none" data-destroy-base="<?php echo e(url('sections')); ?>" aria-hidden="true"></div>
+<?php $__env->stopSection(); ?>
 
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <style>
     .ams-sections {
         --ams-blue: #1e3a8a;
@@ -430,9 +432,9 @@
         opacity: 1;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script>
 (function () {
     const destroyBase = document.getElementById('sectionsPageConfig')?.dataset.destroyBase || '';
@@ -599,4 +601,6 @@
     }
 })();
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/sections/index.blade.php ENDPATH**/ ?>

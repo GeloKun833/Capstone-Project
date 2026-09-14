@@ -152,149 +152,50 @@
 
         
         <div class="card ams-panel">
-            <div class="card-header ams-panel-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+            <div class="card-header ams-panel-header">
                 <div>
-                    <h5 class="mb-0">Manage Teachers by Grade</h5>
-                    <small class="text-muted" id="teacherGradeModeHelp">
-                        Choosing a grade assigns the teacher to <strong>all subjects</strong> in that grade.
+                    <h5 class="mb-0">Manage Teachers</h5>
+                    <small class="text-muted">
+                        Click a teacher to view details, then assign or unassign to a grade or section.
                     </small>
-                </div>
-                <div class="ams-mode-toggle" role="group" aria-label="Assign or unassign">
-                    <button type="button" class="ams-mode-btn is-active" data-mode="assign" id="modeAssignBtn">
-                        <i class="fas fa-user-check me-1"></i> Assign
-                    </button>
-                    <button type="button" class="ams-mode-btn" data-mode="unassign" id="modeUnassignBtn">
-                        <i class="fas fa-user-minus me-1"></i> Unassign
-                    </button>
                 </div>
             </div>
             <div class="card-body">
-                <form method="POST" action="<?php echo e(route('class-subject.unified-management')); ?>" id="teacherGradeForm">
-                    <?php echo csrf_field(); ?>
-                    <input type="hidden" name="operation_type" id="teacherGradeOperation" value="teacher_grade">
-
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label ams-label" for="grade_level">Grade Level <span class="text-danger">*</span></label>
-                            <select class="form-control <?php $__errorArgs = ['grade_level'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>" name="grade_level" id="grade_level" required>
-                                <option value="">Select Grade</option>
-                                <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($grade); ?>"
-                                        data-subject-count="<?php echo e(($subjectsByGrade->get($grade) ?? collect())->count()); ?>"
-                                        <?php echo e(old('grade_level') === $grade ? 'selected' : ''); ?>>
-                                        <?php echo e($grade); ?>
-
-                                        (<?php echo e(($subjectsByGrade->get($grade) ?? collect())->count()); ?> subjects)
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                            <?php $__errorArgs = ['grade_level'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?>
-                                <span class="invalid-feedback d-block"><?php echo e($message); ?></span>
-                            <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>
-                            <div id="gradeSubjectsPreview" class="ams-preview mt-2 d-none"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
-                            <select class="form-control" name="academic_year_id" id="academic_year_id" required>
-                                <option value="">Select Academic Year</option>
-                                <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($year->id); ?>" <?php echo e(old('academic_year_id') == $year->id ? 'selected' : ''); ?>>
-                                        <?php echo e($year->name); ?>
-
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
-                            <select class="form-control" name="semester_id" id="semester_id" required>
-                                <option value="">Select Semester</option>
-                                <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($semester->id); ?>" <?php echo e(old('semester_id') == $semester->id ? 'selected' : ''); ?>>
-                                        <?php echo e($semester->name); ?>
-
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label ams-label" for="section_id">Section <span class="text-muted">(optional)</span></label>
-                            <select class="form-control" name="section_id" id="section_id">
-                                <option value="" id="sectionNoneOption">All / None</option>
-                                <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($section->id); ?>"
-                                        data-grade="<?php echo e($section->grade_level); ?>"
-                                        <?php echo e(old('section_id') == $section->id ? 'selected' : ''); ?>>
-                                        <?php echo e($section->name); ?> (<?php echo e($section->grade_level); ?>)
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                            <small class="text-muted" id="sectionHelpText">If set, teacher is also linked to that section.</small>
-                        </div>
+                <?php if($teachers->isEmpty()): ?>
+                    <div class="alert alert-warning mb-0">
+                        No teachers available. Create teacher users in User Management first.
                     </div>
-
-                    <hr class="my-4">
-
-                    <label class="form-label ams-label" id="teachersLabel">Teachers <span class="text-danger">*</span></label>
-                    <?php if($teachers->isEmpty()): ?>
-                        <div class="alert alert-warning mb-0">
-                            No teachers available. Create teacher users in User Management first.
-                        </div>
-                    <?php else: ?>
-                        <div class="row g-2">
-                            <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <div class="col-md-4 col-sm-6">
-                                    <label class="ams-teacher-card">
-                                        <input class="form-check-input me-2" type="checkbox" name="teacher_ids[]"
-                                            value="<?php echo e($teacher->id); ?>"
-                                            <?php echo e(in_array($teacher->id, old('teacher_ids', [])) ? 'checked' : ''); ?>>
-                                        <span>
-                                            <strong><?php echo e($teacher->full_name ?: ($teacher->user->name ?? 'Unknown')); ?></strong>
-                                            <br><small class="text-muted"><?php echo e($teacher->user_id ?? ''); ?></small>
-                                        </span>
-                                    </label>
-                                </div>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </div>
-                        <?php $__errorArgs = ['teacher_ids'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?>
-                            <div class="alert alert-danger mt-3 mb-0"><?php echo e($message); ?></div>
-                        <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>
-                    <?php endif; ?>
-
-                    <div class="text-end mt-4">
-                        <button type="submit" class="btn btn-primary" id="submitTeacherGrade" <?php if($teachers->isEmpty()): echo 'disabled'; endif; ?>>
-                            <i class="fas fa-user-check me-1"></i> Assign Teacher(s) to Grade
+                <?php else: ?>
+                    <div class="row g-3" id="teacherPreviewGrid">
+                        <?php $__currentLoopData = $teachers->take(4); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
+                                $tName = $teacher->full_name ?: ($teacher->user->name ?? 'Unknown');
+                                $tPhoto = \App\Support\AvatarUploader::url($teacher->user->avatar ?? $teacher->avatar);
+                            ?>
+                            <div class="col-6 col-md-3">
+                                <button type="button" class="ams-teacher-pick js-open-teacher" data-teacher-id="<?php echo e($teacher->id); ?>">
+                                    <span class="ams-teacher-pick-photo">
+                                        <img src="<?php echo e($tPhoto); ?>" alt="<?php echo e($tName); ?>" onerror="this.onerror=null;this.src='<?php echo e(asset('images/photo_defaults.jpg')); ?>';">
+                                    </span>
+                                    <span class="ams-teacher-pick-name"><?php echo e($tName); ?></span>
+                                </button>
+                            </div>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </div>
+                    <?php if($teachers->count() > 4): ?>
+                        <button type="button" class="ams-teacher-pick ams-teacher-pick--more ams-teacher-pick--all mt-3" data-bs-toggle="modal" data-bs-target="#allTeachersModal">
+                            <span class="ams-teacher-more-icon"><i class="fas fa-users"></i></span>
+                            <span>
+                                <span class="ams-teacher-pick-name d-block">View all teachers</span>
+                                <small class="text-muted"><?php echo e($teachers->count()); ?> created · +<?php echo e($teachers->count() - 4); ?> more</small>
+                            </span>
                         </button>
-                    </div>
-                </form>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
-                    </div>
-                </div>
+    </div>
+</div>
 
 
 <div class="modal fade" id="catalogModal" tabindex="-1" aria-hidden="true">
@@ -456,6 +357,214 @@ unset($__errorArgs, $__bag); ?>
     </div>
 </div>
 
+<?php if(($teachers ?? collect())->isNotEmpty()): ?>
+<div class="modal fade" id="allTeachersModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content ams-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title mb-0">All created teachers</h5>
+                    <small class="text-muted"><?php echo e($teachers->count()); ?> teacher<?php echo e($teachers->count() === 1 ? '' : 's'); ?> — tap a card to view details</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="search" id="allTeachersSearch" class="form-control" placeholder="Search teacher name...">
+                </div>
+                <div class="row g-3" id="allTeachersGrid">
+                    <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
+                            $tName = $teacher->full_name ?: ($teacher->user->name ?? 'Unknown');
+                            $tPhoto = \App\Support\AvatarUploader::url($teacher->user->avatar ?? $teacher->avatar);
+                        ?>
+                        <div class="col-6 col-md-4 col-lg-3 js-teacher-modal-item" data-name="<?php echo e($tName); ?>">
+                            <button type="button" class="ams-teacher-pick js-open-teacher" data-teacher-id="<?php echo e($teacher->id); ?>" data-from-all="1">
+                                <span class="ams-teacher-pick-photo">
+                                    <img src="<?php echo e($tPhoto); ?>" alt="<?php echo e($tName); ?>" onerror="this.onerror=null;this.src='<?php echo e(asset('images/photo_defaults.jpg')); ?>';">
+                                </span>
+                                <span class="ams-teacher-pick-name"><?php echo e($tName); ?></span>
+                            </button>
+                        </div>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<div class="modal fade" id="teacherDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content ams-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title mb-0">Teacher details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="<?php echo e(route('class-subject.unified-management')); ?>" id="teacherGradeForm">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="operation_type" id="teacherGradeOperation" value="teacher_grade">
+                <input type="hidden" name="teacher_ids[]" id="modalTeacherId" value="<?php echo e(old('teacher_ids.0')); ?>">
+
+                <div class="modal-body">
+                    <div class="ams-teacher-profile mb-4">
+                        <img id="tdPhoto" src="<?php echo e(asset('images/photo_defaults.jpg')); ?>" alt="">
+                        <div>
+                            <h5 class="mb-1" id="tdName">Teacher</h5>
+                            <div class="text-muted small" id="tdEmail"></div>
+                            <div class="d-flex flex-wrap gap-2 mt-2" id="tdMeta"></div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="ams-teacher-detail">
+                                <span>Qualification</span>
+                                <strong id="tdQualification">—</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="ams-teacher-detail">
+                                <span>Experience</span>
+                                <strong id="tdExperience">—</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="ams-teacher-detail">
+                                <span>Assigned grades</span>
+                                <strong id="tdGrades">None yet</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="ams-teacher-detail">
+                                <span>Assigned sections</span>
+                                <strong id="tdSections">None yet</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <h6 class="mb-3">Assign or unassign</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="grade_level">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-control <?php $__errorArgs = ['grade_level'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" name="grade_level" id="grade_level" required>
+                                <option value="">Select Grade</option>
+                                <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($grade); ?>"
+                                        data-subject-count="<?php echo e(($subjectsByGrade->get($grade) ?? collect())->count()); ?>"
+                                        <?php echo e(old('grade_level') === $grade ? 'selected' : ''); ?>>
+                                        <?php echo e($grade); ?>
+
+                                        (<?php echo e(($subjectsByGrade->get($grade) ?? collect())->count()); ?> subjects)
+                                    </option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                            <?php $__errorArgs = ['grade_level'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                <span class="invalid-feedback d-block"><?php echo e($message); ?></span>
+                            <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
+                            <select class="form-control" name="academic_year_id" id="academic_year_id" required>
+                                <option value="">Select Academic Year</option>
+                                <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($year->id); ?>" <?php echo e(old('academic_year_id') == $year->id ? 'selected' : ''); ?>>
+                                        <?php echo e($year->name); ?>
+
+                                    </option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
+                            <select class="form-control" name="semester_id" id="semester_id" required>
+                                <option value="">Select Semester</option>
+                                <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($semester->id); ?>" <?php echo e(old('semester_id') == $semester->id ? 'selected' : ''); ?>>
+                                        <?php echo e($semester->name); ?>
+
+                                    </option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label ams-label" for="section_id">Section <span class="text-muted" id="sectionRequiredMark">(for section actions)</span></label>
+                            <select class="form-control" name="section_id" id="section_id">
+                                <option value="" id="sectionNoneOption">Select Section</option>
+                                <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($section->id); ?>"
+                                        data-grade="<?php echo e($section->grade_level); ?>"
+                                        <?php echo e(old('section_id') == $section->id ? 'selected' : ''); ?>>
+                                        <?php echo e($section->name); ?> (<?php echo e($section->grade_level); ?>)
+                                    </option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                            <small class="text-muted" id="sectionHelpText">Required when assigning or unassigning a section.</small>
+                        </div>
+                        <div class="col-md-6" id="sectionAdviserWrap">
+                            <div class="form-check mt-4 pt-1">
+                                <input class="form-check-input" type="checkbox" name="set_as_adviser" id="setAsAdviser" value="1" checked>
+                                <label class="form-check-label" for="setAsAdviser">Also set as section adviser (homeroom)</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="gradeSubjectsPreview" class="ams-preview mt-3 d-none"></div>
+                    <?php $__errorArgs = ['teacher_ids'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                        <div class="alert alert-danger mt-3 mb-0"><?php echo e($message); ?></div>
+                    <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                </div>
+                <div class="modal-footer flex-column align-items-stretch border-0 pt-0">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <button type="submit" class="btn btn-primary w-100 js-teacher-action" data-op="teacher_grade">
+                                <i class="fas fa-user-check me-1"></i> Assign Teacher to Grade
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="submit" class="btn btn-outline-danger w-100 js-teacher-action" data-op="teacher_grade_unassign">
+                                <i class="fas fa-user-minus me-1"></i> Unassign from Grade
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="submit" class="btn btn-primary w-100 js-teacher-action" data-op="teacher_section">
+                                <i class="fas fa-chalkboard-teacher me-1"></i> Assign Teacher to Section
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="submit" class="btn btn-outline-danger w-100 js-teacher-action" data-op="teacher_section_unassign">
+                                <i class="fas fa-user-minus me-1"></i> Unassign from Section
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startPush('styles'); ?>
@@ -532,19 +641,127 @@ unset($__errorArgs, $__bag); ?>
         color: var(--ams-blue);
         font-weight: 600;
     }
-    .ams-teacher-card {
+    .ams-teacher-pick {
         display: flex;
-        align-items: flex-start;
-        gap: 0.35rem;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        text-align: center;
+        gap: 0.55rem;
+        width: 100%;
+        min-height: 148px;
         border: 1px solid var(--ams-line);
-        border-radius: 12px;
-        padding: 0.75rem 0.85rem;
+        border-radius: 14px;
+        padding: 1rem 0.7rem 0.85rem;
         background: #fff;
         cursor: pointer;
-        height: 100%;
-        transition: border-color .15s ease, background .15s ease;
+        margin: 0;
+        font-family: inherit;
+        color: inherit;
+        transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
     }
-    .ams-teacher-card:hover { border-color: #c7d2fe; background: #f8faff; }
+    .ams-teacher-pick:hover {
+        border-color: #c7d2fe;
+        background: #f8faff;
+    }
+    .ams-teacher-pick-photo {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+    }
+    .ams-teacher-pick-photo img {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        display: block;
+        background: #e5e7eb;
+    }
+    .ams-teacher-pick-name {
+        font-weight: 650;
+        font-size: 0.86rem;
+        color: var(--ams-ink);
+        line-height: 1.3;
+        word-break: break-word;
+    }
+    .ams-teacher-pick--more {
+        border-style: dashed;
+        background: var(--ams-soft);
+        color: inherit;
+    }
+    .ams-teacher-pick--all {
+        flex-direction: row;
+        min-height: 0;
+        justify-content: center;
+        gap: 0.85rem;
+        padding: 0.85rem 1rem;
+        text-align: left;
+    }
+    .ams-teacher-pick--all .ams-teacher-more-icon {
+        width: 44px;
+        height: 44px;
+        font-size: 1rem;
+    }
+    .ams-teacher-more-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #e0e7ff;
+        color: var(--ams-blue);
+        font-size: 1.25rem;
+    }
+    .ams-teacher-profile {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.85rem 1rem;
+        background: var(--ams-soft);
+        border: 1px solid var(--ams-line);
+        border-radius: 14px;
+    }
+    .ams-teacher-profile img {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #e5e7eb;
+        flex-shrink: 0;
+    }
+    .ams-teacher-detail {
+        border: 1px solid var(--ams-line);
+        border-radius: 12px;
+        padding: 0.7rem 0.85rem;
+        background: #fff;
+        min-height: 100%;
+    }
+    .ams-teacher-detail span {
+        display: block;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: var(--ams-muted);
+        margin-bottom: 0.2rem;
+    }
+    .ams-teacher-detail strong {
+        font-size: 0.9rem;
+        color: var(--ams-ink);
+        font-weight: 650;
+        word-break: break-word;
+    }
+    .ams-teacher-chip {
+        display: inline-flex;
+        align-items: center;
+        background: #eef2ff;
+        color: #3730a3;
+        border-radius: 999px;
+        padding: 0.15rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
     .ams-preview {
         background: #f0f4ff;
         border: 1px dashed #c7d2fe;
@@ -648,6 +865,11 @@ unset($__errorArgs, $__bag); ?>
 (function () {
     let subjectsByGrade = <?php echo json_encode($subjectsByGradeJson ?? [], 15, 512) ?>;
     let sectionsByGrade = <?php echo json_encode($sectionsByGradeJson ?? [], 15, 512) ?>;
+    const teachersById = {};
+    (<?php echo json_encode($teachersJson ?? [], 15, 512) ?>).forEach(function (t) {
+        teachersById[String(t.id)] = t;
+    });
+    const defaultPhoto = <?php echo json_encode(asset('images/photo_defaults.jpg'), 15, 512) ?>;
     const listUrlBase = <?php echo json_encode(url('subject/list/page'), 15, 512) ?>;
     const csrfToken = <?php echo json_encode(csrf_token(), 15, 512) ?>;
 
@@ -1003,60 +1225,95 @@ unset($__errorArgs, $__bag); ?>
     const gradeSelect = document.getElementById('grade_level');
     const preview = document.getElementById('gradeSubjectsPreview');
     const sectionSelect = document.getElementById('section_id');
-    let teacherGradeMode = 'assign';
+    const detailsModalEl = document.getElementById('teacherDetailsModal');
+    const allTeachersModalEl = document.getElementById('allTeachersModal');
+    let pendingTeacherOp = 'teacher_grade';
+    let openedFromAllTeachers = false;
+    let currentTeacherName = 'this teacher';
 
-    function setTeacherGradeMode(mode) {
-        teacherGradeMode = mode === 'unassign' ? 'unassign' : 'assign';
-        const isUnassign = teacherGradeMode === 'unassign';
-
-        document.getElementById('modeAssignBtn')?.classList.toggle('is-active', !isUnassign);
-        document.getElementById('modeUnassignBtn')?.classList.toggle('is-active', isUnassign);
-
-        const op = document.getElementById('teacherGradeOperation');
-        if (op) op.value = isUnassign ? 'teacher_grade_unassign' : 'teacher_grade';
-
-        const help = document.getElementById('teacherGradeModeHelp');
-        if (help) {
-            help.innerHTML = isUnassign
-                ? 'Removes the teacher from <strong>all subjects</strong> in the selected grade.'
-                : 'Choosing a grade assigns the teacher to <strong>all subjects</strong> in that grade.';
+    function showBsModal(el) {
+        if (!el) return;
+        if (window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(el).show();
+        } else if (window.$) {
+            $(el).modal('show');
         }
-
-        const sectionHelp = document.getElementById('sectionHelpText');
-        if (sectionHelp) {
-            sectionHelp.textContent = isUnassign
-                ? 'If set, also removes the teacher from that section.'
-                : 'If set, teacher is also linked to that section.';
-        }
-
-        const noneOpt = document.getElementById('sectionNoneOption');
-        if (noneOpt) {
-            noneOpt.textContent = isUnassign ? 'Keep section links' : 'All / None';
-        }
-
-        const teachersLabel = document.getElementById('teachersLabel');
-        if (teachersLabel) {
-            teachersLabel.innerHTML = (isUnassign ? 'Teachers to Unassign' : 'Teachers') +
-                ' <span class="text-danger">*</span>';
-        }
-
-        const btn = document.getElementById('submitTeacherGrade');
-        if (btn) {
-            btn.className = isUnassign ? 'btn btn-outline-danger' : 'btn btn-primary';
-            btn.innerHTML = isUnassign
-                ? '<i class="fas fa-user-minus me-1"></i> Unassign Teacher(s) from Grade'
-                : '<i class="fas fa-user-check me-1"></i> Assign Teacher(s) to Grade';
-        }
-
-        refreshGradePreview();
     }
 
-    document.getElementById('modeAssignBtn')?.addEventListener('click', function () {
-        setTeacherGradeMode('assign');
+    function hideBsModal(el) {
+        if (!el) return;
+        if (window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(el).hide();
+        } else if (window.$) {
+            $(el).modal('hide');
+        }
+    }
+
+    function dash(value) {
+        const text = (value || '').toString().trim();
+        return text || '—';
+    }
+
+    function fillTeacherDetails(teacher) {
+        currentTeacherName = teacher.name || 'this teacher';
+        const photo = document.getElementById('tdPhoto');
+        const name = document.getElementById('tdName');
+        const email = document.getElementById('tdEmail');
+        const meta = document.getElementById('tdMeta');
+        if (photo) {
+            photo.src = teacher.photo || defaultPhoto;
+            photo.alt = currentTeacherName;
+            photo.onerror = function () { this.onerror = null; this.src = defaultPhoto; };
+        }
+        if (name) name.textContent = currentTeacherName;
+        if (email) email.textContent = teacher.email || '';
+        if (meta) {
+            const chips = [];
+            if (teacher.user_id) chips.push('<span class="ams-teacher-chip">ID ' + teacher.user_id + '</span>');
+            if (teacher.gender) chips.push('<span class="ams-teacher-chip">' + teacher.gender + '</span>');
+            if (teacher.phone) chips.push('<span class="ams-teacher-chip">' + teacher.phone + '</span>');
+            meta.innerHTML = chips.join('');
+        }
+        const qual = document.getElementById('tdQualification');
+        const exp = document.getElementById('tdExperience');
+        const grades = document.getElementById('tdGrades');
+        const sections = document.getElementById('tdSections');
+        if (qual) qual.textContent = dash(teacher.qualification);
+        if (exp) exp.textContent = dash(teacher.experience);
+        if (grades) grades.textContent = (teacher.grades && teacher.grades.length) ? teacher.grades.join(', ') : 'None yet';
+        if (sections) sections.textContent = (teacher.sections && teacher.sections.length) ? teacher.sections.join(', ') : 'None yet';
+        const idInput = document.getElementById('modalTeacherId');
+        if (idInput) idInput.value = teacher.id;
+    }
+
+    function openTeacherDetails(teacherId, fromAll) {
+        const teacher = teachersById[String(teacherId)];
+        if (!teacher) return;
+        openedFromAllTeachers = !!fromAll;
+        fillTeacherDetails(teacher);
+        if (openedFromAllTeachers) {
+            hideBsModal(allTeachersModalEl);
+            setTimeout(function () { showBsModal(detailsModalEl); }, 220);
+        } else {
+            showBsModal(detailsModalEl);
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.js-open-teacher');
+        if (!btn) return;
+        e.preventDefault();
+        openTeacherDetails(btn.getAttribute('data-teacher-id'), btn.getAttribute('data-from-all') === '1');
     });
-    document.getElementById('modeUnassignBtn')?.addEventListener('click', function () {
-        setTeacherGradeMode('unassign');
-    });
+
+    if (detailsModalEl) {
+        detailsModalEl.addEventListener('hidden.bs.modal', function () {
+            if (openedFromAllTeachers) {
+                openedFromAllTeachers = false;
+                showBsModal(allTeachersModalEl);
+            }
+        });
+    }
 
     function refreshGradePreview() {
         if (!gradeSelect || !preview) return;
@@ -1068,13 +1325,11 @@ unset($__errorArgs, $__bag); ?>
             filterSections('');
             return;
         }
+        preview.classList.remove('d-none');
         if (!subjects.length) {
-            preview.classList.remove('d-none');
             preview.innerHTML = '<strong>' + grade + '</strong> has no subjects yet. Open the catalog and add some first.';
         } else {
-            preview.classList.remove('d-none');
-            const label = teacherGradeMode === 'unassign' ? 'Will unassign from:' : 'Will assign:';
-            preview.innerHTML = '<strong>' + label + '</strong> ' + subjects.map(function (s) { return s.name; }).join(', ');
+            preview.innerHTML = '<strong>Subjects in ' + grade + ':</strong> ' + subjects.map(function (s) { return s.name; }).join(', ');
         }
         filterSections(grade);
     }
@@ -1097,64 +1352,96 @@ unset($__errorArgs, $__bag); ?>
         gradeSelect.addEventListener('change', refreshGradePreview);
         refreshGradePreview();
     }
+    if (sectionSelect) {
+        sectionSelect.addEventListener('change', refreshGradePreview);
+    }
+
+    document.querySelectorAll('.js-teacher-action').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            pendingTeacherOp = this.getAttribute('data-op') || 'teacher_grade';
+            const op = document.getElementById('teacherGradeOperation');
+            if (op) op.value = pendingTeacherOp;
+        });
+    });
+
+    function setTeacherActionsBusy(busy, label) {
+        document.querySelectorAll('.js-teacher-action').forEach(function (btn) {
+            btn.disabled = !!busy;
+            if (busy && btn.getAttribute('data-op') === pendingTeacherOp) {
+                btn.dataset.originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> ' + label;
+            } else if (!busy && btn.dataset.originalHtml) {
+                btn.innerHTML = btn.dataset.originalHtml;
+            }
+        });
+    }
 
     $('#teacherGradeForm').on('submit', function (e) {
         const $form = $(this);
-        const isUnassign = teacherGradeMode === 'unassign';
+        const op = pendingTeacherOp || $('#teacherGradeOperation').val();
+        const isUnassign = op.indexOf('unassign') !== -1;
+        const isSection = op.indexOf('section') !== -1;
 
-        if ($('#teacherGradeForm input[name="teacher_ids[]"]:checked').length === 0) {
+        if (!$('#modalTeacherId').val()) {
             e.preventDefault();
-            showDeleteResultModal(false, 'Missing teachers', 'Please select at least one teacher.');
+            showDeleteResultModal(false, 'Missing teacher', 'Please open a teacher first.');
             return false;
         }
 
         const grade = $('#grade_level').val();
         const subjects = subjectsByGrade[grade] || [];
-        if (!subjects.length) {
+        if (!isSection && !subjects.length) {
             e.preventDefault();
             showDeleteResultModal(false, 'No subjects', 'This grade has no subjects yet. Add subjects in the catalog first.');
+            return false;
+        }
+
+        if (isSection && !$('#section_id').val()) {
+            e.preventDefault();
+            showDeleteResultModal(false, 'Missing section', 'Please select a block section.');
             return false;
         }
 
         if (isUnassign) {
             if ($form.data('unassign-confirmed')) {
                 $form.data('unassign-confirmed', false);
-                $('#submitTeacherGrade').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Unassigning...');
+                openedFromAllTeachers = false;
+                setTeacherActionsBusy(true, 'Unassigning...');
                 return true;
             }
 
             e.preventDefault();
-            const count = $('#teacherGradeForm input[name="teacher_ids[]"]:checked').length;
             const text = document.getElementById('unassignTeacherConfirmText');
             if (text) {
-                text.textContent = 'Unassign ' + count + ' selected teacher(s) from all subjects in ' + (grade || 'this grade') + '?';
+                text.textContent = isSection
+                    ? ('Unassign ' + currentTeacherName + ' from the selected section only?')
+                    : ('Unassign ' + currentTeacherName + ' from all subjects in ' + (grade || 'this grade') + '?');
             }
-            const el = document.getElementById('unassignTeacherConfirmModal');
-            if (window.bootstrap && bootstrap.Modal) {
-                bootstrap.Modal.getOrCreateInstance(el).show();
-            } else if (window.$) {
-                $(el).modal('show');
-            }
+            showBsModal(document.getElementById('unassignTeacherConfirmModal'));
             return false;
         }
 
-        $('#submitTeacherGrade').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Assigning...');
+        openedFromAllTeachers = false;
+        setTeacherActionsBusy(true, 'Assigning...');
+    });
+
+    document.getElementById('allTeachersSearch')?.addEventListener('input', function () {
+        const q = (this.value || '').toLowerCase().trim();
+        document.querySelectorAll('#allTeachersGrid .js-teacher-modal-item').forEach(function (item) {
+            const name = (item.getAttribute('data-name') || '').toLowerCase();
+            item.classList.toggle('d-none', q !== '' && name.indexOf(q) === -1);
+        });
     });
 
     document.getElementById('unassignTeacherConfirmBtn')?.addEventListener('click', function () {
-        const el = document.getElementById('unassignTeacherConfirmModal');
-        if (el && window.bootstrap && bootstrap.Modal) {
-            bootstrap.Modal.getOrCreateInstance(el).hide();
-        } else if (window.$) {
-            $(el).modal('hide');
-        }
+        hideBsModal(document.getElementById('unassignTeacherConfirmModal'));
         const $form = $('#teacherGradeForm');
         $form.data('unassign-confirmed', true);
         $form.trigger('submit');
     });
 
-    <?php if(old('operation_type') === 'teacher_grade_unassign'): ?>
-        setTeacherGradeMode('unassign');
+    <?php if(old('teacher_ids.0')): ?>
+        openTeacherDetails(<?php echo json_encode((int) old('teacher_ids.0'), 15, 512) ?>, false);
     <?php endif; ?>
 })();
 </script>

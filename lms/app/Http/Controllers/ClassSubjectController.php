@@ -34,7 +34,7 @@ class ClassSubjectController extends Controller
 
         $this->syncTeacherUsers();
 
-        $teachers = Teacher::with(['user', 'subjects'])
+        $teachers = Teacher::with(['user', 'subjects', 'sections'])
             ->whereHas('user', function ($query) {
                 $query->where('role_name', 'Teacher');
             })
@@ -91,6 +91,31 @@ class ClassSubjectController extends Controller
             })->values()->all();
         }
 
+        $teachersJson = $teachers->map(function ($teacher) use ($teachersByGrade) {
+            $assignedGrades = [];
+            foreach ($teachersByGrade as $grade => $list) {
+                if ($list->contains('id', $teacher->id)) {
+                    $assignedGrades[] = $grade;
+                }
+            }
+
+            return [
+                'id' => $teacher->id,
+                'name' => $teacher->full_name ?: optional($teacher->user)->name ?? 'Unknown',
+                'photo' => \App\Support\AvatarUploader::url(optional($teacher->user)->avatar ?? $teacher->avatar),
+                'email' => optional($teacher->user)->email ?? '',
+                'user_id' => $teacher->user_id,
+                'phone' => $teacher->phone_number,
+                'qualification' => $teacher->qualification,
+                'experience' => $teacher->experience,
+                'gender' => $teacher->gender,
+                'grades' => $assignedGrades,
+                'sections' => $teacher->sections->map(function ($section) {
+                    return trim($section->name.' ('.$section->grade_level.')');
+                })->values()->all(),
+            ];
+        })->values();
+
         return view('class-subject.unified-management', compact(
             'subjectsByGrade',
             'subjectsByGradeJson',
@@ -98,6 +123,7 @@ class ClassSubjectController extends Controller
             'sectionsByGradeJson',
             'gradeLevels',
             'teachers',
+            'teachersJson',
             'teachersByGrade',
             'academicYears',
             'semesters',
@@ -214,6 +240,9 @@ class ClassSubjectController extends Controller
             'grade_level' => $request->grade_level,
             'capacity' => $request->capacity ?: 25,
         ]);
+
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -379,6 +408,14 @@ class ClassSubjectController extends Controller
             return $this->unassignTeachersFromGrade($request);
         }
 
+        if ($operationType === 'teacher_section') {
+            return $this->assignTeachersToSection($request);
+        }
+
+        if ($operationType === 'teacher_section_unassign') {
+            return $this->unassignTeachersFromSection($request);
+        }
+
         if ($operationType === 'teacher_subject') {
             // Legacy single-subject path kept for compatibility
             return $this->assignTeachersToSubject($request);
@@ -535,6 +572,116 @@ class ClassSubjectController extends Controller
             DB::rollback();
             Log::error('Failed to unassign teachers from grade: ' . $e->getMessage());
             Toastr::error('Failed to unassign teachers: ' . $e->getMessage(), 'Error');
+            return back()->withInput();
+        }
+    }
+
+    /**
+     * Assign teacher(s) to one block section (not the whole grade).
+     */
+    private function assignTeachersToSection(Request $request)
+    {
+        $request->validate([
+            'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'section_id' => 'required|exists:sections,id',
+            'teacher_ids' => 'required|array|min:1',
+            'teacher_ids.*' => 'exists:teachers,id',
+        ]);
+
+        $section = Section::findOrFail($request->section_id);
+        if ($section->grade_level && $section->grade_level !== $request->grade_level) {
+            Toastr::error('That section does not belong to the selected grade.', 'Error');
+            return back()->withInput();
+        }
+
+        $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
+        $adviserId = $request->filled('adviser_teacher_id')
+            ? (int) $request->adviser_teacher_id
+            : (count($request->teacher_ids) === 1 ? (int) $request->teacher_ids[0] : null);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->teacher_ids as $teacherId) {
+                $teacher = Teacher::findOrFail($teacherId);
+                if (!$teacher->sections()->where('section_id', $section->id)->exists()) {
+                    $teacher->sections()->attach($section->id);
+                }
+                foreach ($subjects as $subject) {
+                    if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
+                        $subject->teachers()->attach($teacherId);
+                    }
+                }
+            }
+
+            if ($request->boolean('set_as_adviser') && $adviserId) {
+                $section->adviser_id = $adviserId;
+                $section->save();
+            }
+
+            DB::commit();
+            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
+            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
+
+            Toastr::success(
+                'Assigned '.count($request->teacher_ids).' teacher(s) to section '.$section->name.'.',
+                'Success'
+            );
+            return redirect()->route('class-subject.unified-management');
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Failed to assign teachers to section: '.$e->getMessage());
+            Toastr::error('Failed to assign teachers to section.', 'Error');
+            return back()->withInput();
+        }
+    }
+
+    /**
+     * Unassign teacher(s) from one block section only.
+     */
+    private function unassignTeachersFromSection(Request $request)
+    {
+        $request->validate([
+            'grade_level' => 'required|string|in:' . implode(',', GradeSubjectCatalogService::gradeLevels()),
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'section_id' => 'required|exists:sections,id',
+            'teacher_ids' => 'required|array|min:1',
+            'teacher_ids.*' => 'exists:teachers,id',
+        ]);
+
+        $section = Section::findOrFail($request->section_id);
+
+        DB::beginTransaction();
+        try {
+            $removed = 0;
+            foreach ($request->teacher_ids as $teacherId) {
+                $teacher = Teacher::findOrFail($teacherId);
+                if ($teacher->sections()->where('section_id', $section->id)->exists()) {
+                    $teacher->sections()->detach($section->id);
+                    $removed++;
+                }
+                if ((int) $section->adviser_id === (int) $teacherId) {
+                    $section->adviser_id = null;
+                    $section->save();
+                }
+            }
+
+            DB::commit();
+            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
+            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
+
+            if ($removed > 0) {
+                Toastr::success("Unassigned teacher(s) from section {$section->name}.", 'Success');
+            } else {
+                Toastr::info('Selected teacher(s) were not linked to '.$section->name.'.', 'Info');
+            }
+            return redirect()->route('class-subject.unified-management');
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Failed to unassign teachers from section: '.$e->getMessage());
+            Toastr::error('Failed to unassign teachers from section.', 'Error');
             return back()->withInput();
         }
     }

@@ -200,17 +200,17 @@
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
-                                </div>
-                                    </div>
+                            </div>
+                        </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
                                 <small class="mdp-hint">Normal events may span up to 3 days.</small>
-                                </div>
-                                    </div>
-                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="form-check">
@@ -519,9 +519,10 @@
         100% { box-shadow: var(--ams-shadow-lg); }
     }
 
-    #eventFormModal .modal-dialog { max-height: calc(100vh - 2rem); }
-    #eventFormModal .modal-content { max-height: calc(100vh - 2rem); }
-    #eventFormModal form.modal-body { overflow-y: auto; }
+    #eventFormModal .modal-dialog { max-height: calc(100vh - 2rem); overflow: visible; }
+    #eventFormModal .modal-content { max-height: calc(100vh - 2rem); overflow: visible; }
+    #eventFormModal form.modal-body { overflow-y: auto; overflow-x: visible; }
+    #eventFormModal .ams-cal-section { overflow: visible; }
     .ams-smart-hint {
         font-size: 0.8rem; color: #3730a3; background: #eef2ff;
         border: 1px solid #c7d2fe; border-radius: 10px; padding: 0.55rem 0.75rem;

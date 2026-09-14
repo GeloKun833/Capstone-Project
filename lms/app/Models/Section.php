@@ -22,6 +22,12 @@ class Section extends Model
         return $this->belongsTo(Teacher::class, 'adviser_id');
     }
 
+    public function teachers()
+    {
+        return $this->belongsToMany(Teacher::class, 'section_teacher', 'section_id', 'teacher_id')
+            ->withTimestamps();
+    }
+
     public function students()
     {
         return $this->belongsToMany(Student::class, 'section_student', 'section_id', 'student_id');

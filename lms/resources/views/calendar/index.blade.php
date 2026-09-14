@@ -93,7 +93,7 @@
         <div class="ams-cal-legend mb-3">
             @foreach($typeColors as $type => $color)
                 <span class="ams-cal-legend-item">
-                    <span class="ams-cal-dot" style="background:{{ $color }}"></span>
+                    <span class="ams-cal-dot" data-type="{{ $type }}"></span>
                     {{ ucfirst($type) }}
                 </span>
             @endforeach
@@ -200,17 +200,17 @@
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
-                                </div>
-                                    </div>
+                            </div>
+                        </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
                                 <small class="mdp-hint">Normal events may span up to 3 days.</small>
-                                </div>
-                                    </div>
-                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="form-check">
@@ -519,9 +519,10 @@
         100% { box-shadow: var(--ams-shadow-lg); }
     }
 
-    #eventFormModal .modal-dialog { max-height: calc(100vh - 2rem); }
-    #eventFormModal .modal-content { max-height: calc(100vh - 2rem); }
-    #eventFormModal form.modal-body { overflow-y: auto; }
+    #eventFormModal .modal-dialog { max-height: calc(100vh - 2rem); overflow: visible; }
+    #eventFormModal .modal-content { max-height: calc(100vh - 2rem); overflow: visible; }
+    #eventFormModal form.modal-body { overflow-y: auto; overflow-x: visible; }
+    #eventFormModal .ams-cal-section { overflow: visible; }
     .ams-smart-hint {
         font-size: 0.8rem; color: #3730a3; background: #eef2ff;
         border: 1px solid #c7d2fe; border-radius: 10px; padding: 0.55rem 0.75rem;
@@ -574,10 +575,17 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script type="application/json" id="calendar-type-colors">{!! json_encode($typeColors) !!}</script>
 <script>
 (function () {
-    const TYPE_COLORS = @json($typeColors);
-    const CSRF = '{{ csrf_token() }}';
+    const TYPE_COLORS = JSON.parse(document.getElementById('calendar-type-colors').textContent);
+    document.querySelectorAll('.ams-cal-dot[data-type]').forEach(function (el) {
+        const color = TYPE_COLORS[el.getAttribute('data-type')];
+        if (color) el.style.background = color;
+    });
+    const CSRF = document.querySelector('meta[name="csrf-token"]')
+        ? document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        : '';
     const ROUTES = {
         index: '{{ route("calendar.index") }}',
         store: '{{ route("calendar.store") }}',
