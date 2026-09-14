@@ -32,10 +32,7 @@ class EnrollmentController extends Controller
     {
         $perPage = 15;
         $page = max(1, (int) request('page', 1));
-
-        $hasEnrollmentStatus = true;
-        $hasEnrollmentDate = true;
-        $hasStudentEnrollmentStatus = true;
+        $search = trim((string) request('search', ''));
 
         $statusExpr = 'e.status';
         $dateExpr = 'e.enrollment_date';
@@ -48,11 +45,15 @@ class EnrollmentController extends Controller
             ->leftJoin('semesters as sem', 'sem.id', '=', 'e.semester_id')
             ->selectRaw("
                 e.id as id,
+                e.student_id as student_id,
+                s.user_id as student_user_id,
+                s.upload as student_upload,
                 'enrollment' as type,
                 TRIM(CONCAT(COALESCE(s.first_name, ''), ' ', COALESCE(s.last_name, ''))) as student_name,
                 COALESCE(s.email, 'N/A') as student_email,
                 COALESCE(sub.subject_name, 'N/A') as subject_name,
-                'N/A' as section_name,
+                COALESCE(NULLIF(s.section, ''), 'N/A') as section_name,
+                COALESCE(NULLIF(s.year_level, ''), NULLIF(s.class, ''), '') as grade_level,
                 COALESCE(ay.name, 'N/A') as academic_year,
                 COALESCE(sem.name, 'N/A') as semester,
                 {$statusExpr} as status,
@@ -60,41 +61,120 @@ class EnrollmentController extends Controller
                 e.created_at as created_at
             ");
 
-        $portalSelect = "
+        $portal = DB::table('students as s')
+            ->whereNotNull('s.enrollment_application_id')
+            ->selectRaw("
                 s.id as id,
+                s.id as student_id,
+                s.user_id as student_user_id,
+                s.upload as student_upload,
                 'portal_student' as type,
                 TRIM(CONCAT(COALESCE(s.first_name, ''), ' ', COALESCE(s.last_name, ''))) as student_name,
                 COALESCE(s.email, 'N/A') as student_email,
                 'Portal Enrollment' as subject_name,
-                'Auto-Assigned' as section_name,
+                COALESCE(NULLIF(s.section, ''), 'N/A') as section_name,
+                COALESCE(NULLIF(s.year_level, ''), NULLIF(s.class, ''), '') as grade_level,
                 'Current' as academic_year,
                 'Current' as semester,
                 {$portalStatusExpr} as status,
                 s.created_at as enrollment_date,
                 s.created_at as created_at
-            ";
+            ");
 
-        $portal = DB::table('students as s')->whereNotNull('s.enrollment_application_id')->selectRaw($portalSelect);
+        if ($search !== '') {
+            $like = '%'.$search.'%';
+            $legacy->where(function ($query) use ($like) {
+                $query->where('s.first_name', 'like', $like)
+                    ->orWhere('s.last_name', 'like', $like)
+                    ->orWhere('s.email', 'like', $like)
+                    ->orWhere('sub.subject_name', 'like', $like);
+            });
+            $portal->where(function ($query) use ($like) {
+                $query->where('s.first_name', 'like', $like)
+                    ->orWhere('s.last_name', 'like', $like)
+                    ->orWhere('s.email', 'like', $like);
+            });
+        }
 
-        $union = $legacy->unionAll($portal);
-
-        $total = DB::query()->fromSub($union, 'combined_enrollments')->count();
-        $items = DB::query()->fromSub($union, 'combined_enrollments')
+        $rows = DB::query()
+            ->fromSub($legacy->unionAll($portal), 'combined_enrollments')
             ->orderByDesc('created_at')
-            ->offset(($page - 1) * $perPage)
-            ->limit($perPage)
-            ->get()
-            ->map(fn ($row) => (array) $row);
+            ->get();
+
+        $grouped = $rows->groupBy(function ($row) {
+            return $row->student_id ?: strtolower(($row->student_email ?? '').'|'.($row->student_name ?? ''));
+        })->map(function ($studentRows) {
+            $first = $studentRows->first();
+            $classRows = $studentRows->where('type', 'enrollment');
+            $portalRows = $studentRows->where('type', 'portal_student');
+
+            $subjects = $classRows->pluck('subject_name')
+                ->filter(fn ($name) => $name && $name !== 'N/A' && $name !== 'Portal Enrollment')
+                ->unique()
+                ->values();
+
+            $sections = $studentRows->pluck('section_name')
+                ->filter(fn ($name) => $name && $name !== 'N/A')
+                ->unique()
+                ->values();
+
+            $years = $classRows->pluck('academic_year')
+                ->filter(fn ($name) => $name && $name !== 'N/A')
+                ->unique()
+                ->values();
+
+            $semesters = $classRows->pluck('semester')
+                ->filter(fn ($name) => $name && $name !== 'N/A')
+                ->unique()
+                ->values();
+
+            $grades = $studentRows->pluck('grade_level')->filter()->unique()->values();
+            $statuses = $studentRows->pluck('status')->filter()->unique()->values();
+
+            $status = 'active';
+            if ($statuses->contains('pending') && !$statuses->contains('active')) {
+                $status = 'pending';
+            } elseif ($statuses->contains('active')) {
+                $status = 'active';
+            } elseif ($statuses->isNotEmpty()) {
+                $status = $statuses->first();
+            }
+
+            $latest = $studentRows->sortByDesc(function ($row) {
+                return $row->enrollment_date ?: $row->created_at;
+            })->first();
+
+            return [
+                'student_id' => $first->student_id,
+                'student_user_id' => $first->student_user_id,
+                'student_upload' => $first->student_upload,
+                'student_name' => $first->student_name ?: 'Unnamed student',
+                'student_email' => $first->student_email,
+                'grade_level' => $grades->implode(', '),
+                'sections' => $sections,
+                'subjects' => $subjects,
+                'academic_year' => $years->implode(', ') ?: '—',
+                'semester' => $semesters->implode(', ') ?: '—',
+                'status' => $status,
+                'statuses' => $statuses,
+                'enrollment_date' => $latest->enrollment_date ?? $latest->created_at ?? null,
+                'has_portal' => $portalRows->isNotEmpty(),
+                'portal_id' => optional($portalRows->first())->id,
+                'primary_enrollment_id' => optional($classRows->first())->id,
+                'enrollment_ids' => $classRows->pluck('id')->values(),
+                'subject_count' => $subjects->count(),
+            ];
+        })->sortByDesc('enrollment_date')->values();
 
         $paginatedEnrollments = new LengthAwarePaginator(
-            $items,
-            $total,
+            $grouped->forPage($page, $perPage)->values(),
+            $grouped->count(),
             $perPage,
             $page,
             ['path' => request()->url(), 'query' => request()->query()]
         );
 
-        return view('enrollments.index', compact('paginatedEnrollments'));
+        return view('enrollments.index', compact('paginatedEnrollments', 'search'));
     }
 
     /**

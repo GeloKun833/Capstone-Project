@@ -200,17 +200,17 @@
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
-                            </div>
-                        </div>
+                                </div>
+                                    </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
                                 <small class="mdp-hint">Normal events may span up to 3 days.</small>
-                            </div>
-                        </div>
-                    </div>
+                                </div>
+                                    </div>
+                                </div>
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="form-check">

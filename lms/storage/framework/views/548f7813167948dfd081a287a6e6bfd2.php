@@ -2,12 +2,15 @@
 <?php $__env->startSection('content'); ?>
 
 <div class="page-wrapper">
-    <div class="content container-fluid">
+    <div class="content container-fluid dir-page">
         <div class="page-header">
-            <div class="row align-items-center">
+            <div class="row align-items-start">
                 <div class="col">
-                    <h3 class="page-title">Reports &amp; Documents</h3>
-                    <ul class="breadcrumb">
+                    <h3 class="page-title mb-1">Reports &amp; Documents</h3>
+                    <p class="dir-subtitle">Generate transcripts, class lists, grade slips, and progress reports.</p>
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-0">
                         <li class="breadcrumb-item"><a href="<?php echo e(route('home')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">Reports</li>
                     </ul>
@@ -19,61 +22,53 @@
             <div class="alert alert-danger"><?php echo e(session('error')); ?></div>
         <?php endif; ?>
 
-        <div class="alert alert-light border mb-4">
+        <div class="dir-tip mb-4">
             <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
             For many students, use <strong>Entire grade</strong> or <strong>Entire section</strong> to download a ZIP of PDFs.
         </div>
 
         <div class="row g-3">
             <div class="col-md-6 col-xl-3">
-                <div class="card h-100 report-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-file-alt fa-3x text-primary mb-3"></i>
-                        <h5 class="card-title">Student Transcript</h5>
-                        <p class="text-muted small">Academic history — one student or bulk by grade/section</p>
-                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#transcriptModal">
-                            <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                    </div>
+                <div class="dir-report-card">
+                    <span class="dir-report-icon is-blue"><i class="fas fa-file-alt"></i></span>
+                    <h5>Student Transcript</h5>
+                    <p class="dir-subtitle mb-3">Academic history — one student or bulk by grade/section</p>
+                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
+                        <i class="fas fa-download me-1"></i> Generate / Download
+                    </button>
                 </div>
             </div>
 
             <div class="col-md-6 col-xl-3">
-                <div class="card h-100 report-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-users fa-3x text-success mb-3"></i>
-                        <h5 class="card-title">Class List</h5>
-                        <p class="text-muted small">Section roster — filter by grade, then section</p>
-                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#classListModal">
-                            <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                    </div>
+                <div class="dir-report-card">
+                    <span class="dir-report-icon is-green"><i class="fas fa-users"></i></span>
+                    <h5>Class List</h5>
+                    <p class="dir-subtitle mb-3">Section roster — filter by grade, then section</p>
+                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#classListModal">
+                        <i class="fas fa-download me-1"></i> Generate / Download
+                    </button>
                 </div>
             </div>
 
             <div class="col-md-6 col-xl-3">
-                <div class="card h-100 report-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-clipboard-list fa-3x text-warning mb-3"></i>
-                        <h5 class="card-title">Grade Slip</h5>
-                        <p class="text-muted small">Period grades — one student or bulk ZIP by grade</p>
-                        <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
-                            <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                    </div>
+                <div class="dir-report-card">
+                    <span class="dir-report-icon is-amber"><i class="fas fa-clipboard-list"></i></span>
+                    <h5>Grade Slip</h5>
+                    <p class="dir-subtitle mb-3">Period grades — one student or bulk ZIP by grade</p>
+                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
+                        <i class="fas fa-download me-1"></i> Generate / Download
+                    </button>
                 </div>
             </div>
 
             <div class="col-md-6 col-xl-3">
-                <div class="card h-100 report-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-chart-line fa-3x text-info mb-3"></i>
-                        <h5 class="card-title">Progress Report</h5>
-                        <p class="text-muted small">Performance summary — one student or bulk by grade</p>
-                        <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
-                            <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                    </div>
+                <div class="dir-report-card">
+                    <span class="dir-report-icon is-sky"><i class="fas fa-chart-line"></i></span>
+                    <h5>Progress Report</h5>
+                    <p class="dir-subtitle mb-3">Performance summary — one student or bulk by grade</p>
+                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
+                        <i class="fas fa-download me-1"></i> Generate / Download
+                    </button>
                 </div>
             </div>
         </div>
@@ -88,7 +83,7 @@
 
 
 <!-- Transcript Modal -->
-<div class="modal fade" id="transcriptModal" tabindex="-1">
+<div class="modal fade dir-modal" id="transcriptModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -157,8 +152,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-download me-1"></i> Download</button>
+                    <button type="button" class="btn btn-outline-secondary dir-btn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary dir-btn"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
@@ -166,7 +161,7 @@
 </div>
 
 <!-- Class List Modal -->
-<div class="modal fade" id="classListModal" tabindex="-1">
+<div class="modal fade dir-modal" id="classListModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -227,8 +222,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fas fa-download me-1"></i> Download</button>
+                    <button type="button" class="btn btn-outline-secondary dir-btn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary dir-btn"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
@@ -236,7 +231,7 @@
 </div>
 
 <!-- Grade Slip Modal -->
-<div class="modal fade" id="gradeSlipModal" tabindex="-1">
+<div class="modal fade dir-modal" id="gradeSlipModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -305,8 +300,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning"><i class="fas fa-download me-1"></i> Download</button>
+                    <button type="button" class="btn btn-outline-secondary dir-btn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary dir-btn"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
@@ -314,7 +309,7 @@
 </div>
 
 <!-- Progress Report Modal -->
-<div class="modal fade" id="progressSummaryModal" tabindex="-1">
+<div class="modal fade dir-modal" id="progressSummaryModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -383,8 +378,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info"><i class="fas fa-download me-1"></i> Download</button>
+                    <button type="button" class="btn btn-outline-secondary dir-btn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary dir-btn"><i class="fas fa-download me-1"></i> Download</button>
                 </div>
             </form>
         </div>
@@ -392,10 +387,7 @@
 </div>
 
 <?php $__env->startPush('styles'); ?>
-<style>
-    .report-card { transition: transform .15s ease, box-shadow .15s ease; }
-    .report-card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,.08); }
-</style>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914c">
 <?php $__env->stopPush(); ?>
 
 <?php $__env->startPush('scripts'); ?>

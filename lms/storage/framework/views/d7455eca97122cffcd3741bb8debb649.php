@@ -8,18 +8,18 @@
     <div class="content container-fluid ams-unified">
 
         <div class="page-header">
-            <div class="row align-items-center">
-                <div class="col-lg-8">
+            <div class="row align-items-start">
+                <div class="col">
                     <h3 class="page-title mb-1">Classes &amp; Subjects</h3>
                     <p class="ams-unified-sub mb-0">
                         Manage the subject catalog by grade, then assign teachers to an entire grade at once.
                     </p>
-                    <ul class="breadcrumb mb-0 mt-2">
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-2">
                         <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">Classes &amp; Subjects</li>
                     </ul>
-                </div>
-                <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
                     <form action="<?php echo e(route('class-subject.import-defaults')); ?>" method="POST" class="d-inline">
                         <?php echo csrf_field(); ?>
                         <button type="submit" class="btn btn-outline-secondary btn-sm">
@@ -37,13 +37,13 @@
                     <h5 class="mb-0">Subject Catalog by Grade</h5>
                     <small class="text-muted">Click a grade to view, add, or manage its subjects</small>
                 </div>
-            </div>
-            <div class="card-body">
+                    </div>
+                    <div class="card-body">
                 <?php if($catalogEmpty): ?>
                     <div class="alert alert-warning mb-3">
                         <strong>No subjects yet.</strong>
                         Use <em>Import Defaults</em> or open a grade below to add subjects.
-                    </div>
+                            </div>
                     <div class="d-flex flex-wrap gap-2">
                         <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <button type="button"
@@ -110,8 +110,8 @@
                 </div>
                 <a href="<?php echo e(route('sections.index')); ?>" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-list me-1"></i> All Sections
-                </a>
-            </div>
+                        </a>
+                    </div>
             <div class="card-body">
                 <div class="row g-3">
                     <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -282,8 +282,8 @@
                                 <label class="form-label ams-label">Section Name</label>
                                 <input type="text" class="form-control" name="name" id="quickSectionName"
                                     placeholder="e.g. Pasteur" required autocomplete="off">
-                            </div>
-                            <div class="col-md-3">
+                                        </div>
+                                        <div class="col-md-3">
                                 <label class="form-label ams-label">Capacity</label>
                                 <input type="number" class="form-control" name="capacity" value="25" min="1">
                             </div>
@@ -303,8 +303,8 @@
                 </a>
             </div>
         </div>
-    </div>
-</div>
+                            </div>
+                        </div>
 
 
 <div class="modal fade" id="deleteSubjectConfirmModal" tabindex="-1" aria-hidden="true">
@@ -373,16 +373,16 @@
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content ams-modal">
             <div class="modal-header border-0 pb-0">
-                <div>
+                                <div>
                     <h5 class="modal-title mb-0">All created teachers</h5>
                     <small class="text-muted"><?php echo e($teachers->count()); ?> teacher<?php echo e($teachers->count() === 1 ? '' : 's'); ?> — tap a card to view details</small>
-                </div>
+        </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+    </div>
             <div class="modal-body">
                 <div class="mb-3">
                     <input type="search" id="allTeachersSearch" class="form-control" placeholder="Search teacher name...">
-                </div>
+</div>
                 <div class="row g-3" id="allTeachersGrid">
                     <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <?php
@@ -411,9 +411,9 @@
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title mb-0">Teacher details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                    </div>
             <form method="POST" action="<?php echo e(route('class-subject.unified-management')); ?>" id="teacherGradeForm">
-                <?php echo csrf_field(); ?>
+            <?php echo csrf_field(); ?>
                 <input type="hidden" name="operation_type" id="teacherGradeOperation" value="teacher_grade">
                 <input type="hidden" name="teacher_ids[]" id="modalTeacherId" value="<?php echo e(old('teacher_ids.0')); ?>">
 
@@ -428,7 +428,7 @@
                     </div>
 
                     <div class="row g-3 mb-3">
-                        <div class="col-md-6">
+                <div class="col-md-6">
                             <div class="ams-teacher-detail">
                                 <span>Qualification</span>
                                 <strong id="tdQualification">—</strong>
@@ -476,101 +476,101 @@ unset($__errorArgs, $__bag); ?>" name="grade_level" id="grade_level" required>
                                         <?php echo e($grade); ?>
 
                                         (<?php echo e(($subjectsByGrade->get($grade) ?? collect())->count()); ?> subjects)
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
+                                </option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
                             <?php $__errorArgs = ['grade_level'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
 $message = $__bag->first($__errorArgs[0]); ?>
                                 <span class="invalid-feedback d-block"><?php echo e($message); ?></span>
-                            <?php unset($message);
+                        <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
 unset($__errorArgs, $__bag); ?>
-                        </div>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
                             <select class="form-control" name="academic_year_id" id="academic_year_id" required>
-                                <option value="">Select Academic Year</option>
-                                <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($year->id); ?>" <?php echo e(old('academic_year_id') == $year->id ? 'selected' : ''); ?>>
-                                        <?php echo e($year->name); ?>
+                            <option value="">Select Academic Year</option>
+                            <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($year->id); ?>" <?php echo e(old('academic_year_id') == $year->id ? 'selected' : ''); ?>>
+                                    <?php echo e($year->name); ?>
 
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                        </div>
+                                </option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
                             <select class="form-control" name="semester_id" id="semester_id" required>
-                                <option value="">Select Semester</option>
-                                <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($semester->id); ?>" <?php echo e(old('semester_id') == $semester->id ? 'selected' : ''); ?>>
-                                        <?php echo e($semester->name); ?>
+                            <option value="">Select Semester</option>
+                            <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($semester->id); ?>" <?php echo e(old('semester_id') == $semester->id ? 'selected' : ''); ?>>
+                                    <?php echo e($semester->name); ?>
 
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
+                                </option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                    </div>
+                <div class="col-md-6">
                             <label class="form-label ams-label" for="section_id">Section <span class="text-muted" id="sectionRequiredMark">(for section actions)</span></label>
                             <select class="form-control" name="section_id" id="section_id">
                                 <option value="" id="sectionNoneOption">Select Section</option>
-                                <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <option value="<?php echo e($section->id); ?>"
                                         data-grade="<?php echo e($section->grade_level); ?>"
                                         <?php echo e(old('section_id') == $section->id ? 'selected' : ''); ?>>
                                         <?php echo e($section->name); ?> (<?php echo e($section->grade_level); ?>)
-                                    </option>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </select>
+                                </option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
                             <small class="text-muted" id="sectionHelpText">Required when assigning or unassigning a section.</small>
-                        </div>
+                    </div>
                         <div class="col-md-6" id="sectionAdviserWrap">
                             <div class="form-check mt-4 pt-1">
                                 <input class="form-check-input" type="checkbox" name="set_as_adviser" id="setAsAdviser" value="1" checked>
                                 <label class="form-check-label" for="setAsAdviser">Also set as section adviser (homeroom)</label>
-                            </div>
-                        </div>
+                </div>
+            </div>
                     </div>
                     <div id="gradeSubjectsPreview" class="ams-preview mt-3 d-none"></div>
-                    <?php $__errorArgs = ['teacher_ids'];
+                        <?php $__errorArgs = ['teacher_ids'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
 $message = $__bag->first($__errorArgs[0]); ?>
                         <div class="alert alert-danger mt-3 mb-0"><?php echo e($message); ?></div>
-                    <?php unset($message);
+                        <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
 unset($__errorArgs, $__bag); ?>
-                </div>
+            </div>
                 <div class="modal-footer flex-column align-items-stretch border-0 pt-0">
                     <div class="row g-2">
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-primary w-100 js-teacher-action" data-op="teacher_grade">
                                 <i class="fas fa-user-check me-1"></i> Assign Teacher to Grade
-                            </button>
-                        </div>
+                </button>
+            </div>
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-outline-danger w-100 js-teacher-action" data-op="teacher_grade_unassign">
                                 <i class="fas fa-user-minus me-1"></i> Unassign from Grade
                             </button>
-                        </div>
+                    </div>
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-primary w-100 js-teacher-action" data-op="teacher_section">
                                 <i class="fas fa-chalkboard-teacher me-1"></i> Assign Teacher to Section
                             </button>
-                        </div>
+                </div>
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-outline-danger w-100 js-teacher-action" data-op="teacher_section_unassign">
                                 <i class="fas fa-user-minus me-1"></i> Unassign from Section
                             </button>
-                        </div>
                     </div>
                 </div>
+            </div>
             </form>
         </div>
     </div>
@@ -588,6 +588,22 @@ unset($__errorArgs, $__bag); ?>
         --ams-soft: #f8fafc;
     }
     .ams-unified-sub { color: var(--ams-muted); }
+    .ams-unified .page-header .col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .ams-unified .page-header .col-auto {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    .ams-unified .page-header .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin: 0 0 0.5rem auto;
+        justify-content: flex-end;
+    }
     .ams-panel {
         border: 1px solid var(--ams-line);
         border-radius: 16px;
@@ -1272,7 +1288,7 @@ unset($__errorArgs, $__bag); ?>
     }
 
     $('#quickAddSubjectForm').on('submit', function (e) {
-        e.preventDefault();
+            e.preventDefault();
         const grade = $('#quickAddGrade').val();
         const name = ($('#quickAddName').val() || '').trim();
         const $msg = $('#quickAddSubjectMsg');
@@ -1562,7 +1578,7 @@ unset($__errorArgs, $__bag); ?>
             showDeleteResultModal(false, 'Missing teacher', 'Please open a teacher first.');
             return false;
         }
-
+        
         const grade = $('#grade_level').val();
         const subjects = subjectsByGrade[grade] || [];
         if (!isSection && !subjects.length) {

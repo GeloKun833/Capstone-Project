@@ -10,18 +10,18 @@
     <div class="content container-fluid ams-unified">
 
         <div class="page-header">
-            <div class="row align-items-center">
-                <div class="col-lg-8">
+            <div class="row align-items-start">
+                <div class="col">
                     <h3 class="page-title mb-1">Classes &amp; Subjects</h3>
                     <p class="ams-unified-sub mb-0">
                         Manage the subject catalog by grade, then assign teachers to an entire grade at once.
                     </p>
-                    <ul class="breadcrumb mb-0 mt-2">
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-2">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
                         <li class="breadcrumb-item active">Classes &amp; Subjects</li>
                     </ul>
-                </div>
-                <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
                     <form action="{{ route('class-subject.import-defaults') }}" method="POST" class="d-inline">
                         @csrf
                         <button type="submit" class="btn btn-outline-secondary btn-sm">
@@ -39,13 +39,13 @@
                     <h5 class="mb-0">Subject Catalog by Grade</h5>
                     <small class="text-muted">Click a grade to view, add, or manage its subjects</small>
                 </div>
-            </div>
-            <div class="card-body">
+                    </div>
+                    <div class="card-body">
                 @if($catalogEmpty)
                     <div class="alert alert-warning mb-3">
                         <strong>No subjects yet.</strong>
                         Use <em>Import Defaults</em> or open a grade below to add subjects.
-                    </div>
+                            </div>
                     <div class="d-flex flex-wrap gap-2">
                         @foreach($gradeLevels as $grade)
                             <button type="button"
@@ -109,8 +109,8 @@
                 </div>
                 <a href="{{ route('sections.index') }}" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-list me-1"></i> All Sections
-                </a>
-            </div>
+                        </a>
+                    </div>
             <div class="card-body">
                 <div class="row g-3">
                     @foreach($gradeLevels as $grade)
@@ -279,8 +279,8 @@
                                 <label class="form-label ams-label">Section Name</label>
                                 <input type="text" class="form-control" name="name" id="quickSectionName"
                                     placeholder="e.g. Pasteur" required autocomplete="off">
-                            </div>
-                            <div class="col-md-3">
+                                        </div>
+                                        <div class="col-md-3">
                                 <label class="form-label ams-label">Capacity</label>
                                 <input type="number" class="form-control" name="capacity" value="25" min="1">
                             </div>
@@ -300,8 +300,8 @@
                 </a>
             </div>
         </div>
-    </div>
-</div>
+                            </div>
+                        </div>
 
 {{-- Delete confirm --}}
 <div class="modal fade" id="deleteSubjectConfirmModal" tabindex="-1" aria-hidden="true">
@@ -370,16 +370,16 @@
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content ams-modal">
             <div class="modal-header border-0 pb-0">
-                <div>
+                                <div>
                     <h5 class="modal-title mb-0">All created teachers</h5>
                     <small class="text-muted">{{ $teachers->count() }} teacher{{ $teachers->count() === 1 ? '' : 's' }} — tap a card to view details</small>
-                </div>
+        </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+    </div>
             <div class="modal-body">
                 <div class="mb-3">
                     <input type="search" id="allTeachersSearch" class="form-control" placeholder="Search teacher name...">
-                </div>
+</div>
                 <div class="row g-3" id="allTeachersGrid">
                     @foreach($teachers as $teacher)
                         @php
@@ -408,9 +408,9 @@
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title mb-0">Teacher details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                    </div>
             <form method="POST" action="{{ route('class-subject.unified-management') }}" id="teacherGradeForm">
-                @csrf
+            @csrf
                 <input type="hidden" name="operation_type" id="teacherGradeOperation" value="teacher_grade">
                 <input type="hidden" name="teacher_ids[]" id="modalTeacherId" value="{{ old('teacher_ids.0') }}">
 
@@ -425,7 +425,7 @@
                     </div>
 
                     <div class="row g-3 mb-3">
-                        <div class="col-md-6">
+                <div class="col-md-6">
                             <div class="ams-teacher-detail">
                                 <span>Qualification</span>
                                 <strong id="tdQualification">—</strong>
@@ -465,85 +465,85 @@
                                         {{ old('grade_level') === $grade ? 'selected' : '' }}>
                                         {{ $grade }}
                                         ({{ ($subjectsByGrade->get($grade) ?? collect())->count() }} subjects)
-                                    </option>
-                                @endforeach
-                            </select>
+                                </option>
+                            @endforeach
+                        </select>
                             @error('grade_level')
                                 <span class="invalid-feedback d-block">{{ $message }}</span>
-                            @enderror
-                        </div>
+                        @enderror
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
                             <select class="form-control" name="academic_year_id" id="academic_year_id" required>
-                                <option value="">Select Academic Year</option>
-                                @foreach($academicYears as $year)
-                                    <option value="{{ $year->id }}" {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
-                                        {{ $year->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                            <option value="">Select Academic Year</option>
+                            @foreach($academicYears as $year)
+                                <option value="{{ $year->id }}" {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
+                                    {{ $year->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
                             <select class="form-control" name="semester_id" id="semester_id" required>
-                                <option value="">Select Semester</option>
-                                @foreach($semesters as $semester)
-                                    <option value="{{ $semester->id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
-                                        {{ $semester->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-6">
+                            <option value="">Select Semester</option>
+                            @foreach($semesters as $semester)
+                                <option value="{{ $semester->id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
+                                    {{ $semester->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                <div class="col-md-6">
                             <label class="form-label ams-label" for="section_id">Section <span class="text-muted" id="sectionRequiredMark">(for section actions)</span></label>
                             <select class="form-control" name="section_id" id="section_id">
                                 <option value="" id="sectionNoneOption">Select Section</option>
-                                @foreach($sections as $section)
+                            @foreach($sections as $section)
                                     <option value="{{ $section->id }}"
                                         data-grade="{{ $section->grade_level }}"
                                         {{ old('section_id') == $section->id ? 'selected' : '' }}>
                                         {{ $section->name }} ({{ $section->grade_level }})
-                                    </option>
-                                @endforeach
-                            </select>
+                                </option>
+                            @endforeach
+                        </select>
                             <small class="text-muted" id="sectionHelpText">Required when assigning or unassigning a section.</small>
-                        </div>
+                    </div>
                         <div class="col-md-6" id="sectionAdviserWrap">
                             <div class="form-check mt-4 pt-1">
                                 <input class="form-check-input" type="checkbox" name="set_as_adviser" id="setAsAdviser" value="1" checked>
                                 <label class="form-check-label" for="setAsAdviser">Also set as section adviser (homeroom)</label>
-                            </div>
-                        </div>
+                </div>
+            </div>
                     </div>
                     <div id="gradeSubjectsPreview" class="ams-preview mt-3 d-none"></div>
-                    @error('teacher_ids')
+                        @error('teacher_ids')
                         <div class="alert alert-danger mt-3 mb-0">{{ $message }}</div>
-                    @enderror
-                </div>
+                        @enderror
+            </div>
                 <div class="modal-footer flex-column align-items-stretch border-0 pt-0">
                     <div class="row g-2">
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-primary w-100 js-teacher-action" data-op="teacher_grade">
                                 <i class="fas fa-user-check me-1"></i> Assign Teacher to Grade
-                            </button>
-                        </div>
+                </button>
+            </div>
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-outline-danger w-100 js-teacher-action" data-op="teacher_grade_unassign">
                                 <i class="fas fa-user-minus me-1"></i> Unassign from Grade
                             </button>
-                        </div>
+                    </div>
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-primary w-100 js-teacher-action" data-op="teacher_section">
                                 <i class="fas fa-chalkboard-teacher me-1"></i> Assign Teacher to Section
                             </button>
-                        </div>
+                </div>
                         <div class="col-md-6">
                             <button type="submit" class="btn btn-outline-danger w-100 js-teacher-action" data-op="teacher_section_unassign">
                                 <i class="fas fa-user-minus me-1"></i> Unassign from Section
                             </button>
-                        </div>
                     </div>
                 </div>
+            </div>
             </form>
         </div>
     </div>
@@ -561,6 +561,22 @@
         --ams-soft: #f8fafc;
     }
     .ams-unified-sub { color: var(--ams-muted); }
+    .ams-unified .page-header .col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .ams-unified .page-header .col-auto {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    .ams-unified .page-header .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin: 0 0 0.5rem auto;
+        justify-content: flex-end;
+    }
     .ams-panel {
         border: 1px solid var(--ams-line);
         border-radius: 16px;
@@ -1245,7 +1261,7 @@
     }
 
     $('#quickAddSubjectForm').on('submit', function (e) {
-        e.preventDefault();
+            e.preventDefault();
         const grade = $('#quickAddGrade').val();
         const name = ($('#quickAddName').val() || '').trim();
         const $msg = $('#quickAddSubjectMsg');
@@ -1535,7 +1551,7 @@
             showDeleteResultModal(false, 'Missing teacher', 'Please open a teacher first.');
             return false;
         }
-
+        
         const grade = $('#grade_level').val();
         const subjects = subjectsByGrade[grade] || [];
         if (!isSection && !subjects.length) {

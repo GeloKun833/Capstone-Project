@@ -3,17 +3,19 @@
 <div class="page-wrapper">
     <div class="content container-fluid ams-sections">
         <div class="page-header">
-            <div class="row align-items-center">
+            <div class="row align-items-start">
                 <div class="col">
-                    <h3 class="page-title">Block Sections</h3>
-                    <p class="text-muted mb-0">Click a section card to view details, edit, or delete.</p>
-                    <ul class="breadcrumb">
+                    <div>
+                        <h3 class="page-title mb-1">Block Sections</h3>
+                        <p class="text-muted mb-0">Click a section card to view details, edit, or delete.</p>
+                    </div>
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-2">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('class-subject.unified-management') }}">Classes &amp; Subjects</a></li>
                         <li class="breadcrumb-item active">Sections</li>
                     </ul>
-                </div>
-                <div class="col-auto">
                     <a href="{{ route('sections.create') }}" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Add Section
                     </a>

@@ -1,16 +1,16 @@
 <?php $__env->startSection('content'); ?>
-<div class="page-wrapper">
+    <div class="page-wrapper">
     <div class="content container-fluid ams-years">
-        <div class="page-header">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h3 class="page-title">Academic Years</h3>
+            <div class="page-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h3 class="page-title">Academic Years</h3>
                     <p class="text-muted mb-0">Manage school years used by enrollment, grading, and semesters.</p>
-                    <ul class="breadcrumb">
+                        <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Academic Years</li>
-                    </ul>
-                </div>
+                            <li class="breadcrumb-item active">Academic Years</li>
+                        </ul>
+                    </div>
                 <div class="col-auto d-flex flex-wrap gap-2">
                     <a href="<?php echo e(route('semesters.index')); ?>" class="btn btn-outline-secondary">
                         <i class="fas fa-calendar-week me-1"></i> Semesters
@@ -53,8 +53,8 @@
                 <button type="button" class="ams-filter-chip" data-status="current">Current</button>
                 <button type="button" class="ams-filter-chip" data-status="upcoming">Upcoming</button>
                 <button type="button" class="ams-filter-chip" data-status="completed">Completed</button>
+                </div>
             </div>
-        </div>
 
         <div class="row g-3" id="yearsGrid">
             <?php $__empty_1 = true; $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
@@ -90,96 +90,108 @@
                         </div>
                         <div class="ams-year-hint mt-3">Click to manage <i class="fas fa-arrow-right ms-1"></i></div>
                     </button>
-                </div>
+                    </div>
             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <div class="col-12" id="yearsEmptyState">
                     <div class="alert alert-warning mb-0">No academic years yet. Add one to start enrollment periods.</div>
                 </div>
             <?php endif; ?>
-        </div>
+            </div>
         <div id="yearsFilterEmpty" class="alert alert-light border text-center d-none mt-3">
             No academic years match your search or filter.
-        </div>
-    </div>
-</div>
+                                    </div>
+                                </div>
+                            </div>
 
 
 <div class="modal fade" id="yearDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content ams-float-modal">
             <div class="modal-header border-0 pb-0">
-                <div>
+                                                <div>
                     <p class="ams-modal-eyebrow mb-1">Academic Year</p>
                     <h4 class="modal-title mb-0" id="yearDetailTitle">Year</h4>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                                                </div>
             <div class="modal-body pt-3">
                 <div class="ams-detail-grid">
                     <div class="ams-detail-item">
                         <span class="ams-detail-label">Status</span>
                         <span class="ams-detail-value" id="yearDetailStatus">—</span>
-                    </div>
+                                                </div>
                     <div class="ams-detail-item">
                         <span class="ams-detail-label">Semesters</span>
                         <span class="ams-detail-value" id="yearDetailSemesters">—</span>
-                    </div>
+                                            </div>
                     <div class="ams-detail-item ams-detail-item--full">
                         <span class="ams-detail-label">Date Range</span>
                         <span class="ams-detail-value" id="yearDetailDates">—</span>
-                    </div>
-                </div>
-            </div>
+                                        </div>
+                                    </div>
+                                </div>
             <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
                 <button type="button" class="btn btn-warning" id="yearEditBtn"><i class="fas fa-edit me-1"></i> Edit</button>
                 <button type="button" class="btn btn-danger" id="yearDeleteBtn"
                     data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-trash me-1"></i> Delete</button>
                 <a href="<?php echo e(route('semesters.index')); ?>" class="btn btn-outline-primary">Manage Semesters</a>
                 <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
 
 <div class="modal fade" id="yearFormModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content ams-float-modal">
             <div class="modal-header border-0 pb-0">
-                <div>
+                                                <div>
                     <p class="ams-modal-eyebrow mb-1" id="yearFormEyebrow">New Academic Year</p>
                     <h4 class="modal-title mb-0" id="yearFormTitle">Add Academic Year</h4>
-                </div>
+                                                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                                                </div>
             <form id="yearForm">
                 <div class="modal-body pt-3">
                     <div id="yearFormMsg" class="mb-2"></div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" for="yearName">Name</label>
-                        <input type="text" class="form-control" id="yearName" name="name" required
-                            placeholder="e.g. 2025-2026">
-                    </div>
-                    <div class="row g-2">
+                    <div class="mb-3" data-mdp-academic-year>
+                        <label class="form-label fw-semibold">Academic Year</label>
+                        <div class="mdp-year-range">
+                            <div>
+                                <label class="form-label small text-muted mb-1" for="yearStartSelect">Start year</label>
+                                <select class="form-control form-select" id="yearStartSelect" data-mdp-year-start></select>
+                                            </div>
+                            <div class="mdp-year-sep">–</div>
+                            <div>
+                                <label class="form-label small text-muted mb-1" for="yearEndSelect">End year</label>
+                                <select class="form-control form-select" id="yearEndSelect" data-mdp-year-end></select>
+                                        </div>
+                                    </div>
+                        <input type="hidden" id="yearName" name="name" data-mdp-year-name required value="">
+                        <div class="mdp-year-preview" data-mdp-year-preview>Academic Year: —</div>
+                        <small class="text-muted">Select years only (example: 2026–2027). Start/end dates are set automatically.</small>
+                                </div>
+                    <div class="row g-2 d-none" id="yearDateRow">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" for="yearStart">Start Date</label>
-                            <input type="date" class="form-control" id="yearStart" name="start_date" required>
-                        </div>
+                            <input type="date" class="form-control" id="yearStart" name="start_date">
+                                                </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" for="yearEnd">End Date</label>
-                            <input type="date" class="form-control" id="yearEnd" name="end_date" required>
-                        </div>
-                    </div>
-                    <p class="text-muted small mt-2 mb-0">Status (Current / Upcoming / Completed) is based on these dates.</p>
+                            <input type="date" class="form-control" id="yearEnd" name="end_date">
+                                                </div>
+                                            </div>
+                    <p class="text-muted small mt-2 mb-0">School year status is derived from the year label.</p>
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="yearFormSave"><i class="fas fa-save me-1"></i> Save</button>
-                </div>
+                                        </div>
             </form>
-        </div>
-    </div>
-</div>
+                                    </div>
+                                </div>
+                            </div>
 
 
 <div class="modal custom-modal fade" id="yearDeleteModal" tabindex="-1" aria-hidden="true">
@@ -189,12 +201,12 @@
                 <div class="form-header">
                     <h3>Delete Academic Year</h3>
                     <p class="mb-0">Delete <strong id="yearDeleteName">this year</strong>? Linked semesters will also be removed.</p>
-                </div>
+                                                </div>
                 <div class="modal-btn delete-action">
                     <div class="row">
                         <div class="col-6">
                             <button type="button" class="btn btn-primary paid-continue-btn w-100" id="yearDeleteConfirm">Delete</button>
-                        </div>
+                                                    </div>
                         <div class="col-6">
                             <button type="button" class="btn btn-primary paid-cancel-btn w-100" data-bs-dismiss="modal">Cancel</button>
                         </div>
@@ -319,7 +331,14 @@
         document.getElementById('yearFormEyebrow').textContent = 'New Academic Year';
         document.getElementById('yearFormTitle').textContent = 'Add Academic Year';
         document.getElementById('yearForm').reset();
+        document.getElementById('yearStart').value = '';
+        document.getElementById('yearEnd').value = '';
         document.getElementById('yearFormMsg').innerHTML = '';
+        const yearRoot = document.querySelector('[data-mdp-academic-year]');
+        if (yearRoot) yearRoot.dataset.mdpReady = '';
+        setTimeout(function () {
+            if (window.ModernDatepicker) window.ModernDatepicker.refresh();
+        }, 100);
     });
 
     document.getElementById('yearEditBtn')?.addEventListener('click', function () {
@@ -332,15 +351,18 @@
         document.getElementById('yearEnd').value = active.end;
         document.getElementById('yearFormMsg').innerHTML = '';
         detailModal?.hide();
-        setTimeout(function () { formModal?.show(); }, 200);
+        setTimeout(function () {
+            formModal?.show();
+            if (window.ModernDatepicker) window.ModernDatepicker.refresh();
+        }, 200);
     });
 
     document.getElementById('yearForm')?.addEventListener('submit', function (e) {
         e.preventDefault();
         const payload = {
             name: document.getElementById('yearName').value.trim(),
-            start_date: document.getElementById('yearStart').value,
-            end_date: document.getElementById('yearEnd').value,
+            start_date: '',
+            end_date: '',
             _token: csrf
         };
         const url = mode === 'edit' && active ? active.updateUrl : storeUrl;

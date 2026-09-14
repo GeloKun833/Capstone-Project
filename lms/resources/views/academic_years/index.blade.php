@@ -3,16 +3,19 @@
     <div class="page-wrapper">
     <div class="content container-fluid ams-years">
             <div class="page-header">
-                <div class="row align-items-center">
+                <div class="row align-items-start">
                     <div class="col">
-                        <h3 class="page-title">Academic Years</h3>
-                    <p class="text-muted mb-0">Manage school years used by enrollment, grading, and semesters.</p>
-                        <ul class="breadcrumb">
+                        <div>
+                            <h3 class="page-title mb-1">Academic Years</h3>
+                            <p class="text-muted mb-0">Manage school years used by enrollment, grading, and semesters.</p>
+                        </div>
+                    </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-2">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
                             <li class="breadcrumb-item active">Academic Years</li>
                         </ul>
-                    </div>
-                <div class="col-auto d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap gap-2 justify-content-end">
                     <a href="{{ route('semesters.index') }}" class="btn btn-outline-secondary">
                         <i class="fas fa-calendar-week me-1"></i> Semesters
                     </a>
@@ -20,6 +23,7 @@
                         data-bs-toggle="modal" data-bs-target="#yearFormModal">
                         <i class="fas fa-plus me-1"></i> Add Academic Year
                     </button>
+                    </div>
                 </div>
             </div>
         </div>

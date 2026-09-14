@@ -18,8 +18,16 @@
         return name === 'date_of_birth' || id === 'date_of_birth' || name.indexOf('date_of_birth') !== -1;
     }
 
+    function isTimeOnlyField(el) {
+        if (!el) return false;
+        if (el.classList.contains('js-time')) return true;
+        if (el.dataset.mdpMode === 'time' || el.dataset.mdpOrig === 'time') return true;
+        return (el.getAttribute('type') || '') === 'time';
+    }
+
     function isEventField(el) {
-        return el && (
+        if (!el || isTimeOnlyField(el)) return false;
+        return (
             el.classList.contains('js-event-date') ||
             el.classList.contains('js-event-datetime') ||
             el.classList.contains('js-event-start') ||
@@ -30,9 +38,13 @@
     }
 
     function wrapField(el) {
-        if (!el || el.parentElement && el.parentElement.classList.contains('mdp-input-wrap')) return;
+        if (!el) return;
+        if (el.parentElement && el.parentElement.classList.contains('mdp-input-wrap')) {
+            if (isTimeOnlyField(el)) el.parentElement.classList.add('mdp-time-wrap');
+            return;
+        }
         var wrap = document.createElement('div');
-        wrap.className = 'mdp-input-wrap';
+        wrap.className = 'mdp-input-wrap' + (isTimeOnlyField(el) ? ' mdp-time-wrap' : '');
         el.parentNode.insertBefore(wrap, el);
         wrap.appendChild(el);
         var group = wrap.parentElement;
@@ -68,11 +80,13 @@
     function isDatetimeField(el) {
         if (!el) return false;
         if (el.type === 'datetime-local' || el.dataset.mdpOrig === 'datetime-local') return true;
+        if (isTimeOnlyField(el)) return false;
         if (el.classList.contains('js-event-datetime') || el.classList.contains('js-event-start') || el.classList.contains('js-event-end')) {
             return !isAllDayMode();
         }
         var key = ((el.getAttribute('name') || '') + ' ' + (el.id || '')).toLowerCase();
-        return /(start_time|end_time|scheduled_at|expires_at)/.test(key);
+        return /(scheduled_at|expires_at)/.test(key) ||
+            ((el.classList.contains('js-event-datetime') || el.id === 'form_start_time' || el.id === 'form_end_time') && /(start_time|end_time)/.test(key));
     }
 
     function fieldMinDate(el) {
@@ -137,16 +151,23 @@
             if (!el.getAttribute('min')) el.setAttribute('min', '1950-01-01');
         }
 
-        var datetime = origType === 'datetime-local' || el.classList.contains('js-event-datetime') ||
+        var timeOnly = origType === 'time' || el.classList.contains('js-time') || el.dataset.mdpMode === 'time';
+        var datetime = !timeOnly && (origType === 'datetime-local' || el.classList.contains('js-event-datetime') ||
             el.classList.contains('js-event-start') || el.classList.contains('js-event-end') ||
-            isDatetimeField(el);
+            isDatetimeField(el));
+
+        if (timeOnly) {
+            el.classList.add('js-time');
+            var tm = raw.match(/^(\d{1,2}):(\d{2})/);
+            raw = tm ? pad2(tm[1]) + ':' + tm[2] : raw;
+        }
 
         el.dataset.mdpOrig = origType;
-        el.dataset.mdpMode = datetime ? 'datetime' : 'date';
+        el.dataset.mdpMode = timeOnly ? 'time' : (datetime ? 'datetime' : 'date');
         el.setAttribute('type', 'text');
         el.classList.remove('datetimepicker');
         el.readOnly = true;
-        el.placeholder = datetime && !isAllDayMode() ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD';
+        el.placeholder = timeOnly ? 'HH:mm' : (datetime && !isAllDayMode() ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD');
         if (raw) el.value = raw;
 
         wrapField(el);
@@ -185,6 +206,11 @@
         var now = new Date();
         if (!str) return now;
         str = String(str).trim().replace('T', ' ');
+        var t = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+        if (t) {
+            now.setHours(parseInt(t[1], 10), parseInt(t[2], 10), 0, 0);
+            return now;
+        }
         var m = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
         if (!m) return now;
         return new Date(
@@ -246,6 +272,14 @@
                     '<div class="mdp-event-spin-val" data-mdp="min">00</div>' +
                     '<button type="button" data-mdp="min-down" aria-label="Minute down"><i class="fas fa-angle-down"></i></button>' +
                 '</div>' +
+                '<div class="mdp-event-ampm" data-mdp="ampm-wrap">' +
+                    '<button type="button" data-mdp="ampm-am">AM</button>' +
+                    '<button type="button" data-mdp="ampm-pm">PM</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mdp-event-time-foot" data-mdp="time-foot">' +
+                '<button type="button" data-mdp="clear">Clear</button>' +
+                '<button type="button" data-mdp="done">Done</button>' +
             '</div>';
 
         document.body.appendChild(pop);
@@ -280,11 +314,11 @@
                 }
                 hideOpenEventPickers();
             } else if (action === 'hour-up') {
-                eventCursor.setHours(eventCursor.getHours() + 1);
+                bumpTimeHour(1);
                 commitEventValue();
                 renderEventPopover();
             } else if (action === 'hour-down') {
-                eventCursor.setHours(eventCursor.getHours() - 1);
+                bumpTimeHour(-1);
                 commitEventValue();
                 renderEventPopover();
             } else if (action === 'min-up') {
@@ -295,6 +329,13 @@
                 eventCursor.setMinutes(eventCursor.getMinutes() - 5);
                 commitEventValue();
                 renderEventPopover();
+            } else if (action === 'ampm-am' || action === 'ampm-pm') {
+                setTimeAmPm(action === 'ampm-pm');
+                commitEventValue();
+                renderEventPopover();
+            } else if (action === 'done') {
+                commitEventValue();
+                hideOpenEventPickers();
             } else if (action === 'day') {
                 var y = parseInt(btn.getAttribute('data-y'), 10);
                 var mo = parseInt(btn.getAttribute('data-m'), 10);
@@ -325,6 +366,7 @@
 
     function fieldUsesTime(el) {
         if (!el) return false;
+        if (isTimeOnlyField(el)) return true;
         if (el.classList.contains('js-event-start') || el.classList.contains('js-event-end') || el.classList.contains('js-event-datetime') ||
             el.id === 'form_start_time' || el.id === 'form_end_time') {
             return !isAllDayMode();
@@ -332,12 +374,33 @@
         return el.dataset.mdpMode === 'datetime' || el.dataset.mdpOrig === 'datetime-local';
     }
 
+    function bumpTimeHour(delta) {
+        if (isTimeOnlyField(eventTarget)) {
+            var h12 = eventCursor.getHours() % 12;
+            h12 = (h12 + delta + 12) % 12;
+            var pm = eventCursor.getHours() >= 12;
+            eventCursor.setHours(h12 + (pm ? 12 : 0));
+            return;
+        }
+        eventCursor.setHours(eventCursor.getHours() + delta);
+    }
+
+    function setTimeAmPm(pm) {
+        var h = eventCursor.getHours() % 12;
+        eventCursor.setHours(h + (pm ? 12 : 0));
+    }
+
     function commitEventValue() {
         if (!eventTarget) return;
-        var dateOnly = !fieldUsesTime(eventTarget);
-        var val = formatEventDate(eventCursor, dateOnly);
-        if (eventTarget.dataset.mdpOrig === 'datetime-local' && !dateOnly) {
-            val = val.replace(' ', 'T');
+        var val;
+        if (isTimeOnlyField(eventTarget)) {
+            val = pad2(eventCursor.getHours()) + ':' + pad2(eventCursor.getMinutes());
+        } else {
+            var dateOnly = !fieldUsesTime(eventTarget);
+            val = formatEventDate(eventCursor, dateOnly);
+            if (eventTarget.dataset.mdpOrig === 'datetime-local' && !dateOnly) {
+                val = val.replace(' ', 'T');
+            }
         }
         eventTarget.value = val;
         eventTarget.dispatchEvent(new Event('input', { bubbles: true }));
@@ -353,12 +416,26 @@
         var hourEl = pop.querySelector('[data-mdp="hour"]');
         var minEl = pop.querySelector('[data-mdp="min"]');
         var showTime = fieldUsesTime(eventTarget);
+        var timeOnly = isTimeOnlyField(eventTarget);
+        var ampmWrap = pop.querySelector('[data-mdp="ampm-wrap"]');
+        var amBtn = pop.querySelector('[data-mdp="ampm-am"]');
+        var pmBtn = pop.querySelector('[data-mdp="ampm-pm"]');
+
+        pop.classList.toggle('is-time-only', !!timeOnly);
 
         var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         monthLabel.textContent = months[eventViewMonth.getMonth()] + ' ' + eventViewMonth.getFullYear();
         timeEl.style.display = showTime ? 'flex' : 'none';
-        hourEl.textContent = pad2(eventCursor.getHours());
+        if (ampmWrap) ampmWrap.style.display = timeOnly ? 'flex' : 'none';
+        var hour24 = eventCursor.getHours();
+        var hour12 = hour24 % 12;
+        if (hour12 === 0) hour12 = 12;
+        hourEl.textContent = pad2(timeOnly ? hour12 : hour24);
         minEl.textContent = pad2(eventCursor.getMinutes());
+        if (amBtn && pmBtn) {
+            amBtn.classList.toggle('is-active', hour24 < 12);
+            pmBtn.classList.toggle('is-active', hour24 >= 12);
+        }
 
         var year = eventViewMonth.getFullYear();
         var month = eventViewMonth.getMonth();
@@ -418,6 +495,9 @@
         eventTarget = el;
         eventCursor = parseEventDate(el.value);
         eventCursor.setSeconds(0, 0);
+        if (isTimeOnlyField(el) && !String(el.value || '').trim()) {
+            eventCursor.setMinutes(Math.round(eventCursor.getMinutes() / 5) * 5);
+        }
         eventViewMonth = new Date(eventCursor.getFullYear(), eventCursor.getMonth(), 1);
         var pop = ensureEventPopover();
         var modal = el.closest('.modal');
@@ -441,7 +521,7 @@
 
     function initAllDateFields() {
         document.querySelectorAll(
-            'input[type="date"], input[type="datetime-local"], input.datetimepicker, input.js-date, input.js-dob, input.js-event-date, input.js-event-datetime, input.js-event-start, input.js-event-end'
+            'input[type="date"], input[type="datetime-local"], input[type="time"], input.datetimepicker, input.js-date, input.js-dob, input.js-time, input.js-event-date, input.js-event-datetime, input.js-event-start, input.js-event-end'
         ).forEach(function (el) {
             bindDateInput(el);
         });
@@ -502,9 +582,10 @@
 
         starts.forEach(function (startEl) {
             if (startEl.dataset.mdpSpanBound === '1') return;
+            if (isTimeOnlyField(startEl)) return;
             var form = startEl.form || startEl.closest('form') || document;
             var endEl = form.querySelector('input[name="end_time"], #form_end_time, .js-event-end');
-            if (!endEl) return;
+            if (!endEl || isTimeOnlyField(endEl)) return;
 
             startEl.dataset.mdpSpanBound = '1';
             startEl.classList.add('js-event-start');

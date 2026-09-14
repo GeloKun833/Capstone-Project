@@ -2,12 +2,15 @@
 @section('content')
 
 <div class="page-wrapper">
-    <div class="content container-fluid">
+    <div class="content container-fluid dir-page">
         <div class="page-header">
-            <div class="row align-items-center">
+            <div class="row align-items-start">
                 <div class="col">
-                    <h3 class="page-title">Edit Class Schedule</h3>
-                    <ul class="breadcrumb">
+                    <h3 class="page-title mb-1">Edit Class Schedule</h3>
+                    <p class="dir-subtitle">Update the teacher, class, or weekly time.</p>
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end mb-0">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('admin.schedules.index') }}">Schedules</a></li>
                         <li class="breadcrumb-item active">Edit Schedule</li>
@@ -16,31 +19,31 @@
             </div>
         </div>
 
-        <div class="card mb-3">
-            <div class="card-body py-3">
-                <div class="d-flex flex-wrap gap-2 align-items-center schedule-steps">
-                    <span class="badge rounded-pill bg-primary step-badge" data-step="1">1. Teacher</span>
+        <div class="dir-card mb-3">
+            <div class="dir-toolbar">
+                <div class="dir-stepper">
+                    <span class="dir-step is-active"><span class="dir-step-num">1</span> Teacher</span>
                     <i class="fas fa-chevron-right text-muted"></i>
-                    <span class="badge rounded-pill bg-primary step-badge" data-step="2">2. Class Information</span>
+                    <span class="dir-step is-active"><span class="dir-step-num">2</span> Class</span>
                     <i class="fas fa-chevron-right text-muted"></i>
-                    <span class="badge rounded-pill bg-primary step-badge" data-step="3">3. Schedule Details</span>
+                    <span class="dir-step is-active"><span class="dir-step-num">3</span> Time</span>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-body">
+        <div class="dir-card">
+            <div class="p-4">
                 <form action="{{ route('admin.schedules.update', $schedule) }}" method="POST" id="scheduleForm">
                     @csrf
                     @method('PUT')
 
                     <div class="row" id="step-teacher">
-                        <div class="col-12">
-                            <h5 class="form-title"><span>Step 1 — Select Teacher</span></h5>
+                        <div class="col-12 mb-3">
+                            <h5 class="dir-toolbar-title">Step 1 — Select Teacher</h5>
                         </div>
                         <div class="col-12 col-md-8 col-lg-6">
-                            <div class="form-group local-forms">
-                                <label>Teacher <span class="login-danger">*</span></label>
+                            <div class="form-group mb-0">
+                                <label>Teacher <span class="text-danger">*</span></label>
                                 <select class="form-control" name="teacher_id" id="teacher_id" required>
                                     <option value="">Select Teacher</option>
                                     @foreach($teachers as $teacher)
@@ -50,46 +53,46 @@
                                     @endforeach
                                 </select>
                                 @error('teacher_id')
-                                    <span class="text-danger">{{ $message }}</span>
+                                    <span class="text-danger small">{{ $message }}</span>
                                 @enderror
-                                <div id="teacher-assign-hint" class="small text-muted mt-1"></div>
+                                <div id="teacher-assign-hint" class="mdp-hint"></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="row mt-2" id="step-class">
-                        <div class="col-12">
-                            <h5 class="form-title"><span>Step 2 — Class Information</span></h5>
-                            <p class="text-muted small">Updated from the teacher’s current section/subject assignments.</p>
+                    <div class="row mt-4" id="step-class">
+                        <div class="col-12 mb-3">
+                            <h5 class="dir-toolbar-title">Step 2 — Class Information</h5>
+                            <p class="dir-subtitle">Updated from the teacher’s current section/subject assignments.</p>
                         </div>
 
                         <div class="col-12 col-sm-6">
-                            <div class="form-group local-forms">
-                                <label>Section <span class="login-danger">*</span></label>
+                            <div class="form-group">
+                                <label>Section <span class="text-danger">*</span></label>
                                 <select class="form-control" name="section_id" id="section_id" required>
                                     <option value="">Select Section</option>
                                 </select>
                                 @error('section_id')
-                                    <span class="text-danger">{{ $message }}</span>
+                                    <span class="text-danger small">{{ $message }}</span>
                                 @enderror
                             </div>
                         </div>
 
                         <div class="col-12 col-sm-6">
-                            <div class="form-group local-forms">
-                                <label>Subject <span class="login-danger">*</span></label>
+                            <div class="form-group">
+                                <label>Subject <span class="text-danger">*</span></label>
                                 <select class="form-control" name="subject_id" id="subject_id" required>
                                     <option value="">Select Subject</option>
                                 </select>
                                 @error('subject_id')
-                                    <span class="text-danger">{{ $message }}</span>
+                                    <span class="text-danger small">{{ $message }}</span>
                                 @enderror
                                 <small class="text-muted" id="subject-filter-hint"></small>
                             </div>
                         </div>
 
                         <div class="col-12 col-sm-6">
-                            <div class="form-group local-forms">
+                            <div class="form-group">
                                 <label>Room</label>
                                 <select class="form-control" name="room_id" id="room_id">
                                     <option value="">Select Room (Optional)</option>
@@ -103,18 +106,19 @@
                         </div>
 
                         <div class="col-12">
-                            <div class="alert alert-light border py-2 mb-0" id="class-info-summary"></div>
+                            <div class="dir-summary" id="class-info-summary"></div>
                         </div>
                     </div>
 
-                    <div class="row mt-3" id="step-schedule">
-                        <div class="col-12">
-                            <h5 class="form-title"><span>Step 3 — Schedule Details &amp; Notes</span></h5>
+                    <div class="row mt-4" id="step-schedule">
+                        <div class="col-12 mb-3">
+                            <h5 class="dir-toolbar-title">Step 3 — Schedule Details &amp; Notes</h5>
+                            <p class="dir-subtitle">Start and end time use the same modern picker as Calendar.</p>
                         </div>
 
                         <div class="col-12 col-sm-4">
-                            <div class="form-group local-forms">
-                                <label>Day of Week <span class="login-danger">*</span></label>
+                            <div class="form-group">
+                                <label>Day of Week <span class="text-danger">*</span></label>
                                 <select class="form-control" name="day_of_week" required>
                                     <option value="">Select Day</option>
                                     @foreach(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as $day)
@@ -125,24 +129,27 @@
                         </div>
 
                         <div class="col-12 col-sm-4">
-                            <div class="form-group local-forms">
-                                <label>Start Time <span class="login-danger">*</span></label>
-                                <input type="time" class="form-control" name="start_time"
-                                       value="{{ old('start_time', \Carbon\Carbon::parse($schedule->start_time)->format('H:i')) }}" required>
+                            <div class="form-group mdp-field">
+                                <label>Start Time <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control js-time" name="start_time" id="schedule_start_time"
+                                       value="{{ old('start_time', \Carbon\Carbon::parse($schedule->start_time)->format('H:i')) }}"
+                                       placeholder="HH:mm" autocomplete="off" required>
                             </div>
                         </div>
 
                         <div class="col-12 col-sm-4">
-                            <div class="form-group local-forms">
-                                <label>End Time <span class="login-danger">*</span></label>
-                                <input type="time" class="form-control" name="end_time"
-                                       value="{{ old('end_time', \Carbon\Carbon::parse($schedule->end_time)->format('H:i')) }}" required>
+                            <div class="form-group mdp-field">
+                                <label>End Time <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control js-time" name="end_time" id="schedule_end_time"
+                                       value="{{ old('end_time', \Carbon\Carbon::parse($schedule->end_time)->format('H:i')) }}"
+                                       placeholder="HH:mm" autocomplete="off" required>
+                                <small class="mdp-hint" id="schedule-time-hint">End time must be after start time.</small>
                             </div>
                         </div>
 
                         <div class="col-12 col-sm-4">
-                            <div class="form-group local-forms">
-                                <label>Class Type <span class="login-danger">*</span></label>
+                            <div class="form-group">
+                                <label>Class Type <span class="text-danger">*</span></label>
                                 <select class="form-control" name="class_type" required>
                                     <option value="lecture" {{ old('class_type', $schedule->class_type) == 'lecture' ? 'selected' : '' }}>Regular Class</option>
                                     <option value="laboratory" {{ old('class_type', $schedule->class_type) == 'laboratory' ? 'selected' : '' }}>Laboratory</option>
@@ -154,14 +161,14 @@
                         </div>
 
                         <div class="col-12 col-sm-4">
-                            <div class="form-group local-forms">
+                            <div class="form-group">
                                 <label>Color</label>
-                                <input type="color" class="form-control" name="color" value="{{ old('color', $schedule->color ?: '#3d5ee1') }}" style="height: 45px;">
+                                <input type="color" class="form-control" name="color" value="{{ old('color', $schedule->color ?: '#3d5ee1') }}">
                             </div>
                         </div>
 
                         <div class="col-12 col-sm-4">
-                            <div class="form-group local-forms">
+                            <div class="form-group">
                                 <label>Status</label>
                                 <select class="form-control" name="is_active">
                                     <option value="1" {{ old('is_active', $schedule->is_active) == 1 ? 'selected' : '' }}>Active</option>
@@ -171,17 +178,17 @@
                         </div>
 
                         <div class="col-12">
-                            <div class="form-group local-forms">
+                            <div class="form-group">
                                 <label>Notes</label>
                                 <textarea class="form-control" name="notes" rows="3">{{ old('notes', $schedule->notes) }}</textarea>
                             </div>
                         </div>
 
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Update Schedule
+                        <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary dir-btn">
+                                <i class="fas fa-save me-1"></i> Update Schedule
                             </button>
-                            <a href="{{ route('admin.schedules.index') }}" class="btn btn-secondary">Cancel</a>
+                            <a href="{{ route('admin.schedules.index') }}" class="btn btn-outline-secondary dir-btn">Cancel</a>
                         </div>
                     </div>
                 </form>
@@ -189,6 +196,10 @@
         </div>
     </div>
 </div>
+
+@push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">
+@endpush
 
 @push('scripts')
 <script>
@@ -207,6 +218,9 @@
     const hint = document.getElementById('teacher-assign-hint');
     const subjectHint = document.getElementById('subject-filter-hint');
     const summary = document.getElementById('class-info-summary');
+    const startEl = document.getElementById('schedule_start_time');
+    const endEl = document.getElementById('schedule_end_time');
+    const timeHint = document.getElementById('schedule-time-hint');
 
     function fillSections(selectedId) {
         sectionSelect.innerHTML = '<option value="">Select Section</option>';
@@ -217,7 +231,6 @@
             if (String(selectedId) === String(sec.id)) opt.selected = true;
             sectionSelect.appendChild(opt);
         });
-        // Keep current schedule section visible even if unassigned later
         if (selectedId && ![...sectionSelect.options].some(function (o) { return String(o.value) === String(selectedId); })) {
             const opt = document.createElement('option');
             opt.value = selectedId;
@@ -269,6 +282,33 @@
             ' &nbsp;|&nbsp; <strong>Teacher:</strong> ' + teacherName;
     }
 
+    function toMinutes(val) {
+        const m = String(val || '').match(/^(\d{1,2}):(\d{2})/);
+        if (!m) return null;
+        return (parseInt(m[1], 10) * 60) + parseInt(m[2], 10);
+    }
+
+    function checkTimes() {
+        const s = toMinutes(startEl.value);
+        const e = toMinutes(endEl.value);
+        if (s === null || e === null) {
+            timeHint.textContent = 'End time must be after start time.';
+            timeHint.classList.remove('is-error');
+            endEl.setCustomValidity('');
+            return true;
+        }
+        if (e <= s) {
+            timeHint.textContent = 'End time must be after start time.';
+            timeHint.classList.add('is-error');
+            endEl.setCustomValidity('End time must be after start time.');
+            return false;
+        }
+        timeHint.textContent = 'Class length looks good.';
+        timeHint.classList.remove('is-error');
+        endEl.setCustomValidity('');
+        return true;
+    }
+
     function loadTeacher(teacherId, preselectSection, preselectSubject) {
         if (!teacherId) return;
         hint.textContent = 'Loading assignments…';
@@ -297,8 +337,14 @@
         updateSummary();
     });
     subjectSelect.addEventListener('change', updateSummary);
+    startEl.addEventListener('change', checkTimes);
+    endEl.addEventListener('change', checkTimes);
+    document.getElementById('scheduleForm').addEventListener('submit', function (e) {
+        if (!checkTimes()) e.preventDefault();
+    });
 
     loadTeacher(initialTeacher, initialSection, initialSubject);
+    checkTimes();
 })();
 </script>
 @endpush

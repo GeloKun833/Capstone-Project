@@ -1,246 +1,232 @@
 @extends('layouts.master')
 @section('content')
 
-    <div class="page-wrapper">
-        <div class="content container-fluid">
+@php
+    $canCreate = in_array(Auth::user()->role_name, ['Admin', 'Teacher'], true);
+@endphp
 
-            <div class="page-header">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h3 class="page-title">Announcements</h3>
-                        <ul class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Announcements</li>
-                        </ul>
-                    </div>
-                    <div class="col-auto text-end float-end ms-auto">
-                        @if(Auth::user()->role_name === 'Admin' || Auth::user()->role_name === 'Teacher')
-                            <a href="{{ route('announcements.create') }}" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> New Announcement
-                            </a>
-                        @endif
-                    </div>
+<div class="page-wrapper">
+    <div class="content container-fluid dir-page">
+        <div class="page-header">
+            <div class="row align-items-start">
+                <div class="col">
+                    <h3 class="page-title mb-1">Announcements</h3>
+                    <p class="dir-subtitle">School notices, reminders, and pinned updates.</p>
+                </div>
+                <div class="col-auto text-end">
+                    <ul class="breadcrumb justify-content-end {{ $canCreate ? 'mb-2' : 'mb-0' }}">
+                        <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Announcements</li>
+                    </ul>
+                    @if($canCreate)
+                        <a href="{{ route('announcements.create') }}" class="btn btn-primary dir-btn">
+                            <i class="fas fa-plus me-1"></i> New Announcement
+                        </a>
+                    @endif
                 </div>
             </div>
+        </div>
 
-            <!-- Filter Section -->
-            <div class="student-group-form">
-                <div class="row">
+        <div class="dir-card dir-filters">
+            <form method="GET" action="{{ route('announcements.index') }}">
+                <div class="row g-2 align-items-end">
                     <div class="col-lg-3 col-md-6">
-                        <div class="form-group">
-                            <select class="form-control" id="type_filter">
-                                <option value="">All Types</option>
-                                <option value="general">General</option>
-                                <option value="academic">Academic</option>
-                                <option value="event">Event</option>
-                                <option value="reminder">Reminder</option>
-                                <option value="emergency">Emergency</option>
-                            </select>
-                        </div>
+                        <label class="form-label">Type</label>
+                        <select class="form-control" name="type">
+                            <option value="">All Types</option>
+                            @foreach(['general','academic','event','reminder','emergency'] as $type)
+                                <option value="{{ $type }}" {{ request('type') === $type ? 'selected' : '' }}>{{ ucfirst($type) }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="col-lg-3 col-md-6">
-                        <div class="form-group">
-                            <select class="form-control" id="priority_filter">
-                                <option value="">All Priorities</option>
-                                <option value="low">Low</option>
-                                <option value="normal">Normal</option>
-                                <option value="high">High</option>
-                                <option value="urgent">Urgent</option>
-                            </select>
-                        </div>
+                        <label class="form-label">Priority</label>
+                        <select class="form-control" name="priority">
+                            <option value="">All Priorities</option>
+                            @foreach(['low','normal','high','urgent'] as $priority)
+                                <option value="{{ $priority }}" {{ request('priority') === $priority ? 'selected' : '' }}>{{ ucfirst($priority) }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="col-lg-3 col-md-6">
-                        <div class="form-group">
-                            <select class="form-control" id="status_filter">
-                                <option value="">All Status</option>
-                                <option value="pinned">Pinned Only</option>
-                                <option value="active">Active Only</option>
-                            </select>
-                        </div>
+                        <label class="form-label">Status</label>
+                        <select class="form-control" name="status">
+                            <option value="">All Status</option>
+                            <option value="pinned" {{ request('status') === 'pinned' ? 'selected' : '' }}>Pinned Only</option>
+                            <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active Only</option>
+                        </select>
                     </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="search-student-btn">
-                            <button type="button" class="btn btn-primary" id="applyFilters">
-                                <i class="fas fa-filter"></i> Apply Filters
+                    <div class="col-lg-3 col-md-6 pb-3">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary dir-btn flex-fill">
+                                <i class="fas fa-filter me-1"></i> Filter
                             </button>
+                            <a href="{{ route('announcements.index') }}" class="btn btn-outline-secondary dir-btn">Clear</a>
                         </div>
                     </div>
                 </div>
+            </form>
+        </div>
+
+        <div class="dir-card">
+            <div class="dir-toolbar">
+                <div>
+                    <h5 class="dir-toolbar-title">All announcements</h5>
+                    <span class="dir-count mt-1">{{ $announcements->total() }} notice{{ $announcements->total() === 1 ? '' : 's' }}</span>
+                </div>
+                @if($announcements->count() > 0)
+                    <button type="button" class="btn btn-outline-secondary dir-btn" id="exportAnnouncements">
+                        <i class="fas fa-download me-1"></i> Export
+                    </button>
+                @endif
             </div>
 
-            <div class="row">
-                <div class="col-sm-12">
-                    <div class="card card-table">
-                        <div class="card-body">
-                            <div class="page-header">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h3 class="page-title">All Announcements</h3>
-                                    </div>
-                                    <div class="col-auto text-end float-end ms-auto download-grp">
-                                        <a href="#" class="btn btn-outline-primary me-2" id="exportAnnouncements">
-                                            <i class="fas fa-download"></i> Export
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Empty State -->
-                            @if($announcements->count() == 0)
-                                <div class="text-center py-5">
-                                    <div class="mb-4">
-                                        <i class="fas fa-bullhorn text-primary" style="font-size: 4rem; opacity: 0.6;"></i>
-                                    </div>
-                                    <h4 class="fw-bold text-dark mb-3">No Announcements Found</h4>
-                                    <p class="text-muted mb-4">There are no announcements available for your role at this time.</p>
-                                    
-                                    @if(Auth::user()->role_name === 'Admin' || Auth::user()->role_name === 'Teacher')
-                                        <a href="{{ route('announcements.create') }}" class="btn btn-primary">
-                                            <i class="fas fa-plus"></i> Create First Announcement
-                                        </a>
-                                    @endif
-                                </div>
-                            @else
-                                <!-- Announcements List -->
-                                <div class="table-responsive">
-                                    <table class="table table-hover table-center mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Title</th>
-                                                <th>Type</th>
-                                                <th>Priority</th>
-                                                <th>Target Audience</th>
-                                                <th>Created By</th>
-                                                <th>Date</th>
-                                                <th>Status</th>
-                                                <th class="text-end">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach($announcements as $announcement)
-                                                <tr class="{{ $announcement->is_pinned ? 'table-warning' : '' }}">
-                                                    <td>
-                                                        <div class="d-flex align-items-center">
-                                                            @if($announcement->is_pinned)
-                                                                <i class="fas fa-thumbtack text-warning me-2" title="Pinned"></i>
-                                                            @endif
-                                                            <div>
-                                                                <h2 class="table-avatar">
-                                                                    <a href="{{ route('announcements.show', $announcement->id) }}" class="avatar avatar-sm me-2">
-                                                                        <i class="{{ $announcement->type_icon }} text-{{ $announcement->priority_color }}"></i>
-                                                                    </a>
-                                                                    <a href="{{ route('announcements.show', $announcement->id) }}" class="text-dark fw-bold">
-                                                                        {{ $announcement->title }}
-                                                                    </a>
-                                                                </h2>
-                                                                <small class="text-muted">
-                                                                    {{ Str::limit($announcement->content, 100) }}
-                                                                </small>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-{{ $announcement->priority_color }} bg-opacity-10 text-{{ $announcement->priority_color }}">
-                                                            <i class="{{ $announcement->type_icon }} me-1"></i>
-                                                            {{ ucfirst($announcement->type) }}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-{{ $announcement->priority_color }}">
-                                                            {{ ucfirst($announcement->priority) }}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-info bg-opacity-10 text-info">
-                                                            {{ ucfirst($announcement->target_audience) }}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <h2 class="table-avatar">
-                                                            <a href="#" class="avatar avatar-sm me-2">
-                                                                <img class="avatar-img rounded-circle" src="{{ $announcement->creator->avatar ?? URL::to('assets/img/profiles/avatar-01.jpg') }}" alt="User Image">
-                                                            </a>
-                                                            <a href="#">{{ $announcement->creator->name }}</a>
-                                                        </h2>
-                                                    </td>
-                                                    <td>
-                                                        <div>
-                                                            <div class="text-dark fw-medium">{{ $announcement->created_at->format('M d, Y') }}</div>
-                                                            <small class="text-muted">{{ $announcement->created_at->format('h:i A') }}</small>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        @if($announcement->is_scheduled && $announcement->scheduled_at > now())
-                                                            <span class="badge bg-warning">Scheduled</span>
-                                                        @elseif($announcement->expires_at && $announcement->expires_at < now())
-                                                            <span class="badge bg-secondary">Expired</span>
-                                                        @elseif($announcement->is_active)
-                                                            <span class="badge bg-success">Active</span>
-                                                        @else
-                                                            <span class="badge bg-danger">Inactive</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="text-end">
-                                                        <div class="actions">
-                                                            <a href="{{ route('announcements.show', $announcement->id) }}" class="btn btn-sm bg-primary-light me-2">
-                                                                <i class="fas fa-eye"></i>
-                                                            </a>
-                                                            @if(Auth::user()->role_name === 'Admin' || (Auth::user()->role_name === 'Teacher' && $announcement->created_by === Auth::id()))
-                                                                <a href="{{ route('announcements.edit', $announcement->id) }}" class="btn btn-sm bg-success-light me-2">
-                                                                    <i class="fas fa-edit"></i>
-                                                                </a>
-                                                                <a href="javascript:void(0);" class="btn btn-sm bg-danger-light" onclick="deleteAnnouncement({{ $announcement->id }})">
-                                                                    <i class="fas fa-trash"></i>
-                                                                </a>
-                                                            @endif
-                                                            @if(Auth::user()->role_name === 'Admin')
-                                                                <a href="javascript:void(0);" class="btn btn-sm bg-warning-light ms-2" onclick="togglePin({{ $announcement->id }})" title="{{ $announcement->is_pinned ? 'Unpin' : 'Pin' }}">
-                                                                    <i class="fas fa-thumbtack"></i>
-                                                                </a>
-                                                            @endif
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <!-- Pagination -->
-                                <div class="d-flex justify-content-center mt-4">
-                                    {{ $announcements->links() }}
-                                </div>
-                            @endif
-                        </div>
+            @if($announcements->count() == 0)
+                <div class="dir-empty">
+                    <i class="fas fa-bullhorn d-block"></i>
+                    <h5 class="mt-2 mb-1">No announcements found</h5>
+                    <p class="mb-3">There are no announcements available for your role at this time.</p>
+                    @if($canCreate)
+                        <a href="{{ route('announcements.create') }}" class="btn btn-primary dir-btn">
+                            <i class="fas fa-plus me-1"></i> Create first announcement
+                        </a>
+                    @endif
+                </div>
+            @else
+                <div class="table-responsive">
+                    <table class="table dir-table mb-0" id="announcementsTable">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Priority</th>
+                                <th>Audience</th>
+                                <th>Created By</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($announcements as $announcement)
+                                @php
+                                    $canManage = Auth::user()->role_name === 'Admin'
+                                        || (Auth::user()->role_name === 'Teacher' && (int) $announcement->created_by === (int) Auth::id());
+                                    $priorityClass = match ($announcement->priority) {
+                                        'urgent' => 'dir-badge--disabled',
+                                        'high' => 'dir-badge--inactive',
+                                        'normal' => 'dir-badge--active',
+                                        default => 'dir-badge--neutral',
+                                    };
+                                    $statusClass = 'dir-badge--neutral';
+                                    $statusLabel = 'Inactive';
+                                    if ($announcement->is_scheduled && $announcement->scheduled_at && $announcement->scheduled_at->isFuture()) {
+                                        $statusClass = 'dir-badge--inactive';
+                                        $statusLabel = 'Scheduled';
+                                    } elseif ($announcement->expires_at && $announcement->expires_at->isPast()) {
+                                        $statusClass = 'dir-badge--neutral';
+                                        $statusLabel = 'Expired';
+                                    } elseif ($announcement->is_active) {
+                                        $statusClass = 'dir-badge--active';
+                                        $statusLabel = 'Active';
+                                    } else {
+                                        $statusClass = 'dir-badge--disabled';
+                                        $statusLabel = 'Inactive';
+                                    }
+                                    $creatorPhoto = $announcement->creator->avatar ?? asset('assets/img/profiles/avatar-01.jpg');
+                                @endphp
+                                <tr class="{{ $announcement->is_pinned ? 'is-pinned' : '' }}">
+                                    <td>
+                                        <div class="dir-title">
+                                            <span class="dir-title-icon" title="{{ ucfirst($announcement->type) }}">
+                                                <i class="{{ $announcement->type_icon }}"></i>
+                                            </span>
+                                            <div>
+                                                <a href="{{ route('announcements.show', $announcement->id) }}" class="dir-person-name">
+                                                    @if($announcement->is_pinned)
+                                                        <i class="fas fa-thumbtack text-warning me-1" title="Pinned"></i>
+                                                    @endif
+                                                    {{ $announcement->title }}
+                                                </a>
+                                                <span class="dir-person-meta">{{ Str::limit(strip_tags($announcement->content), 90) }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="dir-chip">{{ ucfirst($announcement->type) }}</span></td>
+                                    <td><span class="dir-badge {{ $priorityClass }}">{{ ucfirst($announcement->priority) }}</span></td>
+                                    <td><span class="dir-chip dir-chip--soft">{{ ucfirst($announcement->target_audience) }}</span></td>
+                                    <td>
+                                        <div class="dir-person">
+                                            <img src="{{ $creatorPhoto }}" alt="">
+                                            <span class="dir-person-name">{{ $announcement->creator->name ?? 'N/A' }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="dir-time">{{ $announcement->created_at->format('M d, Y') }}</div>
+                                        <span class="dir-person-meta">{{ $announcement->created_at->format('h:i A') }}</span>
+                                    </td>
+                                    <td><span class="dir-badge {{ $statusClass }}">{{ $statusLabel }}</span></td>
+                                    <td class="text-end">
+                                        <div class="d-inline-flex gap-1">
+                                            <a href="{{ route('announcements.show', $announcement->id) }}" class="dir-icon-btn" title="View">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            @if($canManage)
+                                                <a href="{{ route('announcements.edit', $announcement->id) }}" class="dir-icon-btn" title="Edit">
+                                                    <i class="fas fa-pen"></i>
+                                                </a>
+                                                <button type="button" class="dir-icon-btn is-danger" title="Delete" onclick="deleteAnnouncement({{ $announcement->id }})">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            @endif
+                                            @if(Auth::user()->role_name === 'Admin')
+                                                <button type="button" class="dir-icon-btn" title="{{ $announcement->is_pinned ? 'Unpin' : 'Pin' }}" onclick="togglePin({{ $announcement->id }})">
+                                                    <i class="fas fa-thumbtack"></i>
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if($announcements->hasPages())
+                    <div class="px-3 py-3">
+                        {{ $announcements->links() }}
                     </div>
-                </div>
-            </div>
+                @endif
+            @endif
         </div>
     </div>
+</div>
 
-    <!-- Delete Confirmation Modal -->
-    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    Are you sure you want to delete this announcement? This action cannot be undone.
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <form id="deleteForm" method="POST" style="display: inline;">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-danger">Delete</button>
-                    </form>
-                </div>
+<div class="modal fade dir-modal" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete announcement?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-muted mb-0">This will permanently remove the announcement. This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <form id="deleteForm" method="POST" class="d-flex gap-2 w-100 justify-content-end">
+                    @csrf
+                    @method('DELETE')
+                    <button type="button" class="btn btn-light dir-btn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger dir-btn">Delete</button>
+                </form>
             </div>
         </div>
     </div>
+</div>
 @endsection
+
+@push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">
+@endpush
 
 @push('scripts')
 <script>
@@ -251,7 +237,7 @@
         const modalEl = document.getElementById('deleteModal');
         if (window.bootstrap && modalEl) {
             bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        } else if (confirm('Are you sure you want to delete this announcement?')) {
+        } else if (confirm('Delete this announcement?')) {
             form.submit();
         }
     }
@@ -270,26 +256,27 @@
             return response.json().catch(function () { return { success: true }; });
         })
         .then(function () { location.reload(); })
-        .catch(function (error) {
-            console.error('Error:', error);
+        .catch(function () {
             alert('Could not update pin status.');
         });
     }
 
-    document.getElementById('applyFilters')?.addEventListener('click', function () {
-        const typeFilter = document.getElementById('type_filter').value;
-        const priorityFilter = document.getElementById('priority_filter').value;
-        const statusFilter = document.getElementById('status_filter').value;
-
-        let url = new URL(window.location);
-        url.searchParams.delete('type');
-        url.searchParams.delete('priority');
-        url.searchParams.delete('status');
-        if (typeFilter) url.searchParams.set('type', typeFilter);
-        if (priorityFilter) url.searchParams.set('priority', priorityFilter);
-        if (statusFilter) url.searchParams.set('status', statusFilter);
-
-        window.location.href = url.toString();
+    document.getElementById('exportAnnouncements')?.addEventListener('click', function () {
+        const table = document.getElementById('announcementsTable');
+        if (!table) return;
+        const rows = [];
+        table.querySelectorAll('tr').forEach(function (tr) {
+            const cells = [...tr.children].slice(0, 7).map(function (cell) {
+                return '"' + cell.innerText.replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"';
+            });
+            if (cells.length) rows.push(cells.join(','));
+        });
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'announcements.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
     });
 </script>
 @endpush

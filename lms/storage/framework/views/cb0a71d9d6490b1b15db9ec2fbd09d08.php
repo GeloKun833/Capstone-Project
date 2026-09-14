@@ -92,7 +92,7 @@
         <div class="ams-cal-legend mb-3">
             <?php $__currentLoopData = $typeColors; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type => $color): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                 <span class="ams-cal-legend-item">
-                    <span class="ams-cal-dot" style="background:<?php echo e($color); ?>"></span>
+                    <span class="ams-cal-dot" data-type="<?php echo e($type); ?>"></span>
                     <?php echo e(ucfirst($type)); ?>
 
                 </span>
@@ -200,17 +200,17 @@
                                 <label>Start Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-start js-event-datetime" name="start_time" id="form_start_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="start_time"></div>
-                            </div>
-                        </div>
+                                </div>
+                                    </div>
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label>End Date &amp; Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control js-event-end js-event-datetime" name="end_time" id="form_end_time" placeholder="YYYY-MM-DD HH:mm" autocomplete="off" required>
                                 <div class="invalid-feedback field-error" data-field="end_time"></div>
                                 <small class="mdp-hint">Normal events may span up to 3 days.</small>
-                            </div>
-                        </div>
-                    </div>
+                                </div>
+                                    </div>
+                                </div>
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="form-check">
@@ -575,10 +575,17 @@
 
 <?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script type="application/json" id="calendar-type-colors"><?php echo json_encode($typeColors); ?></script>
 <script>
 (function () {
-    const TYPE_COLORS = <?php echo json_encode($typeColors, 15, 512) ?>;
-    const CSRF = '<?php echo e(csrf_token()); ?>';
+    const TYPE_COLORS = JSON.parse(document.getElementById('calendar-type-colors').textContent);
+    document.querySelectorAll('.ams-cal-dot[data-type]').forEach(function (el) {
+        const color = TYPE_COLORS[el.getAttribute('data-type')];
+        if (color) el.style.background = color;
+    });
+    const CSRF = document.querySelector('meta[name="csrf-token"]')
+        ? document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        : '';
     const ROUTES = {
         index: '<?php echo e(route("calendar.index")); ?>',
         store: '<?php echo e(route("calendar.store")); ?>',

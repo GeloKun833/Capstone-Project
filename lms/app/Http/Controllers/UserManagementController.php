@@ -346,79 +346,50 @@ class UserManagementController extends Controller
             ->select('id', 'user_id', 'name', 'email', 'position', 'phone_number', 'join_date', 'status', 'avatar', 'role_name')
             ->get();
         $data_arr = [];
-        
-        foreach ($records as $key => $record) {
-            $modify = '
-                <td class="text-right">
-                    <div class="dropdown dropdown-action">
-                        <a href="" class="action-icon dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-ellipsis-v ellipse_color"></i>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-right">
-                            <a class="dropdown-item" href="'.url('users/add/edit/'.$record->user_id).'">
-                                <i class="far fa-edit me-2"></i> Edit
-                            </a>
-                            <a class="dropdown-item" href="'.url('users/delete/'.$record->id).'">
-                            <i class="fas fa-trash-alt m-r-5"></i> Delete
-                        </a>
-                        </div>
-                    </div>
-                </td>
-            ';
-            $avatarUrl = \App\Support\AvatarUploader::url($record->avatar);
-            $avatar = '
-                <td>
-                    <h2 class="table-avatar">
-                        <a class="avatar-sm me-2">
-                            <img class="avatar-img rounded-circle avatar" data-avatar="'.e($record->avatar).'" src="'.e($avatarUrl).'" alt="'.e($record->name).'">
-                        </a>
-                    </h2>
-                </td>
-            ';
-            if ($record->status === 'Active') {
-                $status = '<td><span class="badge bg-success-dark">'.$record->status.'</span></td>';
-            } elseif ($record->status === 'Disable') {
-                $status = '<td><span class="badge bg-danger-dark">'.$record->status.'</span></td>';
-            }  elseif ($record->status === 'Inactive') {
-                $status = '<td><span class="badge badge-warning">'.$record->status.'</span></td>';
-            } else {
-                $status = '<td><span class="badge badge-secondary">'.$record->status.'</span></td>';
-            }
+        $fallbackPhoto = asset('images/photo_defaults.jpg');
 
-            // Add SIS button for students
+        foreach ($records as $record) {
+            $avatarUrl = \App\Support\AvatarUploader::url($record->avatar);
+            $roleLabel = $record->role_name ?: ($record->position ?: 'User');
+            $statusKey = strtolower((string) $record->status);
+            $statusClass = match ($statusKey) {
+                'active' => 'dir-badge--active',
+                'inactive' => 'dir-badge--inactive',
+                'disable', 'disabled' => 'dir-badge--disabled',
+                default => 'dir-badge--neutral',
+            };
+            $statusLabel = $record->status ? ucfirst($statusKey) : '—';
+
+            $name = '<div class="dir-person">'
+                .'<img src="'.e($avatarUrl).'" alt="'.e($record->name).'" data-avatar="'.e($record->avatar).'" onerror="this.onerror=null;this.src=\''.e($fallbackPhoto).'\';">'
+                .'<span>'
+                .'<a class="dir-person-name" href="'.url('view/user/edit/'.$record->user_id).'">'.e($record->name).'</a>'
+                .'<span class="dir-person-meta">'.e($roleLabel).'</span>'
+                .'</span>'
+                .'</div>';
+
             $sisButton = '';
             if ($record->role_name === 'Student') {
-                $sisButton = '
-                    <a href="'.url('student/sis/'.$record->user_id).'" class="btn btn-sm bg-success-light" title="View Student Information System">
-                        <i class="fas fa-user-graduate me-1"></i> SIS
-                    </a>
-                ';
+                $sisButton = '<a href="'.url('student/sis/'.$record->user_id).'" class="dir-icon-btn is-success" title="Student Information System"><i class="fas fa-id-card"></i></a>';
             }
 
-            $modify = '
-                <td class="text-end"> 
-                    <div class="actions">
-                        '.$sisButton.'
-                        <a href="'.url('view/user/edit/'.$record->user_id).'" class="btn btn-sm bg-danger-light" title="Edit User">
-                            <i class="far fa-edit me-2"></i>
-                        </a>
-                        <a class="btn btn-sm bg-danger-light delete user_id" data-bs-toggle="modal" data-user_id="'.$record->user_id.'" data-bs-target="#delete" title="Delete User">
-                            <i class="fe fe-trash-2"></i>
-                        </a>
-                    </div>
-                </td>
-            ';
-           
-            $data_arr [] = [
-                "user_id"      => $record->user_id,
-                "avatar"       => $avatar,
-                "name"         => $record->name,
-                "email"        => $record->email,
-                "position"     => $record->position,
-                "phone_number" => $record->phone_number,
-                "join_date"    => $record->join_date,
-                "status"       => $status, 
-                "modify"       => $modify, 
+            $modify = '<div class="d-inline-flex gap-1 justify-content-end">'
+                .$sisButton
+                .'<a href="'.url('view/user/edit/'.$record->user_id).'" class="dir-icon-btn" title="Edit user"><i class="far fa-edit"></i></a>'
+                .'<a class="dir-icon-btn is-danger delete" data-bs-toggle="modal" data-bs-target="#delete" data-user_id="'.e($record->user_id).'" data-avatar="'.e($record->avatar).'" title="Delete user"><i class="far fa-trash-alt"></i></a>'
+                .'</div>';
+
+            $data_arr[] = [
+                'user_id' => '<span class="text-muted">'.e($record->user_id).'</span>',
+                'name' => $name,
+                'email' => e($record->email ?: '—'),
+                'phone_number' => e($record->phone_number ?: '—'),
+                'join_date' => e($record->join_date ?: '—'),
+                'position' => $record->position
+                    ? '<span class="dir-chip dir-chip--soft">'.e($record->position).'</span>'
+                    : '<span class="dir-muted">—</span>',
+                'status' => '<span class="dir-badge '.$statusClass.'">'.e($statusLabel).'</span>',
+                'modify' => $modify,
             ];
         }
 
