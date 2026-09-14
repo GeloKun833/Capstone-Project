@@ -446,11 +446,10 @@ class ClassSubjectController extends Controller
         $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
 
         if ($subjects->isEmpty()) {
-            Toastr::error(
-                'No subjects found for ' . $request->grade_level . '. Add subjects in the catalog first.',
-                'Error'
+            return $this->respondTeacherAssignmentError(
+                $request,
+                'No subjects found for ' . $request->grade_level . '. Add subjects in the catalog first.'
             );
-            return back()->withInput();
         }
 
         DB::beginTransaction();
@@ -485,23 +484,22 @@ class ClassSubjectController extends Controller
             $teacherCount = count($request->teacher_ids);
 
             if ($linkCount > 0) {
-                Toastr::success(
-                    "Assigned {$teacherCount} teacher(s) to all {$subjectCount} subject(s) in {$request->grade_level}.",
-                    'Success'
-                );
-            } else {
-                Toastr::info(
-                    'Selected teacher(s) were already assigned to all subjects in ' . $request->grade_level . '.',
-                    'Info'
+                return $this->respondTeacherAssignment(
+                    $request,
+                    $request->grade_level,
+                    "Assigned {$teacherCount} teacher(s) to all {$subjectCount} subject(s) in {$request->grade_level}."
                 );
             }
 
-            return redirect()->route('class-subject.unified-management');
+            return $this->respondTeacherAssignment(
+                $request,
+                $request->grade_level,
+                'Selected teacher(s) were already assigned to all subjects in ' . $request->grade_level . '.'
+            );
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Failed to assign teachers to grade: ' . $e->getMessage());
-            Toastr::error('Failed to assign teachers: ' . $e->getMessage(), 'Error');
-            return back()->withInput();
+            return $this->respondTeacherAssignmentError($request, 'Failed to assign teachers: ' . $e->getMessage());
         }
     }
 
@@ -522,11 +520,10 @@ class ClassSubjectController extends Controller
         $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
 
         if ($subjects->isEmpty()) {
-            Toastr::error(
-                'No subjects found for ' . $request->grade_level . '.',
-                'Error'
+            return $this->respondTeacherAssignmentError(
+                $request,
+                'No subjects found for ' . $request->grade_level . '.'
             );
-            return back()->withInput();
         }
 
         DB::beginTransaction();
@@ -556,23 +553,22 @@ class ClassSubjectController extends Controller
             $teacherCount = count($request->teacher_ids);
 
             if ($unlinkCount > 0) {
-                Toastr::success(
-                    "Unassigned {$teacherCount} teacher(s) from subjects in {$request->grade_level} ({$unlinkCount} link(s) removed).",
-                    'Success'
-                );
-            } else {
-                Toastr::info(
-                    'Selected teacher(s) were not assigned to subjects in ' . $request->grade_level . '.',
-                    'Info'
+                return $this->respondTeacherAssignment(
+                    $request,
+                    $request->grade_level,
+                    "Unassigned {$teacherCount} teacher(s) from subjects in {$request->grade_level} ({$unlinkCount} link(s) removed)."
                 );
             }
 
-            return redirect()->route('class-subject.unified-management');
+            return $this->respondTeacherAssignment(
+                $request,
+                $request->grade_level,
+                'Selected teacher(s) were not assigned to subjects in ' . $request->grade_level . '.'
+            );
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Failed to unassign teachers from grade: ' . $e->getMessage());
-            Toastr::error('Failed to unassign teachers: ' . $e->getMessage(), 'Error');
-            return back()->withInput();
+            return $this->respondTeacherAssignmentError($request, 'Failed to unassign teachers: ' . $e->getMessage());
         }
     }
 
@@ -592,8 +588,7 @@ class ClassSubjectController extends Controller
 
         $section = Section::findOrFail($request->section_id);
         if ($section->grade_level && $section->grade_level !== $request->grade_level) {
-            Toastr::error('That section does not belong to the selected grade.', 'Error');
-            return back()->withInput();
+            return $this->respondTeacherAssignmentError($request, 'That section does not belong to the selected grade.');
         }
 
         $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
@@ -621,19 +616,16 @@ class ClassSubjectController extends Controller
             }
 
             DB::commit();
-            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
-            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
 
-            Toastr::success(
-                'Assigned '.count($request->teacher_ids).' teacher(s) to section '.$section->name.'.',
-                'Success'
+            return $this->respondTeacherAssignment(
+                $request,
+                $request->grade_level,
+                'Assigned '.count($request->teacher_ids).' teacher(s) to section '.$section->name.'.'
             );
-            return redirect()->route('class-subject.unified-management');
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Failed to assign teachers to section: '.$e->getMessage());
-            Toastr::error('Failed to assign teachers to section.', 'Error');
-            return back()->withInput();
+            return $this->respondTeacherAssignmentError($request, 'Failed to assign teachers to section.');
         }
     }
 
@@ -669,20 +661,24 @@ class ClassSubjectController extends Controller
             }
 
             DB::commit();
-            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
-            \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
 
             if ($removed > 0) {
-                Toastr::success("Unassigned teacher(s) from section {$section->name}.", 'Success');
-            } else {
-                Toastr::info('Selected teacher(s) were not linked to '.$section->name.'.', 'Info');
+                return $this->respondTeacherAssignment(
+                    $request,
+                    $request->grade_level,
+                    "Unassigned teacher(s) from section {$section->name}."
+                );
             }
-            return redirect()->route('class-subject.unified-management');
+
+            return $this->respondTeacherAssignment(
+                $request,
+                $request->grade_level,
+                'Selected teacher(s) were not linked to '.$section->name.'.'
+            );
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Failed to unassign teachers from section: '.$e->getMessage());
-            Toastr::error('Failed to unassign teachers from section.', 'Error');
-            return back()->withInput();
+            return $this->respondTeacherAssignmentError($request, 'Failed to unassign teachers from section.');
         }
     }
 
@@ -820,5 +816,96 @@ class ClassSubjectController extends Controller
             Toastr::error('Failed to assign teachers: ' . $e->getMessage(), 'Error');
             return back()->withInput();
         }
+    }
+
+    private function teacherSummaries($ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
+        if ($ids === []) {
+            return [];
+        }
+
+        return Teacher::with('user')->whereIn('id', $ids)->get()->map(function ($teacher) {
+            return [
+                'id' => $teacher->id,
+                'name' => $teacher->full_name ?: (optional($teacher->user)->name ?? 'Teacher'),
+            ];
+        })->values()->all();
+    }
+
+    private function assignmentStatusPayload(string $grade): array
+    {
+        $catalog = app(GradeSubjectCatalogService::class);
+        $subjectIds = $catalog->subjectsForGrade($grade)->pluck('id')->all();
+        $gradeTeacherIds = empty($subjectIds)
+            ? []
+            : DB::table('subject_teacher')->whereIn('subject_id', $subjectIds)->pluck('teacher_id')->unique()->all();
+
+        $sections = $catalog->sectionsForGrade($grade)->load(['adviser', 'teachers']);
+        $sectionTeacherIds = [];
+        $sectionRows = [];
+        foreach ($sections as $section) {
+            $ids = $section->teachers->pluck('id')->all();
+            if ($section->adviser_id) {
+                $ids[] = (int) $section->adviser_id;
+            }
+            $ids = array_values(array_unique(array_filter($ids)));
+            foreach ($ids as $id) {
+                $sectionTeacherIds[$id] = true;
+            }
+            $sectionRows[] = [
+                'id' => $section->id,
+                'name' => $section->name,
+                'capacity' => $section->capacity ?? 25,
+                'adviser' => optional($section->adviser)->full_name,
+                'grade_level' => $section->grade_level,
+            ];
+        }
+
+        return [
+            'grade_level' => $grade,
+            'teachers' => $this->teacherSummaries($gradeTeacherIds),
+            'section_teachers' => $this->teacherSummaries(array_keys($sectionTeacherIds)),
+            'sections' => $sectionRows,
+        ];
+    }
+
+    private function forgetSectionCache(): void
+    {
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
+    }
+
+    private function respondTeacherAssignment(Request $request, string $grade, string $message, bool $ok = true)
+    {
+        $this->forgetSectionCache();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(array_merge([
+                'success' => $ok,
+                'message' => $message,
+            ], $this->assignmentStatusPayload($grade)));
+        }
+
+        if ($ok) {
+            Toastr::success($message, 'Success');
+        } else {
+            Toastr::info($message, 'Info');
+        }
+
+        return redirect()->route('class-subject.unified-management');
+    }
+
+    private function respondTeacherAssignmentError(Request $request, string $message)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], 422);
+        }
+
+        Toastr::error($message, 'Error');
+        return back()->withInput();
     }
 }

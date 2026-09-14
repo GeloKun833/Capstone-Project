@@ -89,12 +89,10 @@
                                             </span>
                                         <?php endif; ?>
                                     </div>
-                                    <?php if($assignedTeachers->isNotEmpty()): ?>
-                                        <div class="ams-grade-tile-teachers mt-2">
-                                            <i class="fas fa-chalkboard-teacher me-1"></i>
-                                            <?php echo e($assignedTeachers->count()); ?> teacher(s)
-                                        </div>
-                                    <?php endif; ?>
+                                    <div class="ams-grade-tile-teachers mt-2 <?php echo e($assignedTeachers->isEmpty() ? 'd-none' : ''); ?>" data-role="teacher-count">
+                                        <i class="fas fa-chalkboard-teacher me-1"></i>
+                                        <?php echo e($assignedTeachers->count()); ?> teacher(s)
+                                    </div>
                                 </button>
                             </div>
                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -117,7 +115,16 @@
             <div class="card-body">
                 <div class="row g-3">
                     <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                        <?php $gradeSections = ($sectionsByGrade ?? collect())->get($grade, collect()); ?>
+                        <?php
+                            $gradeSections = ($sectionsByGrade ?? collect())->get($grade, collect());
+                            $sectionTeachers = $gradeSections->flatMap(function ($section) {
+                                $teachers = $section->teachers ?? collect();
+                                if ($section->adviser) {
+                                    $teachers = $teachers->push($section->adviser);
+                                }
+                                return $teachers;
+                            })->unique('id')->values();
+                        ?>
                         <div class="col-6 col-md-4 col-xl-3">
                             <button type="button"
                                 class="ams-grade-tile w-100 text-start"
@@ -142,6 +149,10 @@
                                             <?php if($gradeSections->count() > 3): ?>…<?php endif; ?>
                                         </span>
                                     <?php endif; ?>
+                                </div>
+                                <div class="ams-grade-tile-teachers mt-2 <?php echo e($sectionTeachers->isEmpty() ? 'd-none' : ''); ?>" data-role="teacher-count">
+                                    <i class="fas fa-chalkboard-teacher me-1"></i>
+                                    <?php echo e($sectionTeachers->count()); ?> teacher(s)
                                 </div>
                             </button>
                         </div>
@@ -776,6 +787,10 @@ unset($__errorArgs, $__bag); ?>
         overflow: hidden;
         box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
     }
+    #unassignTeacherConfirmModal,
+    #deleteSubjectResultModal {
+        z-index: 1080;
+    }
     #catalogModal.modal.fade .modal-dialog {
         transform: translateY(22px) scale(.96);
         opacity: 0;
@@ -1004,6 +1019,70 @@ unset($__errorArgs, $__bag); ?>
         }).join('');
     }
 
+    function setTileTeacherCount(tile, teachers) {
+        if (!tile) return;
+        let line = tile.querySelector('[data-role="teacher-count"]');
+        if (!line) {
+            line = document.createElement('div');
+            line.className = 'ams-grade-tile-teachers mt-2';
+            line.setAttribute('data-role', 'teacher-count');
+            tile.appendChild(line);
+        }
+        const count = (teachers || []).length;
+        if (!count) {
+            line.classList.add('d-none');
+            line.innerHTML = '';
+            return;
+        }
+        line.classList.remove('d-none');
+        line.innerHTML = '<i class="fas fa-chalkboard-teacher me-1"></i> ' + count + ' teacher(s)';
+    }
+
+    function applyAssignmentResult(res) {
+        const grade = res && res.grade_level;
+        if (!grade) return;
+
+        setTileTeacherCount(
+            document.querySelector('.ams-grade-tile[data-grade="' + grade + '"][data-bs-target="#catalogModal"]'),
+            res.teachers || []
+        );
+        setTileTeacherCount(
+            document.querySelector('.ams-grade-tile[data-grade="' + grade + '"][data-bs-target="#sectionModal"]'),
+            res.section_teachers || []
+        );
+
+        if (res.sections) {
+            applySectionsForGrade(grade, res.sections);
+            setTileTeacherCount(
+                document.querySelector('.ams-grade-tile[data-grade="' + grade + '"][data-bs-target="#sectionModal"]'),
+                res.section_teachers || []
+            );
+        }
+
+        const gradeIds = (res.teachers || []).map(function (t) { return String(t.id); });
+        Object.keys(teachersById).forEach(function (id) {
+            const teacher = teachersById[id];
+            teacher.grades = (teacher.grades || []).filter(function (g) { return g !== grade; });
+            if (gradeIds.indexOf(id) !== -1) {
+                teacher.grades.push(grade);
+            }
+        });
+
+        const sectionNames = (res.sections || []).map(function (s) {
+            return (s.name || '') + (s.grade_level ? ' (' + s.grade_level + ')' : '');
+        });
+        const sectionTeacherIds = (res.section_teachers || []).map(function (t) { return String(t.id); });
+        Object.keys(teachersById).forEach(function (id) {
+            const teacher = teachersById[id];
+            teacher.sections = (teacher.sections || []).filter(function (label) {
+                return sectionNames.indexOf(label) === -1;
+            });
+            if (sectionTeacherIds.indexOf(id) !== -1) {
+                teacher.sections = teacher.sections.concat(sectionNames);
+            }
+        });
+    }
+
     function updateSubjectTile(grade, subjects) {
         const tile = document.querySelector('.ams-grade-tile[data-grade="' + grade + '"][data-bs-target="#catalogModal"]');
         if (!tile) return;
@@ -1023,6 +1102,58 @@ unset($__errorArgs, $__bag); ?>
                 preview.innerHTML = '<span class="text-muted">' + names.join(', ') + (count > 3 ? '…' : '') + '</span>';
             }
         }
+    }
+
+    function upsertSectionInGrade(grade, section) {
+        if (!grade || !section) return;
+        const list = sectionsByGrade[grade] || [];
+        const id = String(section.id);
+        const next = {
+            id: section.id,
+            name: section.name,
+            capacity: section.capacity || 25,
+            adviser: section.adviser || null,
+            grade_level: section.grade_level || grade
+        };
+        const idx = list.findIndex(function (s) { return String(s.id) === id; });
+        if (idx === -1) {
+            list.push(next);
+        } else {
+            list[idx] = Object.assign({}, list[idx], next);
+        }
+        applySectionsForGrade(grade, list);
+    }
+
+    function applySectionsForGrade(grade, sections) {
+        sectionsByGrade[grade] = sections || [];
+        renderSectionChips(grade, sectionsByGrade[grade]);
+        updateSectionTile(grade, sectionsByGrade[grade]);
+        syncTeacherSectionSelect();
+    }
+
+    function upsertTeacherSectionOption(section) {
+        const select = document.getElementById('section_id');
+        if (!select || !section || !section.id) return;
+        const id = String(section.id);
+        const grade = section.grade_level || '';
+        let opt = select.querySelector('option[value="' + id + '"]');
+        if (!opt) {
+            opt = document.createElement('option');
+            opt.value = id;
+            select.appendChild(opt);
+        }
+        opt.textContent = section.name + (grade ? ' (' + grade + ')' : '');
+        opt.setAttribute('data-grade', grade);
+    }
+
+    function syncTeacherSectionSelect() {
+        Object.keys(sectionsByGrade).forEach(function (grade) {
+            (sectionsByGrade[grade] || []).forEach(function (section) {
+                upsertTeacherSectionOption(Object.assign({ grade_level: section.grade_level || grade }, section));
+            });
+        });
+        const gradeSelectEl = document.getElementById('grade_level');
+        filterSections(gradeSelectEl ? gradeSelectEl.value : '');
     }
 
     function updateSectionTile(grade, sections) {
@@ -1073,21 +1204,30 @@ unset($__errorArgs, $__bag); ?>
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                const sections = (data.sections || []).map(function (s) {
+                const incoming = (data.sections || []).map(function (s) {
                     return {
                         id: s.id,
                         name: s.name,
                         capacity: s.capacity,
-                        adviser: s.adviser
+                        adviser: s.adviser,
+                        grade_level: s.grade_level || grade
                     };
                 });
-                sectionsByGrade[grade] = sections;
-                renderSectionChips(grade, sections);
-                updateSectionTile(grade, sections);
-                document.getElementById('sectionModalSub').textContent = sections.length
-                    ? (sections.length + ' section(s) — live from database / enrollment')
-                    : 'No block sections yet for ' + grade;
-                return sections;
+                const current = sectionsByGrade[grade] || [];
+                const merged = incoming.slice();
+                current.forEach(function (s) {
+                    if (s && s.id && !merged.some(function (row) { return String(row.id) === String(s.id); })) {
+                        merged.push(s);
+                    }
+                });
+                applySectionsForGrade(grade, merged);
+                const sub = document.getElementById('sectionModalSub');
+                if (sub) {
+                    sub.textContent = merged.length
+                        ? (merged.length + ' section(s) — live from database / enrollment')
+                        : 'No block sections yet for ' + grade;
+                }
+                return merged;
             });
     }
 
@@ -1205,14 +1345,11 @@ unset($__errorArgs, $__bag); ?>
         }).done(function (res) {
             $msg.html('<span class="text-success">' + (res.message || 'Added.') + ' Visible on enrollment Block Section now.</span>');
             $('#quickSectionName').val('');
+            if (res.section) {
+                upsertSectionInGrade(grade, res.section);
+            }
             refreshSectionsFromApi(grade).catch(function () {
-                const list = sectionsByGrade[grade] || [];
-                if (res.section) {
-                    list.push(res.section);
-                    sectionsByGrade[grade] = list;
-                }
-                renderSectionChips(grade, sectionsByGrade[grade] || []);
-                updateSectionTile(grade, sectionsByGrade[grade] || []);
+                applySectionsForGrade(grade, sectionsByGrade[grade] || []);
             });
         }).fail(function (xhr) {
             const msg = (xhr.responseJSON && (xhr.responseJSON.message || (xhr.responseJSON.errors && Object.values(xhr.responseJSON.errors)[0][0]))) || 'Failed to add section.';
@@ -1227,9 +1364,12 @@ unset($__errorArgs, $__bag); ?>
     const sectionSelect = document.getElementById('section_id');
     const detailsModalEl = document.getElementById('teacherDetailsModal');
     const allTeachersModalEl = document.getElementById('allTeachersModal');
+    const unassignConfirmEl = document.getElementById('unassignTeacherConfirmModal');
     let pendingTeacherOp = 'teacher_grade';
     let openedFromAllTeachers = false;
     let currentTeacherName = 'this teacher';
+    let detailsSwapLock = false;
+    let reopenDetailsOnConfirmClose = false;
 
     function showBsModal(el) {
         if (!el) return;
@@ -1247,6 +1387,19 @@ unset($__errorArgs, $__bag); ?>
         } else if (window.$) {
             $(el).modal('hide');
         }
+    }
+
+    function afterModalHidden(el, cb) {
+        if (!el || !el.classList.contains('show')) {
+            cb();
+            return;
+        }
+        const once = function () {
+            el.removeEventListener('hidden.bs.modal', once);
+            cb();
+        };
+        el.addEventListener('hidden.bs.modal', once);
+        hideBsModal(el);
     }
 
     function dash(value) {
@@ -1308,9 +1461,31 @@ unset($__errorArgs, $__bag); ?>
 
     if (detailsModalEl) {
         detailsModalEl.addEventListener('hidden.bs.modal', function () {
+            if (detailsSwapLock) return;
             if (openedFromAllTeachers) {
                 openedFromAllTeachers = false;
                 showBsModal(allTeachersModalEl);
+            }
+        });
+    }
+
+    if (unassignConfirmEl) {
+        unassignConfirmEl.addEventListener('hidden.bs.modal', function () {
+            if (!reopenDetailsOnConfirmClose) {
+                detailsSwapLock = false;
+                return;
+            }
+            reopenDetailsOnConfirmClose = false;
+            detailsSwapLock = true;
+            showBsModal(detailsModalEl);
+            const unlock = function () {
+                detailsModalEl.removeEventListener('shown.bs.modal', unlock);
+                detailsSwapLock = false;
+            };
+            if (detailsModalEl) {
+                detailsModalEl.addEventListener('shown.bs.modal', unlock);
+            } else {
+                detailsSwapLock = false;
             }
         });
     }
@@ -1377,13 +1552,13 @@ unset($__errorArgs, $__bag); ?>
     }
 
     $('#teacherGradeForm').on('submit', function (e) {
+        e.preventDefault();
         const $form = $(this);
         const op = pendingTeacherOp || $('#teacherGradeOperation').val();
         const isUnassign = op.indexOf('unassign') !== -1;
         const isSection = op.indexOf('section') !== -1;
 
         if (!$('#modalTeacherId').val()) {
-            e.preventDefault();
             showDeleteResultModal(false, 'Missing teacher', 'Please open a teacher first.');
             return false;
         }
@@ -1391,38 +1566,57 @@ unset($__errorArgs, $__bag); ?>
         const grade = $('#grade_level').val();
         const subjects = subjectsByGrade[grade] || [];
         if (!isSection && !subjects.length) {
-            e.preventDefault();
             showDeleteResultModal(false, 'No subjects', 'This grade has no subjects yet. Add subjects in the catalog first.');
             return false;
         }
 
         if (isSection && !$('#section_id').val()) {
-            e.preventDefault();
             showDeleteResultModal(false, 'Missing section', 'Please select a block section.');
             return false;
         }
 
-        if (isUnassign) {
-            if ($form.data('unassign-confirmed')) {
-                $form.data('unassign-confirmed', false);
-                openedFromAllTeachers = false;
-                setTeacherActionsBusy(true, 'Unassigning...');
-                return true;
-            }
-
-            e.preventDefault();
+        if (isUnassign && !$form.data('unassign-confirmed')) {
             const text = document.getElementById('unassignTeacherConfirmText');
             if (text) {
                 text.textContent = isSection
                     ? ('Unassign ' + currentTeacherName + ' from the selected section only?')
                     : ('Unassign ' + currentTeacherName + ' from all subjects in ' + (grade || 'this grade') + '?');
             }
-            showBsModal(document.getElementById('unassignTeacherConfirmModal'));
+            detailsSwapLock = true;
+            reopenDetailsOnConfirmClose = true;
+            afterModalHidden(detailsModalEl, function () {
+                showBsModal(unassignConfirmEl);
+            });
             return false;
         }
 
-        openedFromAllTeachers = false;
-        setTeacherActionsBusy(true, 'Assigning...');
+        $form.data('unassign-confirmed', false);
+        reopenDetailsOnConfirmClose = false;
+        detailsSwapLock = true;
+        setTeacherActionsBusy(true, isUnassign ? 'Unassigning...' : 'Assigning...');
+
+        $.ajax({
+            url: $form.attr('action'),
+            method: 'POST',
+            data: $form.serialize(),
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        }).done(function (res) {
+            applyAssignmentResult(res || {});
+            openedFromAllTeachers = false;
+            afterModalHidden(detailsModalEl, function () {
+                detailsSwapLock = false;
+                showDeleteResultModal(true, 'Done', (res && res.message) || 'Teacher assignment updated.');
+            });
+        }).fail(function (xhr) {
+            detailsSwapLock = false;
+            const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                || (xhr.responseJSON && xhr.responseJSON.errors && Object.values(xhr.responseJSON.errors)[0][0])
+                || 'Failed to update teacher assignment.';
+            showDeleteResultModal(false, 'Failed', msg);
+        }).always(function () {
+            setTeacherActionsBusy(false);
+        });
+        return false;
     });
 
     document.getElementById('allTeachersSearch')?.addEventListener('input', function () {
@@ -1434,10 +1628,13 @@ unset($__errorArgs, $__bag); ?>
     });
 
     document.getElementById('unassignTeacherConfirmBtn')?.addEventListener('click', function () {
-        hideBsModal(document.getElementById('unassignTeacherConfirmModal'));
-        const $form = $('#teacherGradeForm');
-        $form.data('unassign-confirmed', true);
-        $form.trigger('submit');
+        reopenDetailsOnConfirmClose = false;
+        detailsSwapLock = true;
+        afterModalHidden(unassignConfirmEl, function () {
+            const $form = $('#teacherGradeForm');
+            $form.data('unassign-confirmed', true);
+            $form.trigger('submit');
+        });
     });
 
     <?php if(old('teacher_ids.0')): ?>
