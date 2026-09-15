@@ -21,6 +21,8 @@ class ActivityController extends Controller
             }
         }
 
+        $lesson->loadMissing(['subject', 'section']);
+
         $activities = $lesson->activities()
             ->withCount([
                 'submissions',
@@ -43,6 +45,8 @@ class ActivityController extends Controller
                 abort(403, 'Unauthorized action.');
             }
         }
+
+        $lesson->loadMissing(['subject', 'section']);
 
         return view('activities.create', compact('lesson'));
     }
@@ -97,6 +101,8 @@ class ActivityController extends Controller
                 abort(403, 'Unauthorized action.');
             }
         }
+
+        $lesson->loadMissing(['subject', 'section']);
 
         return view('activities.edit', compact('lesson', 'activity'));
     }

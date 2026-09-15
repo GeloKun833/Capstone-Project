@@ -33,6 +33,20 @@
     align-items: flex-end;
 }
 
+.dir-header-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+.dir-header-actions .btn {
+    width: auto;
+    white-space: nowrap;
+}
+
 .dir-page .page-header .breadcrumb,
 .ams-unified .page-header .breadcrumb {
     background: transparent;
