@@ -75,29 +75,31 @@ unset($__errorArgs, $__bag); ?>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Status <span class="login-danger">*</span></label>
-                                            <select class="form-control select" name="status" <?php if(!empty($isSoleAdmin)): ?> data-sole-admin="1" <?php endif; ?>>
-                                                <option disabled>Select Status</option>
-                                                <option value="Active" <?php echo e(old('status', $users->status) == 'Active' ? 'selected' : ''); ?>>Active</option>
-                                                <option value="Disable" <?php echo e(old('status', $users->status) == 'Disable' ? 'selected' : ''); ?> <?php if(!empty($isSoleAdmin)): ?> disabled <?php endif; ?>>Disable</option>
-                                                <option value="Inactive" <?php echo e(old('status', $users->status) == 'Inactive' ? 'selected' : ''); ?> <?php if(!empty($isSoleAdmin)): ?> disabled <?php endif; ?>>Inactive</option>
+                                            <?php $currentStatus = old('status', $users->status); ?>
+                                            <select class="form-control" name="status" <?php if(!empty($isSoleAdmin)): ?> data-sole-admin="1" <?php endif; ?>>
+                                                <option value="Active" <?php echo e(\App\Models\User::isActiveStatus($currentStatus) ? 'selected' : ''); ?>>Active</option>
+                                                <option value="Inactive" <?php echo e(strtolower((string) $currentStatus) === 'inactive' ? 'selected' : ''); ?> <?php if(!empty($isSoleAdmin)): ?> disabled <?php endif; ?>>Inactive</option>
+                                                <option value="Disable" <?php echo e(in_array(strtolower((string) $currentStatus), ['disable', 'disabled'], true) ? 'selected' : ''); ?> <?php if(!empty($isSoleAdmin)): ?> disabled <?php endif; ?>>Disable</option>
                                             </select>
                                             <?php if(!empty($isSoleAdmin)): ?>
-                                                <small class="text-warning">This is the only active Admin — status/role are locked.</small>
+                                                <small class="text-warning">This is the only active Admin — status is locked.</small>
+                                                <input type="hidden" name="status" value="<?php echo e($users->status); ?>">
                                             <?php endif; ?>
+                                            <?php $__errorArgs = ['status'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="text-danger small"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Role Name <span class="login-danger">*</span></label>
-                                            <select class="form-control select" name="role_name" id="role_name" <?php if(!empty($isSoleAdmin)): ?> disabled <?php endif; ?>>
-                                                <option disabled>Role Type</option>
-                                                <?php $__currentLoopData = $role; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $name): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                    <option value="<?php echo e($name->role_type); ?>" <?php echo e(old('role_name', $users->role_name) == $name->role_type ? 'selected' : ''); ?>><?php echo e($name->role_type); ?></option>
-                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                            </select>
-                                            <?php if(!empty($isSoleAdmin)): ?>
-                                                <input type="hidden" name="role_name" value="Admin">
-                                            <?php endif; ?>
+                                            <label>Role</label>
+                                            <input type="text" class="form-control" value="<?php echo e($users->role_name); ?>" readonly>
+                                            <small class="form-text text-muted">Role is set when the account is created and cannot be changed here.</small>
                                         </div>
                                     </div>
                                     

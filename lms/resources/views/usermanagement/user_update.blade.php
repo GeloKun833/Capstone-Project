@@ -62,7 +62,7 @@
                                                 <option value="Disable" {{ in_array(strtolower((string) $currentStatus), ['disable', 'disabled'], true) ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Disable</option>
                                             </select>
                                             @if(!empty($isSoleAdmin))
-                                                <small class="text-warning">This is the only active Admin — status/role are locked.</small>
+                                                <small class="text-warning">This is the only active Admin — status is locked.</small>
                                                 <input type="hidden" name="status" value="{{ $users->status }}">
                                             @endif
                                             @error('status')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -70,18 +70,9 @@
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
-                                            <label>Role Name <span class="login-danger">*</span></label>
-                                            @php $currentRole = old('role_name', $users->role_name); @endphp
-                                            <select class="form-control" name="role_name" id="role_name" required @if(!empty($isSoleAdmin)) disabled @endif>
-                                                @foreach ($role as $name)
-                                                    <option value="{{ $name->role_type }}" {{ (string) $currentRole === (string) $name->role_type ? 'selected' : '' }}>{{ $name->role_type }}</option>
-                                                @endforeach
-                                            </select>
-                                            <input type="hidden" name="role_name_current" value="{{ $users->role_name }}">
-                                            @if(!empty($isSoleAdmin))
-                                                <input type="hidden" name="role_name" value="Admin">
-                                            @endif
-                                            @error('role_name')<div class="text-danger small">{{ $message }}</div>@enderror
+                                            <label>Role</label>
+                                            <input type="text" class="form-control" value="{{ $users->role_name }}" readonly>
+                                            <small class="form-text text-muted">Role is set when the account is created and cannot be changed here.</small>
                                         </div>
                                     </div>
                                     

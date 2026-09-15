@@ -81,13 +81,10 @@ class UserManagementController extends Controller
             Toastr::error('User not found.', 'Error');
             return redirect()->route('list/users');
         }
-        $role = collect(['Admin', 'Registrar', 'Teacher', 'Student', 'Parent'])
-            ->map(fn ($name) => (object) ['role_type' => $name]);
-
         $isSoleAdmin = $users->role_name === 'Admin'
             && User::where('role_name', 'Admin')->activeAccounts()->count() <= 1;
 
-        return view('usermanagement.user_update', compact('users', 'role', 'isSoleAdmin'));
+        return view('usermanagement.user_update', compact('users', 'isSoleAdmin'));
     }
 
     /** user Update */
@@ -108,15 +105,6 @@ class UserManagementController extends Controller
                 return redirect()->back();
             }
 
-            $incomingRole = trim((string) $request->input('role_name', ''));
-            if ($incomingRole === '') {
-                $incomingRole = trim((string) $request->input('role_name_current', $user->role_name));
-            }
-            if ($incomingRole === '') {
-                $incomingRole = (string) $user->role_name;
-            }
-            $request->merge(['role_name' => $incomingRole]);
-
             $request->validate([
                 'user_id' => 'required|string',
                 'name' => \App\Support\FormRules::NAME,
@@ -124,7 +112,6 @@ class UserManagementController extends Controller
                 'phone_number' => \App\Support\FormRules::PHONE_REQUIRED,
                 'date_of_birth' => \App\Support\FormRules::DOB,
                 'status' => 'required|string|max:50',
-                'role_name' => 'required|string|in:Admin,Registrar,Teacher,Student,Parent',
                 'position' => \App\Support\FormRules::TEXT_REQUIRED,
                 'department' => \App\Support\FormRules::TEXT_REQUIRED,
                 'avatar' => \App\Support\FormRules::AVATAR,
@@ -132,14 +119,9 @@ class UserManagementController extends Controller
                 'new_password' => 'nullable|string|min:8|confirmed',
             ], \App\Support\FormRules::messages());
 
-            // Protect the only active Admin from role/status downgrade
+            // Protect the only active Admin from being disabled
             $activeAdmins = User::where('role_name', 'Admin')->activeAccounts()->count();
             if ($user->role_name === 'Admin' && $activeAdmins <= 1) {
-                if ($request->role_name !== 'Admin') {
-                    DB::rollBack();
-                    Toastr::error('Cannot change role: this is the only active administrator.', 'Protected');
-                    return redirect()->back()->withInput();
-                }
                 if (! User::isActiveStatus($request->status)) {
                     DB::rollBack();
                     Toastr::error('Cannot disable the only active administrator.', 'Protected');
@@ -160,7 +142,6 @@ class UserManagementController extends Controller
 
             $payload = [
                 'name' => $request->name,
-                'role_name' => $incomingRole !== '' ? $incomingRole : $user->role_name,
                 'email' => $request->email,
                 'position' => $request->position,
                 'phone_number' => preg_replace('/[^\d+\-\s()]/', '', (string) $request->phone_number),
