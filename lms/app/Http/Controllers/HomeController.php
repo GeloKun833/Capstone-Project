@@ -1152,50 +1152,230 @@ class HomeController extends Controller
     {
         $user = auth()->user();
         $student = $user->student;
-        
+
         if (!$student) {
-            // Try to find student by user_id as fallback
             $student = Student::where('user_id', $user->user_id)->first();
-            
+
             if (!$student) {
-                // Return empty data structure instead of null
                 return [
                     'student' => null,
                     'enrollments' => collect(),
-                    'hasStudent' => false
+                    'hasStudent' => false,
+                    'greeting' => 'Hello',
                 ];
             }
         }
 
-        return Cache::remember('student.dashboard.v2.'.$student->id, 180, function () use ($student) {
-        $student->load([
-            'sections:id,name,grade_level,adviser_id',
-            'sections.adviser:id,full_name',
-            'enrollmentApplication.documents',
-        ]);
+        $hour = (int) now()->format('G');
+        $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
 
-        $enrollments = $student->enrollments()
-            ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
-            ->where('status', 'active')
-            ->whereHas('subject')
-            ->get();
+        return Cache::remember('student.dashboard.v4.'.$student->id.'.'.now()->toDateString(), 180, function () use ($student, $user, $greeting) {
+            $student->load([
+                'sections:id,name,grade_level,adviser_id',
+                'sections.adviser:id,full_name',
+                'enrollmentApplication.documents',
+            ]);
 
-        $catalogSubjects = [];
-        $app = $student->enrollmentApplication;
-        if ($app && $app->grade_level_applying_for) {
-            $catalogSubjects = Cache::remember(
-                'catalog.subjects.'.md5((string) $app->grade_level_applying_for),
-                600,
-                fn () => app(GradeSubjectCatalogService::class)->subjectNamesForGrade($app->grade_level_applying_for)
-            );
-        }
+            $enrollments = $student->enrollments()
+                ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
+                ->where('status', 'active')
+                ->whereHas('subject')
+                ->get();
 
-        return [
-            'student' => $student,
-            'enrollments' => $enrollments,
-            'hasStudent' => true,
-            'catalogSubjects' => $catalogSubjects,
-        ];
+            $subjectIds = $enrollments->pluck('subject_id')->filter()->unique()->values();
+            $sectionIds = $student->sections->pluck('id')->filter()->unique()->values();
+            $section = $student->sections->first();
+
+            $catalogSubjects = [];
+            $app = $student->enrollmentApplication;
+            if ($app && $app->grade_level_applying_for) {
+                $catalogSubjects = Cache::remember(
+                    'catalog.subjects.'.md5((string) $app->grade_level_applying_for),
+                    600,
+                    fn () => app(GradeSubjectCatalogService::class)->subjectNamesForGrade($app->grade_level_applying_for)
+                );
+            }
+
+            $todaysSchedule = collect();
+            try {
+                $todaysSchedule = ClassSchedule::getTodaySchedule($student->id)->map(function (ClassSchedule $row) {
+                    return (object) [
+                        'start_label' => $row->start_time ? Carbon::parse($row->start_time)->format('g:i A') : '—',
+                        'end_label' => $row->end_time ? Carbon::parse($row->end_time)->format('g:i A') : '',
+                        'subject_name' => $row->subject->subject_name ?? 'Subject',
+                        'teacher_name' => $row->teacher->full_name ?? 'Teacher',
+                        'room' => $row->room->room_name ?? 'TBD',
+                    ];
+                });
+            } catch (\Throwable $e) {
+                // Keep empty schedule
+            }
+
+            $upcomingAssignments = collect();
+            $pendingAssignmentCount = 0;
+            if ($subjectIds->isNotEmpty()) {
+                try {
+                    $assignmentQuery = Assignment::with(['subject:id,subject_name', 'teacher:id,full_name'])
+                        ->whereIn('subject_id', $subjectIds)
+                        ->where('status', 'published')
+                        ->where('is_active', true);
+
+                    if ($sectionIds->isNotEmpty()) {
+                        $assignmentQuery->where(function ($q) use ($sectionIds) {
+                            $q->whereIn('section_id', $sectionIds)->orWhereNull('section_id');
+                        });
+                    }
+
+                    $upcomingAssignments = $assignmentQuery
+                        ->orderBy('due_date')
+                        ->limit(8)
+                        ->get();
+
+                    $submittedIds = AssignmentSubmission::where('student_id', $student->id)
+                        ->whereIn('assignment_id', $upcomingAssignments->pluck('id'))
+                        ->pluck('assignment_id')
+                        ->all();
+
+                    $upcomingAssignments = $upcomingAssignments->map(function (Assignment $asg) use ($submittedIds) {
+                        $asg->is_submitted = in_array($asg->id, $submittedIds, true);
+                        return $asg;
+                    });
+
+                    $pendingAssignmentCount = $upcomingAssignments->where('is_submitted', false)->count();
+                } catch (\Throwable $e) {
+                    $upcomingAssignments = collect();
+                }
+            }
+
+            $upcomingLessons = collect();
+            if ($subjectIds->isNotEmpty()) {
+                try {
+                    $lessonQuery = Lesson::with(['subject:id,subject_name', 'section:id,name,grade_level'])
+                        ->published()
+                        ->whereIn('subject_id', $subjectIds)
+                        ->whereDate('lesson_date', '>=', now()->toDateString())
+                        ->orderBy('lesson_date')
+                        ->limit(6);
+
+                    if ($sectionIds->isNotEmpty()) {
+                        $lessonQuery->where(function ($q) use ($sectionIds) {
+                            $q->whereIn('section_id', $sectionIds)->orWhereNull('section_id');
+                        });
+                    }
+
+                    $upcomingLessons = $lessonQuery->get();
+                } catch (\Throwable $e) {
+                    $upcomingLessons = collect();
+                }
+            }
+
+            $classPosts = collect();
+            if ($subjectIds->isNotEmpty()) {
+                try {
+                    $postQuery = ClassPost::published()
+                        ->with(['subject:id,subject_name', 'teacher:id,full_name'])
+                        ->whereIn('subject_id', $subjectIds)
+                        ->orderByDesc('is_pinned')
+                        ->orderByDesc('published_at')
+                        ->limit(5);
+
+                    if ($sectionIds->isNotEmpty()) {
+                        $postQuery->where(function ($q) use ($sectionIds) {
+                            $q->whereIn('section_id', $sectionIds)->orWhereNull('section_id');
+                        });
+                    }
+
+                    $classPosts = $postQuery->get();
+                } catch (\Throwable $e) {
+                    $classPosts = collect();
+                }
+            }
+
+            $upcomingEvents = collect();
+            try {
+                $eventQuery = CalendarEvent::with('subject:id,subject_name')
+                    ->where('start_time', '>=', now())
+                    ->orderBy('start_time')
+                    ->limit(5);
+
+                if ($subjectIds->isNotEmpty()) {
+                    $eventQuery->where(function ($q) use ($subjectIds) {
+                        $q->whereNull('subject_id')->orWhereIn('subject_id', $subjectIds);
+                    });
+                }
+
+                $upcomingEvents = $eventQuery->get();
+            } catch (\Throwable $e) {
+                $upcomingEvents = collect();
+            }
+
+            $announcements = collect();
+            try {
+                $announcements = \App\Models\Announcement::query()
+                    ->where('is_active', true)
+                    ->forRole($user->role_name)
+                    ->where(function ($q) {
+                        $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                    })
+                    ->orderByDesc('is_pinned')
+                    ->orderByDesc('created_at')
+                    ->limit(5)
+                    ->get();
+            } catch (\Throwable $e) {
+                $announcements = collect();
+            }
+
+            $currentGpa = null;
+            try {
+                $currentGpa = \App\Models\StudentGpa::where('student_id', $student->id)
+                    ->orderByDesc('id')
+                    ->first();
+            } catch (\Throwable $e) {
+                $currentGpa = null;
+            }
+
+            $attendancePercentage = 0;
+            try {
+                $attendanceRow = Attendance::where('student_id', $student->id)
+                    ->selectRaw('
+                        COUNT(*) as total_records,
+                        SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count
+                    ')
+                    ->first();
+                $totalAttendance = (int) ($attendanceRow->total_records ?? 0);
+                $presentCount = (int) ($attendanceRow->present_count ?? 0);
+                $attendancePercentage = $totalAttendance > 0
+                    ? round(($presentCount / $totalAttendance) * 100, 1)
+                    : 0;
+            } catch (\Throwable $e) {
+                $attendancePercentage = 0;
+            }
+
+            $displayName = trim(($student->first_name ?? '').' '.($student->last_name ?? ''))
+                ?: ($user->name ?? 'Student');
+            $firstName = $student->first_name ?: (explode(' ', $displayName)[0] ?? 'Student');
+
+            return [
+                'student' => $student,
+                'enrollments' => $enrollments,
+                'hasStudent' => true,
+                'catalogSubjects' => $catalogSubjects,
+                'greeting' => $greeting,
+                'displayName' => $displayName,
+                'firstName' => $firstName,
+                'section' => $section,
+                'classCount' => $enrollments->count(),
+                'pendingAssignmentCount' => $pendingAssignmentCount,
+                'todayClassCount' => $todaysSchedule->count(),
+                'attendancePercentage' => $attendancePercentage,
+                'currentGpa' => $currentGpa,
+                'todaysSchedule' => $todaysSchedule,
+                'upcomingAssignments' => $upcomingAssignments,
+                'upcomingLessons' => $upcomingLessons,
+                'classPosts' => $classPosts,
+                'upcomingEvents' => $upcomingEvents,
+                'announcements' => $announcements,
+            ];
         });
     }
 

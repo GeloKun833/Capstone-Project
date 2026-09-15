@@ -196,6 +196,8 @@ class AssignmentController extends Controller
 
         if ($data['requires_file_upload']) {
             $types = array_values(array_filter((array) $request->input('allowed_file_types', [])));
+            $types = array_map(static fn ($t) => $t === 'doc' ? 'docx' : $t, $types);
+            $types = array_values(array_unique(array_diff($types, ['doc'])));
             $data['allowed_file_types'] = $types !== [] ? $types : ['pdf', 'docx'];
             $data['max_file_size'] = (int) ($request->input('max_file_size') ?: 10);
         } else {
@@ -291,6 +293,8 @@ class AssignmentController extends Controller
 
         if ($data['requires_file_upload']) {
             $types = array_values(array_filter((array) $request->input('allowed_file_types', [])));
+            $types = array_map(static fn ($t) => $t === 'doc' ? 'docx' : $t, $types);
+            $types = array_values(array_unique(array_diff($types, ['doc'])));
             $data['allowed_file_types'] = $types !== [] ? $types : ['pdf', 'docx'];
             $data['max_file_size'] = (int) ($request->input('max_file_size') ?: 10);
         } else {

@@ -319,7 +319,37 @@
 }
 .plan-board-bar {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
     padding: 0.85rem 1.15rem 0.35rem;
+}
+.plan-week-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid #e8eef7;
+    color: #64748b;
+    background: #fff;
+    text-decoration: none;
+}
+.plan-week-btn:hover {
+    color: #4f46e5;
+    border-color: #c7d2fe;
+    background: #f8faff;
+}
+.plan-week-now {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #4f46e5;
+    text-decoration: none;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: #eef2ff;
 }
 .plan-board-title { font-size: 1.05rem; font-weight: 750; color: #1e293b; }
 .plan-board-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 0.1rem; }

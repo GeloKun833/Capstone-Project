@@ -58,8 +58,10 @@ class SubmissionController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:10240',
+            'file' => 'required|file|max:10240|extensions:pdf,docx,ppt,pptx,jpg,jpeg,png',
             'comments' => 'nullable|string|max:1000',
+        ], [
+            'file.extensions' => 'Please upload a PDF, Word (DOCX), PPT, PPTX, or image file.',
         ]);
 
         try {

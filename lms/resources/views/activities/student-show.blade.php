@@ -118,8 +118,8 @@
                         <form action="{{ route('student.activities.submit', [$lesson, $activity]) }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="mb-3">
-                                <label class="form-label">Upload File (PDF, DOC, PPT, JPG, PNG — max 10MB)</label>
-                                <input type="file" name="file" class="form-control" required>
+                                <label class="form-label">Upload File (PDF, DOCX, PPT, PPTX, JPG, PNG — max 10MB)</label>
+                                <input type="file" name="file" class="form-control" accept=".pdf,.docx,.ppt,.pptx,.jpg,.jpeg,.png" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Comments (optional)</label>

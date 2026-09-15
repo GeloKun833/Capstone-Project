@@ -75,7 +75,9 @@ class AnnouncementController extends Controller
             'scheduled_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:now',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
+            'attachments.*' => 'file|max:10240|extensions:pdf,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
+        ], [
+            'attachments.*.extensions' => 'Please upload PDF, Word (DOCX), Excel, PowerPoint, text, or image files.',
         ]);
 
         if ($validator->fails()) {
@@ -145,9 +147,11 @@ class AnnouncementController extends Controller
             'scheduled_at' => 'nullable|date',
             'expires_at' => 'nullable|date',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
+            'attachments.*' => 'file|max:10240|extensions:pdf,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
             'remove_attachments' => 'nullable|array',
             'remove_attachments.*' => 'string',
+        ], [
+            'attachments.*.extensions' => 'Please upload PDF, Word (DOCX), Excel, PowerPoint, text, or image files.',
         ]);
 
         if ($validator->fails()) {

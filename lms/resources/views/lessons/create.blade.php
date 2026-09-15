@@ -179,7 +179,7 @@
                                             <div class="form-group">
                                                 <label class="form-label">Lesson Materials (Optional)</label>
                                                 <div class="file-upload-wrapper">
-                                                    <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file" accept=".pdf,.doc,.docx,.ppt,.pptx">
+                                                    <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file" accept=".pdf,.docx,.ppt,.pptx">
                                                     <div class="file-upload-info mt-2" id="fileInfo" style="display: none;">
                                                         <div class="alert alert-info mb-0">
                                                             <i class="fas fa-file me-2"></i>
@@ -191,7 +191,7 @@
                                                     </div>
                                                 </div>
                                                 @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                                <small class="form-text text-muted">Supported formats: PDF, DOC, DOCX, PPT, PPTX (Max: 10MB)</small>
+                                                <small class="form-text text-muted">Supported formats: PDF, Word (DOCX), PPT, PPTX (Max: 10MB)</small>
                                             </div>
                                         </div>
                                     </div>
@@ -421,6 +421,13 @@ $(document).ready(function() {
         }
         if (file.size > maxSize) {
             alert('File size must be less than 10MB.');
+            this.value = '';
+            $('#fileInfo').hide();
+            return;
+        }
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!['pdf', 'docx', 'ppt', 'pptx'].includes(ext)) {
+            alert('Please select a valid file type (PDF, Word DOCX, PPT, PPTX).');
             this.value = '';
             $('#fileInfo').hide();
             return;

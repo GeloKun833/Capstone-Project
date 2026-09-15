@@ -116,10 +116,11 @@ class LessonController extends Controller
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'semester_id' => 'required|exists:semesters,id',
                 'lesson_date' => 'required|date',
-                'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx|max:10240',
+                'file' => 'nullable|file|max:10240|extensions:pdf,docx,ppt,pptx',
             ], [
                 'subject_id.in' => 'Select a subject assigned to you by Admin.',
                 'section_id.in' => 'Select a section assigned to you by Admin.',
+                'file.extensions' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
             ]);
 
             $subjectId = (int) $request->subject_id;
@@ -223,7 +224,9 @@ class LessonController extends Controller
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'semester_id' => 'required|exists:semesters,id',
                 'lesson_date' => 'required|date',
-                'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx|max:10240',
+                'file' => 'nullable|file|max:10240|extensions:pdf,docx,ppt,pptx',
+            ], [
+                'file.extensions' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
             ]);
             $data = $request->all();
             // Handle file upload

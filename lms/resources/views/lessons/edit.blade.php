@@ -159,8 +159,8 @@
                                                         </div>
                                                     </div>
                                                 @endif
-                                                <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file" accept=".pdf,.doc,.docx,.ppt,.pptx">
-                                                <small class="form-text text-muted">Supported formats: PDF, DOC, DOCX, PPT, PPTX (Max: 10MB). Leave empty to keep current file.</small>
+                                                <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file" accept=".pdf,.docx,.ppt,.pptx">
+                                                <small class="form-text text-muted">Supported formats: PDF, Word (DOCX), PPT, PPTX (Max: 10MB). Leave empty to keep current file.</small>
                                                 @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                             </div>
                                         </div>
@@ -548,7 +548,7 @@ $(document).ready(function() {
     $('#file').on('change', function() {
         const file = this.files[0];
         const maxSize = 10 * 1024 * 1024; // 10MB
-        const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+        const allowedExtensions = ['pdf', 'docx', 'ppt', 'pptx'];
         
         if (file) {
             if (file.size > maxSize) {
@@ -556,9 +556,10 @@ $(document).ready(function() {
                 this.value = '';
                 return;
             }
-            
-            if (!allowedTypes.includes(file.type)) {
-                alert('Please select a valid file type (PDF, DOC, DOCX, PPT, PPTX).');
+
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            if (!allowedExtensions.includes(ext)) {
+                alert('Please select a valid file type (PDF, Word DOCX, PPT, PPTX).');
                 this.value = '';
                 return;
             }

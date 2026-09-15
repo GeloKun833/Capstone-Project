@@ -94,8 +94,8 @@
                                 <label>Attachments <span class="text-muted">(optional)</span></label>
                                 <input type="file" class="form-control @error('attachments') is-invalid @enderror @error('attachments.*') is-invalid @enderror"
                                        name="attachments[]" multiple
-                                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.xls,.xlsx,.ppt,.pptx,image/*">
-                                <small class="text-muted">PDF, Word, Excel, PowerPoint, images, or TXT. Max 5 files, 10MB each.</small>
+                                       accept=".pdf,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.xls,.xlsx,.ppt,.pptx,image/*">
+                                <small class="text-muted">PDF, Word (DOCX), Excel, PowerPoint, images, or TXT. Max 5 files, 10MB each.</small>
                                 @error('attachments')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror

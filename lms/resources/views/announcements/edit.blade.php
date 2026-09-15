@@ -116,8 +116,8 @@
                                 @endif
                                 <label class="form-label mt-3">Add more files</label>
                                 <input type="file" class="form-control" name="attachments[]" multiple
-                                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.xls,.xlsx,.ppt,.pptx,image/*">
-                                <small class="text-muted">PDF, Word, Excel, PowerPoint, images, or TXT. Max 5 total, 10MB each.</small>
+                                       accept=".pdf,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.xls,.xlsx,.ppt,.pptx,image/*">
+                                <small class="text-muted">PDF, Word (DOCX), Excel, PowerPoint, images, or TXT. Max 5 total, 10MB each.</small>
                             </div>
                         </div>
                     </div>

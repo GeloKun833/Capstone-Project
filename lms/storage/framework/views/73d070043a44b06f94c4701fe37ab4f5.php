@@ -215,31 +215,6 @@
                     <?php endif; ?>
                 </div>
             </section>
-
-            
-            <?php if(isset($t['teacherSubjects']) && $t['teacherSubjects']->count() > 0): ?>
-            <section class="td-panel">
-                <div class="td-panel-head">
-                    <h2>Assigned Subjects by Grade</h2>
-                </div>
-                <?php $__currentLoopData = $t['teacherSubjects']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $gradeLevel => $subjects): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                    <div class="td-grade-block">
-                        <h4><?php echo e($gradeLevel); ?></h4>
-                        <div class="td-subject-chips">
-                            <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <span class="td-chip">
-                                    <?php echo e($subject->subject_name); ?>
-
-                                    <?php if($subject->sections && $subject->sections->isNotEmpty()): ?>
-                                        <em><?php echo e($subject->sections->pluck('name')->join(', ')); ?></em>
-                                    <?php endif; ?>
-                                </span>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </div>
-                    </div>
-                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-            </section>
-            <?php endif; ?>
         </div>
 
         

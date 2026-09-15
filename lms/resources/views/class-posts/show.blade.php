@@ -131,7 +131,7 @@
                                             <div class="form-group mb-3">
                                                 <label class="form-label">Attachment (Optional)</label>
                                                 <input type="file" name="comment_file" class="form-control" 
-                                                       accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png">
+                                                       accept=".pdf,.docx,.pptx,.txt,.jpg,.jpeg,.png">
                                                 <small class="form-text text-muted">Max size: 5MB</small>
                                             </div>
                                             <button type="submit" class="btn btn-primary btn-sm">
