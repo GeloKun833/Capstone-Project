@@ -13,13 +13,14 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Notifications\LowGradeAlertNotification;
+use App\Support\AcademicThresholds;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class StudentPerformanceService
 {
-    public const LOW_GRADE_THRESHOLD = 75.0;
+    public const LOW_GRADE_THRESHOLD = AcademicThresholds::PASSING_PERCENTAGE;
 
     public const AT_RISK_THRESHOLD = 70.0;
 
@@ -403,15 +404,91 @@ class StudentPerformanceService
     /**
      * Create/update alerts from quarterly grades for affected subjects & students.
      */
-    public function checkAlertsForSubjects(iterable $subjectIds, int $academicYearId, int $semesterId): void
+    public function checkAlertsForSubjects(iterable $subjectIds, int $academicYearId, int $semesterId, bool $notify = true): void
     {
         $quarterFields = $this->quarterFieldsForSemester($academicYearId, $semesterId);
 
         foreach (collect($subjectIds)->unique()->filter() as $subjectId) {
-            $this->checkSubjectAlerts((int) $subjectId, $academicYearId, $semesterId, $quarterFields);
+            $this->checkSubjectAlerts((int) $subjectId, $academicYearId, $semesterId, $quarterFields, $notify);
         }
 
         $this->checkAtRiskStudents($academicYearId, $semesterId, $quarterFields);
+    }
+
+    /**
+     * Build missing Grade Alerts from current failing averages so the hub
+     * matches Passed/Failed counts even when grades were imported or seeded.
+     */
+    public function syncAlertsForScope(int $academicYearId, int $semesterId, ?int $sectionId = null, ?array $allowedStudentIds = null): void
+    {
+        $studentQuery = Student::query();
+        if ($allowedStudentIds !== null) {
+            $studentQuery->whereIn('id', $allowedStudentIds);
+        }
+        if ($sectionId) {
+            $studentQuery->whereHas('sections', fn ($q) => $q->where('sections.id', $sectionId));
+        }
+
+        $studentIds = $studentQuery->pluck('id');
+        if ($studentIds->isEmpty()) {
+            return;
+        }
+
+        $subjectIds = QuarterlyGrade::query()
+            ->where('academic_year_id', $academicYearId)
+            ->whereIn('student_id', $studentIds)
+            ->distinct()
+            ->pluck('subject_id');
+
+        if ($subjectIds->isEmpty()) {
+            $subjectIds = Grade::query()
+                ->where('academic_year_id', $academicYearId)
+                ->where('semester_id', $semesterId)
+                ->whereIn('student_id', $studentIds)
+                ->distinct()
+                ->pluck('subject_id');
+        }
+
+        $this->checkAlertsForSubjects($subjectIds, $academicYearId, $semesterId, false);
+        $this->syncOverallFailingAlerts($academicYearId, $semesterId, $sectionId, $allowedStudentIds);
+    }
+
+    /**
+     * Ensure each student below the passing average has a visible open alert.
+     */
+    protected function syncOverallFailingAlerts(int $academicYearId, int $semesterId, ?int $sectionId, ?array $allowedStudentIds): void
+    {
+        $rows = $this->rankingRows($academicYearId, $semesterId, $sectionId, $allowedStudentIds);
+        $failing = $rows->filter(fn ($r) => $r->general_average !== null && $r->general_average < self::LOW_GRADE_THRESHOLD);
+
+        foreach ($failing as $row) {
+            $studentId = (int) (optional($row->student)->id ?? optional($row->record)->student_id ?? 0);
+            if ($studentId < 1) {
+                continue;
+            }
+
+            $avg = round((float) $row->general_average, 2);
+            $first = optional($row->student)->first_name;
+            $last = optional($row->student)->last_name;
+            $name = trim(($last ?? '').', '.($first ?? ''), ' ,');
+
+            GradeAlert::firstOrCreate(
+                [
+                    'student_id' => $studentId,
+                    'subject_id' => null,
+                    'alert_type' => GradeAlert::TYPE_AT_RISK,
+                    'academic_year_id' => $academicYearId,
+                    'semester_id' => $semesterId,
+                    'is_resolved' => false,
+                ],
+                [
+                    'message' => ($name !== '' ? $name.' is' : 'Student is')
+                        .' below passing average ('.number_format($avg, 2).'%). Needs attention.',
+                    'threshold_value' => self::LOW_GRADE_THRESHOLD,
+                    'current_value' => $avg,
+                ]
+            );
+        }
     }
 
     public function resolveAlert(GradeAlert $alert, User $resolver): GradeAlert
@@ -563,7 +640,8 @@ class StudentPerformanceService
         int $subjectId,
         int $academicYearId,
         int $semesterId,
-        array $quarterFields
+        array $quarterFields,
+        bool $notify = true
     ): void {
         $subject = Subject::find($subjectId);
         if (! $subject) {
@@ -598,7 +676,7 @@ class StudentPerformanceService
                     ]
                 );
 
-                if ($alert->wasRecentlyCreated) {
+                if ($alert->wasRecentlyCreated && $notify) {
                     $this->notifyLowGrade($row, $subject, $pct);
                 } else {
                     $alert->update([

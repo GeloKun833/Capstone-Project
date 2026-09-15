@@ -119,9 +119,17 @@
                                             <input type="radio" name="attendance[{{ $student->id }}][status]" value="present" {{ $status === 'present' ? 'checked' : '' }} required>
                                             Present
                                         </label>
+                                        <label class="att-choice is-late">
+                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="late" {{ $status === 'late' ? 'checked' : '' }}>
+                                            Late
+                                        </label>
                                         <label class="att-choice is-absent">
-                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="absent" {{ $status === 'absent' ? 'checked' : '' }} required>
+                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="absent" {{ $status === 'absent' ? 'checked' : '' }}>
                                             Absent
+                                        </label>
+                                        <label class="att-choice is-excused">
+                                            <input type="radio" name="attendance[{{ $student->id }}][status]" value="excused" {{ $status === 'excused' ? 'checked' : '' }}>
+                                            Excused
                                         </label>
                                     </div>
                                     <input type="text" class="form-control att-note" name="attendance[{{ $student->id }}][remarks]"
@@ -150,17 +158,21 @@
                                 <tr>
                                     <th>Student</th>
                                     <th class="text-center">Present</th>
+                                    <th class="text-center">Late</th>
                                     <th class="text-center">Absent</th>
+                                    <th class="text-center">Excused</th>
                                     <th class="text-center">Rate</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($students as $student)
-                                    @php $row = $summary[$student->id] ?? ['present'=>0,'absent'=>0,'percentage'=>0]; @endphp
+                                    @php $row = $summary[$student->id] ?? ['present'=>0,'late'=>0,'absent'=>0,'excused'=>0,'percentage'=>0]; @endphp
                                     <tr>
                                         <td>{{ $student->last_name }}, {{ $student->first_name }}</td>
                                         <td class="text-center">{{ $row['present'] }}</td>
+                                        <td class="text-center">{{ $row['late'] ?? 0 }}</td>
                                         <td class="text-center">{{ $row['absent'] }}</td>
+                                        <td class="text-center">{{ $row['excused'] ?? 0 }}</td>
                                         <td class="text-center">
                                             <span class="dir-badge {{ ($row['percentage'] ?? 0) >= 90 ? 'dir-badge--active' : (($row['percentage'] ?? 0) >= 75 ? 'dir-badge--inactive' : 'dir-badge--disabled') }}">
                                                 {{ $row['percentage'] }}%
@@ -225,9 +237,9 @@
     margin-bottom: 0.5rem;
 }
 .att-name strong { color: #1e293b; }
-.att-choices { display: flex; gap: 0.4rem; }
+.att-choices { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .att-choice {
-    min-width: 96px;
+    min-width: 78px;
     text-align: center;
     padding: 0.45rem 0.7rem;
     border-radius: 999px;
@@ -245,10 +257,15 @@
     border-color: #86efac;
     color: #166534;
 }
-.att-choice.is-absent:has(input:checked) {
-    background: #fee2e2;
-    border-color: #fca5a5;
-    color: #991b1b;
+.att-choice.is-late:has(input:checked) {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+.att-choice.is-excused:has(input:checked) {
+    background: #e0e7ff;
+    border-color: #a5b4fc;
+    color: #3730a3;
 }
 .att-note { border-radius: 10px; min-height: 40px; }
 .att-footer {

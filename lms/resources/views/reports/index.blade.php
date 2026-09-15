@@ -24,7 +24,7 @@
 
         <div class="dir-tip mb-4">
             <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
-            For many students, use <strong>Entire grade</strong> or <strong>Entire section</strong> to download a ZIP of PDFs.
+            Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
         </div>
 
         <div class="row g-3">
@@ -32,7 +32,7 @@
                 <div class="dir-report-card">
                     <span class="dir-report-icon is-blue"><i class="fas fa-file-alt"></i></span>
                     <h5>Student Transcript</h5>
-                    <p class="dir-subtitle mb-3">Academic history — one student or bulk by grade/section</p>
+                    <p class="dir-subtitle mb-3">Academic history — one student or all enrolled students in a section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
                     </button>
@@ -54,7 +54,7 @@
                 <div class="dir-report-card">
                     <span class="dir-report-icon is-amber"><i class="fas fa-clipboard-list"></i></span>
                     <h5>Grade Slip</h5>
-                    <p class="dir-subtitle mb-3">Period grades — one student or bulk ZIP by grade</p>
+                    <p class="dir-subtitle mb-3">Period grades — one student or all enrolled students in a section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
                     </button>
@@ -65,7 +65,7 @@
                 <div class="dir-report-card">
                     <span class="dir-report-icon is-sky"><i class="fas fa-chart-line"></i></span>
                     <h5>Progress Report</h5>
-                    <p class="dir-subtitle mb-3">Performance summary — one student or bulk by grade</p>
+                    <p class="dir-subtitle mb-3">Performance summary — one student or all enrolled students in a section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
                     </button>
@@ -112,8 +112,8 @@
                             <label class="form-label">Scope</label>
                             <select class="form-select scope-select" name="scope">
                                 <option value="single">One student</option>
-                                <option value="section">Entire section (ZIP)</option>
-                                <option value="grade">Entire grade (ZIP)</option>
+                                <option value="section">Entire section</option>
+                                <option value="grade">Entire grade</option>
                             </select>
                         </div>
                         <div class="col-md-12 student-wrap">
@@ -147,7 +147,7 @@
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
                             </select>
-                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
                 </div>
@@ -184,7 +184,7 @@
                             <label class="form-label">Scope</label>
                             <select class="form-select scope-select" name="scope">
                                 <option value="single">One section</option>
-                                <option value="grade">All sections in grade (ZIP)</option>
+                                <option value="grade">All sections in grade</option>
                             </select>
                         </div>
                         <div class="col-md-12 section-wrap">
@@ -217,7 +217,7 @@
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
                             </select>
-                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
                 </div>
@@ -260,8 +260,8 @@
                             <label class="form-label">Scope</label>
                             <select class="form-select scope-select" name="scope">
                                 <option value="single">One student</option>
-                                <option value="section">Entire section (ZIP)</option>
-                                <option value="grade">Entire grade (ZIP)</option>
+                                <option value="section">Entire section</option>
+                                <option value="grade">Entire grade</option>
                             </select>
                         </div>
                         <div class="col-md-12 student-wrap">
@@ -295,7 +295,7 @@
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
                             </select>
-                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
                 </div>
@@ -338,8 +338,8 @@
                             <label class="form-label">Scope</label>
                             <select class="form-select scope-select" name="scope">
                                 <option value="single">One student</option>
-                                <option value="section">Entire section (ZIP)</option>
-                                <option value="grade">Entire grade (ZIP)</option>
+                                <option value="section">Entire section</option>
+                                <option value="grade">Entire grade</option>
                             </select>
                         </div>
                         <div class="col-md-12 student-wrap">
@@ -373,7 +373,7 @@
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
                             </select>
-                            <small class="text-muted bulk-format-note d-none">Bulk downloads are ZIP of PDFs.</small>
+                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
                 </div>
@@ -564,7 +564,7 @@
                 return;
             }
 
-            // Bulk ZIP
+            // Combined PDF of enrolled students
             params.set('grade_level', grade);
             if (scope === 'section') {
                 if (!sectionId) {
@@ -573,7 +573,6 @@
                 }
                 params.set('section_id', sectionId);
             }
-            // force pdf for bulk
             params.set('format', 'pdf');
             window.location.href = form.dataset.bulkUrl + '?' + params.toString();
         });

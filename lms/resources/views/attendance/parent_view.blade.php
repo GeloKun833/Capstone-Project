@@ -60,11 +60,15 @@
                                     <td>{{ \Carbon\Carbon::parse($attendance->date)->format('M d, Y') }}</td>
                                     <td>{{ $attendance->subject->subject_name }}</td>
                                     <td>
-                                        @if($attendance->status === 'present')
-                                            <span class="badge bg-success">Present</span>
-                                        @else
-                                            <span class="badge bg-danger">Absent</span>
-                                        @endif
+                                    @if($attendance->status === 'present')
+                                        <span class="badge bg-success">Present</span>
+                                    @elseif($attendance->status === 'late')
+                                        <span class="badge bg-warning text-dark">Late</span>
+                                    @elseif($attendance->status === 'excused')
+                                        <span class="badge bg-info">Excused</span>
+                                    @else
+                                        <span class="badge bg-danger">Absent</span>
+                                    @endif
                                     </td>
                                     <td>{{ $attendance->remarks ?: '-' }}</td>
                                     <td>{{ $attendance->teacher->full_name }}</td>
@@ -86,7 +90,9 @@
                                 <div class="col-md-4">
                                     <p class="mb-1">Total Classes: {{ $summary['total'] }}</p>
                                     <p class="mb-1">Present: {{ $summary['present'] }}</p>
+                                    <p class="mb-1">Late: {{ $summary['late'] ?? 0 }}</p>
                                     <p class="mb-1">Absent: {{ $summary['absent'] }}</p>
+                                    <p class="mb-1">Excused: {{ $summary['excused'] ?? 0 }}</p>
                                     <p class="mb-0">Attendance Rate: {{ $summary['percentage'] }}%</p>
                                 </div>
                             </div>

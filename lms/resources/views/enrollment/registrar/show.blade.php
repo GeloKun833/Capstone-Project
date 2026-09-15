@@ -689,13 +689,30 @@
                             <form action="{{ route('enrollment.registrar.approve', $application->id) }}" method="POST" class="mb-3">
                                 @csrf
                                 <div class="form-group mb-3">
+                                    <label>Section <span class="text-danger">*</span></label>
+                                    <select name="section_id" class="form-control" required>
+                                        <option value="">Select a section</option>
+                                        @foreach($sections as $section)
+                                            <option value="{{ $section->id }}" @selected((int) old('section_id', $application->preferred_section_id) === (int) $section->id)>
+                                                {{ $section->name }} ({{ $section->grade_level }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('section_id')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                                <div class="form-group mb-3">
                                     <label>Approval Notes (Optional)</label>
                                     <textarea class="form-control" name="notes" rows="3" 
-                                              placeholder="Add any notes about the approval..."></textarea>
+                                              placeholder="Add any notes about the approval...">{{ old('notes') }}</textarea>
                                 </div>
-                                <button type="submit" class="btn btn-success w-100">
+                                <button type="submit" class="btn btn-success w-100" @disabled($sections->isEmpty())>
                                     <i class="fas fa-check me-2"></i>Approve Application
                                 </button>
+                                @if($sections->isEmpty())
+                                    <small class="text-danger d-block mt-2">Create a section for this grade before approving.</small>
+                                @endif
                             </form>
 
                             <!-- Reject Form -->
@@ -1019,6 +1036,20 @@ function testModal() {
 
                     <!-- Account Credentials -->
                     <div class="mb-3">
+                        <label for="section_id" class="form-label fw-bold">
+                            Section <span class="text-danger">*</span>
+                        </label>
+                        <select name="section_id" id="section_id" class="form-control" required>
+                            <option value="">Select a section</option>
+                            @foreach($sections as $section)
+                                <option value="{{ $section->id }}" @selected((int) old('section_id', $application->preferred_section_id) === (int) $section->id)>
+                                    {{ $section->name }} ({{ $section->grade_level }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="username" class="form-label fw-bold">
                             <i class="fas fa-user me-1"></i>Username <span class="text-danger">*</span>
                         </label>
@@ -1040,13 +1071,13 @@ function testModal() {
                                    class="form-control" 
                                    id="password" 
                                    name="password" 
-                                   value="password123" 
+                                   value="{{ $temporaryPassword }}" 
                                    required>
                             <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                                 <i class="fas fa-eye"></i>
                             </button>
                         </div>
-                        <small class="text-muted">Default password is "password123". Student can change it after login.</small>
+                        <small class="text-muted">A temporary password was generated. Share it once, then the student should change it after login.</small>
                     </div>
 
                     <div class="mb-3">

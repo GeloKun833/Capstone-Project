@@ -68,6 +68,7 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
     Route::controller(\App\Http\Controllers\Auth\PasswordResetLinkController::class)->group(function () {
         Route::get('password/reset', 'create')->name('password.request');
         Route::post('password/email', 'store')->name('password.email');
+        Route::get('password/reset/continue', 'continueReset')->name('password.reset.continue');
     });
 
     Route::controller(\App\Http\Controllers\Auth\NewPasswordController::class)->group(function () {
@@ -136,11 +137,11 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
         Route::get('student/edit/{id}', 'studentEdit')->middleware(['auth', 'role:Admin']); // view for edit
         Route::post('student/update', 'studentUpdate')->middleware(['auth', 'role:Admin'])->name('student/update'); // update record student
         Route::post('student/delete', 'studentDelete')->middleware(['auth', 'role:Admin'])->name('student/delete'); // delete record student
-        Route::get('student/profile/{id}', 'studentProfile')->middleware('auth'); // profile student
+        Route::get('student/profile/{id}', 'studentProfile')->middleware('auth')->name('student.profile');
     });
 
     // Restore archived student
-    Route::post('student/restore/{id}', [App\Http\Controllers\StudentController::class, 'restore'])->name('student.restore');
+    Route::post('student/restore/{id}', [App\Http\Controllers\StudentController::class, 'restore'])->middleware(['auth', 'role:Admin|Registrar'])->name('student.restore');
 
     // ------------------------ student promotions -------------------------------//
     Route::controller(App\Http\Controllers\PromotionController::class)->group(function () {
@@ -189,22 +190,22 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 
     // ----------------------- invoice -----------------------------//
     Route::controller(InvoiceController::class)->group(function () {
-        Route::get('invoice/list/page', 'invoiceList')->middleware('auth')->name('invoice/list/page'); // subjeinvoicect/list/page
-        Route::get('invoice/paid/page', 'invoicePaid')->middleware('auth')->name('invoice/paid/page'); // invoice/paid/page
-        Route::get('invoice/overdue/page', 'invoiceOverdue')->middleware('auth')->name('invoice/overdue/page'); // invoice/overdue/page
-        Route::get('invoice/draft/page', 'invoiceDraft')->middleware('auth')->name('invoice/draft/page'); // invoice/draft/page
-        Route::get('invoice/recurring/page', 'invoiceRecurring')->middleware('auth')->name('invoice/recurring/page'); // invoice/recurring/page
-        Route::get('invoice/cancelled/page', 'invoiceCancelled')->middleware('auth')->name('invoice/cancelled/page'); // invoice/cancelled/page
-        Route::get('invoice/grid/page', 'invoiceGrid')->middleware('auth')->name('invoice/grid/page'); // invoice/grid/page
-        Route::get('invoice/add/page', 'invoiceAdd')->middleware('auth')->name('invoice/add/page'); // invoice/add/page
-        Route::post('invoice/add/save', 'saveRecord')->name('invoice/add/save'); // invoice/add/save
-        Route::post('invoice/update/save', 'updateRecord')->name('invoice/update/save'); // invoice/update/save
-        Route::post('invoice/delete', 'deleteRecord')->name('invoice/delete'); // invoice/delete
-        Route::get('invoice/edit/{invoice_id}', 'invoiceEdit')->middleware('auth')->name('invoice/edit/page'); // invoice/edit/page
-        Route::get('invoice/view/{invoice_id}', 'invoiceView')->middleware('auth')->name('invoice/view/page'); // invoice/view/page
-        Route::get('invoice/settings/page', 'invoiceSettings')->middleware('auth')->name('invoice/settings/page'); // invoice/settings/page
-        Route::get('invoice/settings/tax/page', 'invoiceSettingsTax')->middleware('auth')->name('invoice/settings/tax/page'); // invoice/settings/tax/page
-        Route::get('invoice/settings/bank/page', 'invoiceSettingsBank')->middleware('auth')->name('invoice/settings/bank/page'); // invoice/settings/bank/page
+        Route::get('invoice/list/page', 'invoiceList')->middleware('auth')->name('invoice/list/page');
+        Route::get('invoice/paid/page', 'invoicePaid')->middleware('auth')->name('invoice/paid/page');
+        Route::get('invoice/overdue/page', 'invoiceOverdue')->middleware('auth')->name('invoice/overdue/page');
+        Route::get('invoice/draft/page', 'invoiceDraft')->middleware('auth')->name('invoice/draft/page');
+        Route::get('invoice/recurring/page', 'invoiceRecurring')->middleware('auth')->name('invoice/recurring/page');
+        Route::get('invoice/cancelled/page', 'invoiceCancelled')->middleware('auth')->name('invoice/cancelled/page');
+        Route::get('invoice/grid/page', 'invoiceGrid')->middleware('auth')->name('invoice/grid/page');
+        Route::get('invoice/add/page', 'invoiceAdd')->middleware('auth')->name('invoice/add/page');
+        Route::post('invoice/add/save', 'saveRecord')->middleware('auth')->name('invoice/add/save');
+        Route::post('invoice/update/save', 'updateRecord')->middleware('auth')->name('invoice/update/save');
+        Route::post('invoice/delete', 'deleteRecord')->middleware('auth')->name('invoice/delete');
+        Route::get('invoice/edit/{invoice_id}', 'invoiceEdit')->middleware('auth')->name('invoice/edit/page');
+        Route::get('invoice/view/{invoice_id}', 'invoiceView')->middleware('auth')->name('invoice/view/page');
+        Route::get('invoice/settings/page', 'invoiceSettings')->middleware('auth')->name('invoice/settings/page');
+        Route::get('invoice/settings/tax/page', 'invoiceSettingsTax')->middleware('auth')->name('invoice/settings/tax/page');
+        Route::get('invoice/settings/bank/page', 'invoiceSettingsBank')->middleware('auth')->name('invoice/settings/bank/page');
     });
 
     // ----------------------- accounts ----------------------------//
@@ -411,13 +412,13 @@ Route::group(['middleware' => ['role:Parent']], function () {
     // Place parent-only routes here
 });
 
-Route::get('subjects/{id}/assign-teachers', [SubjectController::class, 'assignTeachersForm'])->name('subjects.assignTeachersForm');
-Route::post('subjects/{id}/assign-teachers', [SubjectController::class, 'assignTeachers'])->name('subjects.assignTeachers');
-Route::get('sections/{id}/assign-students', [SectionController::class, 'assignStudentsForm'])->name('sections.assignStudentsForm');
-Route::post('sections/{id}/assign-students', [SectionController::class, 'assignStudents'])->name('sections.assignStudents');
+Route::get('subjects/{id}/assign-teachers', [SubjectController::class, 'assignTeachersForm'])->middleware(['auth', 'role:Admin|Registrar'])->name('subjects.assignTeachersForm');
+Route::post('subjects/{id}/assign-teachers', [SubjectController::class, 'assignTeachers'])->middleware(['auth', 'role:Admin|Registrar'])->name('subjects.assignTeachers');
+Route::get('sections/{id}/assign-students', [SectionController::class, 'assignStudentsForm'])->middleware(['auth', 'role:Admin|Registrar'])->name('sections.assignStudentsForm');
+Route::post('sections/{id}/assign-students', [SectionController::class, 'assignStudents'])->middleware(['auth', 'role:Admin|Registrar'])->name('sections.assignStudents');
 
 // ----------------------- Enrollment Portal Routes -----------------------------//
-// Public enrollment portal routes (no CSRF protection)
+// Public apply/status flows; application show/download require session or staff access.
 Route::get('/enrollment-portal/', [App\Http\Controllers\EnrollmentPortalController::class, 'index'])->name('enrollment.portal.index');
 Route::get('/enrollment-portal/apply', [App\Http\Controllers\EnrollmentPortalController::class, 'create'])->name('enrollment.portal.create');
 Route::post('/enrollment-portal/apply', [App\Http\Controllers\EnrollmentPortalController::class, 'store'])->name('enrollment.portal.store');
@@ -458,8 +459,8 @@ Route::group(['prefix' => 'admin/enrollment', 'middleware' => ['auth', 'role:Adm
     Route::post('/document/{id}/reject', [App\Http\Controllers\EnrollmentRegistrarController::class, 'rejectDocument'])->name('enrollment.registrar.reject-document');
     Route::post('/{id}/create-manual-account', [App\Http\Controllers\EnrollmentRegistrarController::class, 'createManualAccount'])->name('enrollment.registrar.create-manual-account');
 });
-Route::get('teacher/{id}/assign-grade-levels', [App\Http\Controllers\TeacherController::class, 'assignGradeLevelsForm'])->name('teacher.assignGradeLevelsForm');
-Route::post('teacher/{id}/assign-grade-levels', [App\Http\Controllers\TeacherController::class, 'assignGradeLevels'])->name('teacher.assignGradeLevels');
+Route::get('teacher/{id}/assign-grade-levels', [App\Http\Controllers\TeacherController::class, 'assignGradeLevelsForm'])->middleware(['auth', 'role:Admin'])->name('teacher.assignGradeLevelsForm');
+Route::post('teacher/{id}/assign-grade-levels', [App\Http\Controllers\TeacherController::class, 'assignGradeLevels'])->middleware(['auth', 'role:Admin'])->name('teacher.assignGradeLevels');
 Route::get('api/sections/{section}/subjects', function(App\Models\Section $section) {
     return $section->students()
         ->with('subjects')

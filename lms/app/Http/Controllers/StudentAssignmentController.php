@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Assignment;
 use App\Models\AssignmentSubmission;
+use App\Support\SafeUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -180,6 +181,27 @@ class StudentAssignmentController extends Controller
                 ->withInput();
         }
 
+        $detectedMime = strtolower((string) $file->getMimeType());
+        $allowedMimes = [
+            'pdf' => ['application/pdf'],
+            'doc' => ['application/msword'],
+            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            'ppt' => ['application/vnd.ms-powerpoint'],
+            'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+            'jpg' => ['image/jpeg'],
+            'jpeg' => ['image/jpeg'],
+            'png' => ['image/png'],
+        ];
+        $expectedMimes = [];
+        foreach ($allowed as $allowedExt) {
+            $expectedMimes = array_merge($expectedMimes, $allowedMimes[$allowedExt] ?? []);
+        }
+        if ($expectedMimes && ! in_array($detectedMime, $expectedMimes, true)) {
+            return redirect()->back()
+                ->withErrors(['submission_file' => 'The file contents do not match an allowed type.'])
+                ->withInput();
+        }
+
         $maxMb = $assignment->submissionMaxMb();
         if ($file->getSize() > $maxMb * 1024 * 1024) {
             return redirect()->back()
@@ -188,8 +210,8 @@ class StudentAssignmentController extends Controller
         }
 
         try {
-            $safeName = time() . '_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
-            $filePath = $file->storeAs('assignment-submissions', $safeName, 'public');
+            $stored = SafeUpload::store($file, 'assignment-submissions');
+            $filePath = $stored['path'];
         } catch (\Exception $e) {
             return redirect()->back()
                 ->withErrors(['submission_file' => 'Could not save the file. Please try again.'])

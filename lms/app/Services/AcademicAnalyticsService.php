@@ -11,6 +11,7 @@ use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\ActivitySubmission;
+use App\Support\AcademicThresholds;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
@@ -104,13 +105,7 @@ class AcademicAnalyticsService
     private function getStudentAttendanceSummary($studentId, $academicYearId = null, $semesterId = null)
     {
         $query = Attendance::where('student_id', $studentId);
-
-        if ($academicYearId && Schema::hasColumn('attendances', 'academic_year_id')) {
-            $query->where('academic_year_id', $academicYearId);
-        }
-        if ($semesterId && Schema::hasColumn('attendances', 'semester_id')) {
-            $query->where('semester_id', $semesterId);
-        }
+        $this->constrainAttendanceQuery($query, $academicYearId, $semesterId);
 
         $attendance = $query->get();
 
@@ -123,7 +118,7 @@ class AcademicAnalyticsService
                 $monthlyData[$month] = ['present' => 0, 'total' => 0];
             }
             $monthlyData[$month]['total']++;
-            if ($record->status === 'present') {
+            if (Attendance::countsAsPresent($record->status)) {
                 $monthlyData[$month]['present']++;
             }
         }
@@ -155,7 +150,7 @@ class AcademicAnalyticsService
 
         $totalGrades = $grades->count();
         $averageScore = $grades->avg('percentage') ?? 0;
-        $lowGrades = $grades->where('percentage', '<', 75)->count();
+        $lowGrades = $grades->where('percentage', '<', AcademicThresholds::PASSING_PERCENTAGE)->count();
         $excellentGrades = $grades->where('percentage', '>=', 90)->count();
 
         return [
@@ -351,10 +346,13 @@ class AcademicAnalyticsService
             $q->where('teacher_id', $teacherId);
         })->pluck('id');
 
-        $query = Attendance::whereIn('section_id', $sections);
-
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        $query = Attendance::query();
+        if (Schema::hasColumn('attendances', 'section_id')) {
+            $query->whereIn('section_id', $sections);
+        } elseif (Schema::hasColumn('attendances', 'teacher_id')) {
+            $query->where('teacher_id', $teacherId);
+        }
+        $this->constrainAttendanceQuery($query, $academicYearId, $semesterId);
 
         $attendance = $query->get();
 
@@ -362,7 +360,7 @@ class AcademicAnalyticsService
         foreach ($attendance->groupBy('section_id') as $sectionId => $sectionAttendance) {
             $section = Section::find($sectionId);
             $totalRecords = $sectionAttendance->count();
-            $presentRecords = $sectionAttendance->where('status', 'present')->count();
+            $presentRecords = $sectionAttendance->filter(fn ($row) => Attendance::countsAsPresent($row->status))->count();
             
             $overview[] = [
                 'section' => $section->name,
@@ -471,22 +469,17 @@ class AcademicAnalyticsService
         $gradeStats = $gradeQuery
             ->selectRaw('COUNT(*) as total_grades')
             ->selectRaw('AVG(percentage) as average_score')
-            ->selectRaw('SUM(CASE WHEN percentage >= 60 THEN 1 ELSE 0 END) as passing_grades')
+            ->selectRaw('SUM(CASE WHEN percentage >= ? THEN 1 ELSE 0 END) as passing_grades', [AcademicThresholds::PASSING_PERCENTAGE])
             ->first();
 
         $totalGrades = (int) ($gradeStats->total_grades ?? 0);
         $passing = (int) ($gradeStats->passing_grades ?? 0);
 
         $attendanceQuery = Attendance::query();
-        if ($academicYearId) {
-            $attendanceQuery->where('academic_year_id', $academicYearId);
-        }
-        if ($semesterId) {
-            $attendanceQuery->where('semester_id', $semesterId);
-        }
+        $this->constrainAttendanceQuery($attendanceQuery, $academicYearId, $semesterId);
         $attendanceStats = $attendanceQuery
             ->selectRaw('COUNT(*) as total')
-            ->selectRaw("SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present")
+            ->selectRaw("SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) as present")
             ->first();
         $attTotal = (int) ($attendanceStats->total ?? 0);
         $attPresent = (int) ($attendanceStats->present ?? 0);
@@ -624,11 +617,15 @@ class AcademicAnalyticsService
         $rates = [];
         foreach ($grades->groupBy('subject_id') as $subjectId => $subjectGrades) {
             $subject = $subjectGrades->first()->subject;
+            if (!$subject) {
+                continue;
+            }
             $totalGrades = $subjectGrades->count();
-            $passingGrades = $subjectGrades->where('percentage', '>=', 60)->count();
+            $passingGrades = $subjectGrades->where('percentage', '>=', AcademicThresholds::PASSING_PERCENTAGE)->count();
 
             $rates[] = [
-                'subject' => $subject->subject_name,
+                'subject' => $subject->subject_name ?? 'Subject',
+                'grade' => $subject->class ?? 'N/A',
                 'pass_rate' => $totalGrades > 0 ? round(($passingGrades / $totalGrades) * 100, 2) : 0,
                 'fail_rate' => $totalGrades > 0 ? round((($totalGrades - $passingGrades) / $totalGrades) * 100, 2) : 0,
                 'total_students' => $totalGrades
@@ -644,9 +641,7 @@ class AcademicAnalyticsService
     private function getSchoolAttendanceSummary($academicYearId = null, $semesterId = null)
     {
         $query = Attendance::query();
-
-        if ($academicYearId) $query->where('academic_year_id', $academicYearId);
-        if ($semesterId) $query->where('semester_id', $semesterId);
+        $this->constrainAttendanceQuery($query, $academicYearId, $semesterId);
 
         $attendance = $query->get();
 
@@ -659,7 +654,7 @@ class AcademicAnalyticsService
                 $monthlyData[$month] = ['present' => 0, 'total' => 0];
             }
             $monthlyData[$month]['total']++;
-            if ($record->status === 'present') {
+            if (Attendance::countsAsPresent($record->status)) {
                 $monthlyData[$month]['present']++;
             }
         }
@@ -692,8 +687,12 @@ class AcademicAnalyticsService
         $performance = [];
         foreach ($grades->groupBy('subject_id') as $subjectId => $subjectGrades) {
             $subject = $subjectGrades->first()->subject;
+            if (!$subject) {
+                continue;
+            }
             $performance[] = [
-                'subject' => $subject->subject_name,
+                'subject' => $subject->subject_name ?? 'Subject',
+                'grade' => $subject->class ?? 'N/A',
                 'average_score' => round($subjectGrades->avg('percentage'), 2),
                 'students_count' => $subjectGrades->groupBy('student_id')->count(),
                 'assignments_count' => $subjectGrades->count()
@@ -786,5 +785,32 @@ class AcademicAnalyticsService
         if ($averageScore >= 70) return 'Average';
         if ($averageScore >= 60) return 'Below Average';
         return 'Needs Improvement';
+    }
+
+    /**
+     * Attendances do not always have academic_year_id / semester_id columns.
+     * Filter by those columns when present, otherwise by academic-year dates.
+     */
+    private function constrainAttendanceQuery($query, $academicYearId = null, $semesterId = null)
+    {
+        if ($academicYearId && Schema::hasColumn('attendances', 'academic_year_id')) {
+            $query->where('academic_year_id', $academicYearId);
+        } elseif ($academicYearId) {
+            $year = AcademicYear::find($academicYearId);
+            $start = optional($year)->start_date;
+            $end = optional($year)->end_date;
+            if ($start && $end) {
+                $query->whereBetween('date', [
+                    Carbon::parse($start)->toDateString(),
+                    Carbon::parse($end)->toDateString(),
+                ]);
+            }
+        }
+
+        if ($semesterId && Schema::hasColumn('attendances', 'semester_id')) {
+            $query->where('semester_id', $semesterId);
+        }
+
+        return $query;
     }
 } 

@@ -819,7 +819,7 @@
                                             <p class="mb-0">
                                                 <small class="text-muted">
                                                     <i class="fas fa-key text-warning me-1"></i>
-                                                    <strong>Login Credentials:</strong> The parent will use their email address and password: <code>password123</code>
+                                                    <strong>Login Credentials:</strong> After you submit, a temporary password will be shown once on the success page. Save it and change it after first login.
                                                 </small>
                                             </p>
                                             <p class="mb-0 mt-1">

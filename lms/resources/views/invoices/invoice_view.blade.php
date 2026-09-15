@@ -23,7 +23,7 @@
                                             <strong class="customer-text-one">Invoice From</strong>
                                             <h6 class="invoice-name">Company Name</h6>
                                             <p class="invoice-details">
-                                                {!! nl2br(($invoiceView->invoice_to)) !!}
+                                                {!! nl2br(e($invoiceView->invoice_to)) !!}
                                             </p>
                                         </div>
                                     </div>
@@ -37,7 +37,7 @@
                                             <strong class="customer-text-one">Billed to</strong>
                                             <h6 class="invoice-name"></h6>
                                             <p class="invoice-details invoice-details-two">
-                                                {!! nl2br(($invoiceView->invoice_from)) !!}
+                                                {!! nl2br(e($invoiceView->invoice_from)) !!}
                                             </p>
                                         </div>
                                     </div>

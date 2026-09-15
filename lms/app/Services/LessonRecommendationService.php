@@ -10,7 +10,7 @@ use App\Models\Grade;
 use App\Models\Subject;
 use App\Models\CurriculumObjective;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
+use App\Support\AcademicThresholds;
 
 class LessonRecommendationService
 {
@@ -281,7 +281,7 @@ class LessonRecommendationService
     private function identifyWeakAreas($subjectPerformance)
     {
         $weakAreas = [];
-        $threshold = 75; // Consider below 75% as weak
+        $threshold = AcademicThresholds::PASSING_PERCENTAGE;
         
         foreach ($subjectPerformance as $subject) {
             if ($subject['average_score'] < $threshold && $subject['total_assignments'] > 0) {
@@ -325,7 +325,7 @@ class LessonRecommendationService
         // Calculate averages and identify weak topics
         foreach ($topicScores as $topic => $scores) {
             $average = $scores['total'] / $scores['count'];
-            if ($average < 75) {
+            if ($average < AcademicThresholds::PASSING_PERCENTAGE) {
                 $weakTopics[] = $topic;
             }
         }

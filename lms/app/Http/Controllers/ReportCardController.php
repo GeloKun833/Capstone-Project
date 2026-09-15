@@ -6,6 +6,7 @@ use App\Models\AcademicYear;
 use App\Models\Student;
 use App\Services\ParentPortalService;
 use App\Services\ReportCardService;
+use App\Services\StudentPerformanceService;
 use App\Services\TeacherClassAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,16 @@ class ReportCardController extends Controller
         $user = Auth::user();
         if ($user->role_name !== 'Teacher' && $user->role_name !== 'Admin') {
             abort(403);
+        }
+
+        if ($user->role_name === 'Teacher') {
+            if (! $user->teacher) {
+                abort(403, 'Teacher profile not found.');
+            }
+            $allowedIds = app(StudentPerformanceService::class)->studentIdsForTeacher($user->teacher);
+            if (! in_array((int) $student->id, $allowedIds, true)) {
+                abort(403, 'This student is not in your assigned classes.');
+            }
         }
 
         $academicYear = AcademicYear::findOrFail($request->get('academic_year_id'));

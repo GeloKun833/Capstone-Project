@@ -235,18 +235,10 @@ class ClassPost extends Model
 
     public function getFormattedContentAttribute()
     {
-        // Convert markdown-like syntax to HTML
-        $content = $this->content;
-        
-        // Convert **text** to <strong>text</strong>
+        $content = e($this->content ?? '');
         $content = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $content);
-        
-        // Convert *text* to <em>text</em>
         $content = preg_replace('/\*(.*?)\*/', '<em>$1</em>', $content);
-        
-        // Convert line breaks to <br>
-        $content = nl2br($content);
-        
-        return $content;
+
+        return nl2br($content);
     }
 }

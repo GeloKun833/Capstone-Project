@@ -16,6 +16,18 @@ use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+        $this->middleware(function ($request, $next) {
+            $role = auth()->user()->role_name ?? '';
+            if (! in_array($role, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+                abort(403, 'Only administrators and registrars can access invoices.');
+            }
+            return $next($request);
+        });
+    }
+
     /** index page */
     public function invoiceList()
     {

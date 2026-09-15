@@ -119,9 +119,17 @@
                                             <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="present" <?php echo e($status === 'present' ? 'checked' : ''); ?> required>
                                             Present
                                         </label>
+                                        <label class="att-choice is-late">
+                                            <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="late" <?php echo e($status === 'late' ? 'checked' : ''); ?>>
+                                            Late
+                                        </label>
                                         <label class="att-choice is-absent">
-                                            <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="absent" <?php echo e($status === 'absent' ? 'checked' : ''); ?> required>
+                                            <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="absent" <?php echo e($status === 'absent' ? 'checked' : ''); ?>>
                                             Absent
+                                        </label>
+                                        <label class="att-choice is-excused">
+                                            <input type="radio" name="attendance[<?php echo e($student->id); ?>][status]" value="excused" <?php echo e($status === 'excused' ? 'checked' : ''); ?>>
+                                            Excused
                                         </label>
                                     </div>
                                     <input type="text" class="form-control att-note" name="attendance[<?php echo e($student->id); ?>][remarks]"
@@ -150,17 +158,21 @@
                                 <tr>
                                     <th>Student</th>
                                     <th class="text-center">Present</th>
+                                    <th class="text-center">Late</th>
                                     <th class="text-center">Absent</th>
+                                    <th class="text-center">Excused</th>
                                     <th class="text-center">Rate</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php $__currentLoopData = $students; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $student): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <?php $row = $summary[$student->id] ?? ['present'=>0,'absent'=>0,'percentage'=>0]; ?>
+                                    <?php $row = $summary[$student->id] ?? ['present'=>0,'late'=>0,'absent'=>0,'excused'=>0,'percentage'=>0]; ?>
                                     <tr>
                                         <td><?php echo e($student->last_name); ?>, <?php echo e($student->first_name); ?></td>
                                         <td class="text-center"><?php echo e($row['present']); ?></td>
+                                        <td class="text-center"><?php echo e($row['late'] ?? 0); ?></td>
                                         <td class="text-center"><?php echo e($row['absent']); ?></td>
+                                        <td class="text-center"><?php echo e($row['excused'] ?? 0); ?></td>
                                         <td class="text-center">
                                             <span class="dir-badge <?php echo e(($row['percentage'] ?? 0) >= 90 ? 'dir-badge--active' : (($row['percentage'] ?? 0) >= 75 ? 'dir-badge--inactive' : 'dir-badge--disabled')); ?>">
                                                 <?php echo e($row['percentage']); ?>%
@@ -225,9 +237,9 @@
     margin-bottom: 0.5rem;
 }
 .att-name strong { color: #1e293b; }
-.att-choices { display: flex; gap: 0.4rem; }
+.att-choices { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .att-choice {
-    min-width: 96px;
+    min-width: 78px;
     text-align: center;
     padding: 0.45rem 0.7rem;
     border-radius: 999px;
@@ -245,10 +257,15 @@
     border-color: #86efac;
     color: #166534;
 }
-.att-choice.is-absent:has(input:checked) {
-    background: #fee2e2;
-    border-color: #fca5a5;
-    color: #991b1b;
+.att-choice.is-late:has(input:checked) {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+.att-choice.is-excused:has(input:checked) {
+    background: #e0e7ff;
+    border-color: #a5b4fc;
+    color: #3730a3;
 }
 .att-note { border-radius: 10px; min-height: 40px; }
 .att-footer {

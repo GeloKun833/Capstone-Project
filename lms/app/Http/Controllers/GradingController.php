@@ -548,6 +548,19 @@ class GradingController extends Controller
                 'grades.*.score' => 'nullable|numeric|min:0',
                 'grades.*.max_score' => 'required|numeric|min:1',
             ]);
+
+            foreach ($request->input('grades', []) as $index => $gradeData) {
+                $score = $gradeData['score'] ?? null;
+                $maxScore = $gradeData['max_score'] ?? null;
+                if ($score === null || $score === '' || $maxScore === null || $maxScore === '') {
+                    continue;
+                }
+                if ((float) $score > (float) $maxScore) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "grades.{$index}.score" => 'Score cannot be higher than the maximum score.',
+                    ]);
+                }
+            }
         } catch (\Illuminate\Validation\ValidationException $e) {
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([

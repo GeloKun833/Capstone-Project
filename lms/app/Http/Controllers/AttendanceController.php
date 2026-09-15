@@ -28,7 +28,7 @@ class AttendanceController extends Controller
                 abort(403, 'Only teachers and administrators can manage attendance.');
             }
             return $next($request);
-        });
+        })->except(['studentView', 'parentView']);
     }
 
     /**
@@ -135,15 +135,7 @@ class AttendanceController extends Controller
 
             foreach ($students as $student) {
                 $rows = $monthRows->get($student->id, collect());
-                $present = $rows->where('status', 'present')->count();
-                $absent = $rows->where('status', 'absent')->count();
-                $total = $present + $absent;
-                $summary[$student->id] = [
-                    'present' => $present,
-                    'absent' => $absent,
-                    'total' => $total,
-                    'percentage' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
-                ];
+                $summary[$student->id] = Attendance::summarize($rows);
             }
         }
 
@@ -195,19 +187,7 @@ class AttendanceController extends Controller
         }
 
         $attendances = $query->orderBy('date', 'desc')->get();
-
-        // Calculate summary
-        $total = $attendances->count();
-        $present = $attendances->where('status', 'present')->count();
-        $absent = $total - $present;
-        $percentage = $total > 0 ? round(($present / $total) * 100, 2) : 0;
-
-        $summary = [
-            'total' => $total,
-            'present' => $present,
-            'absent' => $absent,
-            'percentage' => $percentage,
-        ];
+        $summary = Attendance::summarize($attendances);
 
         return view('attendance.student_view', compact('subjects', 'attendances', 'summary'));
     }
@@ -219,8 +199,7 @@ class AttendanceController extends Controller
             abort(403, 'Only parents can view their children\'s attendance.');
         }
 
-        // Get children (you'll need to implement the relationship between parents and students)
-        $children = Student::where('parent_email', $parent->email)
+        $children = Student::query()->forParent($parent)
             ->select('id', 'first_name', 'last_name', 'email')
             ->get();
         $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
@@ -245,19 +224,7 @@ class AttendanceController extends Controller
                 }
 
                 $attendances = $query->orderBy('date', 'desc')->get();
-
-                // Calculate summary
-                $total = $attendances->count();
-                $present = $attendances->where('status', 'present')->count();
-                $absent = $total - $present;
-                $percentage = $total > 0 ? round(($present / $total) * 100, 2) : 0;
-
-                $summary = [
-                    'total' => $total,
-                    'present' => $present,
-                    'absent' => $absent,
-                    'percentage' => $percentage,
-                ];
+                $summary = Attendance::summarize($attendances);
             }
         }
 
@@ -271,7 +238,7 @@ class AttendanceController extends Controller
             'subject_id' => 'required|exists:subjects,id',
             'date' => 'required|date',
             'attendance' => 'required|array',
-            'attendance.*.status' => 'required|in:present,absent',
+            'attendance.*.status' => 'required|in:present,absent,late,excused',
             'attendance.*.remarks' => 'nullable|string|max:255',
         ]);
 
@@ -413,7 +380,7 @@ class AttendanceController extends Controller
     public function update(Request $request, Attendance $attendance)
     {
         $request->validate([
-            'status' => 'required|in:present,absent',
+            'status' => 'required|in:present,absent,late,excused',
             'remarks' => 'nullable|string|max:255',
         ]);
 
@@ -494,10 +461,16 @@ class AttendanceController extends Controller
             $row = [$student->first_name . ' ' . $student->last_name];
             foreach ($days as $day) {
                 $status = $attendanceMap[$student->id][$day] ?? null;
-                $row[] = $status === 'present' ? 'P' : ($status === 'absent' ? 'A' : ($status === 'late' ? 'L' : '-'));
+                $row[] = match ($status) {
+                    'present' => 'P',
+                    'absent' => 'A',
+                    'late' => 'L',
+                    'excused' => 'E',
+                    default => '-',
+                };
                 if ($status) {
                     $total++;
-                    if ($status === 'present') {
+                    if (Attendance::countsAsPresent($status)) {
                         $present++;
                     }
                 }

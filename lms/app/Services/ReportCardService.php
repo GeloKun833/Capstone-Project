@@ -8,6 +8,7 @@ use App\Models\ObservedValueIndicator;
 use App\Models\QuarterlyGrade;
 use App\Models\Student;
 use App\Models\StudentObservedValue;
+use App\Support\AcademicThresholds;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -110,7 +111,7 @@ class ReportCardService
             return '—';
         }
 
-        return $score >= 75 ? 'Passed' : 'Failed';
+        return $score >= AcademicThresholds::PASSING_PERCENTAGE ? 'Passed' : 'Failed';
     }
 
     public static function descriptorForScore(?float $score): string
@@ -127,7 +128,7 @@ class ReportCardService
         if ($score >= 80) {
             return 'Satisfactory';
         }
-        if ($score >= 75) {
+        if ($score >= AcademicThresholds::PASSING_PERCENTAGE) {
             return 'Fairly Satisfactory';
         }
 

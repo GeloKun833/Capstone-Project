@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Support\TemporaryPassword;
 
 class EnrollmentPortalController extends Controller
 {
@@ -284,6 +285,8 @@ class EnrollmentPortalController extends Controller
 
             DB::commit();
 
+            $this->grantPortalApplicationAccess($application->id);
+
             // Prepare user-friendly success message
             $successMessage = '🎉 Welcome to Panorama Montessori School! Your enrollment application has been submitted successfully.';
             
@@ -301,14 +304,17 @@ class EnrollmentPortalController extends Controller
                 $successMessage .= "\n\n✅ Accounts Created:";
                 $successMessage .= "\n\n👨‍🎓 Student Account:";
                 $successMessage .= "\n📧 Email: " . $application->email;
-                $successMessage .= "\n🔑 Password: password123";
+                $successMessage .= "\n🔑 Password: " . ($accountDetails['password'] ?? 'Shown on the next page');
                 $successMessage .= "\n\n👨‍👩‍👧 Parent Account:";
                 $successMessage .= "\n📧 Email: " . $application->parent_email;
-                $successMessage .= "\n🔑 Password: password123";
+                $parentPassword = $accountDetails['parent_account']['password'] ?? null;
+                $successMessage .= $parentPassword
+                    ? "\n🔑 Password: " . $parentPassword
+                    : "\n🔑 Password: Use the existing parent account password";
             } else {
                 $successMessage .= "\n\n✅ Student account has been created! You can now login using:";
                 $successMessage .= "\n📧 Email: " . $application->email;
-                $successMessage .= "\n🔑 Password: password123";
+                $successMessage .= "\n🔑 Password: " . ($accountDetails['password'] ?? 'Shown on the next page');
                 $successMessage .= "\n\n💡 Note: Parent account was not created as per your selection.";
             }
             
@@ -351,6 +357,8 @@ class EnrollmentPortalController extends Controller
     public function show($id)
     {
         $application = EnrollmentApplication::with(['documents', 'reviewer'])->findOrFail($id);
+        $this->assertPortalApplicationAccess($application);
+
         return view('enrollment.portal.show', compact('application'));
     }
 
@@ -388,6 +396,8 @@ class EnrollmentPortalController extends Controller
                 ->with('error', 'Application not found. Please check your application number and email.');
         }
 
+        $this->grantPortalApplicationAccess($application->id);
+
         return view('enrollment.portal.show', compact('application'));
     }
 
@@ -397,7 +407,12 @@ class EnrollmentPortalController extends Controller
     public function downloadDocument($id)
     {
         $document = EnrollmentDocument::findOrFail($id);
-        
+        $application = $document->enrollmentApplication;
+        if (! $application) {
+            abort(404, 'File not found');
+        }
+        $this->assertPortalApplicationAccess($application);
+
         if (!Storage::disk('public')->exists($document->file_path)) {
             abort(404, 'File not found');
         }
@@ -423,7 +438,7 @@ class EnrollmentPortalController extends Controller
             $user = User::create([
                 'name' => $application->full_name,
                 'email' => $application->email,
-                'password' => Hash::make('password123'), // Default password, should be changed
+                'password' => Hash::make(TemporaryPassword::make()),
                 'role_name' => 'Student',
                 'status' => 'active',
             ]);
@@ -654,68 +669,48 @@ class EnrollmentPortalController extends Controller
      */
     private function createStudentAccount($application, $selectedSectionId = null)
     {
-        // Use standard password for all students
-        $tempPassword = 'password123'; // Standard password - easy to remember
-        
-        // Check if we should create parent account (from form checkbox or default behavior)
-        // Default to '1' (checked) for backward compatibility
+        $studentPassword = TemporaryPassword::make();
+        $parentPassword = null;
+        $parentUser = null;
+
         $shouldCreateParent = request()->input('create_parent_account', '1') === '1';
-        
-        if (!$shouldCreateParent) {
-            // Parent account NOT requested - Create ONLY student account
-            $user = User::create([
-                'name' => $application->full_name,
-                'email' => $application->email, // Use exact email from application
-                'password' => Hash::make($tempPassword),
-                'role_name' => 'Student',
-                'status' => 'active',
-                'join_date' => now()->format('Y-m-d'),
-                'phone_number' => $application->phone_number,
-                'position' => 'Student',
-                'department' => 'Student Affairs',
-                'avatar' => 'default-avatar.png',
-            ]);
-            
-            Log::info("✅ Created student account (self-enrollment): {$user->email}");
-            
-            // No parent account created for student enrollment
-            $parentUser = null;
-            
-        } else {
-            // Parent is enrolling their child - Create BOTH parent and student accounts
-            
-            // Create parent account with parent email
-            $parentUser = User::create([
-                'name' => $application->parent_name,
-                'email' => $application->parent_email,
-                'password' => Hash::make($tempPassword),
-                'role_name' => 'Parent',
-                'status' => 'active',
-                'join_date' => now()->format('Y-m-d'),
-                'phone_number' => $application->parent_phone,
-                'position' => 'Parent/Guardian',
-                'department' => 'Parent Relations',
-                'avatar' => 'default-avatar.png',
-            ]);
-            
-            Log::info("✅ Created parent account: {$parentUser->email}");
-            
-            // Create student account with student email (from application form)
-            $user = User::create([
-                'name' => $application->full_name,
-                'email' => $application->email, // Use exact email from application (student's email)
-                'password' => Hash::make($tempPassword), // Same password as parent
-                'role_name' => 'Student',
-                'status' => 'active', // Active so student can login
-                'join_date' => now()->format('Y-m-d'),
-                'phone_number' => $application->phone_number,
-                'position' => 'Student',
-                'department' => 'Student Affairs',
-                'avatar' => 'default-avatar.png',
-            ]);
-            
-            Log::info("✅ Created student account: {$user->email}");
+
+        if ($shouldCreateParent && $application->parent_email && $application->parent_email !== $application->email) {
+            $parentUser = User::where('email', $application->parent_email)
+                ->where('role_name', 'Parent')
+                ->first();
+            if (! $parentUser) {
+                $parentPassword = TemporaryPassword::make();
+                $parentUser = User::create([
+                    'name' => $application->parent_name,
+                    'email' => $application->parent_email,
+                    'password' => Hash::make($parentPassword),
+                    'role_name' => 'Parent',
+                    'status' => 'active',
+                    'join_date' => now()->format('Y-m-d'),
+                    'phone_number' => $application->parent_phone,
+                    'position' => 'Parent/Guardian',
+                    'department' => 'Parent Relations',
+                    'avatar' => 'default-avatar.png',
+                ]);
+                Log::info("✅ Created parent account: {$parentUser->email}");
+            }
         }
+
+        $user = User::create([
+            'name' => $application->full_name,
+            'email' => $application->email,
+            'password' => Hash::make($studentPassword),
+            'role_name' => 'Student',
+            'status' => 'active',
+            'join_date' => now()->format('Y-m-d'),
+            'phone_number' => $application->phone_number,
+            'position' => 'Student',
+            'department' => 'Student Affairs',
+            'avatar' => 'default-avatar.png',
+        ]);
+
+        Log::info("✅ Created student account: {$user->email}");
 
         // Create student record
         $student = Student::create([
@@ -729,6 +724,7 @@ class EnrollmentPortalController extends Controller
             'phone_number' => $application->phone_number,
             'address' => $application->address,
             'parent_email' => $application->parent_email,
+            'parent_user_id' => $parentUser?->id,
             'parent_name' => $application->parent_name,
             'parent_phone' => $application->parent_phone,
             'parent_relationship' => $application->parent_relationship,
@@ -768,7 +764,7 @@ class EnrollmentPortalController extends Controller
         return [
             'user_id' => $user->user_id,
             'email' => $user->email,
-            'password' => $tempPassword,
+            'password' => $studentPassword,
             'student_name' => $application->full_name,
             'grade_level' => $application->grade_level_applying_for,
             'assigned_section' => $assignedSection ? $assignedSection->name : 'To be assigned after approval',
@@ -777,7 +773,7 @@ class EnrollmentPortalController extends Controller
                 'user_id' => $parentUser->user_id,
                 'email' => $parentUser->email,
                 'name' => $parentUser->name,
-                'password' => $tempPassword, // Will be included if new account was created
+                'password' => $parentPassword,
             ] : null,
         ];
     }
@@ -788,11 +784,8 @@ class EnrollmentPortalController extends Controller
     public function success($id)
     {
         $application = EnrollmentApplication::findOrFail($id);
+        $this->assertPortalApplicationAccess($application);
         $accountDetails = session('account_details');
-        
-        if (!$accountDetails) {
-            return redirect()->route('enrollment.portal.show', $id);
-        }
 
         return view('enrollment.portal.success', compact('application', 'accountDetails'));
     }
@@ -1035,6 +1028,7 @@ class EnrollmentPortalController extends Controller
 
             // Clear session
             session()->forget('old_student_enrollment');
+            $this->grantPortalApplicationAccess($application->id);
 
             return redirect()->route('enrollment.portal.success', $application->id)
                 ->with('success', 'Enrollment completed successfully! You have been assigned to section: ' . $section->name);
@@ -1221,5 +1215,24 @@ class EnrollmentPortalController extends Controller
                 'message' => 'An error occurred during verification: ' . $e->getMessage()
             ]);
         }
+    }
+
+    protected function grantPortalApplicationAccess(int $applicationId): void
+    {
+        session()->put('enrollment_access.'.$applicationId, true);
+    }
+
+    protected function assertPortalApplicationAccess(EnrollmentApplication $application): void
+    {
+        $user = auth()->user();
+        if ($user && in_array($user->role_name, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+            return;
+        }
+
+        if (session('enrollment_access.'.$application->id)) {
+            return;
+        }
+
+        abort(404);
     }
 }

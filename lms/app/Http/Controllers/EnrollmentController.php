@@ -279,7 +279,12 @@ class EnrollmentController extends Controller
             'status' => 'required|string|in:active,inactive,completed,dropped',
         ]);
 
-        $enrollment->update($request->all());
+        $enrollment->update($request->only([
+            'subject_id',
+            'academic_year_id',
+            'semester_id',
+            'status',
+        ]));
         
         Toastr::success('Enrollment updated successfully!', 'Success');
         return redirect()->route('enrollments.index');

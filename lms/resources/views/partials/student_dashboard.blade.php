@@ -53,10 +53,10 @@
                 <div class="sd-stat-label">My Classes</div>
                 <div class="sd-stat-meta">Active enrollments</div>
             </div>
-        </div>
+                                        </div>
         <div class="sd-stat-card">
             <div class="sd-stat-icon sd-stat-icon-warn"><i class="fas fa-clipboard-list"></i></div>
-            <div>
+                                    <div>
                 <div class="sd-stat-value">{{ $s['pendingAssignmentCount'] ?? 0 }}</div>
                 <div class="sd-stat-label">Due Assignments</div>
                 <div class="sd-stat-meta">Still need your work</div>
@@ -69,21 +69,21 @@
                 <div class="sd-stat-label">Classes Today</div>
                 <div class="sd-stat-meta">{{ now()->format('l') }} schedule</div>
             </div>
-        </div>
+                        </div>
         <div class="sd-stat-card">
             <div class="sd-stat-icon"><i class="fas fa-user-check"></i></div>
-            <div>
+                        <div>
                 <div class="sd-stat-value">{{ $s['attendancePercentage'] ?? 0 }}%</div>
                 <div class="sd-stat-label">Attendance</div>
                 <div class="sd-stat-meta">Present this term</div>
-            </div>
         </div>
     </div>
+</div>
 
     @if($enrollmentApplication && $enrollmentApplication->status !== 'approved')
-        @php
-            $requiredDocuments = [
-                'birth_certificate' => 'Birth Certificate',
+                @php
+                    $requiredDocuments = [
+                        'birth_certificate' => 'Birth Certificate',
                 'sf9' => 'SF9',
                 'sf10' => 'SF10',
                 'good_moral' => 'Good Moral',
@@ -91,8 +91,8 @@
                 'parent_guardian_id' => 'Parent/Guardian ID',
             ];
             $uploadedTypes = $enrollmentApplication->documents->pluck('document_type')->all();
-            $missingDocuments = array_diff(array_keys($requiredDocuments), $uploadedTypes);
-        @endphp
+                    $missingDocuments = array_diff(array_keys($requiredDocuments), $uploadedTypes);
+                @endphp
         <section class="sd-panel sd-enroll-banner">
             <div>
                 <h2>Enrollment application</h2>
@@ -100,11 +100,11 @@
                     · Documents {{ $enrollmentApplication->documents->count() }}/6
                     @if(count($missingDocuments)) · Missing {{ count($missingDocuments) }} file(s)@endif
                 </p>
-            </div>
+                            </div>
             <button type="button" class="sd-btn-outline" data-bs-toggle="modal" data-bs-target="#studentEnrollmentModal">View details</button>
         </section>
-    @endif
-
+                @endif
+                
     <div class="sd-layout">
         <div class="sd-main">
             <section class="sd-panel">
@@ -117,7 +117,7 @@
                             <div class="sd-class-top">
                                 <span class="sd-pill">{{ $enrollment->subject->class ?? ($record->year_level ?? 'Class') }}</span>
                                 <span class="sd-status">Active</span>
-                            </div>
+            </div>
                             <h3>{{ $enrollment->subject->subject_name ?? 'Subject' }}</h3>
                             <p class="sd-muted">
                                 {{ $enrollment->academicYear->name ?? 'Academic year' }}
@@ -138,7 +138,7 @@
                 <div class="sd-panel-head">
                     <h2>Assignments</h2>
                     <a href="{{ route('student.assignments.index') }}" class="sd-link">View all</a>
-                </div>
+                    </div>
                 <div class="sd-list">
                     @forelse(($s['upcomingAssignments'] ?? collect()) as $asg)
                         @php
@@ -165,7 +165,7 @@
             <section class="sd-panel">
                 <div class="sd-panel-head">
                     <h2>Upcoming Lessons</h2>
-                </div>
+                    </div>
                 <div class="sd-list">
                     @forelse(($s['upcomingLessons'] ?? collect()) as $lesson)
                         <div class="sd-list-item">
@@ -184,14 +184,14 @@
                     @endforelse
                 </div>
             </section>
-        </div>
+                    </div>
 
         <aside class="sd-side">
             <section class="sd-panel">
                 <div class="sd-panel-head">
                     <h2>Today&rsquo;s Schedule</h2>
                     <a href="{{ route('student.my-schedule') }}" class="sd-link">Full week</a>
-                </div>
+                            </div>
                 <div class="sd-timeline">
                     @forelse(($s['todaysSchedule'] ?? collect()) as $slot)
                         <div class="sd-timeline-item">
@@ -211,7 +211,7 @@
             <section class="sd-panel">
                 <div class="sd-panel-head">
                     <h2>Class Posts</h2>
-                </div>
+                    </div>
                 <div class="sd-list sd-list-compact">
                     @forelse(($s['classPosts'] ?? collect()) as $post)
                         <div class="sd-list-item">
@@ -221,7 +221,7 @@
                                 <p class="sd-meta">{{ optional($post->published_at ?? $post->created_at)->format('M j') }}</p>
                             </div>
                             <a href="{{ route('class-posts.show', $post) }}" class="sd-btn-ghost">Read</a>
-                        </div>
+                    </div>
                     @empty
                         <div class="sd-empty">No class posts yet.</div>
                     @endforelse
@@ -244,18 +244,18 @@
                                     · {{ optional($event->start_time)->format('g:i A') }}
                                 </p>
                             </div>
-                        </div>
+                                            </div>
                     @empty
                         <div class="sd-empty">No upcoming events.</div>
                     @endforelse
-                </div>
+                                        </div>
             </section>
 
             <section class="sd-panel">
                 <div class="sd-panel-head">
                     <h2>Announcements</h2>
                     <a href="{{ route('announcements.index') }}" class="sd-link">See all</a>
-                </div>
+                                </div>
                 <div class="sd-list sd-list-compact">
                     @forelse(($s['announcements'] ?? collect()) as $notice)
                         <div class="sd-list-item">

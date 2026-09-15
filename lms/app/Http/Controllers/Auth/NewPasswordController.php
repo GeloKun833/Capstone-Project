@@ -49,6 +49,7 @@ class NewPasswordController extends Controller
         );
 
         if ($status === Password::PASSWORD_RESET) {
+            $request->session()->forget('password_reset');
             return redirect()->route('login')->with('status', __($status));
         }
 

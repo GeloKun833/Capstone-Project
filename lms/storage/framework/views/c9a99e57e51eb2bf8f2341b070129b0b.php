@@ -157,6 +157,7 @@
                             'student.my-schedule',
                             'student.grades',
                             'student.report-card',
+                            'attendance.student',
                             'analytics.student-dashboard',
                             'announcements.*'
                         );
@@ -195,6 +196,7 @@
                         <ul>
                             <li><a href="<?php echo e(route('student.my-schedule')); ?>"><i class="fas fa-calendar-alt"></i> <span>My Schedule</span></a></li>
                             <li><a href="<?php echo e(route('student.grades')); ?>"><i class="fas fa-clipboard-list"></i> <span>Grades</span></a></li>
+                            <li><a href="<?php echo e(route('attendance.student')); ?>"><i class="fas fa-user-check"></i> <span>Attendance</span></a></li>
                             <li><a href="<?php echo e(route('analytics.student-dashboard')); ?>"><i class="fas fa-chart-line"></i> <span>My Analytics</span></a></li>
                             <li><a href="<?php echo e(route('announcements.index')); ?>"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
                         </ul>
@@ -242,6 +244,9 @@
 
                     <li class="<?php echo e($pSchedule ? 'active' : ''); ?>">
                         <a href="<?php echo e(route('parent.schedule')); ?>"><i class="fas fa-calendar-alt"></i> <span>Class Schedule</span></a>
+                    </li>
+                    <li class="<?php echo e(request()->routeIs('attendance.parent') ? 'active' : ''); ?>">
+                        <a href="<?php echo e(route('attendance.parent')); ?>"><i class="fas fa-user-check"></i> <span>Attendance</span></a>
                     </li>
 
                     <li class="submenu <?php echo e($pComm ? 'active' : ''); ?>">

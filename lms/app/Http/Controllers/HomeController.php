@@ -463,8 +463,10 @@ class HomeController extends Controller
             SELECT
                 COUNT(*) AS total_attendance,
                 SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present_count,
+                SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) AS attended_count,
                 SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
-                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_count
+                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_count,
+                SUM(CASE WHEN status = 'excused' THEN 1 ELSE 0 END) AS excused_count
             FROM attendances
         ");
 
@@ -479,24 +481,28 @@ class HomeController extends Controller
         $maleStudents = (int) ($counts->male_students ?? 0);
         $femaleStudents = (int) ($counts->female_students ?? 0);
         $presentCount = (int) ($attendanceAgg->present_count ?? 0);
+        $attendedCount = (int) ($attendanceAgg->attended_count ?? $presentCount);
         $absentCount = (int) ($attendanceAgg->absent_count ?? 0);
         $lateCount = (int) ($attendanceAgg->late_count ?? 0);
+        $excusedCount = (int) ($attendanceAgg->excused_count ?? 0);
 
         $attendanceStats = (object) [
             'total_records' => $totalAttendance,
             'present_count' => $presentCount,
             'absent_count' => $absentCount,
             'late_count' => $lateCount,
+            'excused_count' => $excusedCount,
         ];
 
         $attendancePercentage = $totalAttendance > 0
-            ? round(($presentCount / $totalAttendance) * 100, 1)
+            ? round(($attendedCount / $totalAttendance) * 100, 1)
             : 0;
 
         $attendanceBreakdown = [
             'present' => $totalAttendance > 0 ? round(($presentCount / $totalAttendance) * 100, 1) : 0,
             'absent' => $totalAttendance > 0 ? round(($absentCount / $totalAttendance) * 100, 1) : 0,
             'late' => $totalAttendance > 0 ? round(($lateCount / $totalAttendance) * 100, 1) : 0,
+            'excused' => $totalAttendance > 0 ? round(($excusedCount / $totalAttendance) * 100, 1) : 0,
         ];
 
         $recentEnrollments = \App\Models\Enrollment::with(['student', 'subject'])

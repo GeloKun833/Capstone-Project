@@ -3,6 +3,15 @@
     $overview = $analytics['school_overview'] ?? [];
     $enrollment = $analytics['enrollment_overview'] ?? [];
     $studentsByGrade = $analytics['students_by_grade'] ?? [];
+    $gradeOrder = \App\Services\GradeSubjectCatalogService::gradeLevels();
+    $orderGrades = function ($groups) use ($gradeOrder) {
+        return collect($groups)->sortBy(function ($rows, $grade) use ($gradeOrder) {
+            $index = array_search($grade, $gradeOrder, true);
+            return $index === false ? 1000 : $index;
+        });
+    };
+    $subjectPerfByGrade = $orderGrades(collect($analytics['subject_performance'] ?? [])->groupBy(fn ($row) => $row['grade'] ?? 'Other'));
+    $passFailByGrade = $orderGrades(collect($analytics['pass_fail_rates'] ?? [])->groupBy(fn ($row) => $row['grade'] ?? 'Other'));
 ?>
 <div class="page-wrapper">
     <div class="content container-fluid ams-analytics">
@@ -203,97 +212,147 @@
         </div>
 
         
-        <div class="row g-3">
-            <div class="col-lg-6">
-                <div class="ams-panel">
-                    <div class="ams-panel-h"><h5 class="mb-0">Subject Performance Details</h5></div>
-                    <div class="ams-panel-b p-0">
-                        <div class="table-responsive">
-                            <table class="table ams-table mb-0">
-                                <thead><tr><th>Subject</th><th>Avg</th><th>Students</th><th>Grades</th></tr></thead>
-                                <tbody>
-                                <?php $__empty_1 = true; $__currentLoopData = $analytics['subject_performance']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
-                                    <tr>
-                                        <td><?php echo e($subject['subject']); ?></td>
-                                        <td><strong><?php echo e($subject['average_score']); ?>%</strong></td>
-                                        <td><?php echo e($subject['students_count']); ?></td>
-                                        <td><?php echo e($subject['assignments_count']); ?></td>
-                                    </tr>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
-                                    <tr><td colspan="4" class="text-center text-muted py-4">No grade data yet for this filter.</td></tr>
-                                <?php endif; ?>
-                                </tbody>
-                            </table>
+        <div class="ams-acc" id="amsDetailMenus">
+            <div class="ams-acc-item">
+                <button type="button" class="ams-acc-toggle" aria-expanded="false">
+                    <span class="ams-acc-left">
+                        <i class="fas fa-book-open"></i>
+                        <span>Student Performance by Subject</span>
+                    </span>
+                    <span class="ams-acc-arrow"></span>
+                </button>
+                <div class="ams-acc-panel">
+                    <?php if($subjectPerfByGrade->isEmpty()): ?>
+                        <p class="text-muted text-center py-4 mb-0">No grade data yet for this filter.</p>
+                    <?php else: ?>
+                        <div class="ams-acc ams-acc--nested">
+                            <?php $__currentLoopData = $subjectPerfByGrade; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade => $rows): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <div class="ams-acc-item">
+                                    <button type="button" class="ams-acc-toggle" aria-expanded="false">
+                                        <span class="ams-acc-left">
+                                            <i class="fas fa-layer-group"></i>
+                                            <span><?php echo e($grade); ?></span>
+                                            <span class="ams-count-pill"><?php echo e($rows->count()); ?></span>
+                                        </span>
+                                        <span class="ams-acc-arrow"></span>
+                                    </button>
+                                    <div class="ams-acc-panel">
+                                        <div class="table-responsive">
+                                            <table class="table ams-table mb-0">
+                                                <thead><tr><th>Subject</th><th>Avg</th><th>Students</th><th>Grades</th></tr></thead>
+                                                <tbody>
+                                                <?php $__currentLoopData = $rows; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <tr>
+                                                        <td><?php echo e($subject['subject']); ?></td>
+                                                        <td><strong><?php echo e($subject['average_score']); ?>%</strong></td>
+                                                        <td><?php echo e($subject['students_count']); ?></td>
+                                                        <td><?php echo e($subject['assignments_count']); ?></td>
+                                                    </tr>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="ams-panel">
-                    <div class="ams-panel-h"><h5 class="mb-0">Pass / Fail Analysis</h5></div>
-                    <div class="ams-panel-b p-0">
-                        <div class="table-responsive">
-                            <table class="table ams-table mb-0">
-                                <thead><tr><th>Subject</th><th>Pass</th><th>Fail</th><th>Students</th></tr></thead>
-                                <tbody>
-                                <?php $__empty_1 = true; $__currentLoopData = $analytics['pass_fail_rates']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $rate): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
-                                    <tr>
-                                        <td><?php echo e($rate['subject']); ?></td>
-                                        <td><span class="ams-tag ams-tag--ok"><?php echo e($rate['pass_rate']); ?>%</span></td>
-                                        <td><span class="ams-tag ams-tag--bad"><?php echo e($rate['fail_rate']); ?>%</span></td>
-                                        <td><?php echo e($rate['total_students']); ?></td>
-                                    </tr>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
-                                    <tr><td colspan="4" class="text-center text-muted py-4">No pass/fail data yet.</td></tr>
-                                <?php endif; ?>
-                                </tbody>
-                            </table>
+
+            <div class="ams-acc-item">
+                <button type="button" class="ams-acc-toggle" aria-expanded="false">
+                    <span class="ams-acc-left">
+                        <i class="fas fa-clipboard-check"></i>
+                        <span>Pass / Fail Insights</span>
+                    </span>
+                    <span class="ams-acc-arrow"></span>
+                </button>
+                <div class="ams-acc-panel">
+                    <?php if($passFailByGrade->isEmpty()): ?>
+                        <p class="text-muted text-center py-4 mb-0">No pass/fail data yet.</p>
+                    <?php else: ?>
+                        <div class="ams-acc ams-acc--nested">
+                            <?php $__currentLoopData = $passFailByGrade; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade => $rows): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <div class="ams-acc-item">
+                                    <button type="button" class="ams-acc-toggle" aria-expanded="false">
+                                        <span class="ams-acc-left">
+                                            <i class="fas fa-layer-group"></i>
+                                            <span><?php echo e($grade); ?></span>
+                                            <span class="ams-count-pill"><?php echo e($rows->count()); ?></span>
+                                        </span>
+                                        <span class="ams-acc-arrow"></span>
+                                    </button>
+                                    <div class="ams-acc-panel">
+                                        <div class="table-responsive">
+                                            <table class="table ams-table mb-0">
+                                                <thead><tr><th>Subject</th><th>Pass</th><th>Fail</th><th>Students</th></tr></thead>
+                                                <tbody>
+                                                <?php $__currentLoopData = $rows; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $rate): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <tr>
+                                                        <td><?php echo e($rate['subject']); ?></td>
+                                                        <td><span class="ams-tag ams-tag--ok"><?php echo e($rate['pass_rate']); ?>%</span></td>
+                                                        <td><span class="ams-tag ams-tag--bad"><?php echo e($rate['fail_rate']); ?>%</span></td>
+                                                        <td><?php echo e($rate['total_students']); ?></td>
+                                                    </tr>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
-            <div class="col-12">
-                <div class="ams-panel">
-                    <div class="ams-panel-h"><h5 class="mb-0">GPA by Grade Level</h5></div>
-                    <div class="ams-panel-b p-0">
-                        <div class="table-responsive">
-                            <table class="table ams-table mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Grade Level</th>
-                                        <th>Avg GPA</th>
-                                        <th>Students</th>
-                                        <th>Highest</th>
-                                        <th>Lowest</th>
-                                        <th>Level</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                <?php $__empty_1 = true; $__currentLoopData = $analytics['gpa_comparison']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $gpa): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
-                                    <tr>
-                                        <td><?php echo e($gpa['grade_level']); ?></td>
-                                        <td><strong><?php echo e($gpa['average_gpa']); ?></strong></td>
-                                        <td><?php echo e($gpa['students_count']); ?></td>
-                                        <td><?php echo e($gpa['highest_gpa']); ?></td>
-                                        <td><?php echo e($gpa['lowest_gpa']); ?></td>
-                                        <td>
-                                            <?php if($gpa['average_gpa'] >= 3.5): ?>
-                                                <span class="ams-tag ams-tag--ok">Excellent</span>
-                                            <?php elseif($gpa['average_gpa'] >= 3.0): ?>
-                                                <span class="ams-tag ams-tag--info">Good</span>
-                                            <?php elseif($gpa['average_gpa'] >= 2.5): ?>
-                                                <span class="ams-tag ams-tag--warn">Average</span>
-                                            <?php else: ?>
-                                                <span class="ams-tag ams-tag--bad">Needs Improvement</span>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
-                                    <tr><td colspan="6" class="text-center text-muted py-4">No GPA records yet. Grades need to be calculated into student GPA.</td></tr>
-                                <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
+
+            <div class="ams-acc-item">
+                <button type="button" class="ams-acc-toggle" aria-expanded="false">
+                    <span class="ams-acc-left">
+                        <i class="fas fa-chart-line"></i>
+                        <span>GPA by Grade Level</span>
+                    </span>
+                    <span class="ams-acc-arrow"></span>
+                </button>
+                <div class="ams-acc-panel">
+                    <div class="table-responsive">
+                        <table class="table ams-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Grade Level</th>
+                                    <th>Avg GPA</th>
+                                    <th>Students</th>
+                                    <th>Highest</th>
+                                    <th>Lowest</th>
+                                    <th>Level</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php $__empty_1 = true; $__currentLoopData = $analytics['gpa_comparison']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $gpa): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                <tr>
+                                    <td><?php echo e($gpa['grade_level']); ?></td>
+                                    <td><strong><?php echo e($gpa['average_gpa']); ?></strong></td>
+                                    <td><?php echo e($gpa['students_count']); ?></td>
+                                    <td><?php echo e($gpa['highest_gpa']); ?></td>
+                                    <td><?php echo e($gpa['lowest_gpa']); ?></td>
+                                    <td>
+                                        <?php if($gpa['average_gpa'] >= 3.5): ?>
+                                            <span class="ams-tag ams-tag--ok">Excellent</span>
+                                        <?php elseif($gpa['average_gpa'] >= 3.0): ?>
+                                            <span class="ams-tag ams-tag--info">Good</span>
+                                        <?php elseif($gpa['average_gpa'] >= 2.5): ?>
+                                            <span class="ams-tag ams-tag--warn">Average</span>
+                                        <?php else: ?>
+                                            <span class="ams-tag ams-tag--bad">Needs Improvement</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                                <tr><td colspan="6" class="text-center text-muted py-4">No GPA records yet. Grades need to be calculated into student GPA.</td></tr>
+                            <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -353,6 +412,19 @@
 .ams-tag--bad { background:#fee2e2; color:#991b1b; }
 .ams-tag--info { background:#dbeafe; color:#1e40af; }
 .ams-tag--warn { background:#fef3c7; color:#92400e; }
+.ams-acc { display:flex; flex-direction:column; gap:.65rem; }
+.ams-acc--nested { gap:.4rem; padding:.65rem; }
+.ams-acc-item { background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 8px 20px rgba(15,23,42,.04); }
+.ams-acc--nested .ams-acc-item { border-radius:12px; box-shadow:none; }
+.ams-acc-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.95rem 1.1rem; border:0; background:#fff; color:var(--ink); font-weight:700; text-align:left; cursor:pointer; }
+.ams-acc-item.is-open > .ams-acc-toggle { background:linear-gradient(180deg,#eef4ff,#fff); color:#1d4ed8; }
+.ams-acc-left { display:flex; align-items:center; gap:.7rem; min-width:0; }
+.ams-acc-left i { width:1.15rem; color:#3b82f6; }
+.ams-acc-arrow { width:.55rem; height:.55rem; border-right:2px solid #94a3b8; border-bottom:2px solid #94a3b8; transform:rotate(-45deg); transition:transform .2s ease; flex-shrink:0; margin-right:.15rem; }
+.ams-acc-item.is-open > .ams-acc-toggle .ams-acc-arrow { transform:rotate(45deg); border-color:#2563eb; }
+.ams-acc-panel { display:none; border-top:1px solid var(--line); background:#fff; }
+.ams-acc-item.is-open > .ams-acc-panel { display:block; }
+.ams-count-pill { display:inline-flex; align-items:center; justify-content:center; min-width:1.6rem; padding:.12rem .45rem; border-radius:999px; background:#eef2ff; color:#1e3a8a; font-size:.72rem; font-weight:700; }
 </style>
 <?php $__env->stopPush(); ?>
 
@@ -532,6 +604,26 @@
         [{ label: 'Average Score', data: sections.map(function (r) { return r.average_score; }), backgroundColor: '#047857' }],
         100
     );
+
+    document.querySelectorAll('#amsDetailMenus .ams-acc-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const item = btn.closest('.ams-acc-item');
+            if (!item) return;
+            const parent = item.parentElement;
+            const opening = !item.classList.contains('is-open');
+            Array.from(parent.children).forEach(function (child) {
+                if (child.classList && child.classList.contains('ams-acc-item')) {
+                    child.classList.remove('is-open');
+                    const toggle = child.querySelector(':scope > .ams-acc-toggle');
+                    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+            if (opening) {
+                item.classList.add('is-open');
+                btn.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
 })();
 </script>
 <?php $__env->stopPush(); ?>

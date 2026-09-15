@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\StudentPerformanceService;
 use App\Services\StudentSisService;
 use Illuminate\Http\Request;
 use Brian2694\Toastr\Facades\Toastr;
@@ -234,6 +235,11 @@ class StudentController extends Controller
     /** Restore archived student */
     public function restore($id)
     {
+        $role = auth()->user()->role_name ?? '';
+        if (! in_array($role, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+            abort(403, 'Only administrators and registrars can restore students.');
+        }
+
         $student = Student::onlyTrashed()->findOrFail($id);
         $student->restore();
         \Brian2694\Toastr\Facades\Toastr::success('Student restored successfully :)','Success');
@@ -244,7 +250,42 @@ class StudentController extends Controller
     public function studentProfile($id)
     {
         $student = Student::findOrFail($id);
-        return view('student.student-profile', compact('student'));
+        $this->authorizeStudentProfile($student);
+        $studentProfile = $student;
+
+        return view('student.student-profile', compact('student', 'studentProfile'));
+    }
+
+    protected function authorizeStudentProfile(Student $student): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            abort(403);
+        }
+
+        if (in_array($user->role_name, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+            return;
+        }
+
+        if ($user->role_name === User::ROLE_TEACHER && $user->teacher) {
+            $allowed = app(StudentPerformanceService::class)->studentIdsForTeacher($user->teacher);
+            if (in_array((int) $student->id, $allowed, true)) {
+                return;
+            }
+        }
+
+        if ($user->role_name === User::ROLE_STUDENT && $user->student && (int) $user->student->id === (int) $student->id) {
+            return;
+        }
+
+        if ($user->role_name === User::ROLE_PARENT) {
+            $isChild = Student::query()->forParent($user)->where('id', $student->id)->exists();
+            if ($isChild) {
+                return;
+            }
+        }
+
+        abort(403, 'You are not allowed to view this student profile.');
     }
 
     /** student my classes page */

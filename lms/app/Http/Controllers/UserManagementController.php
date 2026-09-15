@@ -9,10 +9,12 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Models\User;
+use App\Models\Student;
 use Brian2694\Toastr\Facades\Toastr;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use App\Rules\MatchOldPassword;
 
 
@@ -109,10 +111,17 @@ class UserManagementController extends Controller
                 return redirect()->back();
             }
 
+            $user = User::where('user_id', $request->user_id)->first();
+            if (!$user) {
+                DB::rollBack();
+                Toastr::error('User not found.', 'Error');
+                return redirect()->back();
+            }
+
             $request->validate([
                 'user_id' => 'required|string',
                 'name' => \App\Support\FormRules::NAME,
-                'email' => 'required|email|max:255',
+                'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
                 'phone_number' => \App\Support\FormRules::PHONE_REQUIRED,
                 'date_of_birth' => \App\Support\FormRules::DOB,
                 'status' => 'required|string|max:50',
@@ -123,13 +132,6 @@ class UserManagementController extends Controller
                 'hidden_avatar' => 'nullable|string|max:255',
                 'new_password' => 'nullable|string|min:8|confirmed',
             ], \App\Support\FormRules::messages());
-
-            $user = User::where('user_id', $request->user_id)->first();
-            if (!$user) {
-                DB::rollBack();
-                Toastr::error('User not found.', 'Error');
-                return redirect()->back();
-            }
 
             // Protect the only active Admin from role/status downgrade
             $activeAdmins = User::where('role_name', 'Admin')->where('status', 'Active')->count();
@@ -173,7 +175,22 @@ class UserManagementController extends Controller
                 $payload['password'] = \Illuminate\Support\Facades\Hash::make($request->new_password);
             }
 
+            $previousEmail = $user->email;
             $user->update($payload);
+
+            if ($user->role_name === 'Parent') {
+                Student::query()
+                    ->where(function ($q) use ($user, $previousEmail) {
+                        $q->where('parent_user_id', $user->id);
+                        if ($previousEmail) {
+                            $q->orWhere('parent_email', $previousEmail);
+                        }
+                    })
+                    ->update([
+                        'parent_user_id' => $user->id,
+                        'parent_email' => $user->email,
+                    ]);
+            }
 
             DB::commit();
             Toastr::success('User updated successfully.', 'Success');

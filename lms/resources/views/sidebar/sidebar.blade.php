@@ -157,6 +157,7 @@
                             'student.my-schedule',
                             'student.grades',
                             'student.report-card',
+                            'attendance.student',
                             'analytics.student-dashboard',
                             'announcements.*'
                         );
@@ -195,6 +196,7 @@
                         <ul>
                             <li><a href="{{ route('student.my-schedule') }}"><i class="fas fa-calendar-alt"></i> <span>My Schedule</span></a></li>
                             <li><a href="{{ route('student.grades') }}"><i class="fas fa-clipboard-list"></i> <span>Grades</span></a></li>
+                            <li><a href="{{ route('attendance.student') }}"><i class="fas fa-user-check"></i> <span>Attendance</span></a></li>
                             <li><a href="{{ route('analytics.student-dashboard') }}"><i class="fas fa-chart-line"></i> <span>My Analytics</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
                         </ul>
@@ -242,6 +244,9 @@
 
                     <li class="{{ $pSchedule ? 'active' : '' }}">
                         <a href="{{ route('parent.schedule') }}"><i class="fas fa-calendar-alt"></i> <span>Class Schedule</span></a>
+                    </li>
+                    <li class="{{ request()->routeIs('attendance.parent') ? 'active' : '' }}">
+                        <a href="{{ route('attendance.parent') }}"><i class="fas fa-user-check"></i> <span>Attendance</span></a>
                     </li>
 
                     <li class="submenu {{ $pComm ? 'active' : '' }}">

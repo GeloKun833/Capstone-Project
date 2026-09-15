@@ -94,7 +94,7 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
      */
     public function children()
     {
-        return Student::where('parent_email', $this->email)->get();
+        return Student::query()->forParent($this)->orderBy('last_name')->orderBy('first_name')->get();
     }
 
     /**

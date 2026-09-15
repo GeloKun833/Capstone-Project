@@ -12,6 +12,6 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        'enrollment-portal/*',
+        // Enrollment portal forms include CSRF tokens.
     ];
 }

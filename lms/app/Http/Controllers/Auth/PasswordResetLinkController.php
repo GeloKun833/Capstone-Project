@@ -45,14 +45,33 @@ class PasswordResetLinkController extends Controller
             $user->sendPasswordResetNotification($token);
         } catch (\Throwable $e) {
             report($e);
-            // Still allow on-screen reset when mailer is unavailable (e.g. local/dummy email).
         }
 
+        $request->session()->put('password_reset', [
+            'token' => $token,
+            'email' => $user->email,
+        ]);
+
         return redirect()
-            ->route('password.reset', [
-                'token' => $token,
-                'email' => $user->email,
-            ])
-            ->with('status', __(Password::RESET_LINK_SENT));
+            ->route('password.reset.continue')
+            ->with('status', __('If that email exists in our system, you can set a new password on the next page.'));
+    }
+
+    /**
+     * Show the reset form from a one-time session payload (token never goes in the URL).
+     */
+    public function continueReset(Request $request): View|RedirectResponse
+    {
+        $payload = $request->session()->get('password_reset');
+        if (! is_array($payload) || empty($payload['token']) || empty($payload['email'])) {
+            return redirect()
+                ->route('password.request')
+                ->with('status', __('If that email exists in our system, a reset link has been sent.'));
+        }
+
+        return view('auth.reset-password', [
+            'token' => $payload['token'],
+            'email' => $payload['email'],
+        ]);
     }
 }

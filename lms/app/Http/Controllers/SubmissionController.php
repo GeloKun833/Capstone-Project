@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Support\SafeUpload;
 
 class SubmissionController extends Controller
 {
@@ -58,18 +59,18 @@ class SubmissionController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|max:10240|extensions:pdf,docx,ppt,pptx,jpg,jpeg,png',
+            'file' => 'required|file|max:10240|mimes:pdf,docx,ppt,pptx,jpg,jpeg,png',
             'comments' => 'nullable|string|max:1000',
         ], [
-            'file.extensions' => 'Please upload a PDF, Word (DOCX), PPT, PPTX, or image file.',
+            'file.mimes' => 'Please upload a PDF, Word (DOCX), PPT, PPTX, or image file.',
         ]);
 
         try {
             DB::beginTransaction();
 
-            $file = $request->file('file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('submissions/' . $activity->id, $fileName, 'public');
+            $stored = SafeUpload::store($request->file('file'), 'submissions/'.$activity->id);
+            $filePath = $stored['path'];
+            $fileName = $stored['original_name'];
 
             $submission = ActivitySubmission::create([
                 'activity_id' => $activity->id,

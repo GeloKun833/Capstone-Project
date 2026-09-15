@@ -66,6 +66,13 @@ class PerformanceHubController extends Controller
         $alertType = $request->get('alert_type');
 
         if ($selectedAcademicYearId && $selectedSemesterId) {
+            $this->performance->syncAlertsForScope(
+                $selectedAcademicYearId,
+                $selectedSemesterId,
+                $selectedSectionId,
+                $allowedStudentIds
+            );
+
             if ($tab === 'ranking') {
                 $rankingRows = $this->performance->rankingRows(
                     $selectedAcademicYearId,

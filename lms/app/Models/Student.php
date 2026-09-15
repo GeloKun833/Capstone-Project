@@ -21,6 +21,7 @@ class Student extends Model
         'religion',
         'email',
         'parent_email',
+        'parent_user_id',
         'parent_name',
         'parent_phone',
         'parent_relationship',
@@ -37,6 +38,21 @@ class Student extends Model
         'phone_number',
         'upload',
     ];
+
+    public function parentUser()
+    {
+        return $this->belongsTo(User::class, 'parent_user_id');
+    }
+
+    public function scopeForParent($query, User $parent)
+    {
+        return $query->where(function ($q) use ($parent) {
+            $q->where('parent_user_id', $parent->id);
+            if ($parent->email) {
+                $q->orWhere('parent_email', $parent->email);
+            }
+        });
+    }
 
     public function enrollments() { return $this->hasMany(Enrollment::class); }
     public function subjects() { return $this->belongsToMany(Subject::class, 'enrollments'); }

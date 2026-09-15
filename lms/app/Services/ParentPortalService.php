@@ -21,7 +21,7 @@ class ParentPortalService
 {
     public function getChildrenForParent(User $parent): Collection
     {
-        return Student::where('parent_email', $parent->email)
+        return Student::query()->forParent($parent)
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();
@@ -29,7 +29,7 @@ class ParentPortalService
 
     public function resolveChildForParent(User $parent, int $childId): Student
     {
-        return Student::where('parent_email', $parent->email)
+        return Student::query()->forParent($parent)
             ->where('id', $childId)
             ->firstOrFail();
     }
@@ -46,7 +46,7 @@ class ParentPortalService
 
         $totalAttendance = Attendance::where('student_id', $child->id)->count();
         $presentAttendance = Attendance::where('student_id', $child->id)
-            ->where('status', 'present')
+            ->whereIn('status', ['present', 'late'])
             ->count();
         $attendancePercentage = $totalAttendance > 0
             ? round(($presentAttendance / $totalAttendance) * 100, 2)

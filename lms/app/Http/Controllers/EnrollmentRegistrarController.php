@@ -8,9 +8,12 @@ use App\Models\EnrollmentApplication;
 use App\Models\EnrollmentDocument;
 use App\Models\Student;
 use App\Models\User;
+use App\Models\Section;
+use App\Services\GradeSubjectCatalogService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Support\TemporaryPassword;
 
 class EnrollmentRegistrarController extends Controller
 {
@@ -58,7 +61,14 @@ class EnrollmentRegistrarController extends Controller
     public function show($id)
     {
         $application = EnrollmentApplication::with(['documents', 'reviewer'])->findOrFail($id);
-        return view('enrollment.registrar.show', compact('application'));
+        $aliases = GradeSubjectCatalogService::gradeAliases($application->grade_level_applying_for);
+        $sections = Section::query()
+            ->when(! empty($aliases), fn ($q) => $q->whereIn('grade_level', $aliases))
+            ->orderBy('name')
+            ->get();
+        $temporaryPassword = TemporaryPassword::make();
+
+        return view('enrollment.registrar.show', compact('application', 'sections', 'temporaryPassword'));
     }
 
     /**
@@ -79,6 +89,7 @@ class EnrollmentRegistrarController extends Controller
     {
         $request->validate([
             'notes' => 'nullable|string|max:1000',
+            'section_id' => 'required|exists:sections,id',
         ]);
 
         $application = EnrollmentApplication::findOrFail($id);
@@ -104,17 +115,17 @@ class EnrollmentRegistrarController extends Controller
                 ->where('role_name', 'Parent')
                 ->first();
             
+            $parentPassword = null;
             if ($existingParentUser) {
-                // Parent account already exists (created during application submission)
                 $parentUser = $existingParentUser;
                 Log::info("✅ Parent account already exists: {$parentUser->email}");
             } else {
-                // Parent account doesn't exist - create it now if parent email is different from student email
                 if ($application->parent_email && $application->parent_email !== $application->email) {
+                    $parentPassword = TemporaryPassword::make();
                     $parentUser = User::create([
                         'name' => $application->parent_name,
                         'email' => $application->parent_email,
-                        'password' => Hash::make('password123'),
+                        'password' => Hash::make($parentPassword),
                         'role_name' => 'Parent',
                         'status' => 'active',
                         'join_date' => now()->format('Y-m-d'),
@@ -127,11 +138,13 @@ class EnrollmentRegistrarController extends Controller
                 }
             }
 
+            $studentPassword = TemporaryPassword::make();
+
             // Create user account for student
             $user = User::create([
                 'name' => $application->full_name,
                 'email' => $application->email,
-                'password' => Hash::make('password123'), // Default password
+                'password' => Hash::make($studentPassword),
                 'role_name' => 'Student',
                 'status' => 'active',
                 'join_date' => now()->format('Y-m-d'),
@@ -155,6 +168,7 @@ class EnrollmentRegistrarController extends Controller
                 'phone_number' => $application->phone_number,
                 'address' => $application->address,
                 'parent_email' => $application->parent_email,
+                'parent_user_id' => $parentUser?->id,
                 'parent_name' => $application->parent_name,
                 'parent_phone' => $application->parent_phone,
                 'parent_relationship' => $application->parent_relationship,
@@ -174,22 +188,12 @@ class EnrollmentRegistrarController extends Controller
                 throw new \Exception("Student profile was not properly linked to user account");
             }
 
-            // Auto-assign student to preferred section (from enrollment form) or first available
-            try {
-                if ($application->preferred_section_id) {
-                    $assignedSection = $this->assignStudentToPreferredSection(
-                        $student,
-                        $application->preferred_section_id,
-                        $application->grade_level_applying_for
-                    );
-                } else {
-                    $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
-                }
-                Log::info("✅ Assigned student to section: {$assignedSection->name}");
-            } catch (\Exception $e) {
-                Log::warning("⚠️  Section assignment failed: " . $e->getMessage());
-                $assignedSection = null;
-            }
+            $assignedSection = $this->assignStudentToPreferredSection(
+                $student,
+                (int) $request->section_id,
+                $application->grade_level_applying_for
+            );
+            Log::info("✅ Assigned student to section: {$assignedSection->name}");
 
             // Auto-enroll student in subjects for their grade level
             try {
@@ -214,10 +218,11 @@ class EnrollmentRegistrarController extends Controller
             $credentials = [
                 'user_id' => $user->user_id,
                 'email' => $user->email,
-                'password' => 'password123',
+                'password' => $studentPassword,
                 'student_name' => $application->full_name,
                 'parent_user_id' => $parentUser ? $parentUser->user_id : null,
                 'parent_email' => $parentUser ? $parentUser->email : null,
+                'parent_password' => $parentPassword,
             ];
             
             session()->flash('student_credentials', $credentials);
@@ -227,17 +232,19 @@ class EnrollmentRegistrarController extends Controller
             $successMessage .= "📋 Student account created, {$sectionInfo}and enrolled in {$subjectCount} subjects.<br><br>";
             
             $successMessage .= "<div class='alert alert-success'>";
-            $successMessage .= "<strong>👨‍🎓 STUDENT LOGIN CREDENTIALS:</strong><br>";
+            $successMessage .= "<strong>STUDENT LOGIN CREDENTIALS:</strong><br>";
             $successMessage .= "📧 <strong>Email:</strong> {$user->email}<br>";
-            $successMessage .= "🔑 <strong>Password:</strong> password123<br>";
+            $successMessage .= "🔑 <strong>Password:</strong> {$studentPassword}<br>";
             $successMessage .= "🆔 <strong>User ID:</strong> {$user->user_id}";
             $successMessage .= "</div>";
             
             if ($parentUser) {
                 $successMessage .= "<div class='alert alert-info'>";
-                $successMessage .= "<strong>👨‍👩‍👧 PARENT LOGIN CREDENTIALS:</strong><br>";
+                $successMessage .= "<strong>PARENT LOGIN CREDENTIALS:</strong><br>";
                 $successMessage .= "📧 <strong>Email:</strong> {$parentUser->email}<br>";
-                $successMessage .= "🔑 <strong>Password:</strong> password123<br>";
+                $successMessage .= $parentPassword
+                    ? "🔑 <strong>Password:</strong> {$parentPassword}<br>"
+                    : "🔑 <strong>Password:</strong> Use the existing parent account password<br>";
                 $successMessage .= "🆔 <strong>User ID:</strong> {$parentUser->user_id}<br>";
                 $successMessage .= "<small class='text-muted'>Parent can access the Parent Portal to monitor their child's progress.</small>";
                 $successMessage .= "</div>";
@@ -495,7 +502,7 @@ class EnrollmentRegistrarController extends Controller
             $user = User::create([
                 'name' => $application->full_name,
                 'email' => $application->email,
-                'password' => Hash::make('password123'), // Default password
+                'password' => Hash::make(TemporaryPassword::make()),
                 'role_name' => 'Student',
                 'status' => 'active',
                 'join_date' => now()->format('Y-m-d'),
@@ -504,6 +511,10 @@ class EnrollmentRegistrarController extends Controller
                 'department' => 'Student Affairs',
                 'avatar' => 'default-avatar.png',
             ]);
+
+            $parentUser = User::where('email', $application->parent_email)
+                ->where('role_name', 'Parent')
+                ->first();
 
             // Create student record
             $student = Student::create([
@@ -517,6 +528,7 @@ class EnrollmentRegistrarController extends Controller
                 'phone_number' => $application->phone_number,
                 'address' => $application->address,
                 'parent_email' => $application->parent_email,
+                'parent_user_id' => $parentUser?->id,
                 'parent_name' => $application->parent_name,
                 'parent_phone' => $application->parent_phone,
                 'parent_relationship' => $application->parent_relationship,
@@ -528,16 +540,14 @@ class EnrollmentRegistrarController extends Controller
                 'year_level' => $application->grade_level_applying_for,
             ]);
 
-            // Auto-assign student to preferred section (from enrollment form) or first available
-            if ($application->preferred_section_id) {
-                $assignedSection = $this->assignStudentToPreferredSection(
-                    $student,
-                    $application->preferred_section_id,
-                    $application->grade_level_applying_for
-                );
-            } else {
-                $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
+            if (! $application->preferred_section_id) {
+                throw new \Exception('Choose a section before creating the student account.');
             }
+            $assignedSection = $this->assignStudentToPreferredSection(
+                $student,
+                $application->preferred_section_id,
+                $application->grade_level_applying_for
+            );
 
             // Auto-enroll student in subjects for their grade level
             $this->autoEnrollStudentInSubjects($student, $application->grade_level_applying_for);
@@ -566,12 +576,12 @@ class EnrollmentRegistrarController extends Controller
 
         $section = \App\Models\Section::find($sectionId);
         if (!$section) {
-            return $this->autoAssignStudentToSection($student, $gradeLevel);
+            throw new \Exception('Selected section was not found.');
         }
 
         $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
         if (!in_array($section->grade_level, $aliases, true)) {
-            return $this->autoAssignStudentToSection($student, $gradeLevel);
+            throw new \Exception('Selected section does not match the applicant grade level.');
         }
 
         $currentCount = DB::table('student_section_assignments')
@@ -581,7 +591,7 @@ class EnrollmentRegistrarController extends Controller
             ->count();
 
         if ($currentCount >= ($section->capacity ?? 25)) {
-            return $this->autoAssignStudentToSection($student, $gradeLevel);
+            throw new \Exception('Selected section is at capacity. Choose another section.');
         }
 
         $existingAssignment = DB::table('student_section_assignments')
@@ -757,6 +767,7 @@ class EnrollmentRegistrarController extends Controller
             'username' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
             'student_id_number' => 'nullable|string|unique:students,student_id',
+            'section_id' => 'required|exists:sections,id',
         ]);
 
         // Check if student already exists
@@ -787,6 +798,10 @@ class EnrollmentRegistrarController extends Controller
 
             Log::info("✅ Created user account: {$user->name} (ID: {$user->user_id})");
 
+            $parentUser = User::where('email', $application->parent_email)
+                ->where('role_name', 'Parent')
+                ->first();
+
             // Create student record with optional custom student ID
             $studentData = [
                 'user_id' => $user->user_id,
@@ -799,6 +814,7 @@ class EnrollmentRegistrarController extends Controller
                 'phone_number' => $application->phone_number,
                 'address' => $application->address,
                 'parent_email' => $application->parent_email,
+                'parent_user_id' => $parentUser?->id,
                 'parent_name' => $application->parent_name,
                 'parent_phone' => $application->parent_phone,
                 'parent_relationship' => $application->parent_relationship,
@@ -826,22 +842,12 @@ class EnrollmentRegistrarController extends Controller
                 throw new \Exception("Student profile was not properly linked to user account");
             }
 
-            // Auto-assign student to preferred section (from enrollment form) or first available
-            try {
-                if ($application->preferred_section_id) {
-                    $assignedSection = $this->assignStudentToPreferredSection(
-                        $student,
-                        $application->preferred_section_id,
-                        $application->grade_level_applying_for
-                    );
-                } else {
-                    $assignedSection = $this->autoAssignStudentToSection($student, $application->grade_level_applying_for);
-                }
-                Log::info("✅ Assigned student to section: {$assignedSection->name}");
-            } catch (\Exception $e) {
-                Log::warning("⚠️ Section assignment failed: " . $e->getMessage());
-                $assignedSection = null;
-            }
+            $assignedSection = $this->assignStudentToPreferredSection(
+                $student,
+                (int) $request->section_id,
+                $application->grade_level_applying_for
+            );
+            Log::info("✅ Assigned student to section: {$assignedSection->name}");
 
             // Auto-enroll student in subjects for their grade level
             try {

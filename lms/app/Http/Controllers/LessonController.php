@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use App\Support\SafeUpload;
 
 class LessonController extends Controller
 {
@@ -116,11 +117,11 @@ class LessonController extends Controller
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'semester_id' => 'required|exists:semesters,id',
                 'lesson_date' => 'required|date',
-                'file' => 'nullable|file|max:10240|extensions:pdf,docx,ppt,pptx',
+                'file' => 'nullable|file|max:10240|mimes:pdf,docx,ppt,pptx',
             ], [
                 'subject_id.in' => 'Select a subject assigned to you by Admin.',
                 'section_id.in' => 'Select a section assigned to you by Admin.',
-                'file.extensions' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
+                'file.mimes' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
             ]);
 
             $subjectId = (int) $request->subject_id;
@@ -147,11 +148,9 @@ class LessonController extends Controller
 
             // Handle file upload
             if ($request->hasFile('file')) {
-                $file = $request->file('file');
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $filePath = $file->storeAs('lessons', $fileName, 'public');
-                $data['file_path'] = $filePath;
-                $data['file_name'] = $fileName;
+                $stored = SafeUpload::store($request->file('file'), 'lessons');
+                $data['file_path'] = $stored['path'];
+                $data['file_name'] = $stored['original_name'];
             }
 
             $lesson = Lesson::create($data);
@@ -224,22 +223,27 @@ class LessonController extends Controller
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'semester_id' => 'required|exists:semesters,id',
                 'lesson_date' => 'required|date',
-                'file' => 'nullable|file|max:10240|extensions:pdf,docx,ppt,pptx',
+                'file' => 'nullable|file|max:10240|mimes:pdf,docx,ppt,pptx',
             ], [
-                'file.extensions' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
+                'file.mimes' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
             ]);
-            $data = $request->all();
+            $data = $request->only([
+                'title',
+                'description',
+                'subject_id',
+                'section_id',
+                'academic_year_id',
+                'semester_id',
+                'lesson_date',
+            ]);
             // Handle file upload
             if ($request->hasFile('file')) {
-                // Delete old file if exists
                 if ($lesson->file_path) {
                     Storage::disk('public')->delete($lesson->file_path);
                 }
-                $file = $request->file('file');
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $filePath = $file->storeAs('lessons', $fileName, 'public');
-                $data['file_path'] = $filePath;
-                $data['file_name'] = $fileName;
+                $stored = SafeUpload::store($request->file('file'), 'lessons');
+                $data['file_path'] = $stored['path'];
+                $data['file_name'] = $stored['original_name'];
             }
             $lesson->update($data);
             return redirect()->route('lessons.index')
