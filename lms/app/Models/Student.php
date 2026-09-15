@@ -44,6 +44,28 @@ class Student extends Model
         return $this->belongsTo(User::class, 'parent_user_id');
     }
 
+    public function linkedParentUser(): ?User
+    {
+        if ($this->parent_user_id) {
+            $parent = User::query()
+                ->where('id', $this->parent_user_id)
+                ->where('role_name', User::ROLE_PARENT)
+                ->first();
+            if ($parent) {
+                return $parent;
+            }
+        }
+
+        if ($this->parent_email) {
+            return User::query()
+                ->where('email', $this->parent_email)
+                ->where('role_name', User::ROLE_PARENT)
+                ->first();
+        }
+
+        return null;
+    }
+
     public function scopeForParent($query, User $parent)
     {
         return $query->where(function ($q) use ($parent) {

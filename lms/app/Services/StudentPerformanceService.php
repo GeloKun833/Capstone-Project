@@ -825,13 +825,9 @@ class StudentPerformanceService
                 $student->user->notify(new LowGradeAlertNotification($payloadGrade, $student, $subject));
             }
 
-            if ($student->parent_email) {
-                $parent = User::where('email', $student->parent_email)
-                    ->where('role_name', 'Parent')
-                    ->first();
-                if ($parent) {
-                    $parent->notify(new LowGradeAlertNotification($payloadGrade, $student, $subject));
-                }
+            $parent = $student->linkedParentUser();
+            if ($parent) {
+                $parent->notify(new LowGradeAlertNotification($payloadGrade, $student, $subject));
             }
         } catch (\Throwable $e) {
             Log::warning('Low grade notification failed', ['error' => $e->getMessage()]);

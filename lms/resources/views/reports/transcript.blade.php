@@ -156,73 +156,35 @@
             
             <div class="transcript-section">
                 <div class="period-header">
-                    {{ $period['academic_year']->name }} - {{ $period['semester']->name }}
+                    {{ $period['academic_year']->name ?? 'N/A' }}@if(!empty($period['semester'])) — {{ $period['semester']->name }}@endif
                 </div>
 
                 <table>
                     <thead>
                         <tr>
                             <th style="width: 5%;">No.</th>
-                            <th style="width: 35%;">Subject</th>
-                            <th style="width: 20%;">Component</th>
-                            <th style="width: 10%;">Score</th>
-                            <th style="width: 10%;">Max Score</th>
-                            <th style="width: 10%;">Percentage</th>
-                            <th style="width: 10%;">Grade</th>
+                            <th style="width: 28%;">Subject</th>
+                            <th style="width: 9%;">Q1</th>
+                            <th style="width: 9%;">Q2</th>
+                            <th style="width: 9%;">Q3</th>
+                            <th style="width: 9%;">Q4</th>
+                            <th style="width: 11%;">Final</th>
+                            <th style="width: 20%;">Remarks</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @php $subjectNum = 1; @endphp
-                        @foreach($period['subjects'] as $subjectData)
-                            @php
-                                $firstComponent = true;
-                                $componentCount = 0;
-                                foreach($subjectData['components'] as $component) {
-                                    $componentCount += $component->count();
-                                }
-                            @endphp
-                            
-                            @foreach($subjectData['components'] as $componentId => $componentGrades)
-                                @foreach($componentGrades as $grade)
-                                    <tr class="{{ $firstComponent ? 'subject-row' : 'component-row' }}">
-                                        @if($firstComponent)
-                                            <td class="text-center" rowspan="{{ $componentCount }}">{{ $subjectNum }}</td>
-                                            <td rowspan="{{ $componentCount }}"><strong>{{ $subjectData['subject']->subject_name }}</strong></td>
-                                            @php $firstComponent = false; @endphp
-                                        @endif
-                                        <td>{{ $grade->component->name ?? 'N/A' }}</td>
-                                        <td class="text-center">{{ number_format($grade->score, 2) }}</td>
-                                        <td class="text-center">{{ number_format($grade->max_score, 2) }}</td>
-                                        <td class="text-center">{{ number_format($grade->percentage, 2) }}%</td>
-                                        <td class="text-center">
-                                            @php
-                                                $percentage = $grade->percentage;
-                                                if ($percentage >= 90) echo 'A';
-                                                elseif ($percentage >= 80) echo 'B';
-                                                elseif ($percentage >= 70) echo 'C';
-                                                elseif ($percentage >= 60) echo 'D';
-                                                else echo 'F';
-                                            @endphp
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            @endforeach
-                            
-                            <tr style="background-color: #e8e8e8; font-weight: bold;">
-                                <td colspan="5" class="text-right">Average for {{ $subjectData['subject']->subject_name }}:</td>
-                                <td class="text-center">{{ number_format($subjectData['average'], 2) }}%</td>
-                                <td class="text-center">
-                                    @php
-                                        $avg = $subjectData['average'];
-                                        if ($avg >= 90) echo 'A';
-                                        elseif ($avg >= 80) echo 'B';
-                                        elseif ($avg >= 70) echo 'C';
-                                        elseif ($avg >= 60) echo 'D';
-                                        else echo 'F';
-                                    @endphp
-                                </td>
+                        @foreach($period['subjects'] as $index => $subjectData)
+                            @php $q = $subjectData['quarterly']; @endphp
+                            <tr>
+                                <td class="text-center">{{ $index + 1 }}</td>
+                                <td><strong>{{ $subjectData['subject']->subject_name }}</strong></td>
+                                <td class="text-center">{{ $q->quarter_1 !== null ? number_format($q->quarter_1, 2) : '—' }}</td>
+                                <td class="text-center">{{ $q->quarter_2 !== null ? number_format($q->quarter_2, 2) : '—' }}</td>
+                                <td class="text-center">{{ $q->quarter_3 !== null ? number_format($q->quarter_3, 2) : '—' }}</td>
+                                <td class="text-center">{{ $q->quarter_4 !== null ? number_format($q->quarter_4, 2) : '—' }}</td>
+                                <td class="text-center"><strong>{{ number_format($subjectData['average'], 2) }}</strong></td>
+                                <td class="text-center">{{ $subjectData['remarks'] ?: ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED') }}</td>
                             </tr>
-                            @php $subjectNum++; @endphp
                         @endforeach
                     </tbody>
                 </table>
@@ -231,7 +193,7 @@
                     <div class="summary">
                         <table>
                             <tr>
-                                <td class="label">GPA for {{ $period['academic_year']->name }} - {{ $period['semester']->name }}:</td>
+                                <td class="label">GPA for {{ $period['academic_year']->name ?? 'N/A' }}@if(!empty($period['semester'])) — {{ $period['semester']->name }}@endif:</td>
                                 <td><strong>{{ number_format($period['gpa']->gpa, 2) }}</strong></td>
                                 <td class="label">Rank:</td>
                                 <td><strong>{{ $period['gpa']->rank ?? 'N/A' }}</strong></td>

@@ -446,6 +446,10 @@ class GradingController extends Controller
             ], 403);
         }
 
+        $sectionStudentIds = \App\Models\Student::whereHas('sections', function ($q) use ($sectionId) {
+            $q->where('sections.id', $sectionId);
+        })->pluck('id')->map(fn ($id) => (int) $id)->all();
+
         $semesterId = $request->semester_id
             ?? Semester::where('academic_year_id', $academicYearId)->orderBy('id')->value('id')
             ?? Semester::latest()->value('id');
@@ -459,6 +463,11 @@ class GradingController extends Controller
             foreach ($request->grades as $gradeData) {
                 $subjectId = (int) $gradeData['subject_id'];
                 if (! in_array($subjectId, $validSubjectIds, true)) {
+                    continue;
+                }
+
+                $studentId = (int) $gradeData['student_id'];
+                if (! in_array($studentId, $sectionStudentIds, true)) {
                     continue;
                 }
 
@@ -588,6 +597,18 @@ class GradingController extends Controller
                 'message' => 'You are not authorized to save grades for this subject.'
             ], 403);
         }
+
+        $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $sectionIdsForSubject = array_map('intval', $options['assignmentMap'][(int) $subjectId] ?? []);
+        $allowedStudentIds = [];
+        if ($sectionIdsForSubject !== []) {
+            $allowedStudentIds = \App\Models\Student::whereHas('sections', function ($q) use ($sectionIdsForSubject) {
+                $q->whereIn('sections.id', $sectionIdsForSubject);
+            })->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+        if ($allowedStudentIds === []) {
+            $allowedStudentIds = app(\App\Services\StudentPerformanceService::class)->studentIdsForTeacher($teacher);
+        }
         
         // Verify component belongs to the subject
         $componentValid = SubjectComponent::where('id', $componentId)
@@ -607,6 +628,11 @@ class GradingController extends Controller
         try {
             $savedCount = 0;
             foreach ($request->grades as $gradeData) {
+                $studentId = (int) ($gradeData['student_id'] ?? 0);
+                if (! in_array($studentId, $allowedStudentIds, true)) {
+                    continue;
+                }
+
                 // Ensure score is set and is a valid number
                 $score = isset($gradeData['score']) ? $gradeData['score'] : null;
                 
@@ -983,11 +1009,9 @@ class GradingController extends Controller
                 if ($student->user) {
                     $student->user->notify(new \App\Notifications\LowGradeAlertNotification($grade, $student, $grade->subject));
                 }
-                if ($student->parent_email) {
-                    $parent = \App\Models\User::where('email', $student->parent_email)->where('role_name', 'Parent')->first();
-                    if ($parent) {
-                        $parent->notify(new \App\Notifications\LowGradeAlertNotification($grade, $student, $grade->subject));
-                    }
+                $parent = $student->linkedParentUser();
+                if ($parent) {
+                    $parent->notify(new \App\Notifications\LowGradeAlertNotification($grade, $student, $grade->subject));
                 }
             }
         }

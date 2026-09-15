@@ -29,16 +29,13 @@ class ClassScheduleController extends Controller
         
         // Handle different user roles
         if ($user->role_name === 'Student') {
-            // If no student_id provided, try to get current user's student record
-            if (!$studentId) {
-                $student = $user->student;
-                if ($student) {
-                    $studentId = $student->id;
-                }
+            $student = $user->student;
+            if (! $student) {
+                return redirect()->back()->with('error', 'Student profile not found.');
             }
+            $studentId = $student->id;
         } elseif ($user->role_name === 'Parent') {
-            // For parents, get their children and use the first one if no specific child selected
-            $children = \App\Models\Student::where('parent_email', $user->email)->get();
+            $children = Student::query()->forParent($user)->get();
             
             Log::info('Parent children found', [
                 'parent_email' => $user->email,
@@ -55,8 +52,7 @@ class ClassScheduleController extends Controller
                 $studentId = $children->first()->id;
                 Log::info('Using first child', ['student_id' => $studentId]);
             } else {
-                // Verify the student belongs to this parent
-                $child = $children->where('id', $studentId)->first();
+                $child = $children->where('id', (int) $studentId)->first();
                 if (!$child) {
                     Log::warning('Parent trying to access unauthorized student', [
                         'parent_email' => $user->email,
@@ -65,6 +61,19 @@ class ClassScheduleController extends Controller
                     return redirect()->route('dashboard')->with('error', 'Access denied. This student is not linked to your account.');
                 }
             }
+        } elseif ($user->role_name === 'Teacher') {
+            if (! $user->teacher) {
+                return redirect()->back()->with('error', 'Teacher profile not found.');
+            }
+            if (! $studentId) {
+                return redirect()->back()->with('error', 'Select a student to view their schedule.');
+            }
+            $allowed = app(\App\Services\StudentPerformanceService::class)->studentIdsForTeacher($user->teacher);
+            if (! in_array((int) $studentId, $allowed, true)) {
+                abort(403, 'You are not allowed to view this student schedule.');
+            }
+        } elseif ($user->role_name !== 'Admin' && $user->role_name !== 'Registrar') {
+            abort(403, 'You are not allowed to view this schedule.');
         }
 
         if (!$studentId) {
@@ -521,11 +530,26 @@ class ClassScheduleController extends Controller
      */
     public function getDashboardSchedule($studentId = null)
     {
-        if (!$studentId && Auth::user()->role_name === 'Student') {
-            $student = Auth::user()->student;
-            if ($student) {
-                $studentId = $student->id;
+        $user = Auth::user();
+        if ($user->role_name === 'Student') {
+            $student = $user->student;
+            $studentId = $student?->id;
+        } elseif ($user->role_name === 'Parent') {
+            $children = Student::query()->forParent($user)->get();
+            if ($studentId) {
+                if (! $children->contains('id', (int) $studentId)) {
+                    return response()->json([], 403);
+                }
+            } else {
+                $studentId = optional($children->first())->id;
             }
+        } elseif ($user->role_name === 'Teacher' && $user->teacher && $studentId) {
+            $allowed = app(\App\Services\StudentPerformanceService::class)->studentIdsForTeacher($user->teacher);
+            if (! in_array((int) $studentId, $allowed, true)) {
+                return response()->json([], 403);
+            }
+        } elseif (! in_array($user->role_name, ['Admin', 'Registrar'], true) && $studentId) {
+            return response()->json([], 403);
         }
 
         if (!$studentId) {

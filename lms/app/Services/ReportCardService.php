@@ -198,6 +198,8 @@ class ReportCardService
         return [
             'school_days' => $zeros,
             'present' => $zeros,
+            'late' => $zeros,
+            'excused' => $zeros,
             'absent' => $zeros,
         ];
     }
@@ -217,12 +219,14 @@ class ReportCardService
             ]);
         }
 
-        // One status per calendar day: present wins if mixed subject records exist.
+        // One status per calendar day: present > late > excused > absent.
+        $rank = ['present' => 4, 'late' => 3, 'excused' => 2, 'absent' => 1];
         $byDate = [];
         foreach ($query->get(['date', 'status']) as $record) {
             $day = Carbon::parse($record->date)->toDateString();
-            if (! isset($byDate[$day]) || $record->status === 'present') {
-                $byDate[$day] = $record->status;
+            $status = strtolower((string) $record->status);
+            if (! isset($byDate[$day]) || ($rank[$status] ?? 0) > ($rank[$byDate[$day]] ?? 0)) {
+                $byDate[$day] = $status;
             }
         }
 
@@ -233,13 +237,9 @@ class ReportCardService
             }
             $rows['school_days'][$month]++;
             $rows['school_days']['total']++;
-            if ($status === 'present') {
-                $rows['present'][$month]++;
-                $rows['present']['total']++;
-            } else {
-                $rows['absent'][$month]++;
-                $rows['absent']['total']++;
-            }
+            $bucket = in_array($status, ['present', 'late', 'excused', 'absent'], true) ? $status : 'absent';
+            $rows[$bucket][$month]++;
+            $rows[$bucket]['total']++;
         }
 
         return $rows;

@@ -32,7 +32,7 @@ class SectionController extends Controller
         $teachers = Teacher::with('user')
             ->whereHas('user', function ($query) {
                 $query->where('role_name', 'Teacher')
-                    ->where('status', 'active');
+                    ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
             })
             ->orderBy('full_name')
             ->get();
@@ -45,7 +45,7 @@ class SectionController extends Controller
         $teachers = Teacher::with('user')
             ->whereHas('user', function ($query) {
                 $query->where('role_name', 'Teacher')
-                    ->where('status', 'active');
+                    ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
             })
             ->orderBy('full_name')
             ->get();
@@ -91,7 +91,7 @@ class SectionController extends Controller
         $teachers = Teacher::with('user')
             ->whereHas('user', function ($query) {
                 $query->where('role_name', 'Teacher')
-                    ->where('status', 'active');
+                    ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
             })
             ->orderBy('full_name')
             ->get();

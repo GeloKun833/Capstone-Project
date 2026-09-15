@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Student;
 use App\Models\Section;
-use App\Models\Grade;
+use App\Models\QuarterlyGrade;
 use App\Models\StudentGpa;
 use App\Models\Attendance;
 use App\Models\Subject;
@@ -195,9 +195,9 @@ class ReportController extends Controller
             if ($user->role_name === 'Student' && $user->student && $user->student->id != $studentId) {
                 abort(403, 'Unauthorized access.');
             } elseif ($user->role_name === 'Parent') {
-                // Check if student is linked to parent
                 $student = Student::findOrFail($studentId);
-                if ($student->parent_email !== $user->email) {
+                $isChild = Student::query()->forParent($user)->where('id', $student->id)->exists();
+                if (! $isChild) {
                     abort(403, 'Unauthorized access.');
                 }
             } elseif ($user->role_name !== 'Student' && $user->role_name !== 'Parent') {
@@ -217,16 +217,16 @@ class ReportController extends Controller
 
         $exportData = [];
         foreach ($viewData['subjectGrades'] as $sg) {
-            foreach ($sg['grades'] as $grade) {
-                $exportData[] = [
-                    $sg['subject']->subject_name ?? 'N/A',
-                    $grade->component->name ?? 'N/A',
-                    $grade->score,
-                    $grade->max_score,
-                    round($grade->percentage, 2) . '%',
-                    $grade->remarks ?? GradeNarrativeHelper::subjectNarrative($sg['average'], $sg['subject']->subject_name ?? 'Subject'),
-                ];
-            }
+            $q = $sg['quarterly'];
+            $exportData[] = [
+                $sg['subject']->subject_name ?? 'N/A',
+                $q->quarter_1,
+                $q->quarter_2,
+                $q->quarter_3,
+                $q->quarter_4,
+                $sg['average'],
+                $sg['remarks'] ?? '',
+            ];
         }
         $filename = 'grade_slip_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
         return Excel::download(new GradeSlipExport($exportData), $filename);
@@ -244,9 +244,9 @@ class ReportController extends Controller
             if ($user->role_name === 'Student' && $user->student && $user->student->id != $studentId) {
                 abort(403, 'Unauthorized access.');
             } elseif ($user->role_name === 'Parent') {
-                // Check if student is linked to parent
                 $student = Student::findOrFail($studentId);
-                if ($student->parent_email !== $user->email) {
+                $isChild = Student::query()->forParent($user)->where('id', $student->id)->exists();
+                if (! $isChild) {
                     abort(403, 'Unauthorized access.');
                 }
             } elseif ($user->role_name !== 'Student' && $user->role_name !== 'Parent') {
@@ -399,47 +399,20 @@ class ReportController extends Controller
     {
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
-
-        $gradesQuery = Grade::where('student_id', $student->id)
-            ->with(['subject', 'component', 'academicYear', 'semester', 'teacher']);
-        if ($academicYearId) {
-            $gradesQuery->where('academic_year_id', $academicYearId);
-        }
-        if ($semesterId) {
-            $gradesQuery->where('semester_id', $semesterId);
-        }
-        $grades = $gradesQuery->orderBy('academic_year_id', 'desc')
-            ->orderBy('semester_id')
-            ->orderBy('subject_id')
-            ->get();
-
+        $quarterly = $this->quarterlyGradesForStudent($student, $academicYearId);
         $transcriptData = [];
-        foreach ($grades->groupBy('academic_year_id') as $yearId => $yearGrades) {
-            $academicYear = $yearGrades->first()->academicYear;
-            foreach ($yearGrades->groupBy('semester_id') as $semId => $semGrades) {
-                $semester = $semGrades->first()->semester;
-                $gpa = StudentGpa::where('student_id', $student->id)
+
+        foreach ($quarterly->groupBy('academic_year_id') as $yearId => $yearGrades) {
+            $transcriptData[] = [
+                'academic_year' => $yearGrades->first()->academicYear,
+                'semester' => $semesterId ? Semester::find($semesterId) : null,
+                'subjects' => $this->subjectRowsFromQuarterly($yearGrades),
+                'gpa' => StudentGpa::where('student_id', $student->id)
                     ->where('academic_year_id', $yearId)
-                    ->where('semester_id', $semId)
-                    ->first();
-                $subjectGrades = [];
-                foreach ($semGrades->groupBy('subject_id') as $subjGrades) {
-                    $subject = $subjGrades->first()->subject;
-                    $avgPercentage = $subjGrades->avg('percentage');
-                    $subjectGrades[] = [
-                        'subject' => $subject,
-                        'grades' => $subjGrades,
-                        'average' => round($avgPercentage, 2),
-                        'components' => $subjGrades->groupBy('component_id'),
-                    ];
-                }
-                $transcriptData[] = [
-                    'academic_year' => $academicYear,
-                    'semester' => $semester,
-                    'subjects' => $subjectGrades,
-                    'gpa' => $gpa,
-                ];
-            }
+                    ->when($semesterId, fn ($q) => $q->where('semester_id', $semesterId))
+                    ->orderByDesc('id')
+                    ->first(),
+            ];
         }
 
         return [
@@ -455,28 +428,9 @@ class ReportController extends Controller
     protected function gradeSlipViewData(Student $student, Request $request): array
     {
         [$academicYearId, $semesterId] = $this->resolvePeriod($request);
-
-        $gradesQuery = Grade::where('student_id', $student->id)
-            ->with(['subject', 'component', 'academicYear', 'semester']);
-        if ($academicYearId) {
-            $gradesQuery->where('academic_year_id', $academicYearId);
-        }
-        if ($semesterId) {
-            $gradesQuery->where('semester_id', $semesterId);
-        }
-        $grades = $gradesQuery->orderBy('subject_id')->get();
-
-        $subjectGrades = [];
-        foreach ($grades->groupBy('subject_id') as $subjGrades) {
-            $subject = $subjGrades->first()->subject;
-            $avgPercentage = $subjGrades->avg('percentage');
-            $subjectGrades[] = [
-                'subject' => $subject,
-                'grades' => $subjGrades,
-                'average' => round($avgPercentage, 2),
-                'components' => $subjGrades->groupBy('component_id'),
-            ];
-        }
+        $subjectGrades = $this->subjectRowsFromQuarterly(
+            $this->quarterlyGradesForStudent($student, $academicYearId)
+        );
 
         $gpaQuery = StudentGpa::where('student_id', $student->id);
         if ($academicYearId) {
@@ -500,16 +454,6 @@ class ReportController extends Controller
     {
         [$academicYearId, $semesterId] = $this->resolvePeriod($request);
 
-        $gradesQuery = Grade::where('student_id', $student->id)
-            ->with(['subject', 'component', 'academicYear', 'semester']);
-        if ($academicYearId) {
-            $gradesQuery->where('academic_year_id', $academicYearId);
-        }
-        if ($semesterId) {
-            $gradesQuery->where('semester_id', $semesterId);
-        }
-        $grades = $gradesQuery->get();
-
         $gpaQuery = StudentGpa::where('student_id', $student->id)->with(['academicYear', 'semester']);
         if ($academicYearId) {
             $gpaQuery->where('academic_year_id', $academicYearId);
@@ -519,18 +463,9 @@ class ReportController extends Controller
         }
         $gpaRecords = $gpaQuery->orderBy('created_at', 'desc')->get();
         $attendanceSummary = $this->getAttendanceSummary($student->id, $academicYearId, $semesterId);
-
-        $subjectPerformance = [];
-        foreach ($grades->groupBy('subject_id') as $subjGrades) {
-            $subject = $subjGrades->first()->subject;
-            $subjectPerformance[] = [
-                'subject' => $subject,
-                'average' => round($subjGrades->avg('percentage'), 2),
-                'max' => round($subjGrades->max('percentage'), 2),
-                'min' => round($subjGrades->min('percentage'), 2),
-                'count' => $subjGrades->count(),
-            ];
-        }
+        $subjectPerformance = $this->subjectRowsFromQuarterly(
+            $this->quarterlyGradesForStudent($student, $academicYearId)
+        );
 
         $recentActivities = \App\Models\ActivitySubmission::where('student_id', $student->id)
             ->with(['activity.lesson.subject'])
@@ -564,6 +499,43 @@ class ReportController extends Controller
             'academicYear' => $academicYearId ? AcademicYear::find($academicYearId) : null,
             'semester' => $semesterId ? Semester::find($semesterId) : null,
         ];
+    }
+
+    protected function quarterlyGradesForStudent(Student $student, $academicYearId = null)
+    {
+        $query = QuarterlyGrade::where('student_id', $student->id)
+            ->with(['subject', 'academicYear']);
+        if ($academicYearId) {
+            $query->where('academic_year_id', $academicYearId);
+        }
+
+        return $query->orderBy('academic_year_id', 'desc')->orderBy('subject_id')->get();
+    }
+
+    protected function subjectRowsFromQuarterly($quarterlyGrades): array
+    {
+        $rows = [];
+        foreach ($quarterlyGrades as $row) {
+            if (! $row->subject) {
+                continue;
+            }
+            $quarters = array_values(array_filter(
+                [$row->quarter_1, $row->quarter_2, $row->quarter_3, $row->quarter_4],
+                fn ($v) => $v !== null && $v !== ''
+            ));
+            $final = $row->final_grade ?? $row->calculateFinalGrade();
+            $rows[] = [
+                'subject' => $row->subject,
+                'quarterly' => $row,
+                'average' => $final !== null ? round((float) $final, 2) : 0,
+                'max' => $quarters ? round((float) max($quarters), 2) : 0,
+                'min' => $quarters ? round((float) min($quarters), 2) : 0,
+                'count' => count($quarters),
+                'remarks' => $row->remarks ?: $row->getRemarks(),
+            ];
+        }
+
+        return $rows;
     }
 
     protected function classListViewData(Section $section, Request $request): array
@@ -719,17 +691,21 @@ class ReportController extends Controller
         }
 
         $attendances = $query->get();
-        
-        $total = $attendances->count();
         $present = $attendances->where('status', 'present')->count();
-        $absent = $total - $present;
-        $percentage = $total > 0 ? round(($present / $total) * 100, 2) : 0;
+        $late = $attendances->where('status', 'late')->count();
+        $excused = $attendances->where('status', 'excused')->count();
+        $absent = $attendances->where('status', 'absent')->count();
+        $total = $attendances->count();
+        $attended = $present + $late;
+        $percentage = $total > 0 ? round(($attended / $total) * 100, 2) : 0;
 
         return [
             'total' => $total,
             'present' => $present,
+            'late' => $late,
+            'excused' => $excused,
             'absent' => $absent,
-            'percentage' => $percentage
+            'percentage' => $percentage,
         ];
     }
 }

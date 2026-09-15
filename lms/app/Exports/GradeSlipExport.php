@@ -23,7 +23,7 @@ class GradeSlipExport implements FromArray, WithHeadings, ShouldAutoSize, WithTi
 
     public function headings(): array
     {
-        return ['Subject', 'Component', 'Score', 'Max Score', 'Percentage', 'Remarks'];
+        return ['Subject', 'Q1', 'Q2', 'Q3', 'Q4', 'Final', 'Remarks'];
     }
 
     public function title(): string

@@ -55,29 +55,33 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Status <span class="login-danger">*</span></label>
-                                            <select class="form-control select" name="status" @if(!empty($isSoleAdmin)) data-sole-admin="1" @endif>
-                                                <option disabled>Select Status</option>
-                                                <option value="Active" {{ old('status', $users->status) == 'Active' ? 'selected' : '' }}>Active</option>
-                                                <option value="Disable" {{ old('status', $users->status) == 'Disable' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Disable</option>
-                                                <option value="Inactive" {{ old('status', $users->status) == 'Inactive' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Inactive</option>
+                                            @php $currentStatus = old('status', $users->status); @endphp
+                                            <select class="form-control" name="status" @if(!empty($isSoleAdmin)) data-sole-admin="1" @endif>
+                                                <option value="Active" {{ \App\Models\User::isActiveStatus($currentStatus) ? 'selected' : '' }}>Active</option>
+                                                <option value="Inactive" {{ strtolower((string) $currentStatus) === 'inactive' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Inactive</option>
+                                                <option value="Disable" {{ in_array(strtolower((string) $currentStatus), ['disable', 'disabled'], true) ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Disable</option>
                                             </select>
                                             @if(!empty($isSoleAdmin))
                                                 <small class="text-warning">This is the only active Admin — status/role are locked.</small>
+                                                <input type="hidden" name="status" value="{{ $users->status }}">
                                             @endif
+                                            @error('status')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Role Name <span class="login-danger">*</span></label>
-                                            <select class="form-control select" name="role_name" id="role_name" @if(!empty($isSoleAdmin)) disabled @endif>
-                                                <option disabled>Role Type</option>
+                                            @php $currentRole = old('role_name', $users->role_name); @endphp
+                                            <select class="form-control" name="role_name" id="role_name" required @if(!empty($isSoleAdmin)) disabled @endif>
                                                 @foreach ($role as $name)
-                                                    <option value="{{ $name->role_type }}" {{ old('role_name', $users->role_name) == $name->role_type ? 'selected' : '' }}>{{ $name->role_type }}</option>
+                                                    <option value="{{ $name->role_type }}" {{ (string) $currentRole === (string) $name->role_type ? 'selected' : '' }}>{{ $name->role_type }}</option>
                                                 @endforeach
                                             </select>
+                                            <input type="hidden" name="role_name_current" value="{{ $users->role_name }}">
                                             @if(!empty($isSoleAdmin))
                                                 <input type="hidden" name="role_name" value="Admin">
                                             @endif
+                                            @error('role_name')<div class="text-danger small">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
                                     

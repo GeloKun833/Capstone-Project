@@ -20,7 +20,7 @@ class TeacherController extends Controller
         // Get all users with Teacher role (active status)
         // Prioritize teachers without complete details in teachers table
         $users = User::where('role_name', 'Teacher')
-            ->where('status', 'active')
+            ->activeAccounts()
             ->orderBy('name', 'asc')
             ->get();
         

@@ -171,7 +171,10 @@
                             </div>
                         </div>
                         <a class="dropdown-item" href="<?php echo e(route('user/profile/page')); ?>">My Profile</a>
-                        <a class="dropdown-item" href="<?php echo e(route('logout')); ?>">Logout</a>
+                        <form method="POST" action="<?php echo e(route('logout')); ?>">
+                            <?php echo csrf_field(); ?>
+                            <button type="submit" class="dropdown-item">Logout</button>
+                        </form>
                     </div>
                 </li>
             </ul>

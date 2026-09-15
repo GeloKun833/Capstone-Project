@@ -40,7 +40,12 @@
                         <div class="role">{{ auth()->user()->role_name ?? 'Admin' }}</div>
                     </div>
                 </div>
-                <a href="{{ route('logout') }}" class="ep-nav-link mt-2" style="color:#FCA5A5;"><i class="fas fa-right-from-bracket"></i><span class="ep-nav-label">Logout</span></a>
+                <form method="POST" action="{{ route('logout') }}" class="mt-2">
+                    @csrf
+                    <button type="submit" class="ep-nav-link" style="color:#FCA5A5;width:100%;text-align:left;background:none;border:0;">
+                        <i class="fas fa-right-from-bracket"></i><span class="ep-nav-label">Logout</span>
+                    </button>
+                </form>
             </div>
         </aside>
         <div class="ep-main">

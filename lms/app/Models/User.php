@@ -65,6 +65,21 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
     public const ROLE_STUDENT = 'Student';
     public const ROLE_PARENT = 'Parent';
 
+    public static function isActiveStatus(?string $status): bool
+    {
+        return strtolower(trim((string) $status)) === 'active';
+    }
+
+    public function isActiveAccount(): bool
+    {
+        return self::isActiveStatus($this->status);
+    }
+
+    public function scopeActiveAccounts($query)
+    {
+        return $query->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
+    }
+
     /**
      * Check if user has a specific role
      */

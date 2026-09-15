@@ -10,6 +10,11 @@ use Brian2694\Toastr\Facades\Toastr;
 
 class AccountsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(['auth', 'role:Admin|Registrar']);
+    }
+
     /** index page */
     public function index()
     {

@@ -42,6 +42,7 @@ class SidebarMenu
         Cache::forget('sidebar.teacher.parents.'.$user->id);
         Cache::forget('sidebar.student.classes.'.$user->id);
         Cache::forget('sidebar.parent.children.'.$user->id);
+        Cache::forget('sidebar.parent.children.v2.'.$user->id);
     }
 
     private static function teacherParents(User $user): Collection
@@ -106,10 +107,10 @@ class SidebarMenu
 
     private static function parentChildren(User $user): Collection
     {
-        return Cache::remember('sidebar.parent.children.'.$user->id, 180, function () use ($user) {
+        return Cache::remember('sidebar.parent.children.v2.'.$user->id, 180, function () use ($user) {
             return Student::query()
                 ->select('id', 'first_name', 'last_name')
-                ->where('parent_email', $user->email)
+                ->forParent($user)
                 ->orderBy('first_name')
                 ->get();
         });

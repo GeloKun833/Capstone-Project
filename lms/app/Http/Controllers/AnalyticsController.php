@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Services\AcademicAnalyticsService;
+use App\Services\StudentPerformanceService;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Models\User;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use Illuminate\Http\Request;
@@ -281,10 +283,12 @@ class AnalyticsController extends Controller
      */
     public function getStudentAnalytics($studentId, Request $request)
     {
+        $student = Student::findOrFail($studentId);
+        $this->authorizeStudentAnalytics($student);
+
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
 
-        $student = Student::findOrFail($studentId);
         $academicYears = AcademicYear::all();
         $semesters = Semester::all();
 
@@ -309,10 +313,11 @@ class AnalyticsController extends Controller
      */
     public function getTeacherAnalytics($teacherId, Request $request)
     {
+        $teacher = Teacher::findOrFail($teacherId);
+        $this->authorizeTeacherAnalytics($teacher);
+
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
-
-        $teacher = Teacher::findOrFail($teacherId);
         $academicYears = AcademicYear::all();
         $semesters = Semester::all();
 
@@ -330,5 +335,55 @@ class AnalyticsController extends Controller
             'academicYearId',
             'semesterId'
         ));
+    }
+
+    protected function authorizeStudentAnalytics(Student $student): void
+    {
+        $user = Auth::user();
+        if (! $user) {
+            abort(403);
+        }
+
+        if (in_array($user->role_name, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+            return;
+        }
+
+        if ($user->role_name === User::ROLE_TEACHER && $user->teacher) {
+            $allowed = app(StudentPerformanceService::class)->studentIdsForTeacher($user->teacher);
+            if (in_array((int) $student->id, $allowed, true)) {
+                return;
+            }
+        }
+
+        if ($user->role_name === User::ROLE_STUDENT && $user->student && (int) $user->student->id === (int) $student->id) {
+            return;
+        }
+
+        if ($user->role_name === User::ROLE_PARENT) {
+            $isChild = Student::query()->forParent($user)->where('id', $student->id)->exists();
+            if ($isChild) {
+                return;
+            }
+        }
+
+        abort(403, 'You are not allowed to view this student analytics record.');
+    }
+
+    protected function authorizeTeacherAnalytics(Teacher $teacher): void
+    {
+        $user = Auth::user();
+        if (! $user) {
+            abort(403);
+        }
+
+        if (in_array($user->role_name, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+            return;
+        }
+
+        if ($user->role_name === User::ROLE_TEACHER && $user->teacher && (int) $user->teacher->id === (int) $teacher->id) {
+            return;
+        }
+
+        abort(403, 'You are not allowed to view this teacher analytics record.');
     }
 } 

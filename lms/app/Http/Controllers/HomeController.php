@@ -1393,7 +1393,7 @@ class HomeController extends Controller
         $parentId = auth()->id();
         $childKey = request()->input('child_id', 'first');
         // Do not include date in cache key — date-specific attendance is fetched cheaply inside.
-        $cacheKey = 'parent.dashboard.v3.'.$parentId.'.'.$childKey;
+        $cacheKey = 'parent.dashboard.v4.'.$parentId.'.'.$childKey;
 
         return Cache::remember($cacheKey, 180, function () {
         try {
@@ -1403,7 +1403,7 @@ class HomeController extends Controller
                 return null;
             }
 
-            $children = Student::where('parent_email', $parent->email)
+            $children = Student::query()->forParent($parent)
                 ->with([
                     'sections:id,name,grade_level,adviser_id',
                     'sections.adviser:id,full_name',

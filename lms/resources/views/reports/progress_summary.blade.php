@@ -166,7 +166,7 @@
                         <th style="width: 15%;">Average</th>
                         <th style="width: 15%;">Highest</th>
                         <th style="width: 15%;">Lowest</th>
-                        <th style="width: 15%;">Grade Count</th>
+                        <th style="width: 15%;">Quarters</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -243,6 +243,12 @@
                 <tr>
                     <td class="label">Absent:</td>
                     <td><strong>{{ $attendanceSummary['absent'] }}</strong></td>
+                    <td class="label">Late:</td>
+                    <td><strong>{{ $attendanceSummary['late'] ?? 0 }}</strong></td>
+                </tr>
+                <tr>
+                    <td class="label">Excused:</td>
+                    <td><strong>{{ $attendanceSummary['excused'] ?? 0 }}</strong></td>
                     <td class="label">Attendance Rate:</td>
                     <td><strong>{{ number_format($attendanceSummary['percentage'], 2) }}%</strong></td>
                 </tr>

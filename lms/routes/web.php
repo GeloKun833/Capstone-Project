@@ -60,8 +60,14 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
     Route::controller(LoginController::class)->group(function () {
         Route::get('/login', 'login')->name('login');
         Route::post('/login', 'authenticate');
-        Route::get('/logout', 'logout')->name('logout');
+        Route::post('/logout', 'logout')->name('logout');
         Route::post('change/password', 'changePassword')->name('change/password');
+    });
+
+    Route::get('/logout', function () {
+        return auth()->check()
+            ? redirect()->route('dashboard')
+            : redirect()->route('login');
     });
 
     // ----------------------------password reset ------------------------------//
@@ -210,9 +216,9 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 
     // ----------------------- accounts ----------------------------//
     Route::controller(AccountsController::class)->group(function () {
-        Route::get('account/fees/collections/page', 'index')->middleware('auth')->name('account/fees/collections/page'); // account/fees/collections/page
-        Route::get('add/fees/collection/page', 'addFeesCollection')->middleware('auth')->name('add/fees/collection/page'); // add/fees/collection
-        Route::post('fees/collection/save', 'saveRecord')->middleware('auth')->name('fees/collection/save'); // fees/collection/save
+        Route::get('account/fees/collections/page', 'index')->middleware(['auth', 'role:Admin|Registrar'])->name('account/fees/collections/page');
+        Route::get('add/fees/collection/page', 'addFeesCollection')->middleware(['auth', 'role:Admin|Registrar'])->name('add/fees/collection/page');
+        Route::post('fees/collection/save', 'saveRecord')->middleware(['auth', 'role:Admin|Registrar'])->name('fees/collection/save');
     });
 });
 
@@ -469,7 +475,7 @@ Route::get('api/sections/{section}/subjects', function(App\Models\Section $secti
         ->flatten()
         ->unique('id')
         ->values();
-})->name('api.section.subjects');
+})->middleware(['auth', 'role:Admin|Registrar|Teacher'])->name('api.section.subjects');
 
 // Analytics Routes
 Route::group(['prefix' => 'analytics', 'middleware' => ['auth']], function () {

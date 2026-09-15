@@ -4,6 +4,8 @@
     $attendanceRows = $attendanceRows ?? [
         'school_days' => [],
         'present' => [],
+        'late' => [],
+        'excused' => [],
         'absent' => [],
     ];
     $fullName = trim(($student->last_name ?? '').', '.($student->first_name ?? '').' '.($student->middle_name ?? ''));
@@ -87,6 +89,8 @@
                     @foreach([
                         'school_days' => 'No. of school days',
                         'present' => 'No. of days present',
+                        'late' => 'No. of days late',
+                        'excused' => 'No. of days excused',
                         'absent' => 'No. of days absent',
                     ] as $key => $label)
                         <tr>

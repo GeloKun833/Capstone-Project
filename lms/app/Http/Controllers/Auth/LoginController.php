@@ -68,6 +68,14 @@ class LoginController extends Controller
                 $request->session()->regenerate();
 
                 $user = Auth::user();
+                if (! $user->isActiveAccount()) {
+                    Auth::logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+                    Toastr::error('Your account is inactive. Please contact the school administrator.', 'Account Inactive');
+                    return redirect()->route('login')->with('error', 'Your account is inactive. Please contact the school administrator.');
+                }
+
                 // Fast path: admins never need the access-limit settings lookup.
                 if (! in_array($user->role_name, ['Admin', 'Registrar'], true)) {
                     $accessLimits = app(SystemAccessLimitService::class);

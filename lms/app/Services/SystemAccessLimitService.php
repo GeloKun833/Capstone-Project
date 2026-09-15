@@ -228,7 +228,7 @@ class SystemAccessLimitService
     }
 
     /**
-     * Parent user ids linked to students in a grade (via parent_email).
+     * Parent user ids linked to students in a grade (parent_user_id, then email).
      */
     protected function parentUserIdsForGrade(string $grade): array
     {
@@ -237,26 +237,40 @@ class SystemAccessLimitService
             $aliases = [$grade];
         }
 
-        $emails = Student::query()
+        $students = Student::query()
             ->where(function ($q) use ($aliases) {
                 $q->whereIn('year_level', $aliases)->orWhereIn('class', $aliases);
             })
-            ->whereNotNull('parent_email')
-            ->where('parent_email', '!=', '')
-            ->pluck('parent_email')
-            ->map(fn ($e) => strtolower(trim($e)))
+            ->get(['id', 'parent_user_id', 'parent_email']);
+
+        $parentIds = $students->pluck('parent_user_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $emails = $students->pluck('parent_email')
+            ->filter()
+            ->map(fn ($e) => strtolower(trim((string) $e)))
             ->unique()
             ->values()
             ->all();
 
-        if (empty($emails)) {
+        if (! empty($emails)) {
+            $fromEmail = User::query()
+                ->where('role_name', 'Parent')
+                ->whereRaw('LOWER(status) = ?', ['active'])
+                ->whereIn(DB::raw('LOWER(email)'), $emails)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $parentIds = array_values(array_unique(array_merge($parentIds, $fromEmail)));
+        }
+
+        if (empty($parentIds)) {
             return [];
         }
 
         return User::query()
             ->where('role_name', 'Parent')
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereIn(DB::raw('LOWER(email)'), $emails)
+            ->whereIn('id', $parentIds)
             ->orderBy('id')
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
