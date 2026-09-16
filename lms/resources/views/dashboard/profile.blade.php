@@ -6,10 +6,7 @@
     $student = $student ?? null;
     $children = $children ?? collect();
 
-    $avatarUrl = \App\Support\AvatarUploader::url($user->avatar);
-    if ($user->role_name === \App\Models\User::ROLE_STUDENT && !empty($student?->upload)) {
-        $avatarUrl = \Illuminate\Support\Facades\Storage::url('student-photos/'.$student->upload);
-    }
+    $avatarUrl = \App\Support\AvatarUploader::urlForUser($user);
 
     $displayName = $user->name;
     if ($user->role_name === \App\Models\User::ROLE_STUDENT && !empty($student?->full_name)) {

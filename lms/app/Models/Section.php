@@ -44,14 +44,46 @@ class Section extends Model
     }
 
     /**
+     * Unique student IDs across modern assignments, legacy pivot, and students.section name.
+     *
+     * @return list<int>
+     */
+    public function enrolledStudentIds(): array
+    {
+        $ids = $this->assignedStudents()->pluck('students.id');
+
+        try {
+            $ids = $ids->merge($this->students()->pluck('students.id'));
+        } catch (\Throwable $e) {
+            // Legacy pivot may be missing.
+        }
+
+        $columnQuery = Student::query()->where('section', $this->name);
+        $labels = \App\Services\GradeSubjectCatalogService::gradeAliases($this->grade_level);
+        if (! empty($labels)) {
+            $columnQuery->where(function ($q) use ($labels) {
+                $q->whereIn('year_level', $labels)
+                    ->orWhereIn('class', $labels)
+                    ->orWhere(function ($empty) {
+                        $empty->where(function ($inner) {
+                            $inner->whereNull('year_level')->orWhere('year_level', '');
+                        })->where(function ($inner) {
+                            $inner->whereNull('class')->orWhere('class', '');
+                        });
+                    });
+            });
+        }
+        $ids = $ids->merge($columnQuery->pluck('id'));
+
+        return $ids->unique()->filter()->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    /**
      * Unique student count across legacy + modern section links.
      */
     public function enrolledStudentsCount(): int
     {
-        $legacy = $this->students()->pluck('students.id');
-        $modern = $this->assignedStudents()->pluck('students.id');
-
-        return $legacy->merge($modern)->unique()->count();
+        return count($this->enrolledStudentIds());
     }
 
     /**

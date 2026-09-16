@@ -88,6 +88,11 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
         return $this->role_name === $role;
     }
 
+    public function photoUrl(): string
+    {
+        return \App\Support\AvatarUploader::urlForUser($this);
+    }
+
     /**
      * Get the student profile associated with the user.
      */

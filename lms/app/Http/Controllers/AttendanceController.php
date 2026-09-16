@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
@@ -172,8 +173,20 @@ class AttendanceController extends Controller
             abort(403, 'Only students can view their attendance.');
         }
 
-        $subjects = $student->subjects;
+        $subjects = \App\Models\Enrollment::where('student_id', $student->id)
+            ->where('status', 'active')
+            ->with('subject:id,subject_name,class')
+            ->get()
+            ->pluck('subject')
+            ->filter()
+            ->unique('id')
+            ->sortBy('subject_name')
+            ->values();
+
         $month = $request->input('month', now()->format('Y-m'));
+        if (! preg_match('/^\d{4}-\d{2}$/', (string) $month)) {
+            $month = now()->format('Y-m');
+        }
         $year = substr($month, 0, 4);
         $monthNum = substr($month, 5, 2);
 
@@ -189,7 +202,7 @@ class AttendanceController extends Controller
         $attendances = $query->orderBy('date', 'desc')->get();
         $summary = Attendance::summarize($attendances);
 
-        return view('attendance.student_view', compact('subjects', 'attendances', 'summary'));
+        return view('attendance.student_view', compact('student', 'subjects', 'attendances', 'summary', 'month'));
     }
 
     public function parentView(Request $request)
@@ -202,7 +215,8 @@ class AttendanceController extends Controller
         $children = Student::query()->forParent($parent)
             ->select('id', 'first_name', 'last_name', 'email')
             ->get();
-        $subjects = Subject::select('id', 'subject_name')->orderBy('subject_name')->get();
+
+        $subjects = collect();
         $selectedStudent = null;
         $attendances = collect();
         $summary = [];
@@ -210,6 +224,15 @@ class AttendanceController extends Controller
         if ($studentId = $request->input('student_id')) {
             $selectedStudent = $children->find($studentId);
             if ($selectedStudent) {
+                $enrolledSubjectIds = Enrollment::where('student_id', $selectedStudent->id)
+                    ->where('status', 'active')
+                    ->pluck('subject_id');
+                $subjects = $enrolledSubjectIds->isEmpty()
+                    ? collect()
+                    : Subject::select('id', 'subject_name')
+                        ->whereIn('id', $enrolledSubjectIds)
+                        ->orderBy('subject_name')
+                        ->get();
                 $month = $request->input('month', now()->format('Y-m'));
                 $year = substr($month, 0, 4);
                 $monthNum = substr($month, 5, 2);

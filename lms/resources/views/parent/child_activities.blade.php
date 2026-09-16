@@ -27,13 +27,13 @@
                         <div class="card-body">
                             <div class="row align-items-center">
                                 <div class="col-md-2 text-center">
-                                    <img src="{{ $child->upload ? asset('storage/' . $child->upload) : URL::to('assets/img/profiles/avatar-01.jpg') }}" 
+                                    <img src="{{ $child->photoUrl() }}" 
                                          alt="Student Photo" class="rounded-circle" style="width: 80px; height: 80px; object-fit: cover;">
                                 </div>
                                 <div class="col-md-6">
                                     <h4 class="mb-2">{{ $child->full_name }}</h4>
                                     <p class="text-muted mb-1">
-                                        <strong>Student ID:</strong> {{ $child->admission_id }}
+                                        <strong>Student Number:</strong> {{ $child->studentNumber() }}
                                     </p>
                                     <p class="text-muted mb-1">
                                         <strong>Section:</strong> {{ $child->sections->first()->name ?? 'Not Assigned' }}

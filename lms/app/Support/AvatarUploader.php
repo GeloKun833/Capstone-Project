@@ -44,18 +44,88 @@ class AvatarUploader
 
     public static function url(?string $avatar): string
     {
-        if (! $avatar || $avatar === 'photo_defaults.jpg') {
-            return asset('images/photo_defaults.jpg');
+        $default = asset('images/photo_defaults.jpg');
+        $avatar = trim((string) $avatar);
+
+        if ($avatar === '' || $avatar === 'photo_defaults.jpg') {
+            return $default;
         }
 
-        if (str_starts_with($avatar, 'avatars/')) {
-            return asset('storage/'.$avatar);
-        }
-
-        if (str_starts_with($avatar, 'http')) {
+        if (str_starts_with($avatar, 'http://') || str_starts_with($avatar, 'https://')) {
             return $avatar;
         }
 
-        return asset('images/'.$avatar);
+        $avatar = ltrim(str_replace('\\', '/', $avatar), '/');
+        if (str_starts_with($avatar, 'storage/')) {
+            $avatar = substr($avatar, strlen('storage/'));
+        }
+
+        $candidates = [];
+        if (str_contains($avatar, '/')) {
+            $candidates[] = $avatar;
+        } else {
+            $candidates[] = 'avatars/'.$avatar;
+            $candidates[] = 'student-photos/'.$avatar;
+            $candidates[] = $avatar;
+        }
+
+        foreach ($candidates as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                return asset('storage/'.$path);
+            }
+        }
+
+        $legacy = public_path('images/'.$avatar);
+        if (is_file($legacy)) {
+            return asset('images/'.$avatar);
+        }
+
+        $assetsDefault = public_path('assets/img/profiles/avatar-01.jpg');
+        if (is_file($assetsDefault) && ! is_file(public_path('images/photo_defaults.jpg'))) {
+            return asset('assets/img/profiles/avatar-01.jpg');
+        }
+
+        return $default;
+    }
+
+    public static function urlForUser(?\App\Models\User $user): string
+    {
+        if (! $user) {
+            return self::url(null);
+        }
+
+        if (! empty($user->avatar)) {
+            return self::url($user->avatar);
+        }
+
+        if ($user->role_name === \App\Models\User::ROLE_STUDENT) {
+            $student = $user->relationLoaded('student') ? $user->student : $user->student()->first();
+            if ($student && ! empty($student->upload)) {
+                return self::url($student->upload);
+            }
+        }
+
+        if ($user->role_name === \App\Models\User::ROLE_TEACHER) {
+            $teacher = $user->relationLoaded('teacher') ? $user->teacher : $user->teacher()->first();
+            if ($teacher && ! empty($teacher->avatar)) {
+                return self::url($teacher->avatar);
+            }
+        }
+
+        return self::url(null);
+    }
+
+    public static function urlForStudent(?\App\Models\Student $student): string
+    {
+        if (! $student) {
+            return self::url(null);
+        }
+
+        $user = $student->relationLoaded('user') ? $student->user : $student->user()->first();
+        if ($user && ! empty($user->avatar)) {
+            return self::url($user->avatar);
+        }
+
+        return self::url($student->upload);
     }
 }

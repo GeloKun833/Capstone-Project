@@ -149,9 +149,7 @@
                 <li class="nav-item dropdown has-arrow new-user-menus">
                     <a href="#" class="dropdown-toggle nav-link" data-bs-toggle="dropdown">
                         <span class="user-img">
-                            <div class="user-avatar-placeholder">
-                                <i class="fas fa-user"></i>
-                            </div>
+                            <img src="<?php echo e(auth()->user()->photoUrl()); ?>" alt="<?php echo e(auth()->user()->name); ?>" class="header-user-photo" onerror="this.onerror=null;this.src='<?php echo e(asset('images/photo_defaults.jpg')); ?>';">
                             <div class="user-text">
                                 <h6><?php echo e(auth()->user()->name); ?></h6>
                                 <p class="text-muted mb-0"><?php echo e(auth()->user()->role_name); ?></p>
@@ -161,9 +159,7 @@
                     <div class="dropdown-menu">
                         <div class="user-header">
                             <div class="avatar avatar-sm">
-                                <div class="user-avatar-placeholder">
-                                    <i class="fas fa-user"></i>
-                                </div>
+                                <img src="<?php echo e(auth()->user()->photoUrl()); ?>" alt="<?php echo e(auth()->user()->name); ?>" class="header-user-photo" onerror="this.onerror=null;this.src='<?php echo e(asset('images/photo_defaults.jpg')); ?>';">
                             </div>
                             <div class="user-text">
                                 <h6><?php echo e(auth()->user()->name); ?></h6>
@@ -430,40 +426,27 @@
         font-weight: 600;
     }
     
-    /* User avatar placeholder styling */
-    .user-avatar-placeholder {
-        width: 31px;
-        height: 31px;
-        background-color: #f8f9fa;
-        border: 2px solid #e9ecef;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #6c757d;
-        font-size: 14px;
-        transition: all 0.3s ease;
-    }
-    
-    .user-avatar-placeholder:hover {
-        background-color: #e9ecef;
-        color: #495057;
-        border-color: #dee2e6;
-    }
-    
-    .avatar.avatar-sm .user-avatar-placeholder {
+    .header-user-photo {
         width: 40px;
         height: 40px;
-        font-size: 18px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 3px rgba(16,24,40,.12);
+        background: #f3f4f6;
     }
-    
-    /* Remove old avatar styling */
-    .user-img img {
-        display: none;
+    .user-header .header-user-photo {
+        width: 40px;
+        height: 40px;
     }
-    
+    .user-img {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+    }
+    .user-img img,
     .avatar-img {
-        display: none;
+        display: block;
     }
     </style>
     <script>

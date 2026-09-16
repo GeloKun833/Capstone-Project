@@ -9,6 +9,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Models\AcademicYear;
 use App\Models\Semester;
+use App\Support\AcademicThresholds;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -65,17 +66,21 @@ class AnalyticsController extends Controller
         $semesters = Semester::all();
 
         $analytics = $this->analyticsService->getStudentAnalytics(
-            $student->id, 
-            $academicYearId, 
+            $student->id,
+            $academicYearId,
             $semesterId
         );
 
+        $passingPercentage = AcademicThresholds::PASSING_PERCENTAGE;
+
         return view('analytics.student-dashboard', compact(
+            'student',
             'analytics',
             'academicYears',
             'semesters',
             'academicYearId',
-            'semesterId'
+            'semesterId',
+            'passingPercentage'
         ));
     }
 

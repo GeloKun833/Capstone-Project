@@ -257,6 +257,10 @@
                         </ul>
                     </li>
                 @endif
+
+                <li class="{{ request()->routeIs('help') ? 'active' : '' }}">
+                    <a href="{{ route('help') }}"><i class="fas fa-question-circle"></i> <span>Help</span></a>
+                </li>
             </ul>
         </div>
     </div>

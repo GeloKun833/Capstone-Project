@@ -43,34 +43,34 @@
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label ams-cal-label">Search</label>
                         <input type="text" class="form-control form-control-sm" id="filter_search" placeholder="Search events...">
-                    </div>
+                        </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Event Type</label>
                         <select class="form-control form-control-sm" id="filter_event_type">
                             <option value="">All Types</option>
                             <?php $__currentLoopData = $eventTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <option value="<?php echo e($type); ?>"><?php echo e(ucfirst($type)); ?></option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
                         </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Teacher</label>
                         <select class="form-control form-control-sm" id="filter_teacher">
-                            <option value="">All Teachers</option>
-                            <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($teacher->id); ?>"><?php echo e($teacher->full_name); ?></option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
+                                <option value="">All Teachers</option>
+                                <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($teacher->id); ?>"><?php echo e($teacher->full_name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Subject</label>
                         <select class="form-control form-control-sm" id="filter_subject">
                                 <option value="">All Subjects</option>
                                 <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($subject->id); ?>"><?php echo e($subject->subject_name); ?></option>
+                                    <option value="<?php echo e($subject->id); ?>"><?php echo e($subject->subject_name); ?><?php echo e(!empty($subject->class) ? ' ('.$subject->class.')' : ''); ?></option>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
-                        </div>
+                    </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Room</label>
                         <select class="form-control form-control-sm" id="filter_room">
@@ -84,10 +84,10 @@
                         <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnClearFilters" title="Clear filters">
                             <i class="fas fa-times"></i>
                         </button>
-                    </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
         <div class="ams-cal-legend mb-3">
             <?php $__currentLoopData = $typeColors; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type => $color): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -258,7 +258,7 @@
                                 <select class="form-control" name="subject_id" id="form_subject_id">
                                     <option value="">Select Subject</option>
                                     <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($subject->id); ?>"><?php echo e($subject->subject_name); ?></option>
+                                        <option value="<?php echo e($subject->id); ?>"><?php echo e($subject->subject_name); ?><?php echo e(!empty($subject->class) ? ' ('.$subject->class.')' : ''); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                 </div>

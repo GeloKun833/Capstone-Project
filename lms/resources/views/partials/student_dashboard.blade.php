@@ -8,7 +8,7 @@
     $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
     $firstName = $s['firstName'] ?? ($record?->first_name ?? 'Student');
     $displayName = $s['displayName'] ?? trim(($record?->first_name ?? '').' '.($record?->last_name ?? '')) ?: 'Student';
-    $photo = !empty($record?->upload) ? asset('storage/'.$record->upload) : URL::to('assets/img/profiles/avatar-01.jpg');
+    $photo = $record?->photoUrl() ?? \App\Support\AvatarUploader::urlForUser(auth()->user());
     $enrollmentApplication = $record?->enrollmentApplication;
     $gpa = optional($s['currentGpa'] ?? null)->gpa;
 @endphp
@@ -25,7 +25,7 @@
 <div class="sd-dashboard">
     <div class="sd-welcome">
         <div class="sd-welcome-who">
-            <img src="{{ $photo }}" alt="{{ $displayName }}" class="sd-avatar">
+            <img src="{{ $photo }}" alt="{{ $displayName }}" class="sd-avatar" onerror="this.onerror=null;this.src='{{ asset('images/photo_defaults.jpg') }}';">
             <div>
                 <h1>{{ $greeting }}, {{ $firstName }}!</h1>
                 <p>

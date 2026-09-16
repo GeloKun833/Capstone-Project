@@ -306,7 +306,7 @@
                             <tbody>
                                 <?php $__empty_1 = true; $__currentLoopData = ($adminData['topStudents'] ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $gpaRecord): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                     <tr>
-                                        <td><?php echo e($gpaRecord->student->admission_id ?? 'STU'.$gpaRecord->student_id); ?></td>
+                                        <td><?php echo e($gpaRecord->student?->studentNumber() ?? ('STD'.$gpaRecord->student_id)); ?></td>
                                         <td><?php echo e(trim(($gpaRecord->student->first_name ?? '').' '.($gpaRecord->student->last_name ?? '')) ?: 'Student'); ?></td>
                                         <td class="text-center"><span class="admin-badge"><?php echo e($gpaRecord->gpa ?? 'N/A'); ?></span></td>
                                         <td class="text-end"><?php echo e($gpaRecord->academicYear->name ?? 'N/A'); ?></td>

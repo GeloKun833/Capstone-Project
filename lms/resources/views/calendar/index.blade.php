@@ -44,34 +44,34 @@
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label ams-cal-label">Search</label>
                         <input type="text" class="form-control form-control-sm" id="filter_search" placeholder="Search events...">
-                    </div>
+                        </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Event Type</label>
                         <select class="form-control form-control-sm" id="filter_event_type">
                             <option value="">All Types</option>
                             @foreach($eventTypes as $type)
                                 <option value="{{ $type }}">{{ ucfirst($type) }}</option>
-                            @endforeach
+                                @endforeach
                             </select>
                         </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Teacher</label>
                         <select class="form-control form-control-sm" id="filter_teacher">
-                            <option value="">All Teachers</option>
-                            @foreach($teachers as $teacher)
-                                <option value="{{ $teacher->id }}">{{ $teacher->full_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                                <option value="">All Teachers</option>
+                                @foreach($teachers as $teacher)
+                                    <option value="{{ $teacher->id }}">{{ $teacher->full_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Subject</label>
                         <select class="form-control form-control-sm" id="filter_subject">
                                 <option value="">All Subjects</option>
                                 @foreach($subjects as $subject)
-                                    <option value="{{ $subject->id }}">{{ $subject->subject_name }}</option>
+                                    <option value="{{ $subject->id }}">{{ $subject->subject_name }}{{ !empty($subject->class) ? ' ('.$subject->class.')' : '' }}</option>
                                 @endforeach
                             </select>
-                        </div>
+                    </div>
                     <div class="col-lg-2 col-md-6">
                         <label class="form-label ams-cal-label">Room</label>
                         <select class="form-control form-control-sm" id="filter_room">
@@ -85,10 +85,10 @@
                         <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnClearFilters" title="Clear filters">
                             <i class="fas fa-times"></i>
                         </button>
-                    </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
         <div class="ams-cal-legend mb-3">
             @foreach($typeColors as $type => $color)
@@ -258,7 +258,7 @@
                                 <select class="form-control" name="subject_id" id="form_subject_id">
                                     <option value="">Select Subject</option>
                                     @foreach($subjects as $subject)
-                                        <option value="{{ $subject->id }}">{{ $subject->subject_name }}</option>
+                                        <option value="{{ $subject->id }}">{{ $subject->subject_name }}{{ !empty($subject->class) ? ' ('.$subject->class.')' : '' }}</option>
                                     @endforeach
                                 </select>
                 </div>

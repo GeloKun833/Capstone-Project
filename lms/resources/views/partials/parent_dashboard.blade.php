@@ -84,7 +84,7 @@
                                          style="cursor: pointer; transition: all 0.3s ease;">
                                         <div class="d-flex align-items-center p-3">
                                             <div class="me-3">
-                                                <img src="{{ $child->upload ? asset('storage/' . $child->upload) : URL::to('assets/img/profiles/avatar-01.jpg') }}" 
+                                                <img src="{{ $child->photoUrl() }}" 
                                                      alt="{{ $child->first_name }}" 
                                                      class="rounded-circle" 
                                                      style="width: 60px; height: 60px; object-fit: cover; border: 3px solid {{ $parent['selectedChild']->id == $child->id ? '#667eea' : '#e0e0e0' }};">
@@ -95,7 +95,7 @@
                                                     <i class="fas fa-graduation-cap me-1"></i>{{ $child->year_level }}
                                                 </p>
                                                 <p class="mb-0 text-muted small">
-                                                    <i class="fas fa-chalkboard me-1"></i>{{ $child->sections->first() ? $child->sections->first()->name : 'No Section' }}
+                                                    <i class="fas fa-chalkboard me-1"></i>{{ $child->sectionLabel() ?: ($child->sections->first()->name ?? 'No Section') }}
                                                 </p>
                                             </div>
                                             @if($parent['selectedChild']->id == $child->id)
@@ -122,11 +122,7 @@
                     <div class="row align-items-center">
                         <div class="col-md-3 text-center mb-4 mb-md-0">
                             <div class="child-photo-wrapper">
-                                @if(!empty($parent['selectedChild']->upload))
-                                    <img src="{{ asset('storage/' . $parent['selectedChild']->upload) }}" alt="Child Photo" class="child-photo">
-                                @else
-                                    <img src="{{ URL::to('assets/img/profiles/avatar-01.jpg') }}" alt="Child Photo" class="child-photo">
-                                @endif
+                                <img src="{{ $parent['selectedChild']->photoUrl() }}" alt="Child Photo" class="child-photo" onerror="this.onerror=null;this.src='{{ asset('images/photo_defaults.jpg') }}';">
                             </div>
                         </div>
                         <div class="col-md-9">
@@ -138,8 +134,11 @@
                                 <div class="col-md-3 col-6">
                                     <div class="info-pill text-center">
                                         <i class="fas fa-id-card"></i>
-                                        <small>Student ID</small>
-                                        <div class="value">{{ $parent['selectedChild']->user_id ?? 'N/A' }}</div>
+                                        <small>Student Number</small>
+                                        <div class="value">{{ $parent['selectedChild']->studentNumber() }}</div>
+                                        @if($parent['selectedChild']->accountId())
+                                            <small class="opacity-75" style="font-size: 0.7rem; text-transform: none;">Account ID: {{ $parent['selectedChild']->accountId() }}</small>
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="col-md-3 col-6">
@@ -155,6 +154,9 @@
                                         <small>Section</small>
                                         @php
                                             $childSection = $parent['selectedChild']->sections->first();
+                                            if (! $childSection) {
+                                                $childSection = $parent['selectedChild']->resolvedSections()->first();
+                                            }
                                         @endphp
                                         @if($childSection)
                                             <div class="value">{{ $childSection->name }}</div>

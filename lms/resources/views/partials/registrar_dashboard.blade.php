@@ -141,8 +141,8 @@
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="{{ route('list/users') }}" class="btn btn-warning btn-block mb-2">
-                            <i class="fas fa-users me-2"></i>Manage Users
+                        <a href="{{ route('chat.index') }}" class="btn btn-warning btn-block mb-2">
+                            <i class="fas fa-comments me-2"></i>Messages
                         </a>
                     </div>
                 </div>

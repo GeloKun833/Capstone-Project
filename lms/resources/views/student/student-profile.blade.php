@@ -31,7 +31,7 @@
                                     <div class="col-lg-4 col-md-4">
                                         <div class="profile-user-box">
                                             <div class="profile-user-img">
-                                                <img src="{{ Storage::url('student-photos/'.$studentProfile->upload) }}" alt="Profile">
+                                                <img src="{{ $studentProfile->photoUrl() }}" alt="Profile" onerror="this.onerror=null;this.src='{{ asset('images/photo_defaults.jpg') }}';">
                                                 <div class="form-group students-up-files profile-edit-icon mb-0">
                                                     <div class="uplod d-flex">
                                                         <label class="file-upload profile-upbtn mb-0">

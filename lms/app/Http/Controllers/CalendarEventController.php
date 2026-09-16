@@ -36,6 +36,20 @@ class CalendarEventController extends Controller
         abort(403, $message);
     }
 
+    protected function subjectsForCalendarUser($user)
+    {
+        if ($user && $user->role_name === 'Teacher' && $user->teacher) {
+            $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($user->teacher);
+
+            return $options['subjects']
+                ->unique('id')
+                ->sortBy(fn ($subject) => ($subject->class ?? '').' '.($subject->subject_name ?? ''))
+                ->values();
+        }
+
+        return Subject::query()->orderBy('class')->orderBy('subject_name')->get(['id', 'subject_name', 'class']);
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -198,7 +212,7 @@ class CalendarEventController extends Controller
             ));
         }
 
-        $subjects = Subject::orderBy('subject_name')->get(['id', 'subject_name']);
+        $subjects = $this->subjectsForCalendarUser($user);
         $teachers = Teacher::orderBy('full_name')->get(['id', 'full_name']);
         $rooms = Room::active()->orderBy('room_name')->get();
         $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
@@ -216,7 +230,7 @@ class CalendarEventController extends Controller
             abort(403, 'You are not allowed to create events.');
         }
 
-        $subjects = Subject::all();
+        $subjects = $this->subjectsForCalendarUser(Auth::user());
         $teachers = Teacher::all();
         $rooms = Room::active()->get();
         $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
@@ -375,7 +389,7 @@ class CalendarEventController extends Controller
             return $denied;
         }
 
-        $subjects = Subject::all();
+        $subjects = $this->subjectsForCalendarUser(Auth::user());
         $teachers = Teacher::all();
         $rooms = Room::active()->get();
         $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];

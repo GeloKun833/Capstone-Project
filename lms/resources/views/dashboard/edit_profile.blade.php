@@ -2,7 +2,7 @@
 @section('content')
 
 @php
-    $avatarUrl = \App\Support\AvatarUploader::url($user->avatar);
+    $avatarUrl = \App\Support\AvatarUploader::urlForUser($user);
 @endphp
 
 <div class="page-wrapper">

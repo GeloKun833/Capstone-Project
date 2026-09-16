@@ -257,6 +257,10 @@
                         </ul>
                     </li>
                 <?php endif; ?>
+
+                <li class="<?php echo e(request()->routeIs('help') ? 'active' : ''); ?>">
+                    <a href="<?php echo e(route('help')); ?>"><i class="fas fa-question-circle"></i> <span>Help</span></a>
+                </li>
             </ul>
         </div>
     </div>

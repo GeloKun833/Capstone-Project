@@ -174,14 +174,9 @@ class HomeController extends Controller
         }
 
         $sectionIds = $assignedSections->pluck('id');
-        $studentCounts = collect();
-        if ($sectionIds->isNotEmpty()) {
-            $studentCounts = DB::table('section_student')
-                ->whereIn('section_id', $sectionIds)
-                ->selectRaw('section_id, COUNT(*) as students_count')
-                ->groupBy('section_id')
-                ->pluck('students_count', 'section_id');
-        }
+        $studentCounts = $assignedSections->mapWithKeys(function (Section $section) {
+            return [$section->id => $section->enrolledStudentsCount()];
+        });
 
         $schedules = ClassSchedule::query()
             ->where('teacher_id', $teacher->id)
@@ -791,7 +786,7 @@ class HomeController extends Controller
             ];
         }
 
-        return Cache::remember('teacher.dashboard.v3.'.$teacher->id, 180, function () use ($teacher, $user) {
+        return Cache::remember('teacher.dashboard.v4.'.$teacher->id, 180, function () use ($teacher, $user) {
         // Get teacher's subjects with sections, grouped by grade level
         $subjectCollection = $teacher->subjects()->with('sections')->get();
         $subjectIds = $subjectCollection->pluck('id');
@@ -889,13 +884,8 @@ class HomeController extends Controller
 
         $sectionStudentCounts = empty($sectionIdsForCounts)
             ? collect()
-            : DB::table('student_section_assignments as ssa')
-                ->join('students as s', 's.id', '=', 'ssa.student_id')
-                ->whereNull('s.deleted_at')
-                ->whereIn('ssa.section_id', $sectionIdsForCounts)
-                ->groupBy('ssa.section_id')
-                ->selectRaw('ssa.section_id, COUNT(DISTINCT ssa.student_id) as c')
-                ->pluck('c', 'section_id');
+            : Section::query()->whereIn('id', $sectionIdsForCounts)->get()
+                ->mapWithKeys(fn (Section $section) => [$section->id => $section->enrolledStudentsCount()]);
 
         if ($schedules->isEmpty() && $options && ($options['subjects']->isNotEmpty() || $options['sections']->isNotEmpty())) {
             // Fallback class cards from assignments when no schedule rows exist
@@ -1175,12 +1165,12 @@ class HomeController extends Controller
         $hour = (int) now()->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
 
-        return Cache::remember('student.dashboard.v4.'.$student->id.'.'.now()->toDateString(), 180, function () use ($student, $user, $greeting) {
+        return Cache::remember('student.dashboard.v6.'.$student->id.'.'.now()->toDateString(), 180, function () use ($student, $user, $greeting) {
             $student->load([
-                'sections:id,name,grade_level,adviser_id',
-                'sections.adviser:id,full_name',
                 'enrollmentApplication.documents',
             ]);
+            $resolvedSections = $student->resolvedSections();
+            $student->setRelation('sections', $resolvedSections);
 
             $enrollments = $student->enrollments()
                 ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
@@ -1189,8 +1179,8 @@ class HomeController extends Controller
                 ->get();
 
             $subjectIds = $enrollments->pluck('subject_id')->filter()->unique()->values();
-            $sectionIds = $student->sections->pluck('id')->filter()->unique()->values();
-            $section = $student->sections->first();
+            $sectionIds = $resolvedSections->pluck('id')->filter()->unique()->values();
+            $section = $resolvedSections->first();
 
             $catalogSubjects = [];
             $app = $student->enrollmentApplication;
@@ -1393,7 +1383,7 @@ class HomeController extends Controller
         $parentId = auth()->id();
         $childKey = request()->input('child_id', 'first');
         // Do not include date in cache key — date-specific attendance is fetched cheaply inside.
-        $cacheKey = 'parent.dashboard.v4.'.$parentId.'.'.$childKey;
+        $cacheKey = 'parent.dashboard.v6.'.$parentId.'.'.$childKey;
 
         return Cache::remember($cacheKey, 180, function () {
         try {
@@ -1405,6 +1395,7 @@ class HomeController extends Controller
 
             $children = Student::query()->forParent($parent)
                 ->with([
+                    'user:id,user_id,avatar',
                     'sections:id,name,grade_level,adviser_id',
                     'sections.adviser:id,full_name',
                     'enrollmentApplication.documents',
@@ -1429,6 +1420,10 @@ class HomeController extends Controller
 
             $selectedChildId = request()->input('child_id', $children->first()->id);
             $selectedChild = $children->find($selectedChildId) ?: $children->first();
+
+            $children->each(function (Student $child) {
+                $child->setRelation('sections', $child->resolvedSections());
+            });
 
             $currentAcademicYear = Cache::remember('academic.year.latest', 600, fn () => \App\Models\AcademicYear::latest('id')->first());
             $currentSemester = Cache::remember('academic.semester.latest', 600, fn () => \App\Models\Semester::latest('id')->first());
@@ -1771,6 +1766,22 @@ class HomeController extends Controller
         $stored = \App\Support\AvatarUploader::store($request->file('avatar'), $user->avatar);
         if ($stored) {
             $user->avatar = $stored;
+
+            if ($user->role_name === \App\Models\User::ROLE_STUDENT) {
+                $student = $user->student;
+                if ($student) {
+                    $student->upload = $stored;
+                    $student->save();
+                }
+            }
+
+            if ($user->role_name === \App\Models\User::ROLE_TEACHER) {
+                $teacher = $user->teacher;
+                if ($teacher) {
+                    $teacher->avatar = $stored;
+                    $teacher->save();
+                }
+            }
         }
 
         $user->save();
@@ -1942,5 +1953,12 @@ class HomeController extends Controller
             'growthPercentage'
         );
         });
+    }
+
+    public function help()
+    {
+        $role = auth()->user()->role_name;
+
+        return view('help.index', compact('role'));
     }
 }

@@ -27,10 +27,10 @@
                         <div class="card-body">
                             <div class="row align-items-center">
                                 <div class="col-md-3 text-center">
-                                    <img src="{{ $child->upload ? asset('storage/' . $child->upload) : URL::to('assets/img/profiles/avatar-01.jpg') }}" 
+                                    <img src="{{ $child->photoUrl() }}" 
                                          alt="Student Photo" class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover;">
                                     <h4 class="mt-3 mb-1">{{ $child->full_name }}</h4>
-                                    <p class="text-muted">Student ID: {{ $child->admission_id }}</p>
+                                    <p class="text-muted">Student Number: {{ $child->studentNumber() }}</p>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="row">

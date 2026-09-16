@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClassSchedule;
+use App\Models\Enrollment;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -89,7 +90,7 @@ class ClassScheduleController extends Controller
         $view = $request->get('view', 'week');
         $startDate = $request->get('start_date') ? Carbon::parse($request->get('start_date')) : Carbon::now();
 
-        $student = Student::with('sections')->find($studentId);
+        $student = Student::find($studentId);
         if (!$student) {
             Log::error('Student not found in database', ['student_id' => $studentId]);
             
@@ -100,14 +101,21 @@ class ClassScheduleController extends Controller
             return redirect()->back()->with('error', 'Student not found');
         }
 
+        $resolvedSections = $student->resolvedSections();
+        $student->setRelation('sections', $resolvedSections);
+
         Log::info('Student found', [
             'student_id' => $student->id,
             'student_name' => $student->full_name,
-            'sections_count' => $student->sections->count(),
-            'section_ids' => $student->sections->pluck('id')->toArray()
+            'sections_count' => $resolvedSections->count(),
+            'section_ids' => $resolvedSections->pluck('id')->toArray()
         ]);
 
-        if ($student->sections->isEmpty()) {
+        $hasActiveEnrollments = Enrollment::where('student_id', $student->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($resolvedSections->isEmpty() && ! $hasActiveEnrollments) {
             Log::warning('Student has no sections assigned', [
                 'student_id' => $student->id,
                 'student_name' => $student->full_name

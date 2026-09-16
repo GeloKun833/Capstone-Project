@@ -115,6 +115,7 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
         Route::post('user/password/update', 'updatePassword')->middleware('auth')->name('user/password/update');
         Route::get('activity-log', 'activityLog')->middleware('auth')->name('activity.log');
         Route::get('admin/activity-log', 'adminActivityLog')->middleware(['auth', 'role:Admin'])->name('admin.activity.log');
+        Route::get('help', 'help')->middleware('auth')->name('help');
     });
 
     // ------------------------ setting -------------------------------//

@@ -304,7 +304,7 @@
                             <tbody>
                                 @forelse(($adminData['topStudents'] ?? collect()) as $gpaRecord)
                                     <tr>
-                                        <td>{{ $gpaRecord->student->admission_id ?? 'STU'.$gpaRecord->student_id }}</td>
+                                        <td>{{ $gpaRecord->student?->studentNumber() ?? ('STD'.$gpaRecord->student_id) }}</td>
                                         <td>{{ trim(($gpaRecord->student->first_name ?? '').' '.($gpaRecord->student->last_name ?? '')) ?: 'Student' }}</td>
                                         <td class="text-center"><span class="admin-badge">{{ $gpaRecord->gpa ?? 'N/A' }}</span></td>
                                         <td class="text-end">{{ $gpaRecord->academicYear->name ?? 'N/A' }}</td>

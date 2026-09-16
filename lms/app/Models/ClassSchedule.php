@@ -171,19 +171,22 @@ class ClassSchedule extends Model
             return collect();
         }
 
-        // Get the student's sections (many-to-many relationship)
-        $sectionIds = $student->sections()->pluck('sections.id');
-        
-        Log::info('Student sections debug', [
-            'student_id' => $studentId,
-            'student_name' => $student->full_name,
-            'section_ids' => $sectionIds->toArray(),
-            'section_count' => $sectionIds->count()
-        ]);
-        
+        $sectionIds = collect($student->resolvedSectionIds());
+
         if ($sectionIds->isEmpty()) {
-            Log::info('No sections found for student', ['student_id' => $studentId]);
-            return collect();
+            $subjectIds = Enrollment::where('student_id', $studentId)
+                ->where('status', 'active')
+                ->pluck('subject_id');
+            if ($subjectIds->isEmpty()) {
+                return collect();
+            }
+
+            return self::with(['subject', 'teacher', 'room'])
+                ->whereIn('subject_id', $subjectIds)
+                ->where('is_active', true)
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get();
         }
 
         $schedules = self::with(['subject', 'teacher', 'room'])
@@ -192,6 +195,20 @@ class ClassSchedule extends Model
             ->orderBy('day_of_week')
             ->orderBy('start_time')
             ->get();
+
+        if ($schedules->isEmpty()) {
+            $subjectIds = Enrollment::where('student_id', $studentId)
+                ->where('status', 'active')
+                ->pluck('subject_id');
+            if ($subjectIds->isNotEmpty()) {
+                $schedules = self::with(['subject', 'teacher', 'room'])
+                    ->whereIn('subject_id', $subjectIds)
+                    ->where('is_active', true)
+                    ->orderBy('day_of_week')
+                    ->orderBy('start_time')
+                    ->get();
+            }
+        }
 
         Log::info('Schedules found for student', [
             'student_id' => $studentId,

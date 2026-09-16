@@ -2,16 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ClassSchedule;
+use App\Models\Enrollment;
 use App\Models\Message;
+use App\Models\Section;
+use App\Models\Student;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Notifications\NewMessageNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ChatController extends Controller
 {
+    /** @var array<int, list<int>> */
+    protected array $teacherUserIdsCache = [];
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -37,12 +47,17 @@ class ChatController extends Controller
     {
         $roles = $this->allowedRolesFor($user);
 
-        return User::query()
+        $query = User::query()
             ->whereIn('role_name', $roles)
             ->where('id', '!=', $user->id)
-            ->whereRaw('LOWER(status) = ?', ['active'])
-            ->orderBy('role_name')
-            ->orderBy('name');
+            ->whereRaw('LOWER(status) = ?', ['active']);
+
+        if (in_array($user->role_name, ['Student', 'Parent'], true)) {
+            $teacherUserIds = $this->assignedTeacherUserIdsFor($user);
+            $query->whereIn('id', $teacherUserIds !== [] ? $teacherUserIds : [0]);
+        }
+
+        return $query->orderBy('role_name')->orderBy('name');
     }
 
     protected function canChatWith(User $user, User $other): bool
@@ -51,7 +66,114 @@ class ChatController extends Controller
             return false;
         }
 
-        return in_array($other->role_name, $this->allowedRolesFor($user), true);
+        if (! in_array($other->role_name, $this->allowedRolesFor($user), true)) {
+            return false;
+        }
+
+        if (in_array($user->role_name, ['Student', 'Parent'], true) && $other->role_name === 'Teacher') {
+            return in_array((int) $other->id, $this->assignedTeacherUserIdsFor($user), true);
+        }
+
+        return true;
+    }
+
+    /**
+     * User IDs of teachers assigned to this student, or to a parent's children.
+     *
+     * @return list<int>
+     */
+    protected function assignedTeacherUserIdsFor(User $user): array
+    {
+        if ($user->role_name === 'Student') {
+            return $this->teacherUserIdsForStudent($user->student);
+        }
+
+        if ($user->role_name === 'Parent') {
+            return Student::query()->forParent($user)->get()
+                ->flatMap(fn (Student $child) => $this->teacherUserIdsForStudent($child))
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return [];
+    }
+
+    /**
+     * Teachers tied to the child's section, enrolled subjects, or class schedule.
+     *
+     * @return list<int>
+     */
+    protected function teacherUserIdsForStudent(?Student $student): array
+    {
+        if (! $student) {
+            return [];
+        }
+
+        if (isset($this->teacherUserIdsCache[$student->id])) {
+            return $this->teacherUserIdsCache[$student->id];
+        }
+
+        $teacherIds = collect();
+        $sectionIds = $student->resolvedSectionIds();
+        $enrollmentQuery = Enrollment::query()->where('student_id', $student->id);
+        $subjectIds = (clone $enrollmentQuery)->where('status', 'active')->pluck('subject_id');
+        if ($subjectIds->isEmpty()) {
+            $subjectIds = $enrollmentQuery->pluck('subject_id');
+        }
+        $subjectIds = $subjectIds->filter()->unique()->values();
+
+        if ($sectionIds !== []) {
+            $teacherIds = $teacherIds->merge(
+                Section::query()->whereIn('id', $sectionIds)->pluck('adviser_id')
+            );
+
+            if (Schema::hasTable('section_teacher')) {
+                $teacherIds = $teacherIds->merge(
+                    DB::table('section_teacher')->whereIn('section_id', $sectionIds)->pluck('teacher_id')
+                );
+            }
+
+            $teacherIds = $teacherIds->merge(
+                ClassSchedule::query()
+                    ->whereIn('section_id', $sectionIds)
+                    ->where('is_active', true)
+                    ->pluck('teacher_id')
+            );
+        }
+
+        if ($subjectIds->isNotEmpty()) {
+            if (Schema::hasTable('subject_teacher')) {
+                $teacherIds = $teacherIds->merge(
+                    DB::table('subject_teacher')->whereIn('subject_id', $subjectIds)->pluck('teacher_id')
+                );
+            }
+
+            $teacherIds = $teacherIds->merge(
+                ClassSchedule::query()
+                    ->whereIn('subject_id', $subjectIds)
+                    ->where('is_active', true)
+                    ->pluck('teacher_id')
+            );
+        }
+
+        $teacherIds = $teacherIds->filter()->unique()->values();
+        if ($teacherIds->isEmpty()) {
+            return $this->teacherUserIdsCache[$student->id] = [];
+        }
+
+        $userKeys = Teacher::query()->whereIn('id', $teacherIds)->pluck('user_id')->filter();
+        if ($userKeys->isEmpty()) {
+            return $this->teacherUserIdsCache[$student->id] = [];
+        }
+
+        return $this->teacherUserIdsCache[$student->id] = User::query()
+            ->whereIn('user_id', $userKeys)
+            ->where('role_name', User::ROLE_TEACHER)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**

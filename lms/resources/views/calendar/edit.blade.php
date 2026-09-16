@@ -89,7 +89,7 @@
                                                 <option value="">Select Subject</option>
                                                 @foreach($subjects as $subject)
                                                     <option value="{{ $subject->id }}" {{ old('subject_id', $calendarEvent->subject_id) == $subject->id ? 'selected' : '' }}>
-                                                        {{ $subject->subject_name }}
+                                                        {{ $subject->subject_name }}{{ !empty($subject->class) ? ' ('.$subject->class.')' : '' }}
                                                     </option>
                                                 @endforeach
                                             </select>

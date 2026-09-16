@@ -31,13 +31,8 @@ class PromotionController extends Controller
         $studentsByGrade = [];
         foreach ($gradeLevels as $grade) {
             $count = Student::query()
-                ->where(function ($q) use ($grade) {
-                    $q->where('year_level', $grade)->orWhere('class', $grade);
-                })
-                ->where(function ($q) {
-                    $q->whereNull('enrollment_status')
-                        ->orWhereIn('enrollment_status', ['active', 'enrolled', 'Active']);
-                })
+                ->inGradeLevel($grade)
+                ->notSeparated()
                 ->count();
             $studentsByGrade[$grade] = $count;
         }
@@ -59,13 +54,9 @@ class PromotionController extends Controller
         }
         
         // Get students from the selected grade level
-        $students = Student::where(function ($q) use ($fromGradeLevel) {
-                $q->where('year_level', $fromGradeLevel)->orWhere('class', $fromGradeLevel);
-            })
-            ->where(function ($q) {
-                $q->whereNull('enrollment_status')
-                    ->orWhereIn('enrollment_status', ['active', 'enrolled', 'Active']);
-            })
+        $students = Student::query()
+            ->inGradeLevel($fromGradeLevel)
+            ->notSeparated()
             ->with(['user', 'gpaRecords' => function ($query) {
                 $query->latest();
             }])

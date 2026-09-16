@@ -76,7 +76,7 @@
                     <table class="table dir-table mb-0">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>Student No.</th>
                                 <th>Name</th>
                                 <th>Class</th>
                                 <th>DOB</th>
@@ -90,11 +90,9 @@
                             <?php $__empty_1 = true; $__currentLoopData = $studentList; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $list): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                 <?php
                                     $sName = trim(($list->first_name ?? '').' '.($list->last_name ?? ''));
-                                    $sPhoto = $list->upload
-                                        ? \Illuminate\Support\Facades\Storage::url('student-photos/'.$list->upload)
-                                        : asset('images/photo_defaults.jpg');
-                                    $sId = $list->admission_id ?: ('STD'.$list->id);
-                                    $klass = trim(($list->year_level ?: $list->class).' '.($list->section ?? ''));
+                                    $sPhoto = $list->photoUrl();
+                                    $sId = $list->studentNumber();
+                                    $klass = trim(($list->year_level ?: $list->class).' '.($list->sectionLabel() ?: ($list->section ?? '')));
                                     try {
                                         $dob = $list->date_of_birth ? \Carbon\Carbon::parse($list->date_of_birth)->format('M j, Y') : '—';
                                     } catch (\Exception $e) {
@@ -104,7 +102,13 @@
                                 <tr>
                                     <td hidden class="id"><?php echo e($list->id); ?></td>
                                     <td hidden class="avatar"><?php echo e($list->upload); ?></td>
-                                    <td class="text-muted"><?php echo e($sId); ?></td>
+                                    <td class="text-muted">
+                                        <?php echo e($sId); ?>
+
+                                        <?php if($list->accountId()): ?>
+                                            <div class="small">Account ID: <?php echo e($list->accountId()); ?></div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <div class="dir-person">
                                             <img src="<?php echo e($sPhoto); ?>" alt="<?php echo e($sName); ?>" onerror="this.onerror=null;this.src='<?php echo e(asset('images/photo_defaults.jpg')); ?>';">

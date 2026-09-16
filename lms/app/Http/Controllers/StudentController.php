@@ -43,7 +43,7 @@ class StudentController extends Controller
         if ($year = request('search_year_level')) {
             $query->where('year_level', 'like', "%$year%");
         }
-        $studentList = $query->latest('id')->paginate(20)->withQueryString();
+        $studentList = $query->with('user')->latest('id')->paginate(20)->withQueryString();
         return view('student.student',compact('studentList', 'showingArchived'));
     }
 
@@ -77,7 +77,7 @@ class StudentController extends Controller
         if ($year = request('search_year_level')) {
             $query->where('year_level', 'like', "%$year%");
         }
-        $studentList = $query->latest('id')->paginate(20)->withQueryString();
+        $studentList = $query->with('user')->latest('id')->paginate(20)->withQueryString();
         return view('student.student-grid',compact('studentList', 'showingArchived'));
     }
 
@@ -400,26 +400,48 @@ class StudentController extends Controller
             return redirect()->back()->with('error', 'Class not found or access denied.');
         }
 
-        // Display identifiers (never use fake fallbacks like "4IT-B")
-        $studentNumber = $student->admission_id
-            ?: ($student->roll ?: ('STU' . $student->id));
+        $studentNumber = $student->studentNumber();
+        $accountId = $student->accountId();
 
-        $sectionQuery = $student->sections()->orderBy('sections.name');
-        if ($enrollment->academic_year_id) {
-            $sectionQuery->wherePivot('academic_year_id', $enrollment->academic_year_id);
+        $resolvedSections = $student->resolvedSections();
+        $student->setRelation('sections', $resolvedSections);
+        $classSection = $resolvedSections->first();
+        if ($enrollment->academic_year_id || $enrollment->semester_id) {
+            $pivoted = $student->sections()
+                ->when($enrollment->academic_year_id, fn ($q) => $q->wherePivot('academic_year_id', $enrollment->academic_year_id))
+                ->when($enrollment->semester_id, fn ($q) => $q->wherePivot('semester_id', $enrollment->semester_id))
+                ->orderBy('sections.name')
+                ->first();
+            if ($pivoted) {
+                $classSection = $pivoted;
+            }
         }
-        if ($enrollment->semester_id) {
-            $sectionQuery->wherePivot('semester_id', $enrollment->semester_id);
-        }
-        $classSection = $sectionQuery->first()
-            ?: $student->sections()->orderBy('sections.name')->first();
 
-        // Prefer assigned section name; otherwise subject grade/class label
         $sectionLabel = $classSection
             ? trim($classSection->name . ($classSection->grade_level ? ' (' . $classSection->grade_level . ')' : ''))
-            : ($enrollment->subject->class ?? null);
+            : ($student->sectionLabel() ?: ($enrollment->subject->class ?? null));
 
-        // Get assignments for this specific subject (published)
+        $classSchedules = \App\Models\ClassSchedule::with(['room', 'teacher', 'section'])
+            ->where('subject_id', $enrollment->subject_id)
+            ->where('is_active', true)
+            ->when($classSection, function ($q) use ($classSection) {
+                $q->where(function ($inner) use ($classSection) {
+                    $inner->where('section_id', $classSection->id)->orWhereNull('section_id');
+                });
+            })
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
+
+        if ($classSchedules->isEmpty()) {
+            $classSchedules = \App\Models\ClassSchedule::with(['room', 'teacher', 'section'])
+                ->where('subject_id', $enrollment->subject_id)
+                ->where('is_active', true)
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get();
+        }
+
         $assignmentsQuery = \App\Models\Assignment::with(['teacher', 'subject', 'section'])
             ->where('subject_id', $enrollment->subject_id)
             ->where('status', 'published')
@@ -433,7 +455,7 @@ class StudentController extends Controller
 
         // Prefer lessons/assignments for the student's assigned section(s),
         // but still show subject-level items so published lessons are visible.
-        $studentSectionIds = $student->sections()->pluck('sections.id')->filter()->unique()->values();
+        $studentSectionIds = collect($student->resolvedSectionIds());
         if ($studentSectionIds->isNotEmpty()) {
             $assignmentsQuery->where(function ($q) use ($studentSectionIds) {
                 $q->whereIn('section_id', $studentSectionIds)
@@ -505,8 +527,10 @@ class StudentController extends Controller
             'classPosts',
             'grades',
             'studentNumber',
+            'accountId',
             'sectionLabel',
-            'classSection'
+            'classSection',
+            'classSchedules'
         ));
     }
 

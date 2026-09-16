@@ -524,7 +524,10 @@
                                     </div>
                                     <div class="meta-item">
                                         <i class="fas fa-id-card"></i>
-                                        <span>Student #{{ $studentNumber }}</span>
+                                        <span>Student No. {{ $studentNumber }}</span>
+                                        @if(!empty($accountId) && $accountId !== $studentNumber)
+                                            <span class="ms-1">· Account ID {{ $accountId }}</span>
+                                        @endif
                                     </div>
                                     @if(!empty($sectionLabel))
                                         <div class="meta-item">
@@ -565,16 +568,23 @@
                                         <span>Class Schedule</span>
                                     </div>
                                     <div class="schedule-list">
-                                        <div class="schedule-item">
-                                            <div class="day">Tuesday</div>
-                                            <div class="time">11:30 AM - 1:00 PM</div>
-                                            <div class="room">Network Room</div>
-                                        </div>
-                                        <div class="schedule-item">
-                                            <div class="day">Friday</div>
-                                            <div class="time">11:30 AM - 1:00 PM</div>
-                                            <div class="room">Network Room</div>
-                                        </div>
+                                        @forelse($classSchedules ?? [] as $slot)
+                                            <div class="schedule-item">
+                                                <div class="day">{{ \Illuminate\Support\Str::title($slot->day_of_week) }}</div>
+                                                <div class="time">
+                                                    {{ $slot->start_time ? \Carbon\Carbon::parse($slot->start_time)->format('g:i A') : '—' }}
+                                                    –
+                                                    {{ $slot->end_time ? \Carbon\Carbon::parse($slot->end_time)->format('g:i A') : '—' }}
+                                                </div>
+                                                <div class="room">{{ $slot->room->room_name ?? 'Room TBD' }}</div>
+                                            </div>
+                                        @empty
+                                            <div class="schedule-item">
+                                                <div class="day">No timetable yet</div>
+                                                <div class="time">This class uses the same Class Schedules list as Admin and Teacher.</div>
+                                                <div class="room">Ask the principal to add a weekly schedule.</div>
+                                            </div>
+                                        @endforelse
                                     </div>
                                 </div>
                             </div>

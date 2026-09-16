@@ -196,7 +196,7 @@
                                             <div class="uplod">
                                                 <h2 class="table-avatar">
                                                     <a class="avatar avatar-sm me-2">
-                                                        <img class="avatar-img rounded-circle" src="{{ Storage::url('student-photos/'.$studentEdit->upload) }}" alt="">
+                                                        <img class="avatar-img rounded-circle" src="{{ $studentEdit->photoUrl() }}" alt="" onerror="this.onerror=null;this.src='{{ asset('images/photo_defaults.jpg') }}';">
                                                     </a>
                                                 </h2>
                                                 <label class="file-upload image-upbtn mb-0 @error('upload') is-invalid @enderror">

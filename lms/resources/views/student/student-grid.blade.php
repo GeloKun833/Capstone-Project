@@ -36,9 +36,7 @@
                         @forelse ($studentList as $list)
                             @php
                                 $sName = trim(($list->first_name ?? '').' '.($list->last_name ?? ''));
-                                $sPhoto = $list->upload
-                                    ? \Illuminate\Support\Facades\Storage::url('student-photos/'.$list->upload)
-                                    : asset('images/photo_defaults.jpg');
+                                $sPhoto = $list->photoUrl();
                                 $klass = trim(($list->year_level ?: $list->class).' '.($list->section ?? ''));
                             @endphp
                             <div class="col-xl-3 col-lg-4 col-md-6">

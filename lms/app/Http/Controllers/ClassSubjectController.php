@@ -31,9 +31,9 @@ class ClassSubjectController extends Controller
         $catalogService = app(GradeSubjectCatalogService::class);
         $subjectsByGrade = $catalogService->subjectsGroupedByGrade();
         $gradeLevels = GradeSubjectCatalogService::gradeLevels();
-
+        
         $this->syncTeacherUsers();
-
+        
         $teachers = Teacher::with(['user', 'subjects', 'sections'])
             ->whereHas('user', function ($query) {
                 $query->where('role_name', 'Teacher');
@@ -43,7 +43,7 @@ class ClassSubjectController extends Controller
                 return $teacher->full_name ?: ($teacher->user ? $teacher->user->name : '');
             })
             ->values();
-
+            
         $academicYears = AcademicYear::orderBy('name')->get();
         $semesters = Semester::orderBy('name')->get();
         $sections = Section::orderBy('grade_level')->orderBy('name')->get();
@@ -115,18 +115,18 @@ class ClassSubjectController extends Controller
                 })->values()->all(),
             ];
         })->values();
-
+        
         return view('class-subject.unified-management', compact(
             'subjectsByGrade',
             'subjectsByGradeJson',
             'sectionsByGrade',
             'sectionsByGradeJson',
             'gradeLevels',
-            'teachers',
+            'teachers', 
             'teachersJson',
             'teachersByGrade',
-            'academicYears',
-            'semesters',
+            'academicYears', 
+            'semesters', 
             'sections'
         ));
     }
@@ -280,7 +280,7 @@ class ClassSubjectController extends Controller
         ]);
 
         DB::beginTransaction();
-
+        
         try {
             $section = Section::findOrFail($request->section_id);
             $assignedCount = 0;
@@ -307,7 +307,7 @@ class ClassSubjectController extends Controller
                     'semester_id' => $request->semester_id,
                     'assigned_date' => now(),
                 ]);
-
+                
                 $assignedCount++;
             }
 
@@ -331,19 +331,19 @@ class ClassSubjectController extends Controller
     {
         try {
             $query = Student::with('user');
-
+            
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('admission_id', 'like', "%{$search}%")
+                      ->orWhere('last_name', 'like', "%{$search}%")
+                      ->orWhere('admission_id', 'like', "%{$search}%")
                         ->orWhereHas('user', function ($userQuery) use ($search) {
-                            $userQuery->where('email', 'like', "%{$search}%");
-                        });
+                          $userQuery->where('email', 'like', "%{$search}%");
+                      });
                 });
             }
-
+            
             return response()->json($query->limit(50)->get());
         } catch (\Exception $e) {
             Log::error('ClassSubjectController: Error in getStudents: ' . $e->getMessage());
@@ -355,15 +355,15 @@ class ClassSubjectController extends Controller
     {
         try {
             $query = Subject::query();
-
+            
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('subject_name', 'like', "%{$search}%")
-                        ->orWhere('class', 'like', "%{$search}%");
+                      ->orWhere('class', 'like', "%{$search}%");
                 });
             }
-
+            
             return response()->json($query->limit(50)->get());
         } catch (\Exception $e) {
             Log::error('ClassSubjectController: Error in getSubjects: ' . $e->getMessage());
@@ -782,7 +782,7 @@ class ClassSubjectController extends Controller
         ]);
 
         DB::beginTransaction();
-
+        
         try {
             $subject = Subject::findOrFail($request->subject_id);
             $section = Section::findOrFail($request->section_id);
@@ -790,12 +790,12 @@ class ClassSubjectController extends Controller
 
             foreach ($request->teacher_ids as $teacherId) {
                 $teacher = Teacher::findOrFail($teacherId);
-
+                
                 if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
                     $subject->teachers()->attach($teacherId);
                     $assignedCount++;
                 }
-
+                
                 if (!$teacher->sections()->where('section_id', $section->id)->exists()) {
                     $teacher->sections()->attach($section->id);
                 }
@@ -808,7 +808,7 @@ class ClassSubjectController extends Controller
             } else {
                 Toastr::info('All selected teachers were already assigned to this subject', 'Info');
             }
-
+            
             return redirect()->route('class-subject.unified-management');
         } catch (\Exception $e) {
             DB::rollback();
