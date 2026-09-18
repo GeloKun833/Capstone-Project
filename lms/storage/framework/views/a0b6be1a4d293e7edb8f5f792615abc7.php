@@ -1,4 +1,3 @@
-
 <?php $__env->startSection('content'); ?>
 
 <?php
@@ -38,8 +37,8 @@
     };
 ?>
 
-<div class="page-wrapper">
-    <div class="content container-fluid">
+    <div class="page-wrapper">
+        <div class="content container-fluid">
         <div class="sa-page">
             <header class="sa-hero">
                 <div class="sa-hero-who">
@@ -53,7 +52,7 @@
                     <button type="button" class="sa-btn-outline" onclick="exportReport()">
                         <i class="fas fa-download"></i> Export report
                     </button>
-                </div>
+            </div>
             </header>
 
             <form class="sa-filters" onsubmit="applyFilters(); return false;">
@@ -61,25 +60,25 @@
                     <label for="academic_year_filter">Academic year</label>
                     <select id="academic_year_filter" name="academic_year_id">
                         <option value="">All academic years</option>
-                        <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <option value="<?php echo e($year->id); ?>" <?php if($academicYearId == $year->id): echo 'selected'; endif; ?>><?php echo e($year->name); ?></option>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                    </select>
-                </div>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
                 <div class="sa-field">
                     <label for="semester_filter">Semester / quarter</label>
                     <select id="semester_filter" name="semester_id">
                         <option value="">All terms</option>
-                        <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <option value="<?php echo e($semester->id); ?>" <?php if($semesterId == $semester->id): echo 'selected'; endif; ?>><?php echo e($semester->name); ?></option>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                    </select>
-                </div>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                        </div>
                 <div class="sa-field sa-field-action">
                     <button type="submit" class="sa-btn-primary">
                         <i class="fas fa-filter"></i> Apply
-                    </button>
-                </div>
+                            </button>
+                        </div>
             </form>
 
             <?php if(!empty($indicators['improvement_needed'])): ?>
@@ -96,12 +95,12 @@
                 <article class="sa-kpi">
                     <div class="sa-ring" style="--pct: <?php echo e(max(0, min(100, $averageScore))); ?>">
                         <span><?php echo e(number_format($averageScore, 1)); ?></span>
-                    </div>
-                    <div>
+            </div>
+                                <div>
                         <div class="sa-kpi-value"><?php echo e(number_format($averageScore, 1)); ?>%</div>
                         <div class="sa-kpi-label">Average score</div>
                         <div class="sa-kpi-meta">Passing mark is <?php echo e(number_format($passingPercentage, 0)); ?>%</div>
-                    </div>
+                                </div>
                 </article>
                 <article class="sa-kpi">
                     <div class="sa-kpi-icon"><i class="fas fa-clipboard-list"></i></div>
@@ -113,7 +112,7 @@
                 </article>
                 <article class="sa-kpi">
                     <div class="sa-kpi-icon sa-kpi-icon-star"><i class="fas fa-star"></i></div>
-                    <div>
+                                <div>
                         <div class="sa-kpi-value"><?php echo e($indicators['excellent_grades_count'] ?? 0); ?></div>
                         <div class="sa-kpi-label">Excellent scores</div>
                         <div class="sa-kpi-meta">90% and above</div>
@@ -121,7 +120,7 @@
                 </article>
                 <article class="sa-kpi">
                     <div class="sa-kpi-icon sa-kpi-icon-<?php echo e($levelClass); ?>"><i class="fas fa-award"></i></div>
-                    <div>
+                                <div>
                         <div class="sa-kpi-value sa-kpi-value-sm"><?php echo e($performanceLevel); ?></div>
                         <div class="sa-kpi-label">Performance level</div>
                         <div class="sa-kpi-meta"><?php echo e($attendanceRate !== null ? 'Attendance '.$attendanceRate.'%' : 'Based on recorded grades'); ?></div>
@@ -132,7 +131,7 @@
             <div class="sa-grid">
                 <section class="sa-panel">
                     <div class="sa-panel-head">
-                        <div>
+                                <div>
                             <h2>Grade trends</h2>
                             <p>Scores over time. The dashed line is the <?php echo e(number_format($passingPercentage, 0)); ?>% passing mark.</p>
                         </div>
@@ -182,42 +181,42 @@
                     <div class="sa-empty">
                         <i class="fas fa-chart-bar"></i>
                         <p>No subject grades have been posted yet.</p>
-                    </div>
+            </div>
                 <?php else: ?>
                     <div class="sa-chart sa-chart-wide"><canvas id="subjectPerformanceChart"></canvas></div>
                     <div class="sa-table-wrap">
                         <table class="sa-table">
                             <thead>
-                                <tr>
-                                    <th>Subject</th>
+                                            <tr>
+                                                <th>Subject</th>
                                     <th>Average</th>
                                     <th>Records</th>
                                     <th>Highest</th>
                                     <th>Lowest</th>
                                     <th>Standing</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
                                 <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <?php [$label, $badge] = $subjectLevel($subject['average_score']); ?>
-                                    <tr>
-                                        <td>
+                                                <tr>
+                                                    <td>
                                             <strong><?php echo e($subject['subject']); ?></strong>
                                             <div class="sa-bar">
                                                 <span style="width: <?php echo e(max(0, min(100, $subject['average_score']))); ?>%"></span>
                                             </div>
-                                        </td>
+                                                    </td>
                                         <td><?php echo e(number_format($subject['average_score'], 1)); ?>%</td>
-                                        <td><?php echo e($subject['assignments_count']); ?></td>
+                                                    <td><?php echo e($subject['assignments_count']); ?></td>
                                         <td><?php echo e(number_format($subject['highest_score'], 0)); ?>%</td>
                                         <td><?php echo e(number_format($subject['lowest_score'], 0)); ?>%</td>
                                         <td><span class="sa-badge <?php echo e($badge); ?>"><?php echo e($label); ?></span></td>
-                                    </tr>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
+                                                </tr>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
             </section>
 
             <?php if($gpaTrend->isNotEmpty()): ?>
@@ -242,11 +241,11 @@
 
             <section class="sa-panel">
                 <div class="sa-panel-head">
-                    <div>
+                                <div>
                         <h2>Recent submitted work</h2>
                         <p>Latest activities from your classes.</p>
-                    </div>
-                </div>
+                                </div>
+                            </div>
                 <?php $__empty_1 = true; $__currentLoopData = $activities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $activity): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <div class="sa-activity">
                         <div>
@@ -266,12 +265,12 @@
                     <div class="sa-empty">
                         <i class="fas fa-inbox"></i>
                         <p>No submitted activities to show yet.</p>
-                    </div>
+                </div>
                 <?php endif; ?>
             </section>
         </div>
+        </div>
     </div>
-</div>
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startPush('styles'); ?>
@@ -399,7 +398,7 @@
     .sa-hero h1 { font-size: 1.35rem; }
     .sa-field-action { justify-self: stretch; }
     .sa-field-action .sa-btn-primary { width: 100%; justify-content: center; }
-}
+    }
 </style>
 <?php $__env->stopPush(); ?>
 
@@ -441,8 +440,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const gradeCanvas = document.getElementById('gradeTrendsChart');
     if (gradeCanvas && saTrends.length) {
         new Chart(gradeCanvas.getContext('2d'), {
-            type: 'line',
-            data: {
+        type: 'line',
+        data: {
                 labels: saTrends.map((row) => row.period),
                 datasets: [
                     {
@@ -466,12 +465,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         fill: false
                     }
                 ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                scales: {
+            scales: {
                     y: { beginAtZero: true, max: 100, grid: { color: '#f1f3f5' }, ticks: { callback: (v) => v + '%' } },
                     x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } }
                 }
@@ -482,21 +481,21 @@ document.addEventListener('DOMContentLoaded', function () {
     const attendanceCanvas = document.getElementById('attendanceChart');
     if (attendanceCanvas && saAttendance.length) {
         new Chart(attendanceCanvas.getContext('2d'), {
-            type: 'bar',
-            data: {
+        type: 'bar',
+        data: {
                 labels: saAttendance.map((row) => row.month),
-                datasets: [{
+            datasets: [{
                     label: 'Present',
                     data: saAttendance.map((row) => row.percentage),
                     backgroundColor: '#e67e22',
                     borderRadius: 8,
                     maxBarThickness: 42
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
                     y: { beginAtZero: true, max: 100, grid: { color: '#f1f3f5' }, ticks: { callback: (v) => v + '%' } },
                     x: { grid: { display: false } }
                 }
@@ -507,21 +506,21 @@ document.addEventListener('DOMContentLoaded', function () {
     const subjectCanvas = document.getElementById('subjectPerformanceChart');
     if (subjectCanvas && saSubjects.length) {
         new Chart(subjectCanvas.getContext('2d'), {
-            type: 'bar',
-            data: {
+        type: 'bar',
+        data: {
                 labels: saSubjects.map((row) => row.subject),
-                datasets: [{
+            datasets: [{
                     label: 'Average',
                     data: saSubjects.map((row) => row.average_score),
                     backgroundColor: ['#e67e22', '#f4a261', '#2a9d8f', '#e76f51', '#264653', '#e9c46a'],
                     borderRadius: 8,
                     maxBarThickness: 48
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
                     y: { beginAtZero: true, max: 100, grid: { color: '#f1f3f5' }, ticks: { callback: (v) => v + '%' } },
                     x: { grid: { display: false } }
                 }
@@ -530,6 +529,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
-<?php $__env->stopPush(); ?>
+<?php $__env->stopPush(); ?> 
 
 <?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/analytics/student-dashboard.blade.php ENDPATH**/ ?>

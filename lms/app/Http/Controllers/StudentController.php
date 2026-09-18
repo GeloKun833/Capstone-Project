@@ -407,11 +407,14 @@ class StudentController extends Controller
         $student->setRelation('sections', $resolvedSections);
         $classSection = $resolvedSections->first();
         if ($enrollment->academic_year_id || $enrollment->semester_id) {
-            $pivoted = $student->sections()
-                ->when($enrollment->academic_year_id, fn ($q) => $q->wherePivot('academic_year_id', $enrollment->academic_year_id))
-                ->when($enrollment->semester_id, fn ($q) => $q->wherePivot('semester_id', $enrollment->semester_id))
-                ->orderBy('sections.name')
-                ->first();
+            $sectionQuery = $student->sections()->orderBy('sections.name');
+            if ($enrollment->academic_year_id) {
+                $sectionQuery->where('student_section_assignments.academic_year_id', $enrollment->academic_year_id);
+            }
+            if ($enrollment->semester_id) {
+                $sectionQuery->where('student_section_assignments.semester_id', $enrollment->semester_id);
+            }
+            $pivoted = $sectionQuery->first();
             if ($pivoted) {
                 $classSection = $pivoted;
             }
