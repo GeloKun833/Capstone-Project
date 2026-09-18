@@ -34,13 +34,13 @@
         <div class="dir-card">
             <div class="p-4">
                 <form action="{{ route('admin.schedules.update', $schedule) }}" method="POST" id="scheduleForm">
-                    @csrf
-                    @method('PUT')
-
+                            @csrf
+                            @method('PUT')
+                            
                     <div class="row" id="step-teacher">
                         <div class="col-12 mb-3">
                             <h5 class="dir-toolbar-title">Step 1 — Select Teacher</h5>
-                        </div>
+                                </div>
                         <div class="col-12 col-md-8 col-lg-6">
                             <div class="form-group mb-0">
                                 <label>Teacher <span class="text-danger">*</span></label>
@@ -49,63 +49,63 @@
                                     @foreach($teachers as $teacher)
                                         <option value="{{ $teacher->id }}" {{ (int) old('teacher_id', $schedule->teacher_id) === (int) $teacher->id ? 'selected' : '' }}>
                                             {{ $teacher->full_name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                                </option>
+                                            @endforeach
+                                        </select>
                                 @error('teacher_id')
                                     <span class="text-danger small">{{ $message }}</span>
-                                @enderror
+                                        @enderror
                                 <div id="teacher-assign-hint" class="mdp-hint"></div>
                             </div>
-                        </div>
+                                    </div>
                     </div>
 
                     <div class="row mt-4" id="step-class">
                         <div class="col-12 mb-3">
                             <h5 class="dir-toolbar-title">Step 2 — Class Information</h5>
                             <p class="dir-subtitle">Updated from the teacher’s current section/subject assignments.</p>
-                        </div>
-
-                        <div class="col-12 col-sm-6">
+                                </div>
+                                
+                                <div class="col-12 col-sm-6">
                             <div class="form-group">
                                 <label>Section <span class="text-danger">*</span></label>
                                 <select class="form-control" name="section_id" id="section_id" required>
                                     <option value="">Select Section</option>
-                                </select>
+                                        </select>
                                 @error('section_id')
                                     <span class="text-danger small">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6">
+                                        @enderror
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-6">
                             <div class="form-group">
                                 <label>Subject <span class="text-danger">*</span></label>
                                 <select class="form-control" name="subject_id" id="subject_id" required>
                                     <option value="">Select Subject</option>
-                                </select>
+                                        </select>
                                 @error('subject_id')
                                     <span class="text-danger small">{{ $message }}</span>
-                                @enderror
+                                        @enderror
                                 <small class="text-muted" id="subject-filter-hint"></small>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6">
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-6">
                             <div class="form-group">
-                                <label>Room</label>
+                                        <label>Room</label>
                                 <select class="form-control" name="room_id" id="room_id">
-                                    <option value="">Select Room (Optional)</option>
-                                    @foreach($rooms as $room)
+                                            <option value="">Select Room (Optional)</option>
+                                            @foreach($rooms as $room)
                                         <option value="{{ $room->id }}" {{ (int) old('room_id', $schedule->room_id) === (int) $room->id ? 'selected' : '' }}>
                                             {{ $room->room_name }}@if($room->room_type) — {{ $room->room_type }}@endif
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
 
-                        <div class="col-12">
+                                <div class="col-12">
                             <div class="dir-summary" id="class-info-summary"></div>
                         </div>
                     </div>
@@ -114,88 +114,88 @@
                         <div class="col-12 mb-3">
                             <h5 class="dir-toolbar-title">Step 3 — Schedule Details &amp; Notes</h5>
                             <p class="dir-subtitle">Start and end time use the same modern picker as Calendar.</p>
-                        </div>
-
-                        <div class="col-12 col-sm-4">
+                                </div>
+                                
+                                <div class="col-12 col-sm-4">
                             <div class="form-group">
                                 <label>Day of Week <span class="text-danger">*</span></label>
-                                <select class="form-control" name="day_of_week" required>
-                                    <option value="">Select Day</option>
+                                        <select class="form-control" name="day_of_week" required>
+                                            <option value="">Select Day</option>
                                     @foreach(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as $day)
                                         <option value="{{ $day }}" {{ old('day_of_week', $schedule->day_of_week) == $day ? 'selected' : '' }}>{{ ucfirst($day) }}</option>
                                     @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-4">
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-4">
                             <div class="form-group mdp-field">
                                 <label>Start Time <span class="text-danger">*</span></label>
                                 <input type="time" class="form-control js-time" name="start_time" id="schedule_start_time"
                                        value="{{ old('start_time', \Carbon\Carbon::parse($schedule->start_time)->format('H:i')) }}"
                                        placeholder="HH:mm" autocomplete="off" required>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-4">
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-4">
                             <div class="form-group mdp-field">
                                 <label>End Time <span class="text-danger">*</span></label>
                                 <input type="time" class="form-control js-time" name="end_time" id="schedule_end_time"
                                        value="{{ old('end_time', \Carbon\Carbon::parse($schedule->end_time)->format('H:i')) }}"
                                        placeholder="HH:mm" autocomplete="off" required>
                                 <small class="mdp-hint" id="schedule-time-hint">End time must be after start time.</small>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-4">
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-4">
                             <div class="form-group">
                                 <label>Class Type <span class="text-danger">*</span></label>
-                                <select class="form-control" name="class_type" required>
+                                        <select class="form-control" name="class_type" required>
                                     <option value="lecture" {{ old('class_type', $schedule->class_type) == 'lecture' ? 'selected' : '' }}>Regular Class</option>
-                                    <option value="laboratory" {{ old('class_type', $schedule->class_type) == 'laboratory' ? 'selected' : '' }}>Laboratory</option>
+                                            <option value="laboratory" {{ old('class_type', $schedule->class_type) == 'laboratory' ? 'selected' : '' }}>Laboratory</option>
                                     <option value="tutorial" {{ old('class_type', $schedule->class_type) == 'tutorial' ? 'selected' : '' }}>Activity / Tutorial</option>
-                                    <option value="exam" {{ old('class_type', $schedule->class_type) == 'exam' ? 'selected' : '' }}>Exam</option>
-                                    <option value="other" {{ old('class_type', $schedule->class_type) == 'other' ? 'selected' : '' }}>Other</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-4">
+                                            <option value="exam" {{ old('class_type', $schedule->class_type) == 'exam' ? 'selected' : '' }}>Exam</option>
+                                            <option value="other" {{ old('class_type', $schedule->class_type) == 'other' ? 'selected' : '' }}>Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-4">
                             <div class="form-group">
-                                <label>Color</label>
+                                        <label>Color</label>
                                 <input type="color" class="form-control" name="color" value="{{ old('color', $schedule->color ?: '#3d5ee1') }}">
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-4">
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 col-sm-4">
                             <div class="form-group">
-                                <label>Status</label>
-                                <select class="form-control" name="is_active">
-                                    <option value="1" {{ old('is_active', $schedule->is_active) == 1 ? 'selected' : '' }}>Active</option>
-                                    <option value="0" {{ old('is_active', $schedule->is_active) == 0 ? 'selected' : '' }}>Inactive</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-12">
+                                        <label>Status</label>
+                                        <select class="form-control" name="is_active">
+                                            <option value="1" {{ old('is_active', $schedule->is_active) == 1 ? 'selected' : '' }}>Active</option>
+                                            <option value="0" {{ old('is_active', $schedule->is_active) == 0 ? 'selected' : '' }}>Inactive</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12">
                             <div class="form-group">
-                                <label>Notes</label>
+                                        <label>Notes</label>
                                 <textarea class="form-control" name="notes" rows="3">{{ old('notes', $schedule->notes) }}</textarea>
-                            </div>
-                        </div>
-
+                                    </div>
+                                </div>
+                                
                         <div class="col-12 d-flex gap-2">
                             <button type="submit" class="btn btn-primary dir-btn">
                                 <i class="fas fa-save me-1"></i> Update Schedule
-                            </button>
+                                        </button>
                             <a href="{{ route('admin.schedules.index') }}" class="btn btn-outline-secondary dir-btn">Cancel</a>
-                        </div>
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">

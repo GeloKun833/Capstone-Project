@@ -25,7 +25,7 @@
         <div class="dir-tip mb-4">
             <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
             Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
-        </div>
+                        </div>
 
         <div class="row g-3">
             <div class="col-md-6 col-xl-3">
@@ -35,7 +35,7 @@
                     <p class="dir-subtitle mb-3">Academic history — one student or all enrolled students in a section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
-                    </button>
+                        </button>
                 </div>
             </div>
 
@@ -46,7 +46,7 @@
                     <p class="dir-subtitle mb-3">Section roster — filter by grade, then section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#classListModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
-                    </button>
+                        </button>
                 </div>
             </div>
 
@@ -57,7 +57,7 @@
                     <p class="dir-subtitle mb-3">Period grades — one student or all enrolled students in a section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
-                    </button>
+                        </button>
                 </div>
             </div>
 
@@ -68,7 +68,7 @@
                     <p class="dir-subtitle mb-3">Performance summary — one student or all enrolled students in a section</p>
                     <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
                         <i class="fas fa-download me-1"></i> Generate / Download
-                    </button>
+                        </button>
                 </div>
             </div>
         </div>
@@ -99,9 +99,9 @@
                                 <option value="">Select grade</option>
                                 @foreach($gradeLevels as $grade)
                                     <option value="{{ $grade }}">{{ $grade }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label">Section</label>
                             <select class="form-select section-select">
@@ -128,25 +128,25 @@
                             <select class="form-select" name="academic_year_id">
                                 <option value="">All years</option>
                                 @foreach($ayOptions as $year)
-                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label">Semester</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">All semesters</option>
                                 @foreach($semOptions as $semester)
-                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
-                            <label class="form-label">Format</label>
+                        <label class="form-label">Format</label>
                             <select class="form-select" name="format">
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
-                            </select>
+                        </select>
                             <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
@@ -177,9 +177,9 @@
                                 <option value="">Select grade</option>
                                 @foreach($gradeLevels as $grade)
                                     <option value="{{ $grade }}">{{ $grade }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-6">
                             <label class="form-label">Scope</label>
                             <select class="form-select scope-select" name="scope">
@@ -198,25 +198,25 @@
                             <select class="form-select" name="academic_year_id">
                                 <option value="">Current</option>
                                 @foreach($ayOptions as $year)
-                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label">Semester</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 @foreach($semOptions as $semester)
-                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
-                            <label class="form-label">Format</label>
+                        <label class="form-label">Format</label>
                             <select class="form-select" name="format">
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
-                            </select>
+                        </select>
                             <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
@@ -247,9 +247,9 @@
                                 <option value="">Select grade</option>
                                 @foreach($gradeLevels as $grade)
                                     <option value="{{ $grade }}">{{ $grade }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label">Section</label>
                             <select class="form-select section-select">
@@ -272,29 +272,29 @@
                             <small class="text-muted student-count"></small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Academic Year</label>
+                        <label class="form-label">Academic Year</label>
                             <select class="form-select" name="academic_year_id">
                                 <option value="">Current</option>
                                 @foreach($ayOptions as $year)
-                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
-                            <label class="form-label">Semester</label>
+                        <label class="form-label">Semester</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 @foreach($semOptions as $semester)
-                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
-                            <label class="form-label">Format</label>
+                        <label class="form-label">Format</label>
                             <select class="form-select" name="format">
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
-                            </select>
+                        </select>
                             <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
@@ -325,9 +325,9 @@
                                 <option value="">Select grade</option>
                                 @foreach($gradeLevels as $grade)
                                     <option value="{{ $grade }}">{{ $grade }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
                             <label class="form-label">Section</label>
                             <select class="form-select section-select">
@@ -350,29 +350,29 @@
                             <small class="text-muted student-count"></small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Academic Year</label>
+                        <label class="form-label">Academic Year</label>
                             <select class="form-select" name="academic_year_id">
                                 <option value="">Current</option>
                                 @foreach($ayOptions as $year)
-                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
-                            <label class="form-label">Semester</label>
+                        <label class="form-label">Semester</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 @foreach($semOptions as $semester)
-                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                         <div class="col-md-4">
-                            <label class="form-label">Format</label>
+                        <label class="form-label">Format</label>
                             <select class="form-select" name="format">
                                 <option value="pdf">PDF (download)</option>
                                 <option value="excel">Excel (download)</option>
-                            </select>
+                        </select>
                             <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
                         </div>
                     </div>
@@ -534,7 +534,7 @@
         });
 
         form.addEventListener('submit', function (e) {
-            e.preventDefault();
+        e.preventDefault();
             const type = form.dataset.type;
             const scope = form.querySelector('.scope-select')?.value || 'single';
             const grade = form.querySelector('.grade-select')?.value || '';
@@ -556,7 +556,7 @@
                     window.location.href = form.dataset.singleBase + '/' + sectionId + '?' + params.toString();
                     return;
                 }
-                if (!studentId) {
+        if (!studentId) {
                     alert('Please select a student.');
                     return;
                 }
@@ -569,8 +569,8 @@
             if (scope === 'section') {
                 if (!sectionId) {
                     alert('Please select a section for entire-section download.');
-                    return;
-                }
+            return;
+        }
                 params.set('section_id', sectionId);
             }
             params.set('format', 'pdf');

@@ -477,7 +477,7 @@
             border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
             border-radius: 24px !important;
             padding: 45px 40px !important;
-            box-shadow:
+            box-shadow: 
                 0 8px 32px rgba(31, 38, 135, 0.37),
                 0 4px 16px rgba(0, 0, 0, 0.1),
                 inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
@@ -487,14 +487,14 @@
             transition: all 0.3s ease !important;
             animation: authFadeIn 0.6s ease-out;
         }
-
+        
         .glass-form:hover {
-            box-shadow:
+            box-shadow: 
                 0 12px 40px rgba(31, 38, 135, 0.45),
                 0 6px 20px rgba(0, 0, 0, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
         }
-
+        
         .glass-form input,
         .glass-form select,
         .glass-form textarea {

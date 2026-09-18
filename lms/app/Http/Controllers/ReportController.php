@@ -125,24 +125,24 @@ class ReportController extends Controller
             return $pdf->download($filename);
         }
 
-        $exportData = [];
+            $exportData = [];
         foreach ($viewData['transcriptData'] as $period) {
-            foreach ($period['subjects'] as $subjectGrade) {
-                $exportData[] = [
-                    $period['academic_year']->name ?? 'N/A',
-                    $period['semester']->name ?? 'N/A',
-                    $subjectGrade['subject']->subject_name ?? 'N/A',
-                    $subjectGrade['average'],
-                    GradeNarrativeHelper::subjectNarrative($subjectGrade['average'], $subjectGrade['subject']->subject_name ?? 'Subject'),
-                ];
+                foreach ($period['subjects'] as $subjectGrade) {
+                    $exportData[] = [
+                        $period['academic_year']->name ?? 'N/A',
+                        $period['semester']->name ?? 'N/A',
+                        $subjectGrade['subject']->subject_name ?? 'N/A',
+                        $subjectGrade['average'],
+                        GradeNarrativeHelper::subjectNarrative($subjectGrade['average'], $subjectGrade['subject']->subject_name ?? 'Subject'),
+                    ];
+                }
             }
-        }
         $filename = 'transcript_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
-        return Excel::download(new class($exportData) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
-            public function __construct(private array $data) {}
-            public function array(): array { return $this->data; }
-            public function headings(): array { return ['Academic Year', 'Semester', 'Subject', 'Average', 'Narrative']; }
-        }, $filename);
+            return Excel::download(new class($exportData) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
+                public function __construct(private array $data) {}
+                public function array(): array { return $this->data; }
+                public function headings(): array { return ['Academic Year', 'Semester', 'Subject', 'Average', 'Narrative']; }
+            }, $filename);
     }
 
     /**
@@ -168,19 +168,19 @@ class ReportController extends Controller
         }
 
         $students = $viewData['students'];
-        $exportData = $students->values()->map(function ($student, $index) {
-            return [
-                $index + 1,
-                $student->admission_id ?? $student->id,
-                $student->last_name,
-                $student->first_name,
-                $student->middle_name ?? '',
-                $student->gender ?? '',
-                $student->email ?? '',
-            ];
-        })->all();
+            $exportData = $students->values()->map(function ($student, $index) {
+                return [
+                    $index + 1,
+                    $student->admission_id ?? $student->id,
+                    $student->last_name,
+                    $student->first_name,
+                    $student->middle_name ?? '',
+                    $student->gender ?? '',
+                    $student->email ?? '',
+                ];
+            })->all();
         $filename = 'class_list_' . $this->safeName($section->name) . '_' . date('Y-m-d') . '.xlsx';
-        return Excel::download(new ClassListExport($exportData, $section->name), $filename);
+            return Excel::download(new ClassListExport($exportData, $section->name), $filename);
     }
 
     /**
@@ -215,11 +215,11 @@ class ReportController extends Controller
             return $pdf->download($filename);
         }
 
-        $exportData = [];
+            $exportData = [];
         foreach ($viewData['subjectGrades'] as $sg) {
             $q = $sg['quarterly'];
-            $exportData[] = [
-                $sg['subject']->subject_name ?? 'N/A',
+                    $exportData[] = [
+                        $sg['subject']->subject_name ?? 'N/A',
                 $q->quarter_1,
                 $q->quarter_2,
                 $q->quarter_3,
