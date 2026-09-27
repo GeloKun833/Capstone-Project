@@ -148,11 +148,11 @@ class HomeController extends Controller
     {
         $user = auth()->user();
         $teacher = $user->teacher;
-
+        
         if (!$teacher) {
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
-
+        
         $teacher->load(['subjects', 'sections', 'gradeLevels']);
 
         $assignedSubjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
@@ -294,7 +294,7 @@ class HomeController extends Controller
             ->orderBy('grade_level')
             ->orderBy('name')
             ->get();
-
+        
         $stats = [
             'subjects' => $assignedSubjects->count(),
             'sections' => $assignedSections->count(),
@@ -352,16 +352,16 @@ class HomeController extends Controller
         }
 
         try {
-            if ($user->role_name === User::ROLE_ADMIN) {
-                $data['admin'] = $this->loadAdminData();
-            } elseif ($user->role_name === User::ROLE_TEACHER) {
-                $data['teacher'] = $this->loadTeacherData();
-            } elseif ($user->role_name === User::ROLE_STUDENT) {
-                $data['student'] = $this->loadStudentData();
-            } elseif ($user->role_name === User::ROLE_PARENT) {
-                $data['parent'] = $this->loadParentData();
-            } elseif ($user->role_name === User::ROLE_REGISTRAR) {
-                $data['registrar'] = $this->loadRegistrarData();
+        if ($user->role_name === User::ROLE_ADMIN) {
+            $data['admin'] = $this->loadAdminData();
+        } elseif ($user->role_name === User::ROLE_TEACHER) {
+            $data['teacher'] = $this->loadTeacherData();
+        } elseif ($user->role_name === User::ROLE_STUDENT) {
+            $data['student'] = $this->loadStudentData();
+        } elseif ($user->role_name === User::ROLE_PARENT) {
+            $data['parent'] = $this->loadParentData();
+        } elseif ($user->role_name === User::ROLE_REGISTRAR) {
+            $data['registrar'] = $this->loadRegistrarData();
             }
         } catch (\Throwable $e) {
             Log::error('Dashboard load failed: '.$e->getMessage(), [
@@ -500,54 +500,53 @@ class HomeController extends Controller
             'excused' => $totalAttendance > 0 ? round(($excusedCount / $totalAttendance) * 100, 1) : 0,
         ];
 
-        $recentEnrollments = \App\Models\Enrollment::with(['student', 'subject'])
-            ->where('status', 'active')
-            ->orderByDesc('created_at')
-            ->take(5)
-            ->get();
+            $recentEnrollments = \App\Models\Enrollment::with(['student', 'subject'])
+                ->where('status', 'active')
+                ->orderByDesc('created_at')
+                ->take(5)
+                ->get();
 
-        $recentAnnouncements = \App\Models\Announcement::with(['creator'])
-            ->orderByDesc('created_at')
-            ->take(5)
-            ->get();
+            $recentAnnouncements = \App\Models\Announcement::with(['creator'])
+                ->orderByDesc('created_at')
+                ->take(5)
+                ->get();
 
         $topStudents = \App\Models\StudentGpa::with(['student:id,first_name,last_name,admission_id', 'academicYear:id,name', 'semester:id,name'])
-            ->orderByDesc('gpa')
-            ->take(5)
-            ->get();
+                ->orderByDesc('gpa')
+                ->take(5)
+                ->get();
 
         $recentEvents = \App\Models\CalendarEvent::with(['subject:id,subject_name', 'teacher:id,full_name'])
-            ->where('start_time', '>=', now())
-            ->orderBy('start_time')
-            ->take(5)
-            ->get();
+                ->orderBy('start_time', 'desc')
+                ->take(5)
+                ->get();
 
         $performanceData = $this->getAcademicPerformanceOverview();
-        $studentsChartData = $this->getStudentsByGradeLevelChartData();
+            $studentsChartData = $this->getStudentsByGradeLevelChartData();
         $recentActivities = $this->buildAdminRecentActivities($recentEnrollments, $recentAnnouncements);
 
-        return compact(
-            'totalStudents',
-            'totalTeachers',
-            'totalSubjects',
-            'totalSections',
-            'totalEnrollments',
-            'totalAttendance',
-            'totalGrades',
-            'totalAnnouncements',
-            'recentEnrollments',
-            'recentAnnouncements',
-            'topStudents',
-            'attendanceStats',
-            'attendancePercentage',
+            return compact(
+                'totalStudents',
+                'totalTeachers',
+                'totalSubjects',
+                'totalSections',
+                'totalEnrollments',
+                'totalAttendance',
+                'totalGrades',
+                'totalAnnouncements',
+                'recentEnrollments',
+                'recentAnnouncements',
+                'topStudents',
+                'attendanceStats',
+                'attendancePercentage',
             'attendanceBreakdown',
-            'maleStudents',
-            'femaleStudents',
-            'recentEvents',
+                'maleStudents',
+                'femaleStudents',
+                'recentEvents',
             'recentActivities',
-            'performanceData',
-            'studentsChartData'
-        );
+                'performanceData',
+                'studentsChartData'
+            );
     }
 
     /**
@@ -598,7 +597,7 @@ class HomeController extends Controller
                     }
                 }
 
-                return [
+            return [
                     'labels' => $labels,
                     'averages' => $averages,
                     'mode' => 'year_level',
@@ -631,7 +630,7 @@ class HomeController extends Controller
             return $empty;
         }
     }
-
+    
     /**
      * Student counts by grade level (totals + gender when available).
      */
@@ -741,7 +740,7 @@ class HomeController extends Controller
             ->values()
             ->all();
     }
-    
+
     /**
      * Load teacher dashboard data
      */
@@ -793,21 +792,21 @@ class HomeController extends Controller
         $teacherSubjects = $subjectCollection->groupBy('class')->sortKeys();
         // Production schema always has enrollments.status (avoid INFORMATION_SCHEMA on Aiven).
         $hasEnrollmentStatus = true;
-
+        
         // Get total classes (sections where teacher is adviser)
         $totalClasses = Section::where('adviser_id', $teacher->id)->count();
-
+        
         // Get total students across all teacher's subjects
         $totalStudents = $subjectIds->isEmpty()
             ? 0
             : Enrollment::whereIn('subject_id', $subjectIds)
                 ->when($hasEnrollmentStatus, fn ($q) => $q->where('status', 'active'))
-                ->distinct('student_id')
-                ->count('student_id');
-
+            ->distinct('student_id')
+            ->count('student_id');
+        
         // Get total lessons (subjects taught by teacher)
         $totalLessons = $teacherSubjects->count();
-
+        
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
         $eventStats = CalendarEvent::where('teacher_id', $teacher->id)
@@ -825,31 +824,31 @@ class HomeController extends Controller
             ->take(10)
             ->get();
         $upcomingLessons = $upcomingEvents->take(5);
-
-        $semesterProgress = $totalEventsThisMonth > 0
+        
+        $semesterProgress = $totalEventsThisMonth > 0 
             ? round(($completedEventsThisMonth / $totalEventsThisMonth) * 100, 1)
             : 0;
-
+        
         $teachingHistory = CalendarEvent::with(['subject'])
             ->where('teacher_id', $teacher->id)
             ->where('start_time', '<=', now())
             ->orderBy('start_time', 'desc')
             ->take(10)
             ->get();
-
+        
         $attendanceStats = $subjectIds->isEmpty()
             ? (object) ['total_records' => 0, 'present_count' => 0, 'absent_count' => 0]
             : Attendance::whereIn('subject_id', $subjectIds)
-                ->selectRaw('
-                    COUNT(*) as total_records,
-                    SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
-                    SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
-                ')->first();
-
+            ->selectRaw('
+                COUNT(*) as total_records,
+                SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
+                SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
+            ')->first();
+        
         $attendancePercentage = ($attendanceStats && $attendanceStats->total_records > 0)
             ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
             : 0;
-
+        
         $teacherSections = $teacher->sections()->get();
 
         // ---- UI enrichment (same modules; additional presentation data) ----
@@ -1108,13 +1107,13 @@ class HomeController extends Controller
 
         // Prefer real class count for overview card
         $classCardCount = $myClasses->count() > 0 ? $myClasses->count() : $totalClasses;
-
+        
         return compact(
             'teacher',
             'teacherSubjects',
             'teacherSections',
             'totalClasses',
-            'totalStudents',
+            'totalStudents', 
             'totalLessons',
             'totalHours',
             'upcomingLessons',
@@ -1148,10 +1147,10 @@ class HomeController extends Controller
     {
         $user = auth()->user();
         $student = $user->student;
-
+        
         if (!$student) {
             $student = Student::where('user_id', $user->user_id)->first();
-
+            
             if (!$student) {
                 return [
                     'student' => null,
@@ -1172,12 +1171,12 @@ class HomeController extends Controller
             $resolvedSections = $student->resolvedSections();
             $student->setRelation('sections', $resolvedSections);
 
-            $enrollments = $student->enrollments()
+        $enrollments = $student->enrollments()
                 ->with(['subject:id,subject_name,class', 'academicYear:id,name', 'semester:id,name'])
-                ->where('status', 'active')
+            ->where('status', 'active')
                 ->whereHas('subject')
-                ->get();
-
+            ->get();
+        
             $subjectIds = $enrollments->pluck('subject_id')->filter()->unique()->values();
             $sectionIds = $resolvedSections->pluck('id')->filter()->unique()->values();
             $section = $resolvedSections->first();
@@ -1351,9 +1350,9 @@ class HomeController extends Controller
                 ?: ($user->name ?? 'Student');
             $firstName = $student->first_name ?: (explode(' ', $displayName)[0] ?? 'Student');
 
-            return [
-                'student' => $student,
-                'enrollments' => $enrollments,
+        return [
+            'student' => $student,
+            'enrollments' => $enrollments,
                 'hasStudent' => true,
                 'catalogSubjects' => $catalogSubjects,
                 'greeting' => $greeting,
@@ -1388,7 +1387,7 @@ class HomeController extends Controller
         return Cache::remember($cacheKey, 180, function () {
         try {
             $parent = auth()->user();
-
+            
             if ($parent->role_name !== 'Parent') {
                 return null;
             }
@@ -1401,7 +1400,7 @@ class HomeController extends Controller
                     'enrollmentApplication.documents',
                 ])
                 ->get();
-
+            
             if ($children->isEmpty()) {
                 return [
                     'children' => collect(),
@@ -1458,7 +1457,7 @@ class HomeController extends Controller
                     SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count,
                     SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_count
                 ')->first();
-
+            
             $lessons = collect();
             $activities = collect();
             $submissions = collect();
@@ -1475,8 +1474,8 @@ class HomeController extends Controller
                     ->where('semester_id', $semId)
                     ->orderByDesc('created_at')
                     ->take(5)
-                    ->get();
-
+                ->get();
+            
                 $activities = \App\Models\Activity::query()
                     ->select('activities.*')
                     ->join('lessons', 'lessons.id', '=', 'activities.lesson_id')
@@ -1485,8 +1484,8 @@ class HomeController extends Controller
                     ->where('lessons.academic_year_id', $yearId)
                     ->where('lessons.semester_id', $semId)
                     ->orderBy('activities.due_date')
-                    ->take(5)
-                    ->get();
+            ->take(5)
+            ->get();
 
                 $submissions = \App\Models\ActivitySubmission::query()
                     ->select('activity_submissions.*')
@@ -1547,7 +1546,7 @@ class HomeController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-
+            
             return [
                 'children' => collect(),
                 'selectedChild' => null,
@@ -1758,7 +1757,7 @@ class HomeController extends Controller
         $request->validate($rules, \App\Support\FormRules::messages());
 
         if ($user->role_name !== \App\Models\User::ROLE_STUDENT) {
-            $user->name = $request->name;
+        $user->name = $request->name;
         }
         $user->email = $request->email;
         $user->phone_number = $request->phone_number;
@@ -1916,24 +1915,24 @@ class HomeController extends Controller
         $totalApplications = (int) $applicationsByStatus->sum();
 
         $recentApplications = \App\Models\EnrollmentApplication::orderBy('created_at', 'desc')->take(5)->get();
-
+        
         $applicationsByGrade = \App\Models\EnrollmentApplication::selectRaw('grade_level_applying_for, COUNT(*) as count')
             ->groupBy('grade_level_applying_for')
             ->orderBy('count', 'desc')
             ->get();
-
+            
         $thisMonthApplications = \App\Models\EnrollmentApplication::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-
+            
         $lastMonthApplications = \App\Models\EnrollmentApplication::whereMonth('created_at', now()->subMonth()->month)
             ->whereYear('created_at', now()->subMonth()->year)
             ->count();
-
-        $growthPercentage = $lastMonthApplications > 0
+            
+        $growthPercentage = $lastMonthApplications > 0 
             ? round((($thisMonthApplications - $lastMonthApplications) / $lastMonthApplications) * 100, 1)
             : 0;
-
+            
         $applicationsByStatus = $applicationsByStatus->map(function ($count, $status) {
             return (object) ['status' => $status, 'count' => $count];
         })->values();

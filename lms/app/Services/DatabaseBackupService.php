@@ -98,12 +98,10 @@ class DatabaseBackupService
             $process->setTimeout(300);
             $process->run();
 
-            if (!$process->isSuccessful()) {
-                throw new \RuntimeException('mysqldump failed: ' . $process->getErrorOutput());
+            if ($process->isSuccessful()) {
+                File::put($filepath, $process->getOutput());
+                return;
             }
-
-            File::put($filepath, $process->getOutput());
-            return;
         }
 
         $this->createPhpBackup($filepath);
