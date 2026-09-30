@@ -117,4 +117,26 @@ class DummyStudentCommandsTest extends TestCase
         $this->assertSame(1, Student::count());
         $this->assertSame(1, User::count());
     }
+
+    public function test_skip_unassigned_leaves_out_sections_without_teachers(): void
+    {
+        Subject::create(['subject_id' => 'Grade 3-Math', 'subject_name' => 'Math', 'class' => 'Grade 3']);
+        $orphan = Section::create(['name' => 'Grade 3 - Orphan', 'grade_level' => 'Grade 3', 'capacity' => 150]);
+
+        $this->artisan('dummy:students:create', ['--force' => true])->assertFailed();
+        $this->assertSame(1, Student::count());
+
+        $this->artisan('dummy:students:create', ['--attendance-days' => 1])
+            ->expectsConfirmation('Skip the sections listed above and put all '.DummyStudentService::TOTAL_STUDENTS.' dummy students in the other sections?', 'yes')
+            ->expectsConfirmation('Create '.DummyStudentService::TOTAL_STUDENTS.' dummy students with this plan?', 'yes')
+            ->assertSuccessful();
+
+        $this->assertSame(DummyStudentService::TOTAL_STUDENTS, Student::where('admission_id', 'like', DummyStudentService::ADMISSION_PREFIX.'%')->count());
+        $this->assertSame(0, DB::table('student_section_assignments')->where('section_id', $orphan->id)->count());
+        $this->artisan('dummy:students:verify')->assertSuccessful();
+
+        $this->artisan('dummy:students:delete', ['--force' => true])->assertSuccessful();
+        $this->artisan('dummy:students:create', ['--force' => true, '--skip-unassigned' => true, '--attendance-days' => 0])->assertSuccessful();
+        $this->assertSame(0, DB::table('student_section_assignments')->where('section_id', $orphan->id)->count());
+    }
 }

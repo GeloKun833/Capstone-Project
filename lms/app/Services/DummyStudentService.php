@@ -52,6 +52,8 @@ class DummyStudentService
 
     public const HIGH_PERFORMER_MIN_AVERAGE = 80.0;
 
+    public const MISSING_TEACHER_ERROR = 1001;
+
     /** @var callable|null */
     protected $logger;
 
@@ -99,7 +101,7 @@ class DummyStudentService
     /**
      * Resolve the full generation plan without writing anything.
      *
-     * @param  array{academic_year_id?:int|null, semester_id?:int|null, attendance_days?:int|null, seed?:int|null}  $options
+     * @param  array{academic_year_id?:int|null, semester_id?:int|null, attendance_days?:int|null, seed?:int|null, skip_unassigned?:bool}  $options
      */
     public function plan(array $options = []): array
     {
@@ -113,15 +115,51 @@ class DummyStudentService
             throw new RuntimeException('No existing section has matching subjects (sections.grade_level ↔ subjects.class). Nothing can be generated.');
         }
 
-        $sections = $gradeGroups->flatMap(fn ($group) => $group['sections']);
+        $skippedWithoutSubjects = $this->skippedSections($gradeGroups);
         $teacherMap = $this->resolveTeacherMap($gradeGroups);
+        $skippedWithoutTeacher = [];
+
+        if (! empty($teacherMap['missing'])) {
+            $lines = collect($teacherMap['missing'])->flatten()->all();
+            if (empty($options['skip_unassigned'])) {
+                throw new RuntimeException(
+                    "No existing teacher could be resolved for these section/subject pairs (assign one in the admin panel first, or rerun with --skip-unassigned to leave these sections out):\n - ".implode("\n - ", $lines),
+                    self::MISSING_TEACHER_ERROR
+                );
+            }
+
+            $excluded = array_keys($teacherMap['missing']);
+            $gradeGroups = $gradeGroups
+                ->map(function ($group) use ($excluded, &$skippedWithoutTeacher) {
+                    [$skip, $keep] = $group['sections']->partition(fn ($section) => in_array($section->id, $excluded, true));
+                    foreach ($skip as $section) {
+                        $skippedWithoutTeacher[] = $section;
+                    }
+                    $group['sections'] = $keep->values();
+
+                    return $group;
+                })
+                ->filter(fn ($group) => $group['sections']->isNotEmpty());
+
+            if ($gradeGroups->isEmpty()) {
+                throw new RuntimeException('Every section is missing a teacher for at least one subject. Assign teachers first; nothing was written.', self::MISSING_TEACHER_ERROR);
+            }
+        }
+
+        $sections = $gradeGroups->flatMap(fn ($group) => $group['sections']);
         $occupancy = $this->sectionOccupancy($sections->pluck('id')->all(), $academicYear->id, $semester->id);
         $allocation = $this->allocate($gradeGroups, $occupancy);
         $lowPerformers = $this->lowPerformerNumbers();
 
         $warnings = [];
-        foreach ($this->skippedSections($gradeGroups) as $skipped) {
+        foreach ($skippedWithoutSubjects as $skipped) {
             $warnings[] = "Section #{$skipped->id} {$skipped->name} ({$skipped->grade_level}) skipped: no subjects with a matching class.";
+        }
+        foreach ($skippedWithoutTeacher as $skipped) {
+            $warnings[] = "Section #{$skipped->id} {$skipped->name} ({$skipped->grade_level}) skipped: no teacher for ".implode(', ', array_map(
+                fn ($line) => last(explode(' / ', $line)),
+                $teacherMap['missing'][$skipped->id]
+            )).'.';
         }
         foreach ($sections as $section) {
             $capacity = (int) ($section->capacity ?? self::DEFAULT_SECTION_CAPACITY);
@@ -130,15 +168,17 @@ class DummyStudentService
                 $warnings[] = "Section #{$section->id} {$section->name} will hold {$total} students (capacity {$capacity}). Capacity is not changed.";
             }
         }
-        foreach ($teacherMap['fallbacks'] as $fallback) {
-            $warnings[] = $fallback;
+        foreach ($teacherMap['fallbacks'] as $sectionId => $sectionFallbacks) {
+            if (! isset($teacherMap['missing'][$sectionId])) {
+                array_push($warnings, ...$sectionFallbacks);
+            }
         }
 
         return [
             'academic_year' => $academicYear,
             'semester' => $semester,
             'grade_groups' => $gradeGroups,
-            'teacher_map' => $teacherMap['map'],
+            'teacher_map' => array_diff_key($teacherMap['map'], $teacherMap['missing']),
             'occupancy' => $occupancy,
             'students' => $allocation['students'],
             'section_counts' => $allocation['counts'],
@@ -939,7 +979,7 @@ class DummyStudentService
                     }
 
                     if (empty($candidates)) {
-                        $missing[] = "{$group['grade']} / {$section->name} / {$subject->subject_name}";
+                        $missing[$section->id][] = "{$group['grade']} / {$section->name} / {$subject->subject_name}";
 
                         continue;
                     }
@@ -952,17 +992,13 @@ class DummyStudentService
                     ];
 
                     if (in_array($source, ['section adviser', 'section teacher'], true)) {
-                        $fallbacks[] = "{$subject->subject_name} ({$group['grade']}, {$section->name}) has no subject teacher; using {$source} {$existingTeachers->get($teacherId)}.";
+                        $fallbacks[$section->id][] = "{$subject->subject_name} ({$group['grade']}, {$section->name}) has no subject teacher; using {$source} {$existingTeachers->get($teacherId)}.";
                     }
                 }
             }
         }
 
-        if (! empty($missing)) {
-            throw new RuntimeException("No existing teacher could be resolved for these section/subject pairs (assign one in the admin panel first):\n - ".implode("\n - ", $missing));
-        }
-
-        return ['map' => $map, 'fallbacks' => $fallbacks];
+        return ['map' => $map, 'fallbacks' => $fallbacks, 'missing' => $missing];
     }
 
     /**

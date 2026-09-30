@@ -10,6 +10,7 @@ class DummyStudentsCreateCommand extends Command
     protected $signature = 'dummy:students:create
         {--dry-run : Show the section/subject/teacher plan without writing anything}
         {--force : Skip the confirmation prompt}
+        {--skip-unassigned : Leave out sections where a subject has no existing teacher}
         {--academic-year-id= : Existing academic year ID (default: current, else latest)}
         {--semester-id= : Existing semester ID in that academic year (default: its first semester)}
         {--attendance-days='.DummyStudentService::DEFAULT_ATTENDANCE_DAYS.' : Recent school days of attendance per subject}
@@ -25,6 +26,7 @@ class DummyStudentsCreateCommand extends Command
             'semester_id' => $this->option('semester-id') ? (int) $this->option('semester-id') : null,
             'attendance_days' => (int) $this->option('attendance-days'),
             'seed' => (int) $this->option('seed'),
+            'skip_unassigned' => (bool) $this->option('skip-unassigned'),
         ];
 
         try {
@@ -33,7 +35,19 @@ class DummyStudentsCreateCommand extends Command
         } catch (\RuntimeException $e) {
             $this->error($e->getMessage());
 
-            return self::FAILURE;
+            if ($e->getCode() !== DummyStudentService::MISSING_TEACHER_ERROR || $options['skip_unassigned'] || $this->option('force')
+                || ! $this->confirm('Skip the sections listed above and put all '.DummyStudentService::TOTAL_STUDENTS.' dummy students in the other sections?')) {
+                return self::FAILURE;
+            }
+
+            $options['skip_unassigned'] = true;
+            try {
+                $summary = $service->summarizePlan($service->plan($options));
+            } catch (\RuntimeException $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
         }
 
         $this->renderSummary($summary);
