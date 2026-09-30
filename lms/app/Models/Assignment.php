@@ -37,7 +37,6 @@ class Assignment extends Model
 
     protected $casts = [
         'due_date' => 'date',
-        'due_time' => 'datetime',
         'max_score' => 'decimal:2',
         'allows_late_submission' => 'boolean',
         'requires_file_upload' => 'boolean',
@@ -120,13 +119,50 @@ class Assignment extends Model
 
     public function scopeDueSoon($query, $days = 7)
     {
-        return $query->where('due_date', '<=', now()->addDays($days))
-                    ->where('due_date', '>=', now());
+        $now = Carbon::now(config('app.school_timezone', 'Asia/Manila'));
+
+        return $query->whereDate('due_date', '>=', $now->toDateString())
+            ->whereDate('due_date', '<=', $now->copy()->addDays($days)->toDateString())
+            ->where(function ($query) use ($now) {
+                $query->whereDate('due_date', '>', $now->toDateString())
+                    ->orWhere(function ($today) use ($now) {
+                        $today->whereDate('due_date', $now->toDateString())
+                            ->where(function ($time) use ($now) {
+                                $time->whereNull('due_time')
+                                    ->orWhere('due_time', '>=', $now->format('H:i:s'));
+                            });
+                    });
+            });
     }
 
     public function scopeOverdue($query)
     {
-        return $query->where('due_date', '<', now());
+        $now = Carbon::now(config('app.school_timezone', 'Asia/Manila'));
+
+        return $query->where(function ($query) use ($now) {
+            $query->whereDate('due_date', '<', $now->toDateString())
+                ->orWhere(function ($today) use ($now) {
+                    $today->whereDate('due_date', $now->toDateString())
+                        ->whereNotNull('due_time')
+                        ->where('due_time', '<', $now->format('H:i:s'));
+                });
+        });
+    }
+
+    public function scopeNotOverdue($query)
+    {
+        $now = Carbon::now(config('app.school_timezone', 'Asia/Manila'));
+
+        return $query->where(function ($query) use ($now) {
+            $query->whereDate('due_date', '>', $now->toDateString())
+                ->orWhere(function ($today) use ($now) {
+                    $today->whereDate('due_date', $now->toDateString())
+                        ->where(function ($time) use ($now) {
+                            $time->whereNull('due_time')
+                                ->orWhere('due_time', '>=', $now->format('H:i:s'));
+                        });
+                });
+        });
     }
 
     // Accessors
@@ -137,20 +173,31 @@ class Assignment extends Model
 
     public function getDueDateTimeAttribute()
     {
-        if ($this->due_time) {
-            return Carbon::parse($this->due_date)->setTimeFrom($this->due_time);
+        $date = $this->getRawOriginal('due_date') ?? $this->attributes['due_date'] ?? null;
+        if (! $date) {
+            return null;
         }
-        return Carbon::parse($this->due_date)->endOfDay();
+
+        $time = $this->getRawOriginal('due_time') ?? $this->attributes['due_time'] ?? null;
+        $time = $time ? substr((string) $time, 0, 8) : '23:59:59';
+
+        return Carbon::createFromFormat(
+            '!Y-m-d H:i:s',
+            Carbon::parse($date)->format('Y-m-d').' '.$time,
+            config('app.school_timezone', 'Asia/Manila')
+        );
     }
 
     public function getIsOverdueAttribute()
     {
-        return $this->dueDateTime < now();
+        return $this->dueDateTime && $this->dueDateTime->lt(now());
     }
 
     public function getIsDueSoonAttribute()
     {
-        return $this->dueDateTime->diffInDays(now()) <= 3 && !$this->is_overdue;
+        return $this->dueDateTime
+            && $this->dueDateTime->lte(now(config('app.school_timezone', 'Asia/Manila'))->addDays(3))
+            && ! $this->is_overdue;
     }
 
     public function getSubmissionCountAttribute()
@@ -178,24 +225,15 @@ class Assignment extends Model
     }
 
     // Methods
-    public function canSubmit()
+    public function canSubmit(?Carbon $submittedAt = null)
     {
-        // Check if assignment is closed
-        if ($this->status === 'closed') {
-            return false;
-        }
-
-        // Check if assignment is published
         if ($this->status !== 'published') {
             return false;
         }
 
-        // Check if assignment is overdue and late submission is not allowed
-        if ($this->is_overdue && !$this->allows_late_submission) {
-            return false;
-        }
+        $deadline = $this->dueDateTime;
 
-        return true;
+        return ! $deadline || ! ($submittedAt ?? now())->gt($deadline);
     }
 
     public function getLatePenalty($submissionTime)

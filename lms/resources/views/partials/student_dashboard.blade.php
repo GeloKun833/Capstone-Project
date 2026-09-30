@@ -142,7 +142,7 @@
                 <div class="sd-list">
                     @forelse(($s['upcomingAssignments'] ?? collect()) as $asg)
                         @php
-                            $due = $asg->due_date ? $asg->due_date->format('M j, Y') : 'No due date';
+                            $due = $asg->dueDateTime ? $asg->dueDateTime->format('M j, Y g:i A') : 'No due date';
                             $done = !empty($asg->is_submitted);
                         @endphp
                         <div class="sd-list-item">

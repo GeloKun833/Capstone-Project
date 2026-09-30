@@ -763,7 +763,7 @@
                                             ->where('student_id', $student->id)
                                             ->first();
                                         $status = $submission ? $submission->status : 'pending';
-                                        $isOverdue = now() > $assignment->due_date;
+                                        $isOverdue = $assignment->is_overdue;
                                     @endphp
                                     
                                     <div class="assignment-card {{ $isOverdue && $status === 'pending' ? 'overdue' : '' }}">
@@ -795,7 +795,7 @@
                                                 </div>
                                                 <div class="detail-item">
                                                     <i class="fas fa-calendar text-warning"></i>
-                                                    <span>Due: {{ $assignment->due_date->format('M d, Y g:i A') }}</span>
+                                                    <span>Due: {{ $assignment->dueDateTime->format('M d, Y g:i A') }}</span>
                                                 </div>
                                                 <div class="detail-item">
                                                     <i class="fas fa-star text-success"></i>

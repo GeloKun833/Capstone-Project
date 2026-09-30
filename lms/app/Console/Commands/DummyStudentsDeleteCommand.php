@@ -16,7 +16,7 @@ class DummyStudentsDeleteCommand extends Command
     public function handle(DummyStudentService $service): int
     {
         $preview = $service->deletionPreview();
-        $this->warn('Scope: students with admission ID '.DummyStudentService::ADMISSION_PREFIX.'* AND email @'.DummyStudentService::EMAIL_DOMAIN.', Student users @'.DummyStudentService::EMAIL_DOMAIN.', and enrollment applications '.DummyStudentService::APPLICATION_PREFIX.'* @'.DummyStudentService::EMAIL_DOMAIN.'.');
+        $this->warn('Scope: students with admission ID '.DummyStudentService::ADMISSION_PREFIX.'* AND email @'.DummyStudentService::EMAIL_DOMAIN.', user accounts dummy.stu.0001 through dummy.stu.0400 @'.DummyStudentService::EMAIL_DOMAIN.', and enrollment applications '.DummyStudentService::APPLICATION_PREFIX.'* @'.DummyStudentService::EMAIL_DOMAIN.'.');
         $this->warn('Real students, users, teachers, parents, sections, subjects and academic periods are not touched.');
         $this->table(['Table', 'Rows to delete'], collect($preview)->map(fn ($v, $k) => [$k, $v])->values()->all());
 

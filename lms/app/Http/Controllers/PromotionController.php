@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\StudentPromotion;
 use App\Models\AcademicYear;
+use App\Models\QuarterlyGrade;
 use App\Models\StudentGpa;
+use App\Support\AcademicThresholds;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Brian2694\Toastr\Facades\Toastr;
@@ -63,6 +65,35 @@ class PromotionController extends Controller
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();
+
+        $gradesByStudent = QuarterlyGrade::whereIn('student_id', $students->modelKeys())
+            ->with('academicYear')
+            ->orderByDesc('academic_year_id')
+            ->get()
+            ->groupBy('student_id');
+
+        $students->each(function (Student $student) use ($gradesByStudent) {
+            $studentGrades = $gradesByStudent->get($student->id, collect());
+            $latestAcademicYearId = $studentGrades->max('academic_year_id');
+            $yearGrades = $latestAcademicYearId
+                ? $studentGrades->where('academic_year_id', $latestAcademicYearId)
+                : collect();
+            $finalGrades = $yearGrades
+                ->pluck('final_grade')
+                ->filter(fn ($grade) => $grade !== null && $grade !== '')
+                ->map(fn ($grade) => (float) $grade);
+            $average = $finalGrades->isNotEmpty() && $finalGrades->count() === $yearGrades->count()
+                ? round($finalGrades->avg(), 2)
+                : null;
+
+            $student->promotion_average = $average;
+            $student->promotion_academic_year = $yearGrades->first()?->academicYear?->name;
+            $student->promotion_standing = $yearGrades->isEmpty() || $finalGrades->isEmpty()
+                ? 'No final grade'
+                : ($finalGrades->count() !== $yearGrades->count()
+                    ? 'Incomplete'
+                    : ($average >= AcademicThresholds::PASSING_PERCENTAGE ? 'Passed' : 'Failed'));
+        });
         
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
         

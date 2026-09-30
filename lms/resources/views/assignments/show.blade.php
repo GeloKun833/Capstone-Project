@@ -64,7 +64,7 @@
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <h6 class="text-muted">Subject</h6>
-                                <p class="fw-bold">{{ $assignment->subject->name ?? 'N/A' }}</p>
+                                <p class="fw-bold">{{ $assignment->subject->subject_name ?? 'N/A' }}</p>
                             </div>
                             <div class="col-md-6">
                                 <h6 class="text-muted">Section</h6>
@@ -78,7 +78,7 @@
                                 <p class="fw-bold">{{ $assignment->academicYear->name ?? 'N/A' }}</p>
                             </div>
                             <div class="col-md-6">
-                                <h6 class="text-muted">Semester</h6>
+                                <h6 class="text-muted">Quarter</h6>
                                 <p class="fw-bold">{{ $assignment->semester->name ?? 'N/A' }}</p>
                             </div>
                         </div>
@@ -88,10 +88,7 @@
                                 <h6 class="text-muted">Due Date</h6>
                                 <p class="fw-bold">
                                     @if($assignment->due_date)
-                                        {{ \Carbon\Carbon::parse($assignment->due_date)->format('M d, Y') }}
-                                        @if($assignment->due_time)
-                                            at {{ $assignment->due_time }}
-                                        @endif
+                                        {{ $assignment->dueDateTime->format('M d, Y g:i A') }}
                                     @else
                                         N/A
                                     @endif
@@ -120,14 +117,7 @@
                             <div class="col-md-6">
                                 <h6 class="text-muted">Late Submissions</h6>
                                 <p class="fw-bold">
-                                    @if($assignment->allows_late_submission)
-                                        <span class="text-success">Allowed</span>
-                                        @if($assignment->late_submission_penalty)
-                                            <br><small class="text-muted">Penalty: {{ $assignment->late_submission_penalty }}%</small>
-                                        @endif
-                                    @else
-                                        <span class="text-danger">Not Allowed</span>
-                                    @endif
+                                    <span class="text-danger">Not Allowed</span>
                                 </p>
                             </div>
                             <div class="col-md-6">
@@ -211,6 +201,12 @@
                                 </form>
                             @endif
 
+                            @if($assignment->status === 'closed' || ($assignment->status === 'published' && $assignment->is_overdue))
+                                <a href="{{ route('assignments.submissions', $assignment->id) }}#reopen-assignment" class="btn btn-success">
+                                    <i class="fas fa-lock-open me-2"></i>Reopen Assignment
+                                </a>
+                            @endif
+
                             <a href="{{ route('assignments.submissions', $assignment->id) }}" class="btn btn-primary">
                                 <i class="fas fa-check-circle me-2"></i>Grade Submissions
                             </a>
@@ -240,9 +236,6 @@
                         <div class="d-grid gap-2">
                             <a href="{{ route('assignments.export-pdf', $assignment->id) }}" class="btn btn-outline-primary">
                                 <i class="fas fa-file-pdf me-2"></i>Export to PDF
-                            </a>
-                            <a href="{{ route('assignments.export-excel') }}" class="btn btn-outline-success">
-                                <i class="fas fa-file-excel me-2"></i>Export to Excel
                             </a>
                         </div>
                     </div>

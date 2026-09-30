@@ -43,8 +43,11 @@ class StudentAssignmentController extends Controller
         
         $query = Assignment::with(['teacher', 'subject', 'section'])
             ->whereIn('subject_id', $enrolledSubjectIds)
-            ->where('status', 'published')
-            ->where('is_active', true);
+            ->where('is_active', true)
+            ->where(function ($assignments) use ($student) {
+                $assignments->where('status', 'published')
+                    ->orWhereHas('submissions', fn ($submissions) => $submissions->where('student_id', $student->id));
+            });
             
         // If student has sections, also filter by section (OR show assignments with no specific section)
         if ($studentSectionIds->isNotEmpty()) {
@@ -127,7 +130,7 @@ class StudentAssignmentController extends Controller
         if (!$assignment->canSubmit()) {
             if ($assignment->status === 'closed') {
                 return redirect()->back()->with('error', 'Ang assignment na ito ay sarado na at hindi na tumatanggap ng mga magpapasa.');
-            } elseif ($assignment->is_overdue && !$assignment->allows_late_submission) {
+            } elseif ($assignment->is_overdue) {
                 return redirect()->back()->with('error', 'Ang assignment na ito ay lumipas na sa due date at hindi na tumatanggap ng mga magpapasa.');
             }
             return redirect()->back()->with('error', 'Ang assignment na ito ay hindi na tumatanggap ng mga magpapasa.');
@@ -209,6 +212,16 @@ class StudentAssignmentController extends Controller
                 ->withInput();
         }
 
+        $assignment->refresh();
+        $submittedAt = now();
+        if (!$assignment->canSubmit($submittedAt)) {
+            $message = $assignment->status === 'closed'
+                ? 'Ang assignment na ito ay sarado na at hindi na tumatanggap ng mga magpapasa.'
+                : 'Ang assignment na ito ay lumipas na sa due date at hindi na tumatanggap ng mga magpapasa.';
+
+            return redirect()->back()->with('error', $message);
+        }
+
         try {
             $stored = SafeUpload::store($file, 'assignment-submissions');
             $filePath = $stored['path'];
@@ -219,8 +232,8 @@ class StudentAssignmentController extends Controller
         }
 
         // Calculate if submission is late
-        $isLate = now() > $assignment->dueDateTime;
-        $lateMinutes = $isLate ? now()->diffInMinutes($assignment->dueDateTime) : 0;
+        $isLate = $submittedAt->gt($assignment->dueDateTime);
+        $lateMinutes = 0;
 
         $submissionData = [
             'assignment_id' => $assignment->id,
@@ -230,7 +243,7 @@ class StudentAssignmentController extends Controller
             'file_type' => $file->getClientOriginalExtension(),
             'comments' => $request->comments,
             'status' => $isLate ? 'late' : 'submitted',
-            'submitted_at' => now(),
+            'submitted_at' => $submittedAt,
             'is_late' => $isLate,
             'late_minutes' => $lateMinutes,
             'max_score' => $assignment->max_score,

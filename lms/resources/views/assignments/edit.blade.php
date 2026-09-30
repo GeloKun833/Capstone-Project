@@ -55,12 +55,16 @@
                                         <div class="col-md-6">
                                             <label for="subject_id" class="form-label">Subject <span class="text-danger">*</span></label>
                                             <select class="form-control @error('subject_id') is-invalid @enderror" id="subject_id" name="subject_id" required>
-                                                <option value="">Select Subject</option>
-                                                @foreach($subjects as $subject)
-                                                    <option value="{{ $subject->id }}" {{ old('subject_id', $assignment->subject_id) == $subject->id ? 'selected' : '' }}>
-                                                        {{ $subject->name }}
-                                                    </option>
-                                                @endforeach
+                                                @if($isTeacherEdit)
+                                                    <option value="">Select Section First</option>
+                                                @else
+                                                    <option value="">Select Subject</option>
+                                                    @foreach($subjects as $subject)
+                                                        <option value="{{ $subject->id }}" {{ old('subject_id', $assignment->subject_id) == $subject->id ? 'selected' : '' }}>
+                                                            {{ $subject->subject_name }}
+                                                        </option>
+                                                    @endforeach
+                                                @endif
                                             </select>
                                             @error('subject_id')
                                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -98,9 +102,9 @@
                                             @enderror
                                         </div>
                                         <div class="col-md-6">
-                                            <label for="semester_id" class="form-label">Semester <span class="text-danger">*</span></label>
+                                            <label for="semester_id" class="form-label">Quarter <span class="text-danger">*</span></label>
                                             <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required>
-                                                <option value="">Select Semester</option>
+                                                <option value="">Select Quarter</option>
                                                 @foreach($semesters as $semester)
                                                     <option value="{{ $semester->id }}" {{ old('semester_id', $assignment->semester_id) == $semester->id ? 'selected' : '' }}>
                                                         {{ $semester->name }}
@@ -125,7 +129,7 @@
                                         <div class="col-md-6">
                                             <label for="due_time" class="form-label">Due Time</label>
                                             <input type="time" class="form-control @error('due_time') is-invalid @enderror" 
-                                                   id="due_time" name="due_time" value="{{ old('due_time', $assignment->due_time) }}">
+                                                   id="due_time" name="due_time" value="{{ old('due_time', $assignment->due_time ? substr($assignment->due_time, 0, 5) : '') }}">
                                             @error('due_time')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
@@ -158,23 +162,6 @@
                                             <h6 class="card-title mb-0">Assignment Settings</h6>
                                         </div>
                                         <div class="card-body">
-                                            <div class="mb-3">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="allows_late_submission" 
-                                                           name="allows_late_submission" {{ old('allows_late_submission', $assignment->allows_late_submission) ? 'checked' : '' }}>
-                                                    <label class="form-check-label" for="allows_late_submission">
-                                                        Allow Late Submissions
-                                                    </label>
-                                                </div>
-                                            </div>
-
-                                            <div class="mb-3" id="late_penalty_div" style="display: {{ $assignment->allows_late_submission ? 'block' : 'none' }};">
-                                                <label for="late_submission_penalty" class="form-label">Late Submission Penalty (%)</label>
-                                                <input type="number" class="form-control" id="late_submission_penalty" 
-                                                       name="late_submission_penalty" value="{{ old('late_submission_penalty', $assignment->late_submission_penalty) }}" 
-                                                       min="0" max="100">
-                                            </div>
-
                                             <div class="mb-3">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="requires_file_upload" 
@@ -260,16 +247,49 @@
 @endsection
 
 @section('script')
+@if($isTeacherEdit)
+@php
+    $subjectsForJs = $subjects->map(fn ($subject) => [
+        'id' => $subject->id,
+        'label' => $subject->subject_name . ($subject->class ? ' (' . $subject->class . ')' : ''),
+    ])->values();
+@endphp
+@endif
 <script>
     $(document).ready(function() {
-        // Toggle late submission penalty field
-        $('#allows_late_submission').change(function() {
-            if ($(this).is(':checked')) {
-                $('#late_penalty_div').show();
-            } else {
-                $('#late_penalty_div').hide();
+        @if($isTeacherEdit)
+        const subjectsBySection = @json($subjectsBySection);
+        const allSubjects = @json($subjectsForJs);
+        const initialSubjectId = @json(old('subject_id', $assignment->subject_id));
+        let isInitialSectionLoad = true;
+
+        function filterSubjects() {
+            const sectionId = $('#section_id').val();
+            const $subject = $('#subject_id');
+            const selectedSubjectId = isInitialSectionLoad ? initialSubjectId : $subject.val();
+            $subject.empty();
+
+            if (!sectionId) {
+                $subject.append('<option value="">Select section first</option>').prop('disabled', true);
+                return;
             }
-        });
+
+            const allowedIds = (subjectsBySection[sectionId] || []).map(String);
+            $subject.append('<option value="">Select Subject</option>');
+            allSubjects.forEach(function(subject) {
+                if (allowedIds.includes(String(subject.id))) {
+                    const selected = String(selectedSubjectId) === String(subject.id) ? ' selected' : '';
+                    $subject.append('<option value="' + subject.id + '"' + selected + '>' + subject.label + '</option>');
+                }
+            });
+
+            $subject.prop('disabled', allowedIds.length === 0);
+            isInitialSectionLoad = false;
+        }
+
+        $('#section_id').on('change', filterSubjects);
+        filterSubjects();
+        @endif
 
         // Toggle file upload settings
         $('#requires_file_upload').change(function() {

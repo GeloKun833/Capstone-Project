@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Assignment;
 use App\Models\AssignmentSubmission;
+use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Services\TeacherClassAssignmentService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +18,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Maatwebsite\Excel\Facades\Excel;
 
 class AssignmentController extends Controller
 {
@@ -51,12 +52,31 @@ class AssignmentController extends Controller
         $query = Assignment::with(['teacher', 'subject', 'section', 'academicYear', 'semester'])
             ->withCount('submissions');
 
-        // Filter by teacher if not admin
+        $subjects = collect();
+        $sections = collect();
+
         if ($user->role_name === 'Teacher') {
             $teacher = $user->teacher;
             if ($teacher) {
                 $query->where('teacher_id', $teacher->id);
+                $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+                $assignedSubjectIds = array_map('intval', array_keys($options['assignmentMap']));
+                $assignedSectionIds = collect($options['subjectsBySection'])->keys()->map(fn ($id) => (int) $id)->all();
+                $subjects = Subject::query()
+                    ->whereIn('id', $assignedSubjectIds)
+                    ->orderBy('subject_name')
+                    ->orderBy('class')
+                    ->get();
+                $sections = Section::query()
+                    ->whereIn('id', $assignedSectionIds)
+                    ->orderBy('name')
+                    ->get();
+            } else {
+                $query->whereRaw('1 = 0');
             }
+        } else {
+            $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
+            $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
         }
 
         // Apply filters
@@ -84,15 +104,10 @@ class AssignmentController extends Controller
             'total' => (clone $query)->count(),
             'published' => (clone $query)->where('status', 'published')->count(),
             'draft' => (clone $query)->where('status', 'draft')->count(),
-            'due_soon' => (clone $query)->where('status', 'published')
-                ->whereDate('due_date', '>=', now()->toDateString())
-                ->whereDate('due_date', '<=', now()->addDays(7)->toDateString())
-                ->count(),
+            'due_soon' => (clone $query)->where('status', 'published')->dueSoon(7)->count(),
         ];
 
         $assignments = $query->orderBy('created_at', 'desc')->paginate(15);
-        $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
-        $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
 
         return view('assignments.index', compact('assignments', 'subjects', 'sections', 'stats'));
     }
@@ -151,7 +166,6 @@ class AssignmentController extends Controller
             'due_date' => 'required|date|after_or_equal:today',
             'due_time' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'max_score' => 'required|numeric|min:0|max:1000',
-            'late_submission_penalty' => 'nullable|numeric|min:0|max:100',
             'submission_instructions' => 'nullable|string',
             'allowed_file_types' => 'nullable|array',
             'max_file_size' => 'nullable|numeric|min:1|max:50',
@@ -183,13 +197,13 @@ class AssignmentController extends Controller
             'due_date',
             'due_time',
             'max_score',
-            'late_submission_penalty',
             'submission_instructions',
             'allowed_file_types',
             'max_file_size',
         ]);
         $data['teacher_id'] = $teacher->id;
-        $data['allows_late_submission'] = $request->has('allows_late_submission');
+        $data['allows_late_submission'] = false;
+        $data['late_submission_penalty'] = 0;
         $data['requires_file_upload'] = $request->has('requires_file_upload');
         $data['status'] = 'published';
         $data['is_active'] = true;
@@ -237,13 +251,38 @@ class AssignmentController extends Controller
     public function edit(Assignment $assignment)
     {
         $this->authorizeAssignment($assignment);
-        
-        $subjects = Subject::all();
-        $sections = Section::all();
+
+        $isTeacherEdit = Auth::user()->role_name === 'Teacher';
+        $subjectsBySection = [];
+        if ($isTeacherEdit) {
+            $options = app(TeacherClassAssignmentService::class)->optionsFor(Auth::user()->teacher);
+            $subjects = $options['subjects'];
+            $sections = $options['sections'];
+            $subjectsBySection = $options['subjectsBySection'];
+
+            $currentSubject = Subject::find($assignment->subject_id);
+            $currentSection = Section::find($assignment->section_id);
+            if ($currentSubject && ! $subjects->contains(fn ($subject) => (int) $subject->id === (int) $currentSubject->id)) {
+                $subjects->push($currentSubject);
+            }
+            if ($currentSection && ! $sections->contains(fn ($section) => (int) $section->id === (int) $currentSection->id)) {
+                $sections->push($currentSection);
+            }
+            if ($currentSubject && $currentSection) {
+                $subjectsBySection[$currentSection->id] ??= [];
+                if (! in_array((int) $currentSubject->id, $subjectsBySection[$currentSection->id], true)) {
+                    $subjectsBySection[$currentSection->id][] = (int) $currentSubject->id;
+                }
+            }
+        } else {
+            $subjects = Subject::query()->orderBy('subject_name')->get();
+            $sections = Section::query()->orderBy('name')->get();
+        }
+
         $academicYears = AcademicYear::all();
         $semesters = Semester::all();
-        
-        return view('assignments.edit', compact('assignment', 'subjects', 'sections', 'academicYears', 'semesters'));
+
+        return view('assignments.edit', compact('assignment', 'subjects', 'sections', 'academicYears', 'semesters', 'subjectsBySection', 'isTeacherEdit'));
     }
 
     /**
@@ -253,17 +292,37 @@ class AssignmentController extends Controller
     {
         $this->authorizeAssignment($assignment);
 
+        $isTeacher = Auth::user()->role_name === 'Teacher';
+        $teacherOptions = $isTeacher
+            ? app(TeacherClassAssignmentService::class)->optionsFor(Auth::user()->teacher)
+            : null;
+        if ($isTeacher) {
+            $teacherOptions['subjects'] = $teacherOptions['subjects']
+                ->pluck('id')
+                ->push((int) $assignment->subject_id)
+                ->unique()
+                ->values();
+            $teacherOptions['sections'] = $teacherOptions['sections']
+                ->pluck('id')
+                ->push((int) $assignment->section_id)
+                ->unique()
+                ->values();
+        }
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'subject_id' => 'required|exists:subjects,id',
-            'section_id' => 'required|exists:sections,id',
+            'subject_id' => $isTeacher
+                ? ['required', Rule::in($teacherOptions['subjects']->pluck('id')->all())]
+                : 'required|exists:subjects,id',
+            'section_id' => $isTeacher
+                ? ['required', Rule::in($teacherOptions['sections']->pluck('id')->all())]
+                : 'required|exists:sections,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'semester_id' => 'required|exists:semesters,id',
             'due_date' => 'required|date',
             'due_time' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'max_score' => 'required|numeric|min:0|max:1000',
-            'late_submission_penalty' => 'nullable|numeric|min:0|max:100',
             'submission_instructions' => 'nullable|string',
             'allowed_file_types' => 'nullable|array',
             'max_file_size' => 'nullable|numeric|min:1|max:50',
@@ -271,6 +330,20 @@ class AssignmentController extends Controller
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        if ($isTeacher) {
+            $selectedSubjectId = (int) $request->subject_id;
+            $selectedSectionId = (int) $request->section_id;
+            $isCurrentPair = $selectedSubjectId === (int) $assignment->subject_id
+                && $selectedSectionId === (int) $assignment->section_id;
+            $allowedSubjectIds = array_map('intval', $teacherOptions['subjectsBySection'][$selectedSectionId] ?? []);
+
+            if (! $isCurrentPair && ! in_array($selectedSubjectId, $allowedSubjectIds, true)) {
+                return redirect()->back()->withInput()->withErrors([
+                    'subject_id' => 'Select a subject assigned to you for the selected section.',
+                ]);
+            }
         }
 
         $data = $request->only([
@@ -283,12 +356,12 @@ class AssignmentController extends Controller
             'due_date',
             'due_time',
             'max_score',
-            'late_submission_penalty',
             'submission_instructions',
             'allowed_file_types',
             'max_file_size',
         ]);
-        $data['allows_late_submission'] = $request->has('allows_late_submission');
+        $data['allows_late_submission'] = false;
+        $data['late_submission_penalty'] = 0;
         $data['requires_file_upload'] = $request->has('requires_file_upload');
 
         if ($data['requires_file_upload']) {
@@ -353,6 +426,55 @@ class AssignmentController extends Controller
     }
 
     /**
+     * Reopen a closed or overdue assignment with a new deadline.
+     */
+    public function reopen(Request $request, Assignment $assignment)
+    {
+        $this->authorizeAssignment($assignment);
+
+        if ($assignment->status !== 'closed' && ! ($assignment->status === 'published' && $assignment->is_overdue)) {
+            return redirect()->back()->with('error', 'Only closed or overdue assignments can be reopened.');
+        }
+
+        if (! $this->missingStudentsQuery($assignment)->exists()) {
+            return redirect()->back()->with('info', 'All eligible students have already submitted this assignment.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'due_date' => 'required|date',
+            'due_time' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        $data = $validator->validated();
+        $timezone = config('app.school_timezone', 'Asia/Manila');
+        $dueTime = $data['due_time'] ?: '23:59:59';
+        if (strlen($dueTime) === 5) {
+            $dueTime .= ':00';
+        }
+
+        $newDeadline = Carbon::createFromFormat('!Y-m-d H:i:s', $data['due_date'].' '.$dueTime, $timezone);
+        if (! $newDeadline->gt(Carbon::now($timezone))) {
+            return redirect()->back()->withErrors([
+                'due_date' => 'The new deadline must be in the future.',
+            ])->withInput();
+        }
+
+        $assignment->update([
+            'due_date' => $data['due_date'],
+            'due_time' => $data['due_time'] ?: null,
+            'status' => 'published',
+            'is_active' => true,
+        ]);
+
+        return redirect()->route('assignments.submissions', $assignment)
+            ->with('success', 'Assignment reopened. Students who have not submitted can submit until the new deadline.');
+    }
+
+    /**
      * Show submissions for an assignment
      */
     public function submissions(Assignment $assignment)
@@ -363,8 +485,32 @@ class AssignmentController extends Controller
             ->with('student')
             ->orderBy('submitted_at', 'desc')
             ->paginate(20);
-        
-        return view('assignments.submissions', compact('assignment', 'submissions'));
+
+        $missingStudents = $this->missingStudentsQuery($assignment)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['students.id', 'students.first_name', 'students.last_name', 'students.email', 'students.admission_id']);
+        $reopenDefault = now(config('app.school_timezone', 'Asia/Manila'))->addHour();
+
+        return view('assignments.submissions', compact('assignment', 'submissions', 'missingStudents', 'reopenDefault'));
+    }
+
+    private function missingStudentsQuery(Assignment $assignment)
+    {
+        $query = Student::query()
+            ->whereHas('enrollments', fn ($enrollments) => $enrollments->where('subject_id', $assignment->subject_id))
+            ->whereNotIn('students.id', AssignmentSubmission::query()
+                ->select('student_id')
+                ->where('assignment_id', $assignment->id));
+
+        if ($assignment->section_id) {
+            $query->where(function ($students) use ($assignment) {
+                $students->whereDoesntHave('sections')
+                    ->orWhereHas('sections', fn ($sections) => $sections->where('sections.id', $assignment->section_id));
+            });
+        }
+
+        return $query;
     }
 
     /**
@@ -454,27 +600,6 @@ class AssignmentController extends Controller
         $pdf = PDF::loadView('assignments.pdf', compact('assignment'));
         
         return $pdf->download("assignment_{$assignment->id}.pdf");
-    }
-
-    /**
-     * Export assignments to Excel
-     */
-    public function exportExcel()
-    {
-        $user = Auth::user();
-        $query = Assignment::with(['teacher', 'subject', 'section']);
-
-        if ($user->role_name === 'Teacher') {
-            $teacher = $user->teacher;
-            if ($teacher) {
-                $query->where('teacher_id', $teacher->id);
-            }
-        }
-
-        $assignments = $query->get();
-
-        // TODO: Create AssignmentsExport class
-        return redirect()->back()->with('info', 'Excel export feature coming soon.');
     }
 
     /**

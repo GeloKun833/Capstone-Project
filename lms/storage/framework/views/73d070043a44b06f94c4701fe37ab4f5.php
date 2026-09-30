@@ -144,7 +144,7 @@
                                 <h4><?php echo e($asg->title); ?></h4>
                                 <p class="td-muted"><?php echo e($asg->subject_name); ?> · <?php echo e($asg->class_label); ?></p>
                                 <p class="td-meta">
-                                    Due <?php echo e($asg->due_date ? $asg->due_date->format('M j, Y') : '—'); ?>
+                                    Due <?php echo e($asg->due_date ? $asg->due_date->format('M j, Y g:i A') : '—'); ?>
 
                                     · <?php echo e($asg->submitted); ?> submissions · <?php echo e($asg->graded); ?> graded ·
                                     <strong><?php echo e($asg->pending); ?> pending</strong>

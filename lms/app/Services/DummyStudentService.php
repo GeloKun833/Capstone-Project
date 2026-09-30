@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Support\AcademicThresholds;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -117,7 +118,7 @@ class DummyStudentService
     public function dummyUsersQuery()
     {
         return User::query()
-            ->where('email', 'like', '%@'.self::EMAIL_DOMAIN)
+            ->whereIn('email', array_map([self::class, 'email'], range(1, self::TOTAL_STUDENTS)))
             ->where('role_name', User::ROLE_STUDENT);
     }
 
@@ -236,7 +237,10 @@ class DummyStudentService
         config(['activitylog.enabled' => false]);
 
         try {
-            return DB::transaction(fn () => $this->persist($plan));
+            $result = DB::transaction(fn () => $this->persist($plan));
+            $this->forgetAdminDashboardCache();
+
+            return $result;
         } finally {
             config(['activitylog.enabled' => $previousLog]);
         }
@@ -293,7 +297,7 @@ class DummyStudentService
         config(['activitylog.enabled' => false]);
 
         try {
-            return DB::transaction(function () {
+            $result = DB::transaction(function () {
                 [$studentIds, $userIds] = $this->dummyIds();
                 $applicationIds = $this->dummyApplicationIds();
                 $counts = ['users' => count($userIds), 'students' => count($studentIds), 'enrollment_applications' => count($applicationIds)];
@@ -364,8 +368,23 @@ class DummyStudentService
 
                 return $counts;
             });
+
+            if ($result['students'] > 0 || $result['users'] > 0) {
+                $this->forgetAdminDashboardCache();
+            }
+
+            return $result;
         } finally {
             config(['activitylog.enabled' => $previousLog]);
+        }
+    }
+
+    protected function forgetAdminDashboardCache(): void
+    {
+        try {
+            Cache::forget('admin.dashboard.data.v3');
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 
@@ -1281,7 +1300,7 @@ class DummyStudentService
     public function assertNoExistingDummyData(): void
     {
         $students = $this->dummyStudentsQuery()->count();
-        $users = User::where('email', 'like', '%@'.self::EMAIL_DOMAIN)->count();
+        $users = $this->dummyUsersQuery()->count();
         $applications = count($this->dummyApplicationIds());
 
         if ($students > 0 || $users > 0 || $applications > 0) {

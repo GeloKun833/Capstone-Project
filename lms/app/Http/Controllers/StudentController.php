@@ -330,7 +330,7 @@ class StudentController extends Controller
             $enrollment->overdue_assignments = \App\Models\Assignment::where('subject_id', $enrollment->subject_id)
                 ->where('status', 'published')
                 ->where('is_active', true)
-                ->where('due_date', '<', now())
+                ->overdue()
                 ->whereDoesntHave('submissions', function($q) use ($student) {
                     $q->where('student_id', $student->id);
                 })
@@ -341,7 +341,7 @@ class StudentController extends Controller
         $upcomingAssignments = \App\Models\Assignment::whereIn('subject_id', $enrollments->pluck('subject_id'))
             ->where('status', 'published')
             ->where('is_active', true)
-            ->where('due_date', '>', now())
+            ->notOverdue()
             ->whereDoesntHave('submissions', function($q) use ($student) {
                 $q->where('student_id', $student->id);
             })
@@ -354,7 +354,7 @@ class StudentController extends Controller
             return [
                 'title' => $assignment->title,
                 'type' => 'assignment',
-                'due_date' => $assignment->due_date,
+                'due_date' => $assignment->dueDateTime,
                 'subject' => $assignment->subject->subject_name,
                 'icon' => 'fas fa-file-alt',
                 'is_overdue' => false
@@ -447,8 +447,11 @@ class StudentController extends Controller
 
         $assignmentsQuery = \App\Models\Assignment::with(['teacher', 'subject', 'section'])
             ->where('subject_id', $enrollment->subject_id)
-            ->where('status', 'published')
-            ->where('is_active', true);
+            ->where('is_active', true)
+            ->where(function ($assignments) use ($student) {
+                $assignments->where('status', 'published')
+                    ->orWhereHas('submissions', fn ($submissions) => $submissions->where('student_id', $student->id));
+            });
 
         // Get online classes / lessons for this subject
         $onlineClassesQuery = \App\Models\Lesson::with(['teacher', 'subject', 'section', 'activities'])

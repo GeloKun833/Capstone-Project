@@ -1015,7 +1015,7 @@ class HomeController extends Controller
                 'title' => $assignment->title,
                 'subject_name' => $assignment->subject->subject_name ?? '—',
                 'class_label' => trim(($assignment->section->grade_level ?? '').' '.($assignment->section->name ?? '')) ?: '—',
-                'due_date' => $assignment->due_date,
+                'due_date' => $assignment->dueDateTime,
                 'status' => $assignment->status,
                 'submitted' => $submitted,
                 'graded' => $graded,

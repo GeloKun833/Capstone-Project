@@ -154,6 +154,21 @@ class DummyStudentCommandsTest extends TestCase
         $this->assertSame(DummyStudentService::TOTAL_STUDENTS, Student::where('admission_id', 'like', DummyStudentService::ADMISSION_PREFIX.'%')->count());
     }
 
+    public function test_delete_preserves_unrelated_student_account_on_dummy_email_domain(): void
+    {
+        $unrelatedUser = User::create([
+            'name' => 'Unrelated Test Student',
+            'email' => 'unrelated@'.DummyStudentService::EMAIL_DOMAIN,
+            'password' => Hash::make('secret123'),
+            'role_name' => User::ROLE_STUDENT,
+            'status' => 'active',
+        ]);
+
+        $this->artisan('dummy:students:delete', ['--force' => true])->assertSuccessful();
+
+        $this->assertDatabaseHas('users', ['id' => $unrelatedUser->id, 'email' => $unrelatedUser->email]);
+    }
+
     public function test_create_fails_without_writing_when_a_subject_has_no_teacher(): void
     {
         Subject::create(['subject_id' => 'Grade 1-Orphan', 'subject_name' => 'Orphan', 'class' => 'Grade 1']);

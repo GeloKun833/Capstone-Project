@@ -116,26 +116,28 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-12">
-                                        <h5 class="form-title"><span>Reset Password (Admin)</span></h5>
-                                        <p class="text-muted small">Optional. Use this if the user forgot their password and cannot use email reset. Leave blank to keep the current password.</p>
-                                    </div>
-                                    <div class="col-12 col-sm-6">
-                                        <div class="form-group local-forms">
-                                            <label>New Password</label>
-                                            <input type="password" class="form-control @error('new_password') is-invalid @enderror"
-                                                   name="new_password" autocomplete="new-password" placeholder="Leave blank to keep current">
-                                            @error('new_password')
-                                                <div class="invalid-feedback d-block">{{ $message }}</div>
-                                            @enderror
+                                    @if($users->role_name === \App\Models\User::ROLE_ADMIN)
+                                        <div class="col-12">
+                                            <h5 class="form-title"><span>Reset Password (Admin)</span></h5>
+                                            <p class="text-muted small">Optional. Use this if the user forgot their password and cannot use email reset. Leave blank to keep the current password.</p>
                                         </div>
-                                    </div>
-                                    <div class="col-12 col-sm-6">
-                                        <div class="form-group local-forms">
-                                            <label>Confirm New Password</label>
-                                            <input type="password" class="form-control" name="new_password_confirmation" autocomplete="new-password" placeholder="Confirm new password">
+                                        <div class="col-12 col-sm-6">
+                                            <div class="form-group local-forms">
+                                                <label>New Password</label>
+                                                <input type="password" class="form-control @error('new_password') is-invalid @enderror"
+                                                       name="new_password" autocomplete="new-password" placeholder="Leave blank to keep current">
+                                                @error('new_password')
+                                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                                @enderror
+                                            </div>
                                         </div>
-                                    </div>
+                                        <div class="col-12 col-sm-6">
+                                            <div class="form-group local-forms">
+                                                <label>Confirm New Password</label>
+                                                <input type="password" class="form-control" name="new_password_confirmation" autocomplete="new-password" placeholder="Confirm new password">
+                                            </div>
+                                        </div>
+                                    @endif
 
                                     <div class="col-12">
                                         <div class="student-submit">

@@ -165,7 +165,7 @@
                                     <p class="mb-0 mt-1">
                                         @if($assignment->status === 'closed')
                                             Ang assignment na ito ay sarado na at <strong>hindi na tumatanggap ng mga magpapasa</strong>.
-                                        @elseif($assignment->is_overdue && !$assignment->allows_late_submission)
+                                        @elseif($assignment->is_overdue)
                                             Ang assignment na ito ay lumipas na sa due date at <strong>hindi na tumatanggap ng mga magpapasa</strong>.
                                         @else
                                             Ang assignment na ito ay <strong>hindi na tumatanggap ng mga magpapasa</strong>.

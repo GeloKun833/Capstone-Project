@@ -74,6 +74,8 @@ return [
 
     'timezone' => 'UTC',
 
+    'school_timezone' => env('SCHOOL_TIMEZONE', 'Asia/Manila'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

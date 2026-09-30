@@ -46,7 +46,7 @@
                             <div class="col-md-3">
                                 <div class="text-center">
                                     <h6 class="text-muted">Due Date</h6>
-                                    <p class="fw-bold">{{ $assignment->due_date ? \Carbon\Carbon::parse($assignment->due_date)->format('M d, Y') : 'N/A' }}</p>
+                                    <p class="fw-bold">{{ $assignment->dueDateTime ? $assignment->dueDateTime->format('M d, Y g:i A') : 'N/A' }}</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -56,6 +56,78 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Not Submitted ({{ $missingStudents->count() }})</h5>
+                    </div>
+                    <div class="card-body">
+                        @if($missingStudents->isNotEmpty())
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Student</th>
+                                            <th>Student ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($missingStudents as $student)
+                                            <tr>
+                                                <td>{{ trim($student->first_name.' '.$student->last_name) }}</td>
+                                                <td>{{ $student->admission_id ?: 'STU-'.$student->id }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <p class="text-muted mb-0">All eligible students have submitted.</p>
+                        @endif
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card h-100" id="reopen-assignment">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Open Assignment Again</h5>
+                    </div>
+                    <div class="card-body">
+                        @if($missingStudents->isNotEmpty() && ($assignment->status === 'closed' || ($assignment->status === 'published' && $assignment->is_overdue)))
+                            <p class="text-muted">Students without a submission can submit again until this new deadline. Existing submissions stay unchanged.</p>
+                            <form id="reopenAssignmentForm" action="{{ route('assignments.reopen', $assignment) }}" method="POST">
+                                @csrf
+                                <div class="mb-3">
+                                    <label for="reopen_due_date" class="form-label">New due date</label>
+                                    <input type="date" class="form-control @error('due_date') is-invalid @enderror"
+                                           id="reopen_due_date" name="due_date"
+                                           min="{{ now(config('app.school_timezone', 'Asia/Manila'))->toDateString() }}"
+                                           value="{{ old('due_date', $reopenDefault->toDateString()) }}" required>
+                                    @error('due_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-3">
+                                    <label for="reopen_due_time" class="form-label">New due time</label>
+                                    <input type="time" class="form-control @error('due_time') is-invalid @enderror"
+                                           id="reopen_due_time" name="due_time"
+                                           value="{{ old('due_time', $reopenDefault->format('H:i')) }}">
+                                    @error('due_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    <small class="form-text text-muted">Leave blank to use the end of the selected day.</small>
+                                </div>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reopenConfirmModal">
+                                    <i class="fas fa-lock-open me-1"></i> Reopen Assignment
+                                </button>
+                            </form>
+                        @elseif($missingStudents->isEmpty())
+                            <p class="text-muted mb-0">There are no missing submissions to reopen for.</p>
+                        @else
+                            <p class="text-muted mb-0">This assignment is still open until its current deadline. Reopening becomes available after it is closed or overdue.</p>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -195,6 +267,29 @@
                         @endif
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="reopenConfirmModal" tabindex="-1" aria-labelledby="reopenConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reopenConfirmModalLabel">
+                    <i class="fas fa-lock-open text-success me-2"></i>Reopen Assignment?
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>This will let the {{ $missingStudents->count() }} student(s) without a submission submit before the new deadline.</p>
+                <p class="mb-0 text-muted">Existing submissions will remain unchanged. The assignment will be published again.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success" form="reopenAssignmentForm">
+                    <i class="fas fa-lock-open me-1"></i> Confirm Reopen
+                </button>
             </div>
         </div>
     </div>

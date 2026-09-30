@@ -143,7 +143,7 @@
                                 <h4>{{ $asg->title }}</h4>
                                 <p class="td-muted">{{ $asg->subject_name }} · {{ $asg->class_label }}</p>
                                 <p class="td-meta">
-                                    Due {{ $asg->due_date ? $asg->due_date->format('M j, Y') : '—' }}
+                                    Due {{ $asg->due_date ? $asg->due_date->format('M j, Y g:i A') : '—' }}
                                     · {{ $asg->submitted }} submissions · {{ $asg->graded }} graded ·
                                     <strong>{{ $asg->pending }} pending</strong>
                                 </p>

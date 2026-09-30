@@ -116,7 +116,9 @@ class UserManagementController extends Controller
                 'department' => \App\Support\FormRules::TEXT_REQUIRED,
                 'avatar' => \App\Support\FormRules::AVATAR,
                 'hidden_avatar' => 'nullable|string|max:255',
-                'new_password' => 'nullable|string|min:8|confirmed',
+                'new_password' => $user->role_name === User::ROLE_ADMIN
+                    ? 'nullable|string|min:8|confirmed'
+                    : 'prohibited',
             ], \App\Support\FormRules::messages());
 
             // Protect the only active Admin from being disabled
@@ -151,7 +153,7 @@ class UserManagementController extends Controller
                 'avatar' => $imageName,
             ];
 
-            if ($request->filled('new_password')) {
+            if ($user->role_name === User::ROLE_ADMIN && $request->filled('new_password')) {
                 $payload['password'] = \Illuminate\Support\Facades\Hash::make($request->new_password);
             }
 

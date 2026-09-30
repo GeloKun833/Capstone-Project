@@ -15,7 +15,7 @@
     <h1>{{ $assignment->title }}</h1>
     <p><strong>Subject:</strong> {{ $assignment->subject->subject_name ?? 'N/A' }}</p>
     <p><strong>Section:</strong> {{ $assignment->section->name ?? 'N/A' }}</p>
-    <p><strong>Due:</strong> {{ $assignment->due_date ? \Carbon\Carbon::parse($assignment->due_date)->format('M d, Y') : 'N/A' }}</p>
+    <p><strong>Due:</strong> {{ $assignment->dueDateTime ? $assignment->dueDateTime->format('M d, Y g:i A') : 'N/A' }}</p>
     <p>{{ $assignment->description }}</p>
     <h3>Submissions ({{ $assignment->submissions->count() }})</h3>
     <table>

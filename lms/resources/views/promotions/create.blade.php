@@ -92,6 +92,7 @@
                                         <th>Name</th>
                                         <th>Current Grade</th>
                                         <th>GPA</th>
+                                        <th>Final Standing</th>
                                         <th>Status</th>
                                         <th>Remarks</th>
                                     </tr>
@@ -120,6 +121,20 @@
                                                     </span>
                                                 @else
                                                     <span class="text-muted">N/A</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($student->promotion_standing === 'Passed')
+                                                    <span class="badge bg-success">Passed · {{ number_format($student->promotion_average, 2) }}%</span>
+                                                @elseif($student->promotion_standing === 'Failed')
+                                                    <span class="badge bg-danger">Failed · {{ number_format($student->promotion_average, 2) }}%</span>
+                                                @elseif($student->promotion_standing === 'Incomplete')
+                                                    <span class="badge bg-warning text-dark">Incomplete</span>
+                                                @else
+                                                    <span class="badge bg-secondary">No final grade</span>
+                                                @endif
+                                                @if($student->promotion_academic_year)
+                                                    <br><small class="text-muted">{{ $student->promotion_academic_year }}</small>
                                                 @endif
                                             </td>
                                             <td>
@@ -213,7 +228,7 @@ $(document).ready(function() {
             pageLength: 25,
             order: [[2, 'asc']],
             columnDefs: [
-                { orderable: false, targets: [0, 5, 6] }
+                { orderable: false, targets: [0, 5, 6, 7] }
             ]
         });
     }

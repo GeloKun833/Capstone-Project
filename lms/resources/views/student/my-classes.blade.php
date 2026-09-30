@@ -321,7 +321,7 @@
                                                     </div>
                                                     <div class="deadline-content">
                                                         <span class="deadline-title">{{ $deadline['title'] }}</span>
-                                                        <span class="deadline-date">Due: {{ $deadline['due_date']->format('M d, Y') }}</span>
+                                                        <span class="deadline-date">Due: {{ $deadline['due_date']->format('M d, Y g:i A') }}</span>
                                                     </div>
                                                     <div class="deadline-status {{ $statusClass }}">{{ $statusText }}</div>
                                                 </div>

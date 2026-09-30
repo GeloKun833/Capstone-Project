@@ -585,6 +585,7 @@ Route::group(['prefix' => 'assignments', 'middleware' => ['auth']], function () 
     // Assignment management
     Route::post('/{assignment}/publish', [App\Http\Controllers\AssignmentController::class, 'publish'])->name('assignments.publish');
     Route::post('/{assignment}/close', [App\Http\Controllers\AssignmentController::class, 'close'])->name('assignments.close');
+    Route::post('/{assignment}/reopen', [App\Http\Controllers\AssignmentController::class, 'reopen'])->name('assignments.reopen');
     Route::get('/{assignment}/submissions', [App\Http\Controllers\AssignmentController::class, 'submissions'])->name('assignments.submissions');
     
     // Grading
@@ -597,7 +598,6 @@ Route::group(['prefix' => 'assignments', 'middleware' => ['auth']], function () 
     
     // Export
     Route::get('/{assignment}/export-pdf', [App\Http\Controllers\AssignmentController::class, 'exportPdf'])->name('assignments.export-pdf');
-    Route::get('/export-excel', [App\Http\Controllers\AssignmentController::class, 'exportExcel'])->name('assignments.export-excel');
 });
 
 // Class Post Routes

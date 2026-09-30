@@ -38,6 +38,7 @@
                         <a href="javascript:void(0);"><i class="fas fa-graduation-cap"></i> <span>Academic Management</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('class-subject.unified-management') }}"><i class="fas fa-cogs"></i> <span>Classes & Subjects</span></a></li>
+                            <li><a href="{{ route('curriculum.index') }}"><i class="fas fa-book-open"></i> <span>Curriculum</span></a></li>
                             <li><a href="{{ route('admin.schedules.index') }}"><i class="fas fa-clock"></i> <span>Class Schedules</span></a></li>
                             <li><a href="{{ route('academic_years.index') }}"><i class="fas fa-calendar-alt"></i> <span>Academic Years</span></a></li>
                             <li><a href="{{ route('semesters.index') }}"><i class="fas fa-calendar-week"></i> <span>Semesters</span></a></li>
