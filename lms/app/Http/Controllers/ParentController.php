@@ -18,17 +18,7 @@ class ParentController extends Controller
 
     public function index()
     {
-        $parent = Auth::user();
-        $children = $this->portalService->getChildrenForParent($parent);
-
-        if ($children->count() === 1) {
-            return redirect()->route('parent.child.hub', [
-                'childId' => $children->first()->id,
-                'tab' => 'overview',
-            ]);
-        }
-
-        return view('parent.index', compact('children', 'parent'));
+        return redirect()->route('dashboard');
     }
 
     public function childHub($childId, Request $request)

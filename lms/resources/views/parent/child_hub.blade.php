@@ -19,7 +19,6 @@
                     <h3 class="page-title"><i class="fas fa-user me-2"></i>{{ $child->full_name }}</h3>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('parent.index') }}">Parent Portal</a></li>
                         <li class="breadcrumb-item active">{{ $child->first_name }}</li>
                     </ul>
                 </div>
@@ -105,7 +104,7 @@
                         <div class="card-body">
                             @forelse($overview['recentAttendance'] as $record)
                                 <div class="d-flex justify-content-between border-bottom py-2">
-                                    <span>{{ $record->date?->format('M d, Y') }} — {{ $record->subject->subject_name ?? 'Subject' }}</span>
+                                    <span>{{ $record->date ? \Carbon\Carbon::parse($record->date)->format('M d, Y') : '—' }} — {{ $record->subject->subject_name ?? 'Subject' }}</span>
                                     <span class="badge bg-{{ $record->status === 'present' ? 'success' : 'danger' }}">{{ ucfirst($record->status) }}</span>
                                 </div>
                             @empty
@@ -228,7 +227,7 @@
                         <tbody>
                             @forelse($attendance as $record)
                                 <tr>
-                                    <td>{{ $record->date?->format('M d, Y') }}</td>
+                                    <td>{{ $record->date ? \Carbon\Carbon::parse($record->date)->format('M d, Y') : '—' }}</td>
                                     <td>{{ $record->subject->subject_name ?? 'N/A' }}</td>
                                     <td><span class="badge bg-{{ $record->status === 'present' ? 'success' : 'danger' }}">{{ ucfirst($record->status) }}</span></td>
                                     <td>{{ $record->remarks ?? '—' }}</td>

@@ -927,6 +927,7 @@
     </div>
     
     <!-- jQuery -->
+    <script src="{{ URL::to('assets/js/prevent-history-cache.js') }}"></script>
     <script src="{{ URL::to('assets/js/jquery-3.6.0.min.js') }}"></script>
     <!-- Bootstrap JS -->
     <script src="{{ URL::to('assets/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>

@@ -119,7 +119,11 @@ class LoginController extends Controller
         $request->session()->regenerateToken();
 
         Toastr::success('Logout successfully :)','Success');
-        return redirect('login');
+        return redirect()->route('login')->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, private',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 
 }

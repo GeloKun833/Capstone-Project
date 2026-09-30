@@ -134,7 +134,6 @@
                                         <th>Event</th>
                                         <th>Description</th>
                                         <th>Subject</th>
-                                        <th>Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -160,38 +159,10 @@
                                                     -
                                                 @endif
                                             </td>
-                                            <td>
-                                                @if($activity->properties && count($activity->properties))
-                                                    <button
-                                                        type="button"
-                                                        class="btn btn-sm btn-outline-primary"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#activity-details-{{ $activity->id }}"
-                                                    >
-                                                        View
-                                                    </button>
-
-                                                    <div class="modal fade" id="activity-details-{{ $activity->id }}" tabindex="-1" aria-hidden="true">
-                                                        <div class="modal-dialog modal-dialog-centered modal-lg">
-                                                            <div class="modal-content">
-                                                                <div class="modal-header">
-                                                                    <h5 class="modal-title">Activity Details</h5>
-                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                                </div>
-                                                                <div class="modal-body">
-                                                                    <pre class="activity-log-json mb-0">{{ json_encode($activity->properties, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                @else
-                                                    -
-                                                @endif
-                                            </td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="{{ ($isAdmin && $scope === 'all') ? 7 : 5 }}" class="text-center py-4 text-muted">
+                                            <td colspan="{{ ($isAdmin && $scope === 'all') ? 6 : 4 }}" class="text-center py-4 text-muted">
                                                 No activity found for the selected filters.
                                             </td>
                                         </tr>
@@ -234,15 +205,6 @@
     .activity-log-tabs .nav-link.active {
         background: #2563eb;
         color: #fff;
-    }
-
-    .activity-log-json {
-        white-space: pre-wrap;
-        word-break: break-word;
-        background: #f8fafc;
-        border-radius: 8px;
-        padding: 1rem;
-        font-size: 0.85rem;
     }
 
     .pagination-wrapper {

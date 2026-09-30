@@ -6,6 +6,7 @@ use App\Models\CalendarEvent;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\Room;
+use App\Services\TeacherClassAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -39,7 +40,7 @@ class CalendarEventController extends Controller
     protected function subjectsForCalendarUser($user)
     {
         if ($user && $user->role_name === 'Teacher' && $user->teacher) {
-            $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($user->teacher);
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($user->teacher);
 
             return $options['subjects']
                 ->unique('id')
@@ -583,6 +584,36 @@ class CalendarEventController extends Controller
         );
 
         return response()->json($slots);
+    }
+
+    /**
+     * Subjects assigned to a teacher (calendar Academic Assignment cascade).
+     */
+    public function teacherSubjects(Teacher $teacher)
+    {
+        $user = Auth::user();
+        if ($user && $user->role_name === 'Teacher' && $user->teacher && (int) $user->teacher->id !== (int) $teacher->id) {
+            return response()->json(['error' => 'You can only load your own subjects.'], 403);
+        }
+
+        $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $subjects = $options['subjects']
+            ->unique('id')
+            ->sortBy(fn ($subject) => ($subject->class ?? '').' '.($subject->subject_name ?? ''))
+            ->values()
+            ->map(function ($subject) {
+                $label = $subject->subject_name ?? 'Subject';
+                if (! empty($subject->class)) {
+                    $label .= ' ('.$subject->class.')';
+                }
+
+                return [
+                    'id' => $subject->id,
+                    'label' => $label,
+                ];
+            });
+
+        return response()->json(['subjects' => $subjects]);
     }
 
     /**

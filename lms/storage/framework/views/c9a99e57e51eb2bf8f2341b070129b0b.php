@@ -208,7 +208,6 @@
                     <?php
                         $children = $sidebarChildren ?? collect();
                         $pDash = request()->routeIs('dashboard', 'home');
-                        $pPortal = request()->routeIs('parent.index');
                         $pCal = request()->routeIs('calendar.*');
                         $pChildren = request()->routeIs('parent.child.*');
                         $pSchedule = request()->routeIs('parent.schedule');
@@ -217,10 +216,6 @@
 
                     <li class="<?php echo e($pDash ? 'active' : ''); ?>">
                         <a href="<?php echo e(route('dashboard')); ?>"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
-                    </li>
-
-                    <li class="<?php echo e($pPortal ? 'active' : ''); ?>">
-                        <a href="<?php echo e(route('parent.index')); ?>"><i class="fas fa-home"></i> <span>Parent Portal</span></a>
                     </li>
 
                     <li class="<?php echo e($pCal ? 'active' : ''); ?>">

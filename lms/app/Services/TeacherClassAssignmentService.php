@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ClassSchedule;
 use App\Models\Section;
+use App\Models\Subject;
 use App\Models\Teacher;
 use Illuminate\Support\Facades\DB;
 
@@ -24,6 +25,18 @@ class TeacherClassAssignmentService
         $teacher->load(['subjects', 'sections', 'gradeLevels']);
 
         $subjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
+        $scheduleSubjectIds = ClassSchedule::query()
+            ->where('teacher_id', $teacher->id)
+            ->where('is_active', true)
+            ->pluck('subject_id')
+            ->filter()
+            ->unique();
+        if ($scheduleSubjectIds->isNotEmpty()) {
+            $scheduleSubjects = Subject::query()
+                ->whereIn('id', $scheduleSubjectIds)
+                ->get(['id', 'subject_name', 'class']);
+            $subjects = $subjects->concat($scheduleSubjects)->unique('id')->sortBy(['class', 'subject_name'])->values();
+        }
         $sections = $teacher->sections->sortBy(['grade_level', 'name'])->values();
 
         if ($sections->isEmpty() && $teacher->gradeLevels->isNotEmpty()) {

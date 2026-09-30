@@ -20,6 +20,10 @@ class Attendance extends Model
         'remarks',
     ];
 
+    protected $casts = [
+        'date' => 'date',
+    ];
+
     public static function countsAsPresent(?string $status): bool
     {
         return in_array($status, ['present', 'late'], true);

@@ -84,22 +84,6 @@
                                 <div class="row">
                                     <div class="col-md-4">
                                         <div class="form-group">
-                                            <label>Subject</label>
-                                            <select class="form-control" name="subject_id">
-                                                <option value="">Select Subject</option>
-                                                @foreach($subjects as $subject)
-                                                    <option value="{{ $subject->id }}" {{ old('subject_id', $calendarEvent->subject_id) == $subject->id ? 'selected' : '' }}>
-                                                        {{ $subject->subject_name }}{{ !empty($subject->class) ? ' ('.$subject->class.')' : '' }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            @error('subject_id')
-                                                <span class="text-danger">{{ $message }}</span>
-                                            @enderror
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
                                             <label>Teacher</label>
                                             <select class="form-control" name="teacher_id" id="teacher_id">
                                                 <option value="">Select Teacher</option>
@@ -110,6 +94,22 @@
                                                 @endforeach
                                             </select>
                                             @error('teacher_id')
+                                                <span class="text-danger">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Subject</label>
+                                            <select class="form-control" name="subject_id" id="subject_id">
+                                                <option value="">Select Subject</option>
+                                                @foreach($subjects as $subject)
+                                                    <option value="{{ $subject->id }}" {{ old('subject_id', $calendarEvent->subject_id) == $subject->id ? 'selected' : '' }}>
+                                                        {{ $subject->subject_name }}{{ !empty($subject->class) ? ' ('.$subject->class.')' : '' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            @error('subject_id')
                                                 <span class="text-danger">{{ $message }}</span>
                                             @enderror
                                         </div>

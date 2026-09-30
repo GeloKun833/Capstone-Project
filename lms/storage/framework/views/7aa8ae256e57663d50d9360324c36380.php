@@ -26,6 +26,7 @@
     <?php echo $__env->yieldPushContent('styles'); ?>
 </head>
 <body>
+    <script src="<?php echo e(URL::to('assets/js/prevent-history-cache.js')); ?>"></script>
     <div class="main-wrapper">
         <div class="header">
             <div class="header-left">

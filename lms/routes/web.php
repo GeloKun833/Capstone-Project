@@ -42,7 +42,7 @@ if (!function_exists('set_active')) {
 }
 
 Route::get('/', function () {
-    return view('auth.login');
+    return redirect()->route(auth()->check() ? 'dashboard' : 'login');
 });
 
 Route::group(['middleware'=>'auth'],function()
@@ -516,6 +516,7 @@ Route::group(['prefix' => 'calendar', 'middleware' => ['auth']], function () {
         Route::get('/check-conflicts', [App\Http\Controllers\CalendarEventController::class, 'checkConflicts'])->name('calendar.check-conflicts');
         Route::get('/subject-preferences', [App\Http\Controllers\CalendarEventController::class, 'subjectPreferences'])->name('calendar.subject-preferences');
         Route::get('/workload', [App\Http\Controllers\CalendarEventController::class, 'workload'])->name('calendar.workload');
+        Route::get('/teacher-subjects/{teacher}', [App\Http\Controllers\CalendarEventController::class, 'teacherSubjects'])->name('calendar.teacher-subjects');
         Route::get('/{calendarEvent}/edit', [App\Http\Controllers\CalendarEventController::class, 'edit'])->name('calendar.edit');
         Route::put('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'update'])->name('calendar.update');
         Route::delete('/{calendarEvent}', [App\Http\Controllers\CalendarEventController::class, 'destroy'])->name('calendar.destroy');

@@ -254,23 +254,20 @@
                     <div class="row">
                         <div class="col-md-4">
                             <div class="form-group mb-0">
-                                <label>Subject</label>
-                                <select class="form-control" name="subject_id" id="form_subject_id">
-                                    <option value="">Select Subject</option>
-                                    <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($subject->id); ?>"><?php echo e($subject->subject_name); ?><?php echo e(!empty($subject->class) ? ' ('.$subject->class.')' : ''); ?></option>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                </select>
-                </div>
-                </div>
-                        <div class="col-md-4">
-                            <div class="form-group mb-0">
                                 <label>Teacher</label>
                                 <select class="form-control" name="teacher_id" id="form_teacher_id">
                                     <option value="">Select Teacher</option>
                                     <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <option value="<?php echo e($teacher->id); ?>"><?php echo e($teacher->full_name); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group mb-0">
+                                <label>Subject</label>
+                                <select class="form-control" name="subject_id" id="form_subject_id" disabled>
+                                    <option value="">Select a teacher first</option>
                                 </select>
                             </div>
                         </div>
@@ -595,6 +592,7 @@
         conflicts: '<?php echo e(route("calendar.check-conflicts")); ?>',
         preferences: '<?php echo e(route("calendar.subject-preferences")); ?>',
         workload: '<?php echo e(route("calendar.workload")); ?>',
+        teacherSubjects: '<?php echo e(url("/calendar/teacher-subjects")); ?>',
     };
 
     let calendar = null;
@@ -690,6 +688,7 @@ let selectedEvent = null;
         $('#conflict_results_panel').html('<p class="text-muted small mb-0">Run conflict check before saving when a teacher or room is assigned.</p>');
         $('#subject_preference_hint').addClass('d-none').empty();
         $('#workload_panel').empty();
+        resetSubjectSelect();
         $('#btnSaveEvent').prop('disabled', false).text('Save Event');
     }
 
@@ -726,9 +725,9 @@ let selectedEvent = null;
         $('#form_event_type').val(p.event_type || '');
         $('#form_description').val(p.description || '');
         setStartEnd(p.start_local || localInputValue(event.start), p.end_local || localInputValue(event.end));
-        $('#form_subject_id').val(p.subject_id || '');
         $('#form_teacher_id').val(p.teacher_id || '');
         $('#form_room_id').val(p.room_id || '');
+        loadTeacherSubjects(p.teacher_id, p.subject_id);
         $('#form_is_all_day').prop('checked', !!p.is_all_day);
         if (window.ModernDatepicker) window.ModernDatepicker.setEventPickerMode(!!p.is_all_day);
         $('#form_is_recurring').prop('checked', !!p.is_recurring);
@@ -887,6 +886,49 @@ let selectedEvent = null;
         return html;
     }
 
+    function resetSubjectSelect() {
+        $('#form_subject_id')
+            .prop('disabled', true)
+            .html('<option value="">Select a teacher first</option>');
+        $('#subject_preference_hint').addClass('d-none').empty();
+    }
+
+    function fillSubjectOptions(subjects, selectedId) {
+        const $sel = $('#form_subject_id');
+        if (!subjects || !subjects.length) {
+            $sel.prop('disabled', true).html('<option value="">No subjects assigned to this teacher</option>');
+            return;
+        }
+        $sel.prop('disabled', false).html('<option value="">Select Subject</option>');
+        subjects.forEach(function (sub) {
+            $sel.append($('<option>', { value: sub.id, text: sub.label }));
+        });
+        if (selectedId) {
+            $sel.val(String(selectedId));
+        }
+    }
+
+    function loadTeacherSubjects(teacherId, selectedId) {
+        if (!teacherId) {
+            resetSubjectSelect();
+            return;
+        }
+        $('#form_subject_id').prop('disabled', true).html('<option value="">Loading subjects...</option>');
+        $.ajax({
+            url: ROUTES.teacherSubjects + '/' + teacherId,
+            method: 'GET',
+            success: function (res) {
+                fillSubjectOptions(res.subjects || [], selectedId);
+                if ($('#form_subject_id').val()) {
+                    loadSubjectPreferences();
+                }
+            },
+            error: function () {
+                $('#form_subject_id').prop('disabled', true).html('<option value="">Unable to load subjects</option>');
+            }
+        });
+    }
+
     function loadSubjectPreferences() {
         const subjectId = $('#form_subject_id').val();
         const hint = $('#subject_preference_hint');
@@ -915,10 +957,6 @@ let selectedEvent = null;
                 );
                 hint.data('pref', pref);
 
-                // Auto-fill empty teacher/room fields only
-                if (!$('#form_teacher_id').val() && pref.teacher_id) {
-                    $('#form_teacher_id').val(String(pref.teacher_id));
-                }
                 if (!$('#form_room_id').val() && pref.room_id) {
                     $('#form_room_id').val(String(pref.room_id));
                 }
@@ -930,7 +968,6 @@ let selectedEvent = null;
     function applySubjectPreferences() {
         const pref = $('#subject_preference_hint').data('pref');
         if (!pref) return;
-        if (pref.teacher_id) $('#form_teacher_id').val(String(pref.teacher_id));
         if (pref.room_id) $('#form_room_id').val(String(pref.room_id));
         loadWorkload();
         toastSuccess('Preferred teacher/room applied.');
@@ -1321,6 +1358,9 @@ let selectedEvent = null;
         $('#slot_date, #slot_duration, #form_teacher_id, #form_room_id').on('change', function () {
             if ($('#slot_date').val()) loadSlots();
             loadWorkload();
+        });
+        $('#form_teacher_id').on('change', function () {
+            loadTeacherSubjects($(this).val());
         });
         $('#form_start_time, #form_end_time').on('change', loadWorkload);
         $('#form_subject_id').on('change', loadSubjectPreferences);
