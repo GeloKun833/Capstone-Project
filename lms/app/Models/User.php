@@ -157,11 +157,8 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
         parent::boot();
         self::creating(function ($model) {
             // Single MAX lookup instead of ORDER BY + while-exists loop (saves RTTs on Aiven).
-            $latest = self::query()->max('user_id');
-            $latestID = 0;
-            if (is_string($latest) && preg_match('/(\d+)$/', $latest, $m)) {
-                $latestID = (int) $m[1];
-            }
+            // Numeric MAX: a string MAX stops at '000999' once IDs reach '0001000'.
+            $latestID = (int) self::query()->selectRaw('MAX(CAST(user_id AS UNSIGNED)) AS max_id')->value('max_id');
             $nextID = $latestID + 1;
             $model->user_id = '000'.sprintf('%03s', $nextID);
             // Rare collision only — one retry max.
