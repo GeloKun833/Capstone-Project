@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\EnrollmentApplication;
 use App\Models\GradeAlert;
 use App\Models\Section;
 use App\Models\Semester;
@@ -60,8 +61,22 @@ class DummyStudentCommandsTest extends TestCase
         ]);
     }
 
+    protected function createRealApplication(): EnrollmentApplication
+    {
+        return EnrollmentApplication::create([
+            'application_number' => 'APP-2026-0001', 'first_name' => 'Real', 'last_name' => 'Applicant', 'date_of_birth' => '2019-02-02',
+            'gender' => 'Male', 'email' => 'real.applicant@school.test', 'phone_number' => '09170000000', 'address' => 'Real Street',
+            'parent_name' => 'Real Parent', 'parent_phone' => '09170000001', 'parent_email' => 'real.parent@school.test',
+            'parent_relationship' => 'Father', 'emergency_contact_name' => 'Real Parent', 'emergency_contact_phone' => '09170000001',
+            'grade_level_applying_for' => 'Grade 1', 'status' => 'pending',
+        ]);
+    }
+
     public function test_create_verify_and_delete_only_touch_dummy_records(): void
     {
+        $realApplication = $this->createRealApplication();
+        $realApplicationRow = (array) DB::table('enrollment_applications')->find($realApplication->id);
+
         $realStudentRow = (array) DB::table('students')->find($this->realStudent->id);
         $realUserRow = (array) DB::table('users')->find($this->realUser->id);
 
@@ -78,6 +93,14 @@ class DummyStudentCommandsTest extends TestCase
             GradeAlert::where('alert_type', GradeAlert::TYPE_AT_RISK)->whereIn('student_id', $dummies->pluck('id'))->distinct()->count('student_id')
         );
 
+        $applications = EnrollmentApplication::where('application_number', 'like', DummyStudentService::APPLICATION_PREFIX.'%');
+        $this->assertSame(DummyStudentService::totalApplications(), (clone $applications)->count());
+        $this->assertSame(DummyStudentService::TOTAL_STUDENTS, (clone $applications)->where('status', 'approved')->count());
+        $this->assertSame(DummyStudentService::TOTAL_STUDENTS, $dummies->fresh()->whereNotNull('enrollment_application_id')->count());
+        foreach (DummyStudentService::EXTRA_APPLICATION_STATUSES as $status => $count) {
+            $this->assertSame($count, (clone $applications)->where('status', $status)->count());
+        }
+
         $this->artisan('dummy:students:verify')->assertSuccessful();
         $this->artisan('dummy:students:create', ['--force' => true])->assertFailed();
         $this->assertSame(DummyStudentService::TOTAL_STUDENTS, Student::where('admission_id', 'like', DummyStudentService::ADMISSION_PREFIX.'%')->count());
@@ -93,6 +116,30 @@ class DummyStudentCommandsTest extends TestCase
         $this->assertSame($realStudentRow, (array) DB::table('students')->find($this->realStudent->id));
         $this->assertSame($realUserRow, (array) DB::table('users')->find($this->realUser->id));
         $this->assertSame(8, Subject::count());
+        $this->assertSame(1, EnrollmentApplication::count());
+        $this->assertSame($realApplicationRow, (array) DB::table('enrollment_applications')->find($realApplication->id));
+    }
+
+    public function test_applications_command_adds_applications_to_existing_dummy_students(): void
+    {
+        $this->artisan('dummy:students:create', ['--force' => true, '--attendance-days' => 1])->assertSuccessful();
+        DB::table('students')->where('admission_id', 'like', DummyStudentService::ADMISSION_PREFIX.'%')->update(['enrollment_application_id' => null]);
+        DB::table('enrollment_applications')->delete();
+        $this->createRealApplication();
+
+        $this->artisan('dummy:students:applications')
+            ->expectsConfirmation('Create these '.DummyStudentService::totalApplications().' dummy enrollment applications?', 'no')
+            ->assertFailed();
+        $this->assertSame(1, EnrollmentApplication::count());
+
+        $this->artisan('dummy:students:applications', ['--force' => true])->assertSuccessful();
+        $this->assertSame(DummyStudentService::totalApplications() + 1, EnrollmentApplication::count());
+        $this->artisan('dummy:students:verify')->assertSuccessful();
+        $this->artisan('dummy:students:applications', ['--force' => true])->assertFailed();
+
+        $this->artisan('dummy:students:delete', ['--force' => true])->assertSuccessful();
+        $this->assertSame(1, EnrollmentApplication::count());
+        $this->assertSame('APP-2026-0001', EnrollmentApplication::first()->application_number);
     }
 
     public function test_delete_without_force_or_confirmation_deletes_nothing(): void

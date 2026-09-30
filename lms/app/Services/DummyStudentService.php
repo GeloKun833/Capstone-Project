@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AcademicYear;
 use App\Models\ClassSchedule;
+use App\Models\EnrollmentApplication;
 use App\Models\GradeAlert;
 use App\Models\QuarterlyGrade;
 use App\Models\Section;
@@ -54,6 +55,18 @@ class DummyStudentService
 
     public const MISSING_TEACHER_ERROR = 1001;
 
+    public const APPLICATION_PREFIX = 'DUMMY-APP-';
+
+    public const APPLICATION_EMAIL_PREFIX = 'dummy.app.';
+
+    /** Extra dummy applicants (not students) per registrar status, on top of one approved application per student. */
+    public const EXTRA_APPLICATION_STATUSES = [
+        'pending' => 30,
+        'under_review' => 25,
+        'needs_documents' => 25,
+        'rejected' => 20,
+    ];
+
     /** @var callable|null */
     protected $logger;
 
@@ -77,6 +90,23 @@ class DummyStudentService
     public static function email(int $n): string
     {
         return sprintf('%s%04d@%s', self::EMAIL_PREFIX, $n, self::EMAIL_DOMAIN);
+    }
+
+    public static function applicationNumber(int $n): string
+    {
+        return sprintf('%s%04d', self::APPLICATION_PREFIX, $n);
+    }
+
+    public static function totalApplications(): int
+    {
+        return self::TOTAL_STUDENTS + array_sum(self::EXTRA_APPLICATION_STATUSES);
+    }
+
+    public function dummyApplicationsQuery()
+    {
+        return EnrollmentApplication::withTrashed()
+            ->where('application_number', 'like', self::APPLICATION_PREFIX.'%')
+            ->where('email', 'like', '%@'.self::EMAIL_DOMAIN);
     }
 
     public static function isDummyEmail(?string $email): bool
@@ -248,6 +278,7 @@ class DummyStudentService
                 ? 0
                 : DB::table($table)->whereIn('student_id', $studentIds)->count();
         }
+        $counts['enrollment_applications'] = count($this->dummyApplicationIds());
 
         return $counts;
     }
@@ -264,9 +295,10 @@ class DummyStudentService
         try {
             return DB::transaction(function () {
                 [$studentIds, $userIds] = $this->dummyIds();
-                $counts = ['users' => count($userIds), 'students' => count($studentIds)];
+                $applicationIds = $this->dummyApplicationIds();
+                $counts = ['users' => count($userIds), 'students' => count($studentIds), 'enrollment_applications' => count($applicationIds)];
 
-                if (empty($studentIds) && empty($userIds)) {
+                if (empty($studentIds) && empty($userIds) && empty($applicationIds)) {
                     return $counts;
                 }
 
@@ -322,6 +354,12 @@ class DummyStudentService
                 }
                 foreach (array_chunk($userIds, 200) as $chunk) {
                     DB::table('users')->whereIn('id', $chunk)->delete();
+                }
+                foreach (array_chunk($applicationIds, 200) as $chunk) {
+                    if (Schema::hasTable('enrollment_documents')) {
+                        DB::table('enrollment_documents')->whereIn('enrollment_application_id', $chunk)->delete();
+                    }
+                    DB::table('enrollment_applications')->whereIn('id', $chunk)->delete();
                 }
 
                 return $counts;
@@ -455,6 +493,17 @@ class DummyStudentService
         $alerted = empty($lowIds) ? 0 : GradeAlert::whereIn('student_id', $lowIds)->where('is_resolved', false)
             ->where('alert_type', GradeAlert::TYPE_AT_RISK)->distinct()->count('student_id');
         $add('Every low performer has an open at-risk alert', $alerted === count($lowIds), $alerted.' alerted');
+
+        if (Schema::hasTable('enrollment_applications')) {
+            $applications = $this->dummyApplicationsQuery()->whereNull('deleted_at')->get(['id', 'status']);
+            $approvedIds = $applications->where('status', 'approved')->pluck('id')->all();
+            $linked = empty($approvedIds) ? 0 : Student::whereIn('id', $studentIds)->whereIn('enrollment_application_id', $approvedIds)->count();
+            $byStatus = $applications->countBy('status');
+            $extrasOk = collect(self::EXTRA_APPLICATION_STATUSES)->every(fn ($count, $status) => ($byStatus[$status] ?? 0) === $count);
+            $add('Dummy enrollment applications ('.self::TOTAL_STUDENTS.' approved + '.array_sum(self::EXTRA_APPLICATION_STATUSES).' other statuses)',
+                count($approvedIds) === self::TOTAL_STUDENTS && $linked === self::TOTAL_STUDENTS && $extrasOk,
+                $byStatus->map(fn ($c, $st) => "{$st}: {$c}")->implode(', ') ?: 'none (run php artisan dummy:students:applications)');
+        }
 
         try {
             $lowStudent = $students->firstWhere('id', $lowIds[0] ?? $students->first()->id);
@@ -595,6 +644,9 @@ class DummyStudentService
         }
 
         $counts['grade_alerts'] = $this->createAlertsForLowPerformers($created, $plan);
+        if (Schema::hasTable('enrollment_applications')) {
+            $counts['enrollment_applications'] = array_sum($this->createApplications(collect($created)->pluck('student'), $plan['seed']));
+        }
 
         $studentIds = collect($created)->pluck('student.id');
         $averages = $this->generalAverages(
@@ -1230,9 +1282,10 @@ class DummyStudentService
     {
         $students = $this->dummyStudentsQuery()->count();
         $users = User::where('email', 'like', '%@'.self::EMAIL_DOMAIN)->count();
+        $applications = count($this->dummyApplicationIds());
 
-        if ($students > 0 || $users > 0) {
-            throw new RuntimeException("Dummy data already exists ({$students} students, {$users} users). Nothing was changed. Run `php artisan dummy:students:delete` first if you want to regenerate.");
+        if ($students > 0 || $users > 0 || $applications > 0) {
+            throw new RuntimeException("Dummy data already exists ({$students} students, {$users} users, {$applications} applications). Nothing was changed. Run `php artisan dummy:students:delete` first if you want to regenerate.");
         }
     }
 
@@ -1245,10 +1298,183 @@ class DummyStudentService
             ->where(fn ($q) => $q->whereIn('admission_id', $admissionIds)->orWhereIn('email', $emails)->orWhereIn('roll', $admissionIds))
             ->count();
         $userClash = User::whereIn('email', $emails)->count();
+        $applicationClash = $this->applicationCollisions();
 
-        if ($studentClash > 0 || $userClash > 0) {
-            throw new RuntimeException("Planned dummy IDs/emails collide with {$studentClash} existing student(s) and {$userClash} user(s). Nothing was changed.");
+        if ($studentClash > 0 || $userClash > 0 || $applicationClash > 0) {
+            throw new RuntimeException("Planned dummy IDs/emails collide with {$studentClash} existing student(s), {$userClash} user(s) and {$applicationClash} enrollment application(s). Nothing was changed.");
         }
+    }
+
+    protected function applicationCollisions(): int
+    {
+        if (! Schema::hasTable('enrollment_applications')) {
+            return 0;
+        }
+
+        return EnrollmentApplication::withTrashed()
+            ->whereIn('application_number', array_map([self::class, 'applicationNumber'], range(1, self::totalApplications())))
+            ->count();
+    }
+
+    /**
+     * @return list<int>
+     */
+    protected function dummyApplicationIds(): array
+    {
+        if (! Schema::hasTable('enrollment_applications')) {
+            return [];
+        }
+
+        return $this->dummyApplicationsQuery()->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * Add the dummy enrollment applications for an already generated set of
+     * dummy students (sets created before applications were part of the generator).
+     */
+    public function addApplications(int $seed = self::DEFAULT_SEED): array
+    {
+        if (! Schema::hasTable('enrollment_applications')) {
+            throw new RuntimeException('The enrollment_applications table does not exist. Nothing was changed.');
+        }
+        if (($existing = count($this->dummyApplicationIds())) > 0) {
+            throw new RuntimeException("{$existing} dummy enrollment applications already exist. Nothing was changed.");
+        }
+        $students = $this->dummyStudentsQuery()->whereNull('deleted_at')->orderBy('admission_id')->get();
+        if ($students->count() !== self::TOTAL_STUDENTS) {
+            throw new RuntimeException('Expected '.self::TOTAL_STUDENTS." dummy students, found {$students->count()}. Run php artisan dummy:students:create first. Nothing was changed.");
+        }
+        if (($clash = $this->applicationCollisions()) > 0) {
+            throw new RuntimeException("Planned dummy application numbers collide with {$clash} existing application(s). Nothing was changed.");
+        }
+
+        $previousLog = config('activitylog.enabled');
+        config(['activitylog.enabled' => false]);
+
+        try {
+            return DB::transaction(fn () => $this->createApplications($students, $seed));
+        } finally {
+            config(['activitylog.enabled' => $previousLog]);
+        }
+    }
+
+    /**
+     * One approved application per dummy student (linked through
+     * students.enrollment_application_id, like the registrar approval flow),
+     * plus extra dummy applicants in the other registrar statuses.
+     *
+     * @return array<string,int> status => rows created
+     */
+    protected function createApplications(Collection $students, int $seed): array
+    {
+        mt_srand($seed + 1);
+        $now = now();
+        $columns = array_flip(Schema::getColumnListing('enrollment_applications'));
+        $sectionIds = DB::table('student_section_assignments')
+            ->whereIn('student_id', $students->pluck('id'))
+            ->orderByDesc('id')
+            ->get(['student_id', 'section_id'])
+            ->unique('student_id')
+            ->pluck('section_id', 'student_id');
+
+        $rows = [];
+        foreach ($students as $student) {
+            $n = (int) substr($student->admission_id, strlen(self::ADMISSION_PREFIX));
+            $rows[] = $this->applicationRow($n, 'approved', [
+                'first' => $student->first_name,
+                'middle' => $student->middle_name,
+                'last' => $student->last_name,
+                'gender' => $student->gender,
+                'dob' => Carbon::parse($student->date_of_birth)->toDateString(),
+                'phone' => $student->phone_number,
+                'address' => $student->address,
+                'parent_name' => $student->parent_name,
+                'parent_phone' => $student->parent_phone,
+                'parent_relationship' => $student->parent_relationship,
+                'religion' => $student->religion,
+                'previous_school' => $student->previous_school,
+            ], $student->email, $student->class, $sectionIds[$student->id] ?? null, $now);
+        }
+
+        $grades = $students->pluck('class')->unique()->values()->all();
+        $n = self::TOTAL_STUDENTS;
+        foreach (self::EXTRA_APPLICATION_STATUSES as $status => $count) {
+            for ($i = 0; $i < $count; $i++) {
+                $n++;
+                $grade = $grades[$n % count($grades)];
+                $email = sprintf('%s%04d@%s', self::APPLICATION_EMAIL_PREFIX, $n, self::EMAIL_DOMAIN);
+                $rows[] = $this->applicationRow($n, $status, $this->identityFor($n, $grade), $email, $grade, null, $now);
+            }
+        }
+
+        $rows = array_map(fn ($row) => array_intersect_key($row, $columns), $rows);
+        foreach (array_chunk($rows, 200) as $chunk) {
+            DB::table('enrollment_applications')->insert($chunk);
+        }
+
+        if (Schema::hasColumn('students', 'enrollment_application_id')) {
+            $applicationIds = $this->dummyApplicationsQuery()->where('status', 'approved')->pluck('id', 'email');
+            foreach ($students as $student) {
+                if ($id = $applicationIds[$student->email] ?? null) {
+                    DB::table('students')->where('id', $student->id)->update(['enrollment_application_id' => $id]);
+                }
+            }
+        }
+
+        return collect($rows)->countBy('status')->all();
+    }
+
+    protected function applicationRow(int $n, string $status, array $identity, string $email, string $grade, ?int $sectionId, Carbon $now): array
+    {
+        $submitted = $now->copy()->subDays(mt_rand(7, 75))->setTime(mt_rand(8, 16), mt_rand(0, 59));
+        $reviewed = $status === 'pending' ? null : $submitted->copy()->addDays(mt_rand(1, 5));
+        $missingDocs = $status === 'needs_documents';
+        [$parentFirst, $parentLast] = array_pad(explode(' ', (string) $identity['parent_name'], 2), 2, $identity['last']);
+        $isFather = $identity['parent_relationship'] === 'Father';
+
+        return [
+            'application_number' => self::applicationNumber($n),
+            'enrollment_type' => 'parent',
+            'student_category' => 'new_student',
+            'first_name' => $identity['first'],
+            'middle_name' => $identity['middle'],
+            'last_name' => $identity['last'],
+            'date_of_birth' => $identity['dob'],
+            'age_years' => Carbon::parse($identity['dob'])->age,
+            'gender' => $identity['gender'],
+            'email' => $email,
+            'phone_number' => $identity['phone'],
+            'address' => $identity['address'],
+            'religion' => $identity['religion'],
+            'citizenship' => 'Filipino',
+            'previous_school' => $identity['previous_school'],
+            'parent_name' => $identity['parent_name'],
+            'parent_phone' => $identity['parent_phone'],
+            'parent_email' => sprintf('dummy.parent.%04d@%s', $n, self::EMAIL_DOMAIN),
+            'parent_relationship' => $identity['parent_relationship'],
+            'father_first_name' => $isFather ? $parentFirst : null,
+            'father_last_name' => $isFather ? $parentLast : null,
+            'mother_first_name' => $isFather ? null : $parentFirst,
+            'mother_last_name' => $isFather ? null : $parentLast,
+            'emergency_contact_name' => $identity['parent_name'],
+            'emergency_contact_phone' => $identity['parent_phone'],
+            'grade_level_applying_for' => $grade,
+            'preferred_section_id' => $sectionId,
+            'doc_submitted_form138' => ! $missingDocs,
+            'doc_submitted_psa_birth' => ! $missingDocs || $n % 2 === 0,
+            'doc_submitted_pic_1x1' => true,
+            'doc_submitted_pic_2x2' => true,
+            'status' => $status,
+            'notes' => match ($status) {
+                'needs_documents' => 'DUMMY-2026 test data. Missing Form 138'.($n % 2 === 0 ? '.' : ' and PSA birth certificate.'),
+                default => 'DUMMY-2026 test data.',
+            },
+            'rejection_reason' => $status === 'rejected' ? 'Requirements not completed within the enrollment period (dummy data).' : null,
+            'reviewed_at' => $reviewed,
+            'date_enrolled' => $status === 'approved' ? $reviewed->toDateString() : null,
+            'created_at' => $submitted,
+            'updated_at' => $reviewed ?? $submitted,
+        ];
     }
 
     /**

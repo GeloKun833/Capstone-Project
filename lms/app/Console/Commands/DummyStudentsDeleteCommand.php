@@ -16,11 +16,11 @@ class DummyStudentsDeleteCommand extends Command
     public function handle(DummyStudentService $service): int
     {
         $preview = $service->deletionPreview();
-        $this->warn('Scope: students with admission ID '.DummyStudentService::ADMISSION_PREFIX.'* AND email @'.DummyStudentService::EMAIL_DOMAIN.', plus Student users @'.DummyStudentService::EMAIL_DOMAIN.'.');
+        $this->warn('Scope: students with admission ID '.DummyStudentService::ADMISSION_PREFIX.'* AND email @'.DummyStudentService::EMAIL_DOMAIN.', Student users @'.DummyStudentService::EMAIL_DOMAIN.', and enrollment applications '.DummyStudentService::APPLICATION_PREFIX.'* @'.DummyStudentService::EMAIL_DOMAIN.'.');
         $this->warn('Real students, users, teachers, parents, sections, subjects and academic periods are not touched.');
         $this->table(['Table', 'Rows to delete'], collect($preview)->map(fn ($v, $k) => [$k, $v])->values()->all());
 
-        if ($preview['students'] === 0 && $preview['users'] === 0) {
+        if ($preview['students'] === 0 && $preview['users'] === 0 && $preview['enrollment_applications'] === 0) {
             $this->info('No dummy students found. Nothing to delete.');
 
             return self::SUCCESS;
@@ -39,7 +39,7 @@ class DummyStudentsDeleteCommand extends Command
         }
 
         $result = $service->delete();
-        $this->info('Deleted '.$result['students'].' dummy students and '.$result['users'].' dummy user accounts (with their related rows).');
+        $this->info('Deleted '.$result['students'].' dummy students, '.$result['users'].' dummy user accounts and '.$result['enrollment_applications'].' dummy enrollment applications (with their related rows).');
 
         return self::SUCCESS;
     }
