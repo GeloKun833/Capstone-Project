@@ -156,74 +156,35 @@
             
             <div class="transcript-section">
                 <div class="period-header">
-                    <?php echo e($period['academic_year']->name); ?> - <?php echo e($period['semester']->name); ?>
-
+                    <?php echo e($period['academic_year']->name ?? 'N/A'); ?><?php if(!empty($period['semester'])): ?> — <?php echo e($period['semester']->name); ?><?php endif; ?>
                 </div>
 
                 <table>
                     <thead>
                         <tr>
                             <th style="width: 5%;">No.</th>
-                            <th style="width: 35%;">Subject</th>
-                            <th style="width: 20%;">Component</th>
-                            <th style="width: 10%;">Score</th>
-                            <th style="width: 10%;">Max Score</th>
-                            <th style="width: 10%;">Percentage</th>
-                            <th style="width: 10%;">Grade</th>
+                            <th style="width: 28%;">Subject</th>
+                            <th style="width: 9%;">Q1</th>
+                            <th style="width: 9%;">Q2</th>
+                            <th style="width: 9%;">Q3</th>
+                            <th style="width: 9%;">Q4</th>
+                            <th style="width: 11%;">Final</th>
+                            <th style="width: 20%;">Remarks</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $subjectNum = 1; ?>
-                        <?php $__currentLoopData = $period['subjects']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subjectData): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                            <?php
-                                $firstComponent = true;
-                                $componentCount = 0;
-                                foreach($subjectData['components'] as $component) {
-                                    $componentCount += $component->count();
-                                }
-                            ?>
-                            
-                            <?php $__currentLoopData = $subjectData['components']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $componentId => $componentGrades): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <?php $__currentLoopData = $componentGrades; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <tr class="<?php echo e($firstComponent ? 'subject-row' : 'component-row'); ?>">
-                                        <?php if($firstComponent): ?>
-                                            <td class="text-center" rowspan="<?php echo e($componentCount); ?>"><?php echo e($subjectNum); ?></td>
-                                            <td rowspan="<?php echo e($componentCount); ?>"><strong><?php echo e($subjectData['subject']->subject_name); ?></strong></td>
-                                            <?php $firstComponent = false; ?>
-                                        <?php endif; ?>
-                                        <td><?php echo e($grade->component->name ?? 'N/A'); ?></td>
-                                        <td class="text-center"><?php echo e(number_format($grade->score, 2)); ?></td>
-                                        <td class="text-center"><?php echo e(number_format($grade->max_score, 2)); ?></td>
-                                        <td class="text-center"><?php echo e(number_format($grade->percentage, 2)); ?>%</td>
-                                        <td class="text-center">
-                                            <?php
-                                                $percentage = $grade->percentage;
-                                                if ($percentage >= 90) echo 'A';
-                                                elseif ($percentage >= 80) echo 'B';
-                                                elseif ($percentage >= 70) echo 'C';
-                                                elseif ($percentage >= 60) echo 'D';
-                                                else echo 'F';
-                                            ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            
-                            <tr style="background-color: #e8e8e8; font-weight: bold;">
-                                <td colspan="5" class="text-right">Average for <?php echo e($subjectData['subject']->subject_name); ?>:</td>
-                                <td class="text-center"><?php echo e(number_format($subjectData['average'], 2)); ?>%</td>
-                                <td class="text-center">
-                                    <?php
-                                        $avg = $subjectData['average'];
-                                        if ($avg >= 90) echo 'A';
-                                        elseif ($avg >= 80) echo 'B';
-                                        elseif ($avg >= 70) echo 'C';
-                                        elseif ($avg >= 60) echo 'D';
-                                        else echo 'F';
-                                    ?>
-                                </td>
+                        <?php $__currentLoopData = $period['subjects']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $subjectData): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php $q = $subjectData['quarterly']; ?>
+                            <tr>
+                                <td class="text-center"><?php echo e($index + 1); ?></td>
+                                <td><strong><?php echo e($subjectData['subject']->subject_name); ?></strong></td>
+                                <td class="text-center"><?php echo e($q->quarter_1 !== null ? number_format($q->quarter_1, 2) : '—'); ?></td>
+                                <td class="text-center"><?php echo e($q->quarter_2 !== null ? number_format($q->quarter_2, 2) : '—'); ?></td>
+                                <td class="text-center"><?php echo e($q->quarter_3 !== null ? number_format($q->quarter_3, 2) : '—'); ?></td>
+                                <td class="text-center"><?php echo e($q->quarter_4 !== null ? number_format($q->quarter_4, 2) : '—'); ?></td>
+                                <td class="text-center"><strong><?php echo e(number_format($subjectData['average'], 2)); ?></strong></td>
+                                <td class="text-center"><?php echo e($subjectData['remarks'] ?: ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED')); ?></td>
                             </tr>
-                            <?php $subjectNum++; ?>
                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                 </table>
@@ -232,7 +193,7 @@
                     <div class="summary">
                         <table>
                             <tr>
-                                <td class="label">GPA for <?php echo e($period['academic_year']->name); ?> - <?php echo e($period['semester']->name); ?>:</td>
+                                <td class="label">GPA for <?php echo e($period['academic_year']->name ?? 'N/A'); ?><?php if(!empty($period['semester'])): ?> — <?php echo e($period['semester']->name); ?><?php endif; ?>:</td>
                                 <td><strong><?php echo e(number_format($period['gpa']->gpa, 2)); ?></strong></td>
                                 <td class="label">Rank:</td>
                                 <td><strong><?php echo e($period['gpa']->rank ?? 'N/A'); ?></strong></td>

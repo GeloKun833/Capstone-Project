@@ -510,12 +510,14 @@ class AttendanceController extends Controller
             ];
         }
 
-        $format = $request->input('format', 'excel');
-        $filename = 'attendance_summary_' . $month . ($subjectId ? '_subject_' . $subjectId : '') . '.' . ($format === 'excel' ? 'xlsx' : 'pdf');
+        $format = $request->input('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
 
-        if ($format === 'excel') {
-            return Excel::download(new AttendanceExport($exportData, $days), $filename);
-        } elseif ($format === 'pdf') {
+        $filename = 'attendance_summary_' . $month . ($subjectId ? '_subject_' . $subjectId : '') . '.pdf';
+
+        if ($format === 'pdf') {
             $pdf = Pdf::loadView('attendance.export_pdf', [
                 'students' => $students,
                 'days' => $days,
@@ -524,6 +526,7 @@ class AttendanceController extends Controller
             ]);
             return $pdf->download($filename);
         }
+
         return back()->with('error', 'Export format not supported.');
     }
 }

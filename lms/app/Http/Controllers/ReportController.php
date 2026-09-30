@@ -117,6 +117,10 @@ class ReportController extends Controller
 
         $student = Student::with(['user', 'sections'])->findOrFail($studentId);
         $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
+
         $viewData = $this->transcriptViewData($student, $request);
 
         if ($format === 'pdf') {
@@ -213,6 +217,10 @@ class ReportController extends Controller
 
         $section = Section::with(['adviser'])->findOrFail($sectionId);
         $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
+
         $viewData = $this->classListViewData($section, $request);
 
         if ($format === 'pdf') {
@@ -267,6 +275,10 @@ class ReportController extends Controller
 
         $student = Student::with(['user', 'sections'])->findOrFail($studentId);
         $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
+
         $viewData = $this->gradeSlipViewData($student, $request);
 
         if ($format === 'pdf') {
@@ -325,6 +337,10 @@ class ReportController extends Controller
 
         $student = Student::with(['user', 'sections'])->findOrFail($studentId);
         $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
+
         $viewData = $this->progressSummaryViewData($student, $request);
 
         if ($format === 'pdf') {

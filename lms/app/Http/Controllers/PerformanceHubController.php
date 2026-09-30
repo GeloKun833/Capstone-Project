@@ -200,7 +200,10 @@ class PerformanceHubController extends Controller
         $academicYearId = (int) $request->get('academic_year_id');
         $semesterId = (int) $request->get('semester_id');
         $sectionId = $request->filled('section_id') ? (int) $request->get('section_id') : null;
-        $format = $request->get('format', 'excel');
+        $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
 
         $allowed = $this->performance->allowedStudentIdsForUser($user);
         // Recalculate before export so numbers are current
@@ -230,7 +233,7 @@ class PerformanceHubController extends Controller
             return $pdf->download($fileName.'.pdf');
         }
 
-        return Excel::download(new FilteredGpaExport($gpaRecords), $fileName.'.xlsx');
+        return back()->with('error', 'Export format not supported.');
     }
 
     /** Legacy redirects keep old bookmarks working. */

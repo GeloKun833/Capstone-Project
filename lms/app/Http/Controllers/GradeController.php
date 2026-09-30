@@ -260,12 +260,14 @@ class GradeController extends Controller
 
         $grades = $grades->get()->groupBy(['student_id', 'component_id']);
 
-        $format = $request->input('format');
-        $filename = 'grades_' . $subjectId . '_' . $sectionId . '.' . ($format === 'excel' ? 'xlsx' : 'pdf');
+        $format = $request->input('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
 
-        if ($format === 'excel') {
-            return Excel::download(new \App\Exports\GradeExport($students, $components, $grades), $filename);
-        } elseif ($format === 'pdf') {
+        $filename = 'grades_' . $subjectId . '_' . $sectionId . '.pdf';
+
+        if ($format === 'pdf') {
             $pdf = Pdf::loadView('grades.export_pdf', [
                 'students' => $students,
                 'components' => $components,

@@ -136,10 +136,6 @@
                     <h5 class="mb-0 text-white">GPA Ranking</h5>
                     <div class="d-flex gap-2">
                         <a class="btn btn-sm btn-light"
-                           href="{{ route($exportRoute, array_merge($filterQs, ['format' => 'excel'])) }}">
-                            <i class="fas fa-file-excel me-1"></i> Excel
-                        </a>
-                        <a class="btn btn-sm btn-light"
                            href="{{ route($exportRoute, array_merge($filterQs, ['format' => 'pdf'])) }}">
                             <i class="fas fa-file-pdf me-1"></i> PDF
                         </a>

@@ -768,7 +768,11 @@ class GradingController extends Controller
     // Export Grades
     public function exportGrades(Request $request)
     {
-        $format = $request->get('format', 'excel');
+        $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
+
         $subjectId = $request->get('subject_id');
         $sectionId = $request->get('section_id');
         $academicYearId = $request->get('academic_year_id');
@@ -780,15 +784,19 @@ class GradingController extends Controller
             $grades = $this->getGradesForExport($subjectId, $sectionId, $academicYearId, $semesterId);
             $pdf = PDF::loadView('exports.grades-pdf', compact('grades'));
             return $pdf->download($fileName . '.pdf');
-        } else {
-            return Excel::download(new GradesExport($subjectId, $sectionId, $academicYearId, $semesterId), $fileName . '.xlsx');
         }
+
+        return back()->with('error', 'Export format not supported.');
     }
 
     // Export GPA Report
     public function exportGpa(Request $request)
     {
-        $format = $request->get('format', 'excel');
+        $format = $request->get('format', 'pdf');
+        if ($format !== 'pdf') {
+            $format = 'pdf';
+        }
+
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
         $sectionId = $request->get('section_id');
@@ -799,9 +807,9 @@ class GradingController extends Controller
             $gpaRecords = $this->getGpaForExport($academicYearId, $semesterId, $sectionId);
             $pdf = PDF::loadView('exports.gpa-pdf', compact('gpaRecords'));
             return $pdf->download($fileName . '.pdf');
-        } else {
-            return Excel::download(new GpaExport($academicYearId, $semesterId, $sectionId), $fileName . '.xlsx');
         }
+
+        return back()->with('error', 'Export format not supported.');
     }
 
     // Weight Settings Management

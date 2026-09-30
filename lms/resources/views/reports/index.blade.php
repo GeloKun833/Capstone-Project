@@ -143,11 +143,10 @@
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
-                            <select class="form-select" name="format">
+                            <select class="form-select" name="format" disabled>
                                 <option value="pdf">PDF (download)</option>
-                                <option value="excel">Excel (download)</option>
-                        </select>
-                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
+                            </select>
+                            <small class="text-muted">PDF is the only available format for report downloads.</small>
                         </div>
                     </div>
                 </div>
@@ -213,11 +212,10 @@
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
-                            <select class="form-select" name="format">
+                            <select class="form-select" name="format" disabled>
                                 <option value="pdf">PDF (download)</option>
-                                <option value="excel">Excel (download)</option>
-                        </select>
-                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
+                            </select>
+                            <small class="text-muted">PDF is the only available format for report downloads.</small>
                         </div>
                     </div>
                 </div>
@@ -291,11 +289,10 @@
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
-                            <select class="form-select" name="format">
+                            <select class="form-select" name="format" disabled>
                                 <option value="pdf">PDF (download)</option>
-                                <option value="excel">Excel (download)</option>
-                        </select>
-                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
+                            </select>
+                            <small class="text-muted">PDF is the only available format for report downloads.</small>
                         </div>
                     </div>
                 </div>
@@ -369,11 +366,10 @@
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
-                            <select class="form-select" name="format">
+                            <select class="form-select" name="format" disabled>
                                 <option value="pdf">PDF (download)</option>
-                                <option value="excel">Excel (download)</option>
-                        </select>
-                            <small class="text-muted bulk-format-note d-none">Entire section/grade downloads one PDF of all enrolled students.</small>
+                            </select>
+                            <small class="text-muted">PDF is the only available format for report downloads.</small>
                         </div>
                     </div>
                 </div>
