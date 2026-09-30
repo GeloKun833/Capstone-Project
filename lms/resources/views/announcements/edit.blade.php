@@ -70,11 +70,9 @@
                                 <label>Target Audience <span class="text-danger">*</span></label>
                                 <select class="form-control @error('target_audience') is-invalid @enderror" name="target_audience" required>
                                     <option value="">Select Audience</option>
-                                    <option value="all" {{ old('target_audience', $announcement->target_audience) == 'all' ? 'selected' : '' }}>All Users</option>
-                                    <option value="students" {{ old('target_audience', $announcement->target_audience) == 'students' ? 'selected' : '' }}>Students Only</option>
-                                    <option value="teachers" {{ old('target_audience', $announcement->target_audience) == 'teachers' ? 'selected' : '' }}>Teachers Only</option>
-                                    <option value="parents" {{ old('target_audience', $announcement->target_audience) == 'parents' ? 'selected' : '' }}>Parents Only</option>
-                                    <option value="admins" {{ old('target_audience', $announcement->target_audience) == 'admins' ? 'selected' : '' }}>Admins Only</option>
+                                    @foreach($audiences as $value => $label)
+                                        <option value="{{ $value }}" {{ old('target_audience', $announcement->target_audience) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
                                 </select>
                                 @error('target_audience')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -122,39 +120,13 @@
                         </div>
                     </div>
 
-                    <h5 class="dir-toolbar-title mt-2 mb-3">Advanced options</h5>
+                    <h5 class="dir-toolbar-title mt-2 mb-3">Publishing</h5>
                     <div class="row">
-                        <div class="col-12 col-sm-6">
-                            <div class="form-group">
-                                <label>Specific Roles (Optional)</label>
-                                <select class="form-control select2" name="target_roles[]" multiple>
-                                    <option value="students" {{ in_array('students', old('target_roles', $announcement->target_roles ?? [])) ? 'selected' : '' }}>Students</option>
-                                    <option value="teachers" {{ in_array('teachers', old('target_roles', $announcement->target_roles ?? [])) ? 'selected' : '' }}>Teachers</option>
-                                    <option value="parents" {{ in_array('parents', old('target_roles', $announcement->target_roles ?? [])) ? 'selected' : '' }}>Parents</option>
-                                    <option value="admins" {{ in_array('admins', old('target_roles', $announcement->target_roles ?? [])) ? 'selected' : '' }}>Admins</option>
-                                </select>
-                                <small class="text-muted">Leave empty to use target audience above</small>
-                            </div>
-                        </div>
-                        <div class="col-12 col-sm-6">
-                            <div class="form-group">
-                                <label>Specific Sections (Optional)</label>
-                                <select class="form-control select2" name="target_sections[]" multiple>
-                                    @foreach($sections as $section)
-                                        <option value="{{ $section->id }}"
-                                                {{ in_array($section->id, old('target_sections', $announcement->target_sections ?? [])) ? 'selected' : '' }}>
-                                            {{ $section->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <small class="text-muted">Leave empty to target all sections</small>
-                            </div>
-                        </div>
                         <div class="col-12 col-sm-6">
                             <div class="form-group mdp-field">
                                 <label>Scheduled Date (Optional)</label>
                                 <input type="datetime-local" class="form-control js-event-datetime" name="scheduled_at"
-                                       value="{{ old('scheduled_at', $announcement->scheduled_at ? $announcement->scheduled_at->format('Y-m-d\TH:i') : '') }}"
+                                        value="{{ old('scheduled_at', $announcement->scheduled_at ? $announcement->scheduled_at->copy()->setTimezone(config('app.school_timezone', 'Asia/Manila'))->format('Y-m-d\TH:i') : '') }}"
                                        autocomplete="off" placeholder="YYYY-MM-DD HH:mm">
                                 <small class="text-muted">Leave empty to publish immediately</small>
                             </div>
@@ -163,7 +135,7 @@
                             <div class="form-group mdp-field">
                                 <label>Expiration Date (Optional)</label>
                                 <input type="datetime-local" class="form-control js-event-datetime" name="expires_at"
-                                       value="{{ old('expires_at', $announcement->expires_at ? $announcement->expires_at->format('Y-m-d\TH:i') : '') }}"
+                                        value="{{ old('expires_at', $announcement->expires_at ? $announcement->expires_at->copy()->setTimezone(config('app.school_timezone', 'Asia/Manila'))->format('Y-m-d\TH:i') : '') }}"
                                        autocomplete="off" placeholder="YYYY-MM-DD HH:mm">
                                 <small class="text-muted">Leave empty for no expiration</small>
                             </div>

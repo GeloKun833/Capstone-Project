@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Announcement;
 use App\Models\User;
-use App\Models\Section;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -27,6 +27,13 @@ class AnnouncementController extends Controller
         // Admin manages everything; others only see visible/active for their role
         if ($user->role_name === 'Admin') {
             $query = Announcement::with('creator');
+        } elseif ($user->role_name === 'Teacher') {
+            $query = Announcement::active()
+                ->where(function ($audience) use ($user) {
+                    $audience->forRole($user->role_name)
+                        ->orWhere('created_by', $user->id);
+                })
+                ->with('creator');
         } else {
             $query = Announcement::active()->forRole($user->role_name)->with('creator');
         }
@@ -54,26 +61,30 @@ class AnnouncementController extends Controller
 
     public function create()
     {
-        $sections = Section::orderBy('name')->get();
-        $roles = ['students', 'teachers', 'parents', 'admins'];
+        $isTeacher = Auth::user()->role_name === 'Teacher';
+        $audiences = $isTeacher
+            ? ['all' => 'All Users', 'students' => 'Students Only', 'parents' => 'Parents Only']
+            : ['all' => 'All Users', 'students' => 'Students Only', 'teachers' => 'Teachers Only', 'parents' => 'Parents Only', 'admins' => 'Admins Only'];
 
-        return view('announcements.create', compact('sections', 'roles'));
+        return view('announcements.create', compact('audiences'));
     }
 
     public function store(Request $request)
     {
+        $isTeacher = Auth::user()->role_name === 'Teacher';
+        $audienceRule = $isTeacher
+            ? 'required|in:all,students,parents'
+            : 'required|in:all,students,teachers,parents,admins';
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
             'type' => 'required|in:general,academic,event,reminder,emergency',
             'priority' => 'required|in:low,normal,high,urgent',
-            'target_audience' => 'required|in:all,students,teachers,parents,admins',
-            'target_roles' => 'nullable|array',
-            'target_sections' => 'nullable|array',
+            'target_audience' => $audienceRule,
             'is_pinned' => 'nullable|boolean',
             'is_scheduled' => 'nullable|boolean',
             'scheduled_at' => 'nullable|date',
-            'expires_at' => 'nullable|date|after:now',
+            'expires_at' => 'nullable|date',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|max:10240|extensions:pdf,docx,jpg,jpeg,png,gif,webp,txt,xls,xlsx,ppt,pptx',
         ], [
@@ -84,18 +95,22 @@ class AnnouncementController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
+        if ($request->filled('expires_at') && ! Carbon::parse($request->expires_at, $this->schoolTimezone())->gt(Carbon::now($this->schoolTimezone()))) {
+            return redirect()->back()->withErrors(['expires_at' => 'Expiration must be set to a future date and time.'])->withInput();
+        }
+
         $announcement = Announcement::create([
             'title' => $request->title,
             'content' => $request->content,
             'type' => $request->type,
             'priority' => $request->priority,
             'target_audience' => $request->target_audience,
-            'target_roles' => $request->target_roles,
-            'target_sections' => $request->target_sections,
+            'target_roles' => null,
+            'target_sections' => null,
             'is_pinned' => $request->boolean('is_pinned'),
             'is_scheduled' => $request->boolean('is_scheduled') || $request->filled('scheduled_at'),
-            'scheduled_at' => $request->scheduled_at,
-            'expires_at' => $request->expires_at,
+            'scheduled_at' => $this->toUtcDateTime($request->input('scheduled_at')),
+            'expires_at' => $this->toUtcDateTime($request->input('expires_at')),
             'attachments' => $this->storeAttachments($request),
             'created_by' => Auth::id(),
             'is_active' => true,
@@ -112,8 +127,11 @@ class AnnouncementController extends Controller
     public function show(Announcement $announcement)
     {
         $announcement->load('creator');
+        $user = Auth::user();
+        $isTeacherCreator = $user->role_name === 'Teacher'
+            && (int) $announcement->created_by === (int) $user->id;
 
-        if (Auth::user()->role_name !== 'Admin' && !$announcement->isVisibleTo(Auth::user())) {
+        if ($user->role_name !== 'Admin' && ! $isTeacherCreator && ! $announcement->isVisibleTo($user)) {
             abort(403, 'You do not have permission to view this announcement.');
         }
 
@@ -124,24 +142,28 @@ class AnnouncementController extends Controller
     {
         $this->authorizeManage($announcement);
 
-        $sections = Section::orderBy('name')->get();
-        $roles = ['students', 'teachers', 'parents', 'admins'];
+        $isTeacher = Auth::user()->role_name === 'Teacher';
+        $audiences = $isTeacher
+            ? ['all' => 'All Users', 'students' => 'Students Only', 'parents' => 'Parents Only']
+            : ['all' => 'All Users', 'students' => 'Students Only', 'teachers' => 'Teachers Only', 'parents' => 'Parents Only', 'admins' => 'Admins Only'];
 
-        return view('announcements.edit', compact('announcement', 'sections', 'roles'));
+        return view('announcements.edit', compact('announcement', 'audiences'));
     }
 
     public function update(Request $request, Announcement $announcement)
     {
         $this->authorizeManage($announcement);
 
+        $isTeacher = Auth::user()->role_name === 'Teacher';
+        $audienceRule = $isTeacher
+            ? 'required|in:all,students,parents'
+            : 'required|in:all,students,teachers,parents,admins';
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
             'type' => 'required|in:general,academic,event,reminder,emergency',
             'priority' => 'required|in:low,normal,high,urgent',
-            'target_audience' => 'required|in:all,students,teachers,parents,admins',
-            'target_roles' => 'nullable|array',
-            'target_sections' => 'nullable|array',
+            'target_audience' => $audienceRule,
             'is_pinned' => 'nullable|boolean',
             'is_scheduled' => 'nullable|boolean',
             'scheduled_at' => 'nullable|date',
@@ -182,12 +204,12 @@ class AnnouncementController extends Controller
             'type' => $request->type,
             'priority' => $request->priority,
             'target_audience' => $request->target_audience,
-            'target_roles' => $request->target_roles,
-            'target_sections' => $request->target_sections,
+            'target_roles' => null,
+            'target_sections' => null,
             'is_pinned' => $request->boolean('is_pinned'),
             'is_scheduled' => $request->boolean('is_scheduled') || $request->filled('scheduled_at'),
-            'scheduled_at' => $request->scheduled_at,
-            'expires_at' => $request->expires_at,
+            'scheduled_at' => $this->toUtcDateTime($request->input('scheduled_at')),
+            'expires_at' => $this->toUtcDateTime($request->input('expires_at')),
             'attachments' => $files,
         ]);
 
@@ -313,5 +335,21 @@ class AnnouncementController extends Controller
         } catch (\Throwable $e) {
             Log::error('Failed sending announcement notifications: ' . $e->getMessage());
         }
+    }
+
+    private function schoolTimezone(): string
+    {
+        return config('app.school_timezone', 'Asia/Manila');
+    }
+
+    private function toUtcDateTime(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        return Carbon::parse($value, $this->schoolTimezone())
+            ->setTimezone('UTC')
+            ->format('Y-m-d H:i:s');
     }
 }

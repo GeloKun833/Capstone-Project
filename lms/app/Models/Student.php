@@ -77,6 +77,7 @@ class Student extends Model
     }
 
     public function enrollments() { return $this->hasMany(Enrollment::class); }
+    public function consultationRequests() { return $this->hasMany(ConsultationRequest::class); }
     public function subjects() { return $this->belongsToMany(Subject::class, 'enrollments'); }
     public function sections()
     {

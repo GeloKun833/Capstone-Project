@@ -48,6 +48,11 @@ class Teacher extends Model
         return $this->hasMany(\App\Models\TeacherGradeLevel::class, 'teacher_id');
     }
 
+    public function consultationRequests()
+    {
+        return $this->hasMany(ConsultationRequest::class);
+    }
+
     /**
      * Get the user associated with this teacher
      */

@@ -18,6 +18,7 @@ class CalendarEvent extends Model
         'end_time',
         'subject_id',
         'teacher_id',
+        'student_id',
         'room_id',
         'created_by',
         'color',
@@ -49,6 +50,11 @@ class CalendarEvent extends Model
     public function teacher()
     {
         return $this->belongsTo(Teacher::class);
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
     }
 
     /**
@@ -102,6 +108,10 @@ class CalendarEvent extends Model
             return false;
         }
 
+        if ($this->student_id) {
+            return (int) $this->student_id === (int) $student->id;
+        }
+
         // Holidays and unassigned (school-wide) events
         if ($this->event_type === 'holiday' || !$this->subject_id) {
             return true;
@@ -153,8 +163,10 @@ class CalendarEvent extends Model
         $subjectIds = [];
         $sectionIds = [];
         $classHints = [];
+        $studentIds = [];
 
         foreach ($students as $student) {
+            $studentIds[] = (int) $student->id;
             $subjectIds = array_merge(
                 $subjectIds,
                 $student->subjects()->pluck('subjects.id')->filter()->all()
@@ -171,29 +183,35 @@ class CalendarEvent extends Model
         $sectionIds = array_values(array_unique($sectionIds));
         $classHints = array_values(array_unique(array_filter($classHints)));
 
-        return $query->where(function ($q) use ($subjectIds, $sectionIds, $classHints) {
-            $q->whereNull('subject_id')
-                ->orWhere('event_type', 'holiday');
+        return $query->where(function ($visibleEvents) use ($studentIds, $subjectIds, $sectionIds, $classHints) {
+            $visibleEvents->where(function ($privateMeetings) use ($studentIds) {
+                $privateMeetings->whereNotNull('student_id')->whereIn('student_id', $studentIds);
+            })->orWhere(function ($publicEvents) use ($subjectIds, $sectionIds, $classHints) {
+                $publicEvents->whereNull('student_id')->where(function ($q) use ($subjectIds, $sectionIds, $classHints) {
+                    $q->whereNull('subject_id')
+                        ->orWhere('event_type', 'holiday');
 
-            if (!empty($subjectIds)) {
-                $q->orWhereIn('subject_id', $subjectIds);
-            }
+                    if (!empty($subjectIds)) {
+                        $q->orWhereIn('subject_id', $subjectIds);
+                    }
 
-            if (!empty($classHints) || !empty($sectionIds)) {
-                $q->orWhereHas('subject', function ($sq) use ($classHints, $sectionIds) {
-                    $sq->where(function ($inner) use ($classHints, $sectionIds) {
-                        foreach ($classHints as $hint) {
-                            $inner->orWhere('class', $hint)
-                                ->orWhere('class', 'like', '%' . $hint . '%');
-                        }
-                        if (!empty($sectionIds)) {
-                            $inner->orWhereHas('sections', function ($sec) use ($sectionIds) {
-                                $sec->whereIn('sections.id', $sectionIds);
+                    if (!empty($classHints) || !empty($sectionIds)) {
+                        $q->orWhereHas('subject', function ($sq) use ($classHints, $sectionIds) {
+                            $sq->where(function ($inner) use ($classHints, $sectionIds) {
+                                foreach ($classHints as $hint) {
+                                    $inner->orWhere('class', $hint)
+                                        ->orWhere('class', 'like', '%' . $hint . '%');
+                                }
+                                if (!empty($sectionIds)) {
+                                    $inner->orWhereHas('sections', function ($sec) use ($sectionIds) {
+                                        $sec->whereIn('sections.id', $sectionIds);
+                                    });
+                                }
                             });
-                        }
-                    });
+                        });
+                    }
                 });
-            }
+            });
         });
     }
 

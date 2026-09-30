@@ -161,14 +161,14 @@
                             @if(!$assignment->canSubmit())
                                 <div class="alert alert-danger">
                                     <i class="fas fa-lock me-2"></i>
-                                    <strong>Sarado na ang Assignment</strong>
+                                    <strong>Assignment Closed</strong>
                                     <p class="mb-0 mt-1">
                                         @if($assignment->status === 'closed')
-                                            Ang assignment na ito ay sarado na at <strong>hindi na tumatanggap ng mga magpapasa</strong>.
+                                            This assignment is closed and <strong>is no longer accepting submissions</strong>.
                                         @elseif($assignment->is_overdue)
-                                            Ang assignment na ito ay lumipas na sa due date at <strong>hindi na tumatanggap ng mga magpapasa</strong>.
+                                            The due date has passed and <strong>submissions are no longer accepted</strong>.
                                         @else
-                                            Ang assignment na ito ay <strong>hindi na tumatanggap ng mga magpapasa</strong>.
+                                            This assignment <strong>is no longer accepting submissions</strong>.
                                         @endif
                                     </p>
                                 </div>

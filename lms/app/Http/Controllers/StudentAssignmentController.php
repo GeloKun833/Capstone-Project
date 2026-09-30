@@ -129,11 +129,11 @@ class StudentAssignmentController extends Controller
         // Check if assignment is still open for submission
         if (!$assignment->canSubmit()) {
             if ($assignment->status === 'closed') {
-                return redirect()->back()->with('error', 'Ang assignment na ito ay sarado na at hindi na tumatanggap ng mga magpapasa.');
+                return redirect()->back()->with('error', 'This assignment is closed and is no longer accepting submissions.');
             } elseif ($assignment->is_overdue) {
-                return redirect()->back()->with('error', 'Ang assignment na ito ay lumipas na sa due date at hindi na tumatanggap ng mga magpapasa.');
+                return redirect()->back()->with('error', 'The due date has passed and submissions are no longer accepted.');
             }
-            return redirect()->back()->with('error', 'Ang assignment na ito ay hindi na tumatanggap ng mga magpapasa.');
+            return redirect()->back()->with('error', 'This assignment is no longer accepting submissions.');
         }
 
         // Check if student already submitted
@@ -216,8 +216,8 @@ class StudentAssignmentController extends Controller
         $submittedAt = now();
         if (!$assignment->canSubmit($submittedAt)) {
             $message = $assignment->status === 'closed'
-                ? 'Ang assignment na ito ay sarado na at hindi na tumatanggap ng mga magpapasa.'
-                : 'Ang assignment na ito ay lumipas na sa due date at hindi na tumatanggap ng mga magpapasa.';
+                ? 'This assignment is closed and is no longer accepting submissions.'
+                : 'The due date has passed and submissions are no longer accepted.';
 
             return redirect()->back()->with('error', $message);
         }

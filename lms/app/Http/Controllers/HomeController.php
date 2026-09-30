@@ -1960,4 +1960,9 @@ class HomeController extends Controller
 
         return view('help.index', compact('role'));
     }
+
+    public function officeProcedures()
+    {
+        return view('help.office-procedures', ['role' => auth()->user()->role_name]);
+    }
 }

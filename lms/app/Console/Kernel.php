@@ -15,7 +15,14 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('assignments:send-deadline-reminders')
+            ->hourly()
+            ->timezone(config('app.school_timezone', 'Asia/Manila'))
+            ->withoutOverlapping();
+
+        $schedule->command('announcements:expire')
+            ->everyMinute()
+            ->withoutOverlapping();
     }
 
     /**

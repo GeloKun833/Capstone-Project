@@ -19,6 +19,18 @@
             You are signed in as <strong>{{ $role }}</strong>. Use the menus on the left for your role. If a page is not listed, your account is not allowed to open it.
         </div>
 
+        <div class="card mb-3">
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h5 class="mb-1">Office Procedures</h5>
+                    <p class="text-muted mb-0">Find steps for enrollment, student records, schedules, attendance, and teacher consultations.</p>
+                </div>
+                <a href="{{ route('office-procedures') }}" class="btn btn-primary">
+                    <i class="fas fa-list-check me-1"></i> Open Procedures
+                </a>
+            </div>
+        </div>
+
         <div class="row">
             <div class="col-lg-6">
                 <div class="card">

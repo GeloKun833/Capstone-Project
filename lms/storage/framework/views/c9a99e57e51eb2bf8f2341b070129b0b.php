@@ -99,7 +99,7 @@
                         $tDash = request()->routeIs('dashboard', 'home');
                         $tTeach = request()->routeIs('teacher.my-schedule', 'teacher.classes', 'lessons.*');
                         $tAssign = request()->routeIs('assignments.*', 'teacher.grading.*');
-                        $tClass = request()->routeIs('class-posts.*', 'attendance.*');
+                        $tClass = request()->routeIs('class-posts.*', 'attendance.*', 'teacher.consultations.*');
                         $tCal = request()->routeIs('calendar.*');
                         $tAnnounce = request()->routeIs('announcements.*');
                         $tReports = request()->routeIs('reports.*');
@@ -132,6 +132,7 @@
                         <ul>
                             <li><a href="<?php echo e(route('class-posts.index')); ?>"><i class="fas fa-list"></i> <span>All Posts</span></a></li>
                             <li><a href="<?php echo e(route('attendance.index')); ?>"><i class="fas fa-user-check"></i> <span>Attendance</span></a></li>
+                            <li><a href="<?php echo e(route('teacher.consultations.index')); ?>"><i class="fas fa-comments"></i> <span>Consultations</span></a></li>
                         </ul>
                     </li>
 
@@ -158,6 +159,7 @@
                             'student.my-schedule',
                             'student.grades',
                             'student.report-card',
+                            'student.consultations.*',
                             'attendance.student',
                             'analytics.student-dashboard',
                             'announcements.*'
@@ -199,7 +201,9 @@
                             <li><a href="<?php echo e(route('student.grades')); ?>"><i class="fas fa-clipboard-list"></i> <span>Grades</span></a></li>
                             <li><a href="<?php echo e(route('attendance.student')); ?>"><i class="fas fa-user-check"></i> <span>Attendance</span></a></li>
                             <li><a href="<?php echo e(route('analytics.student-dashboard')); ?>"><i class="fas fa-chart-line"></i> <span>My Analytics</span></a></li>
+                            <li><a href="<?php echo e(route('student.consultations.index')); ?>"><i class="fas fa-comments"></i> <span>Consultations</span></a></li>
                             <li><a href="<?php echo e(route('announcements.index')); ?>"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
+                            <li><a href="<?php echo e(route('office-procedures')); ?>"><i class="fas fa-list-check"></i> <span>Office Procedures</span></a></li>
                         </ul>
                     </li>
                 <?php endif; ?>
@@ -250,11 +254,12 @@
                         <ul>
                             <li><a href="<?php echo e(route('announcements.index')); ?>"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
                             <li><a href="<?php echo e(route('chat.index')); ?>"><i class="fas fa-comments"></i> <span>Chat</span></a></li>
+                            <li><a href="<?php echo e(route('office-procedures')); ?>"><i class="fas fa-list-check"></i> <span>Office Procedures</span></a></li>
                         </ul>
                     </li>
                 <?php endif; ?>
 
-                <li class="<?php echo e(request()->routeIs('help') ? 'active' : ''); ?>">
+                <li class="<?php echo e(request()->routeIs('help', 'office-procedures') ? 'active' : ''); ?>">
                     <a href="<?php echo e(route('help')); ?>"><i class="fas fa-question-circle"></i> <span>Help</span></a>
                 </li>
             </ul>

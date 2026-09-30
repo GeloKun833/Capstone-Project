@@ -68,11 +68,9 @@
                                 <label>Target Audience <span class="text-danger">*</span></label>
                                 <select class="form-control @error('target_audience') is-invalid @enderror" name="target_audience" required>
                                     <option value="">Select Audience</option>
-                                    <option value="all" {{ old('target_audience') == 'all' ? 'selected' : '' }}>All Users</option>
-                                    <option value="students" {{ old('target_audience') == 'students' ? 'selected' : '' }}>Students Only</option>
-                                    <option value="teachers" {{ old('target_audience') == 'teachers' ? 'selected' : '' }}>Teachers Only</option>
-                                    <option value="parents" {{ old('target_audience') == 'parents' ? 'selected' : '' }}>Parents Only</option>
-                                    <option value="admins" {{ old('target_audience') == 'admins' ? 'selected' : '' }}>Admins Only</option>
+                                    @foreach($audiences as $value => $label)
+                                        <option value="{{ $value }}" {{ old('target_audience') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
                                 </select>
                                 @error('target_audience')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -106,31 +104,8 @@
                         </div>
                     </div>
 
-                    <h5 class="dir-toolbar-title mt-2 mb-3">Advanced options</h5>
+                    <h5 class="dir-toolbar-title mt-2 mb-3">Publishing</h5>
                     <div class="row">
-                        <div class="col-12 col-sm-6">
-                            <div class="form-group">
-                                <label>Specific Roles (Optional)</label>
-                                <select class="form-control select2" name="target_roles[]" multiple>
-                                    <option value="students">Students</option>
-                                    <option value="teachers">Teachers</option>
-                                    <option value="parents">Parents</option>
-                                    <option value="admins">Admins</option>
-                                </select>
-                                <small class="text-muted">Leave empty to use target audience above</small>
-                            </div>
-                        </div>
-                        <div class="col-12 col-sm-6">
-                            <div class="form-group">
-                                <label>Specific Sections (Optional)</label>
-                                <select class="form-control select2" name="target_sections[]" multiple>
-                                    @foreach($sections as $section)
-                                        <option value="{{ $section->id }}">{{ $section->name }}</option>
-                                    @endforeach
-                                </select>
-                                <small class="text-muted">Leave empty to target all sections</small>
-                            </div>
-                        </div>
                         <div class="col-12 col-sm-6">
                             <div class="form-group mdp-field">
                                 <label>Scheduled Date (Optional)</label>

@@ -116,6 +116,7 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
         Route::get('activity-log', 'activityLog')->middleware('auth')->name('activity.log');
         Route::get('admin/activity-log', 'adminActivityLog')->middleware(['auth', 'role:Admin'])->name('admin.activity.log');
         Route::get('help', 'help')->middleware('auth')->name('help');
+        Route::get('office-procedures', 'officeProcedures')->middleware('auth')->name('office-procedures');
     });
 
     // ------------------------ setting -------------------------------//
@@ -297,6 +298,10 @@ Route::group(['middleware' => ['role:Admin']], function () {
 Route::group(['middleware' => ['role:Teacher']], function () {
     // Teacher Schedule
     Route::get('teacher/my-schedule', [App\Http\Controllers\ClassScheduleController::class, 'teacherSchedule'])->name('teacher.my-schedule');
+    Route::get('teacher/consultations', [App\Http\Controllers\ConsultationController::class, 'teacherIndex'])
+        ->middleware('auth')->name('teacher.consultations.index');
+    Route::put('teacher/consultations/{consultation}', [App\Http\Controllers\ConsultationController::class, 'respond'])
+        ->middleware('auth')->name('teacher.consultations.respond');
     
     // ----------------------- Grading Module Routes (Teacher Only) -----------------------------//
     Route::group(['prefix' => 'grading'], function () {
@@ -623,6 +628,9 @@ Route::group(['prefix' => 'class-posts', 'middleware' => ['auth']], function () 
 
 // Student Assignment Routes
 Route::group(['prefix' => 'student', 'middleware' => ['auth', 'role:Student']], function () {
+    Route::get('/consultations', [App\Http\Controllers\ConsultationController::class, 'studentIndex'])->name('student.consultations.index');
+    Route::post('/consultations', [App\Http\Controllers\ConsultationController::class, 'store'])->name('student.consultations.store');
+    Route::delete('/consultations/{consultation}', [App\Http\Controllers\ConsultationController::class, 'cancel'])->name('student.consultations.cancel');
     Route::get('/assignments', [App\Http\Controllers\StudentAssignmentController::class, 'index'])->name('student.assignments.index');
     Route::get('/assignments/{assignment}', [App\Http\Controllers\StudentAssignmentController::class, 'show'])->name('student.assignments.show');
     Route::post('/assignments/{assignment}/submit', [App\Http\Controllers\StudentAssignmentController::class, 'submit'])->name('student.assignments.submit');
