@@ -125,24 +125,78 @@ class ReportController extends Controller
             return $pdf->download($filename);
         }
 
-            $exportData = [];
+        $exportData = [];
+        $studentName = trim(($student->last_name ?? '') . ', ' . ($student->first_name ?? '') . ($student->middle_name ? ' ' . $student->middle_name : ''));
+
         foreach ($viewData['transcriptData'] as $period) {
-                foreach ($period['subjects'] as $subjectGrade) {
-                    $exportData[] = [
-                        $period['academic_year']->name ?? 'N/A',
-                        $period['semester']->name ?? 'N/A',
-                        $subjectGrade['subject']->subject_name ?? 'N/A',
-                        $subjectGrade['average'],
-                        GradeNarrativeHelper::subjectNarrative($subjectGrade['average'], $subjectGrade['subject']->subject_name ?? 'Subject'),
-                    ];
-                }
+            foreach ($period['subjects'] as $subjectGrade) {
+                $q = $subjectGrade['quarterly'];
+
+                $exportData[] = [
+                    $studentName,
+                    $student->id,
+                    $student->year_level ?? '',
+                    $student->sections->first()->name ?? 'N/A',
+                    $period['academic_year']->name ?? 'N/A',
+                    $period['semester']->name ?? 'N/A',
+                    $subjectGrade['subject']->subject_name ?? 'N/A',
+                    $q->quarter_1 ?? '',
+                    $q->quarter_2 ?? '',
+                    $q->quarter_3 ?? '',
+                    $q->quarter_4 ?? '',
+                    $subjectGrade['average'] ?? '',
+                    $subjectGrade['remarks'] ?? ($subjectGrade['average'] >= 75 ? 'PASSED' : 'FAILED'),
+                ];
             }
+        }
+
         $filename = 'transcript_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
-            return Excel::download(new class($exportData) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
-                public function __construct(private array $data) {}
-                public function array(): array { return $this->data; }
-                public function headings(): array { return ['Academic Year', 'Semester', 'Subject', 'Average', 'Narrative']; }
-            }, $filename);
+        return Excel::download(new class($exportData) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\ShouldAutoSize, \Maatwebsite\Excel\Concerns\WithStyles {
+            public function __construct(private array $data) {}
+            public function array(): array { return $this->data; }
+            public function headings(): array { return ['Student Name', 'Student ID', 'Year Level', 'Section', 'Academic Year', 'Semester', 'Subject', 'Q1', 'Q2', 'Q3', 'Q4', 'Final Average', 'Remarks']; }
+            public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet)
+            {
+                $lastColumn = $sheet->getHighestColumn();
+                $lastRow = $sheet->getHighestRow();
+
+                $sheet->freezePane('A2');
+                $sheet->getStyle('A1:' . $lastColumn . $lastRow)->applyFromArray([
+                    'font' => ['name' => 'Calibri', 'size' => 10, 'color' => ['rgb' => '1F2937']],
+                    'alignment' => ['vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                            'color' => ['rgb' => 'D7DFEA'],
+                        ],
+                    ],
+                ]);
+
+                $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+                    'fill' => [
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '7C3AED'],
+                    ],
+                    'alignment' => [
+                        'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                        'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+                    ],
+                ]);
+
+                for ($row = 2; $row <= $lastRow; $row++) {
+                    $fillColor = $row % 2 === 0 ? 'F5F3FF' : 'FFFFFF';
+                    $sheet->getStyle('A' . $row . ':' . $lastColumn . $row)->applyFromArray([
+                        'fill' => [
+                            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => $fillColor],
+                        ],
+                    ]);
+                }
+
+                $sheet->getRowDimension(1)->setRowHeight(26);
+            }
+        }, $filename);
     }
 
     /**
@@ -168,19 +222,25 @@ class ReportController extends Controller
         }
 
         $students = $viewData['students'];
-            $exportData = $students->values()->map(function ($student, $index) {
-                return [
-                    $index + 1,
-                    $student->admission_id ?? $student->id,
-                    $student->last_name,
-                    $student->first_name,
-                    $student->middle_name ?? '',
-                    $student->gender ?? '',
-                    $student->email ?? '',
-                ];
-            })->all();
+        $exportData = $students->values()->map(function ($student, $index) use ($section) {
+            return [
+                $index + 1,
+                $section->grade_level ?? $student->year_level ?? '',
+                $section->name,
+                $section->adviser ? trim(($section->adviser->first_name ?? '') . ' ' . ($section->adviser->last_name ?? '')) : 'N/A',
+                trim(($student->last_name ?? '') . ', ' . ($student->first_name ?? '') . ($student->middle_name ? ' ' . $student->middle_name : '')),
+                $student->admission_id ?? $student->id,
+                $student->last_name ?? '',
+                $student->first_name ?? '',
+                $student->middle_name ?? '',
+                $student->gender ?? '',
+                $student->email ?? '',
+                $student->year_level ?? '',
+            ];
+        })->all();
+
         $filename = 'class_list_' . $this->safeName($section->name) . '_' . date('Y-m-d') . '.xlsx';
-            return Excel::download(new ClassListExport($exportData, $section->name), $filename);
+        return Excel::download(new ClassListExport($exportData, $section->name), $filename);
     }
 
     /**
@@ -215,19 +275,28 @@ class ReportController extends Controller
             return $pdf->download($filename);
         }
 
-            $exportData = [];
+        $exportData = [];
+        $studentName = trim(($student->last_name ?? '') . ', ' . ($student->first_name ?? '') . ($student->middle_name ? ' ' . $student->middle_name : ''));
+
         foreach ($viewData['subjectGrades'] as $sg) {
             $q = $sg['quarterly'];
-                    $exportData[] = [
-                        $sg['subject']->subject_name ?? 'N/A',
-                $q->quarter_1,
-                $q->quarter_2,
-                $q->quarter_3,
-                $q->quarter_4,
-                $sg['average'],
+            $exportData[] = [
+                $studentName,
+                $student->id,
+                $student->year_level ?? '',
+                $student->sections->first()->name ?? 'N/A',
+                $viewData['academicYear']->name ?? 'N/A',
+                $viewData['semester']->name ?? 'N/A',
+                $sg['subject']->subject_name ?? 'N/A',
+                $q->quarter_1 ?? '',
+                $q->quarter_2 ?? '',
+                $q->quarter_3 ?? '',
+                $q->quarter_4 ?? '',
+                $sg['average'] ?? '',
                 $sg['remarks'] ?? '',
             ];
         }
+
         $filename = 'grade_slip_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
         return Excel::download(new GradeSlipExport($exportData), $filename);
     }
@@ -265,17 +334,51 @@ class ReportController extends Controller
         }
 
         $exportData = [];
+        $studentName = trim(($student->last_name ?? '') . ', ' . ($student->first_name ?? '') . ($student->middle_name ? ' ' . $student->middle_name : ''));
+        $sectionName = $student->sections->first()->name ?? 'N/A';
+
         foreach ($viewData['subjectPerformance'] as $perf) {
             $exportData[] = [
-                'Subject',
+                $studentName,
+                $student->id,
+                $student->year_level ?? '',
+                $sectionName,
+                $viewData['academicYear']->name ?? 'N/A',
+                $viewData['semester']->name ?? 'N/A',
+                'Subject Performance',
                 $perf['subject']->subject_name ?? 'N/A',
                 $perf['average'] . '%',
                 GradeNarrativeHelper::subjectNarrative($perf['average'], $perf['subject']->subject_name ?? 'Subject'),
             ];
         }
+
         $overallGpaValue = $viewData['gpaRecords']->first()->gpa ?? 0;
-        $exportData[] = ['Overall GPA', '', $overallGpaValue, GradeNarrativeHelper::overallNarrative($overallGpaValue)];
-        $exportData[] = ['Attendance', '', $viewData['attendanceSummary']['percentage'] . '%', GradeNarrativeHelper::attendanceNarrative($viewData['attendanceSummary']['percentage'])];
+        $exportData[] = [
+            $studentName,
+            $student->id,
+            $student->year_level ?? '',
+            $sectionName,
+            $viewData['academicYear']->name ?? 'N/A',
+            $viewData['semester']->name ?? 'N/A',
+            'Overall GPA',
+            'Cumulative GPA',
+            $overallGpaValue,
+            GradeNarrativeHelper::overallNarrative($overallGpaValue),
+        ];
+
+        $exportData[] = [
+            $studentName,
+            $student->id,
+            $student->year_level ?? '',
+            $sectionName,
+            $viewData['academicYear']->name ?? 'N/A',
+            $viewData['semester']->name ?? 'N/A',
+            'Attendance',
+            'Attendance Rate',
+            $viewData['attendanceSummary']['percentage'] . '%',
+            GradeNarrativeHelper::attendanceNarrative($viewData['attendanceSummary']['percentage']),
+        ];
+
         $filename = 'progress_report_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
         return Excel::download(new ProgressSummaryExport($exportData), $filename);
     }
