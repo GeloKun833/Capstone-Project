@@ -261,8 +261,8 @@
                                         <option value="<?php echo e($teacher->id); ?>"><?php echo e($teacher->full_name); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
-                            </div>
-                        </div>
+                </div>
+                </div>
                         <div class="col-md-4">
                             <div class="form-group mb-0">
                                 <label>Subject</label>
