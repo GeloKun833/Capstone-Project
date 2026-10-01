@@ -74,7 +74,7 @@
                     <h5 class="dir-toolbar-title">All announcements</h5>
                     <span class="dir-count mt-1" id="announcementCount" data-total="{{ $announcements->total() }}">{{ $announcements->total() }} notice{{ $announcements->total() === 1 ? '' : 's' }}</span>
                 </div>
-                @if($announcements->count() > 0)
+                @if($announcements->count() > 0 && auth()->user()->role_name !== 'Student')
                     <button type="button" class="btn btn-outline-secondary dir-btn" id="exportAnnouncements">
                         <i class="fas fa-download me-1"></i> Export
                     </button>

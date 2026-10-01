@@ -517,4 +517,4 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php $__env->stopPush(); ?> 
 
-<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views\analytics\student-dashboard.blade.php ENDPATH**/ ?>
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/analytics/student-dashboard.blade.php ENDPATH**/ ?>

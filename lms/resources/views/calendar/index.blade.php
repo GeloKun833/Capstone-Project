@@ -41,11 +41,11 @@
         <div class="card ams-cal-filters-card mb-3">
             <div class="card-body py-3">
                 <div class="row g-2 align-items-end">
-                    <div class="col-lg-3 col-md-6">
+                    <div class="col-lg-4 col-md-6">
                         <label class="form-label ams-cal-label">Search</label>
                         <input type="text" class="form-control form-control-sm" id="filter_search" placeholder="Search events...">
                         </div>
-                    <div class="col-lg-2 col-md-6">
+                    <div class="col-lg-3 col-md-6">
                         <label class="form-label ams-cal-label">Event Type</label>
                         <select class="form-control form-control-sm" id="filter_event_type">
                             <option value="">All Types</option>
@@ -54,16 +54,7 @@
                                 @endforeach
                             </select>
                         </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label ams-cal-label">Teacher</label>
-                        <select class="form-control form-control-sm" id="filter_teacher">
-                                <option value="">All Teachers</option>
-                                @foreach($teachers as $teacher)
-                                    <option value="{{ $teacher->id }}">{{ $teacher->full_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    <div class="col-lg-2 col-md-6">
+                    <div class="col-lg-4 col-md-6">
                         <label class="form-label ams-cal-label">Subject</label>
                         <select class="form-control form-control-sm" id="filter_subject">
                                 <option value="">All Subjects</option>
@@ -72,15 +63,6 @@
                                 @endforeach
                             </select>
                     </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label ams-cal-label">Room</label>
-                        <select class="form-control form-control-sm" id="filter_room">
-                            <option value="">All Rooms</option>
-                            @foreach($rooms as $room)
-                                <option value="{{ $room->id }}">{{ $room->full_name ?? $room->room_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
                     <div class="col-lg-1 col-md-6">
                         <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnClearFilters" title="Clear filters">
                             <i class="fas fa-times"></i>
@@ -617,9 +599,7 @@ let selectedEvent = null;
         return {
             search: $('#filter_search').val() || '',
             event_type: $('#filter_event_type').val() || '',
-            teacher_id: $('#filter_teacher').val() || '',
             subject_id: $('#filter_subject').val() || '',
-            room_id: $('#filter_room').val() || '',
         };
     }
 
@@ -1339,10 +1319,10 @@ let selectedEvent = null;
         });
         $('#btnClearFilters').on('click', function () {
             $('#filter_search').val('');
-            $('#filter_event_type, #filter_teacher, #filter_subject, #filter_room').val('');
+            $('#filter_event_type, #filter_subject').val('');
             if (calendar) calendar.refetchEvents();
         });
-        $('#filter_event_type, #filter_teacher, #filter_subject, #filter_room').on('change', function () {
+        $('#filter_event_type, #filter_subject').on('change', function () {
             if (calendar) calendar.refetchEvents();
         });
         $('#filter_search').on('input', function () {

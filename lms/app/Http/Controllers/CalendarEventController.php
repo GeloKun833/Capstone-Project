@@ -39,7 +39,11 @@ class CalendarEventController extends Controller
 
     protected function subjectsForCalendarUser($user)
     {
-        if ($user && $user->role_name === 'Teacher' && $user->teacher) {
+        if ($user && $user->role_name === 'Teacher') {
+            if (! $user->teacher) {
+                return collect();
+            }
+
             $options = app(TeacherClassAssignmentService::class)->optionsFor($user->teacher);
 
             return $options['subjects']

@@ -49,11 +49,6 @@
                         <p>{{ $displayName }} · {{ $student->year_level ?? 'Student' }} · {{ $periodLabel }}</p>
                     </div>
                 </div>
-                <div class="sa-hero-actions">
-                    <button type="button" class="sa-btn-outline" onclick="exportReport()">
-                        <i class="fas fa-download"></i> Export report
-                    </button>
-            </div>
             </header>
 
             <form class="sa-filters" onsubmit="applyFilters(); return false;">
@@ -424,15 +419,6 @@ function applyFilters() {
     if (year) params.append('academic_year_id', year);
     if (semester) params.append('semester_id', semester);
     window.location.href = @json(route('analytics.student-dashboard')) + (params.toString() ? '?' + params.toString() : '');
-}
-
-function exportReport() {
-    const params = new URLSearchParams();
-    const year = document.getElementById('academic_year_filter').value;
-    const semester = document.getElementById('semester_filter').value;
-    if (year) params.append('academic_year_id', year);
-    if (semester) params.append('semester_id', semester);
-    window.location.href = @json(route('analytics.export-report')) + (params.toString() ? '?' + params.toString() : '');
 }
 
 document.addEventListener('DOMContentLoaded', function () {
