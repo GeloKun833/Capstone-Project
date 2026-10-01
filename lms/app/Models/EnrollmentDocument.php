@@ -12,6 +12,7 @@ class EnrollmentDocument extends Model
     protected $fillable = [
         'enrollment_application_id',
         'document_type',
+        'submission_method',
         'file_name',
         'file_path',
         'file_size',
@@ -99,6 +100,15 @@ class EnrollmentDocument extends Model
     }
 
     // Constants for document types
+    public const REQUIRED_DOCUMENT_TYPES = [
+        'birth_certificate',
+        'sf9',
+        'sf10',
+        'good_moral',
+        'id_photo',
+        'parent_guardian_id',
+    ];
+
     const DOCUMENT_TYPES = [
         'birth_certificate' => 'Birth Certificate',
         'report_card' => 'Report Card/Transcript',

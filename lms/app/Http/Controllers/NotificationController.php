@@ -33,6 +33,18 @@ class NotificationController extends Controller
     }
 
     /**
+     * Delete all notifications belonging to the authenticated user.
+     */
+    public function clearAll()
+    {
+        $user = Auth::user();
+        $deleted = $user->notifications()->delete();
+        Cache::forget('header.notifs.'.$user->id);
+
+        return response()->json(['success' => true, 'deleted' => $deleted]);
+    }
+
+    /**
      * Get unread notification count
      */
     public function getUnreadCount()

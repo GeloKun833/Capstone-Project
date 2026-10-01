@@ -92,7 +92,7 @@
     function fieldMinDate(el) {
         var min = el && el.getAttribute('min');
         if (min) return parseEventDate(min);
-        if (isDobField(el)) return parseEventDate('1950-01-01');
+        if (isDobField(el)) return parseEventDate('1700-01-01');
         return null;
     }
 
@@ -250,7 +250,10 @@
             '<div class="mdp-event-cal">' +
                 '<div class="mdp-event-cal-head">' +
                     '<button type="button" class="mdp-event-nav" data-mdp="prev" aria-label="Previous month"><i class="fas fa-angle-left"></i></button>' +
-                    '<div class="mdp-event-month" data-mdp="month-label"></div>' +
+                    '<div class="mdp-event-month-controls">' +
+                        '<select class="mdp-event-select" data-mdp="month" aria-label="Select month"></select>' +
+                        '<select class="mdp-event-select mdp-event-year" data-mdp="year" aria-label="Select year"></select>' +
+                    '</div>' +
                     '<button type="button" class="mdp-event-nav" data-mdp="next" aria-label="Next month"><i class="fas fa-angle-right"></i></button>' +
                 '</div>' +
                 '<div class="mdp-event-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' +
@@ -286,6 +289,7 @@
         eventPopover = pop;
 
         pop.addEventListener('mousedown', function (e) {
+            if (e.target.closest('select')) return;
             e.preventDefault();
         });
 
@@ -344,6 +348,14 @@
                 commitEventValue();
                 renderEventPopover();
             }
+        });
+
+        pop.addEventListener('change', function (e) {
+            if (!e.target.matches('[data-mdp="month"], [data-mdp="year"]')) return;
+            var month = parseInt(pop.querySelector('[data-mdp="month"]').value, 10);
+            var year = parseInt(pop.querySelector('[data-mdp="year"]').value, 10);
+            eventViewMonth = new Date(year, month, 1);
+            renderEventPopover();
         });
 
         document.addEventListener('mousedown', function (e) {
@@ -410,7 +422,8 @@
 
     function renderEventPopover() {
         var pop = ensureEventPopover();
-        var monthLabel = pop.querySelector('[data-mdp="month-label"]');
+        var monthSelect = pop.querySelector('[data-mdp="month"]');
+        var yearSelect = pop.querySelector('[data-mdp="year"]');
         var daysEl = pop.querySelector('[data-mdp="days"]');
         var timeEl = pop.querySelector('[data-mdp="time"]');
         var hourEl = pop.querySelector('[data-mdp="hour"]');
@@ -424,7 +437,32 @@
         pop.classList.toggle('is-time-only', !!timeOnly);
 
         var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        monthLabel.textContent = months[eventViewMonth.getMonth()] + ' ' + eventViewMonth.getFullYear();
+        if (!monthSelect.options.length) {
+            months.forEach(function (name, index) {
+                var option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = name;
+                monthSelect.appendChild(option);
+            });
+        }
+        var currentYear = new Date().getFullYear();
+        var minDate = fieldMinDate(eventTarget);
+        var maxDate = fieldMaxDate(eventTarget);
+        var minYear = minDate ? minDate.getFullYear() : currentYear - 100;
+        var maxYear = maxDate ? maxDate.getFullYear() : currentYear + 100;
+        if (yearSelect.dataset.minYear !== String(minYear) || yearSelect.dataset.maxYear !== String(maxYear)) {
+            yearSelect.innerHTML = '';
+            for (var optionYear = minYear; optionYear <= maxYear; optionYear++) {
+                var yearOption = document.createElement('option');
+                yearOption.value = String(optionYear);
+                yearOption.textContent = String(optionYear);
+                yearSelect.appendChild(yearOption);
+            }
+            yearSelect.dataset.minYear = String(minYear);
+            yearSelect.dataset.maxYear = String(maxYear);
+        }
+        monthSelect.value = String(eventViewMonth.getMonth());
+        yearSelect.value = String(eventViewMonth.getFullYear());
         timeEl.style.display = showTime ? 'flex' : 'none';
         if (ampmWrap) ampmWrap.style.display = timeOnly ? 'flex' : 'none';
         var hour24 = eventCursor.getHours();

@@ -77,7 +77,7 @@
                         <option value="">All Subjects</option>
                         @foreach($subjects as $subject)
                             <option value="{{ $subject->id }}" {{ (string) request('subject_id') === (string) $subject->id ? 'selected' : '' }}>
-                                {{ $subject->subject_name }}
+                                {{ $subject->subject_name }}{{ $subject->class ? ' (' . $subject->class . ')' : '' }}
                             </option>
                         @endforeach
                     </select>

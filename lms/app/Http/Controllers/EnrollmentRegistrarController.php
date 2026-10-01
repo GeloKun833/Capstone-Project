@@ -478,6 +478,36 @@ class EnrollmentRegistrarController extends Controller
         }
     }
 
+    /** Record a document reviewed in person at the school. */
+    public function recordInPersonDocument(Request $request, $applicationId)
+    {
+        $validated = $request->validate([
+            'document_type' => 'required|in:'.implode(',', array_keys(EnrollmentDocument::DOCUMENT_TYPES)),
+            'status' => 'required|in:verified,rejected',
+            'verification_notes' => 'nullable|required_if:status,rejected|string|max:500',
+        ]);
+
+        $application = \App\Models\EnrollmentApplication::findOrFail($applicationId);
+        if ($application->documents()->where('document_type', $validated['document_type'])->exists()) {
+            return back()->with('error', 'A record for this document already exists. Review the existing record instead.');
+        }
+
+        $application->documents()->create([
+            'document_type' => $validated['document_type'],
+            'submission_method' => 'in_person',
+            'file_name' => 'Received in person',
+            'file_path' => '',
+            'file_size' => '0',
+            'mime_type' => 'application/x-in-person',
+            'status' => $validated['status'],
+            'verification_notes' => $validated['verification_notes'] ?? null,
+            'verified_by' => auth()->id(),
+            'verified_at' => now(),
+        ]);
+
+        return back()->with('success', 'In-person document review recorded.');
+    }
+
     /**
      * Process approved application and create student account with automatic section assignment
      */

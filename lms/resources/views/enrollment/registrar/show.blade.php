@@ -528,7 +528,7 @@
                     <div class="ep-card-header">
                         <h5 class="card-title mb-0">
                             <i class="fas fa-file-alt me-2"></i>Documents Status
-                            <span class="badge bg-info ms-2">{{ $application->documents->count() }}/6 uploaded</span>
+                            <span class="badge bg-info ms-2">{{ $application->documents->count() }}/6 recorded</span>
                         </h5>
                     </div>
                     <div class="ep-card-body">
@@ -551,7 +551,7 @@
                             <div class="col-md-6">
                                 <div class="alert alert-success">
                                     <i class="fas fa-check-circle me-2"></i>
-                                    <strong>Uploaded Documents:</strong> {{ $application->documents->count() }}
+                                    <strong>Documents on file:</strong> {{ $application->documents->count() }}
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -574,6 +574,47 @@
                                 </ul>
                             </div>
                         @endif
+
+                        @if(count($missingDocuments) > 0)
+                            <div class="table-responsive mb-4">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Missing document</th>
+                                            <th>Record face-to-face review</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($missingDocuments as $missingType)
+                                            <tr>
+                                                <td>{{ $requiredDocuments[$missingType] }}</td>
+                                                <td>
+                                                    <div class="d-flex flex-wrap gap-2 align-items-start">
+                                                        <form action="{{ route('enrollment.registrar.document.record-in-person', $application->id) }}" method="POST">
+                                                            @csrf
+                                                            <input type="hidden" name="document_type" value="{{ $missingType }}">
+                                                            <input type="hidden" name="status" value="verified">
+                                                            <button type="submit" class="btn btn-sm btn-success">
+                                                                <i class="fas fa-check me-1"></i>Mark approved
+                                                            </button>
+                                                        </form>
+                                                        <form action="{{ route('enrollment.registrar.document.record-in-person', $application->id) }}" method="POST" class="d-flex flex-wrap gap-2">
+                                                            @csrf
+                                                            <input type="hidden" name="document_type" value="{{ $missingType }}">
+                                                            <input type="hidden" name="status" value="rejected">
+                                                            <input type="text" name="verification_notes" class="form-control form-control-sm" placeholder="Reason required" aria-label="Reason for not approving {{ $requiredDocuments[$missingType] }}" required maxlength="500">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                                <i class="fas fa-times me-1"></i>Not approved
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
                         
                         @if($application->documents->count() > 0)
                             <div class="table-responsive">
@@ -593,7 +634,7 @@
                                                 <td>
                                                     <strong>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$document->document_type] ?? $document->document_type }}</strong>
                                                 </td>
-                                                <td>{{ $document->file_name }}</td>
+                                                <td>{{ $document->submission_method === 'in_person' ? 'Received in person' : $document->file_name }}</td>
                                                 <td>{{ $document->file_size_formatted }}</td>
                                                 <td>
                                                     <span class="badge bg-{{ $document->status_badge }}">
@@ -602,10 +643,11 @@
                                                 </td>
                                                 <td>
                                                     <div class="btn-group">
-                                                        <a href="{{ route('enrollment.portal.download-document', $document->id) }}" 
-                                                           class="btn btn-sm btn-outline-primary">
-                                                            <i class="fas fa-download"></i>
-                                                        </a>
+                                                        @if($document->submission_method !== 'in_person')
+                                                            <a href="{{ route('enrollment.portal.download-document', $document->id) }}" class="btn btn-sm btn-outline-primary">
+                                                                <i class="fas fa-download"></i>
+                                                            </a>
+                                                        @endif
                                                         @if($document->status === 'pending')
                                                             <button type="button" class="btn btn-sm btn-success" 
                                                                     onclick="openVerifyModal({{ $document->id }})"

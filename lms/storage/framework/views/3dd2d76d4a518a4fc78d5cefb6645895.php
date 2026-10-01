@@ -152,9 +152,26 @@ unset($__errorArgs, $__bag); ?>
                                 <div class="col-12 col-sm-4">
                             <div class="form-group mdp-field">
                                 <label>Start Time <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control js-time" name="start_time" id="schedule_start_time"
+                                <input type="time" class="form-control js-time <?php $__errorArgs = ['start_time'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" name="start_time" id="schedule_start_time"
                                        value="<?php echo e(old('start_time', \Carbon\Carbon::parse($schedule->start_time)->format('H:i'))); ?>"
                                        placeholder="HH:mm" autocomplete="off" required>
+                                <?php $__errorArgs = ['start_time'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <span class="text-danger small"><?php echo e($message); ?></span>
+                                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                     </div>
                                 </div>
                                 

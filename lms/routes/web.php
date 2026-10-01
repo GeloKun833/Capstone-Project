@@ -469,6 +469,7 @@ Route::group(['prefix' => 'admin/enrollment', 'middleware' => ['auth', 'role:Adm
     Route::delete('/archive/{id}/force-delete', [App\Http\Controllers\EnrollmentRegistrarController::class, 'forceDelete'])->name('enrollment.registrar.force-delete');
     Route::post('/document/{id}/verify', [App\Http\Controllers\EnrollmentRegistrarController::class, 'verifyDocument'])->name('enrollment.registrar.verify-document');
     Route::post('/document/{id}/reject', [App\Http\Controllers\EnrollmentRegistrarController::class, 'rejectDocument'])->name('enrollment.registrar.reject-document');
+    Route::post('/{id}/document/record-in-person', [App\Http\Controllers\EnrollmentRegistrarController::class, 'recordInPersonDocument'])->name('enrollment.registrar.document.record-in-person');
     Route::post('/{id}/create-manual-account', [App\Http\Controllers\EnrollmentRegistrarController::class, 'createManualAccount'])->name('enrollment.registrar.create-manual-account');
 });
 Route::get('teacher/{id}/assign-grade-levels', [App\Http\Controllers\TeacherController::class, 'assignGradeLevelsForm'])->middleware(['auth', 'role:Admin'])->name('teacher.assignGradeLevelsForm');
@@ -486,13 +487,13 @@ Route::get('api/sections/{section}/subjects', function(App\Models\Section $secti
 // Analytics Routes
 Route::group(['prefix' => 'analytics', 'middleware' => ['auth']], function () {
     // Student Analytics
-    Route::get('/student-dashboard', [App\Http\Controllers\AnalyticsController::class, 'studentDashboard'])->name('analytics.student-dashboard');
+    Route::get('/student-dashboard', [App\Http\Controllers\AnalyticsController::class, 'studentDashboard'])->middleware('role:Student')->name('analytics.student-dashboard');
     
     // Teacher Analytics
-    Route::get('/teacher-dashboard', [App\Http\Controllers\AnalyticsController::class, 'teacherDashboard'])->name('analytics.teacher-dashboard');
+    Route::get('/teacher-dashboard', [App\Http\Controllers\AnalyticsController::class, 'teacherDashboard'])->middleware('role:Teacher')->name('analytics.teacher-dashboard');
     
     // Admin Analytics
-    Route::get('/admin-dashboard', [App\Http\Controllers\AnalyticsController::class, 'adminDashboard'])->name('analytics.admin-dashboard');
+    Route::get('/admin-dashboard', [App\Http\Controllers\AnalyticsController::class, 'adminDashboard'])->middleware('role:Admin')->name('analytics.admin-dashboard');
     
     // API endpoints for chart data
     Route::get('/chart-data', [App\Http\Controllers\AnalyticsController::class, 'getChartData'])->name('analytics.chart-data');
@@ -576,6 +577,9 @@ Route::group(['prefix' => 'notifications', 'middleware' => ['auth']], function (
     Route::post('/mark-all-as-read', [App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
     Route::get('/unread-count', [App\Http\Controllers\NotificationController::class, 'getUnreadCount'])->name('notifications.unread-count');
 });
+Route::delete('/notifications/clear-all', [App\Http\Controllers\NotificationController::class, 'clearAll'])
+    ->middleware('auth')
+    ->name('notifications.clear-all');
 
 // Assignment Routes
 Route::group(['prefix' => 'assignments', 'middleware' => ['auth']], function () {

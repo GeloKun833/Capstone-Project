@@ -1,5 +1,4 @@
-@extends('layouts.master')
-@section('content')
+<?php $__env->startSection('content'); ?>
 
 <div class="page-wrapper">
     <div class="content container-fluid dir-page">
@@ -11,8 +10,8 @@
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-0">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('admin.schedules.index') }}">Schedules</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('admin.schedules.index')); ?>">Schedules</a></li>
                         <li class="breadcrumb-item active">Edit Schedule</li>
                     </ul>
                 </div>
@@ -33,9 +32,9 @@
 
         <div class="dir-card">
             <div class="p-4">
-                <form action="{{ route('admin.schedules.update', $schedule) }}" method="POST" id="scheduleForm">
-                            @csrf
-                            @method('PUT')
+                <form action="<?php echo e(route('admin.schedules.update', $schedule)); ?>" method="POST" id="scheduleForm">
+                            <?php echo csrf_field(); ?>
+                            <?php echo method_field('PUT'); ?>
                             
                     <div class="row" id="step-teacher">
                         <div class="col-12 mb-3">
@@ -46,15 +45,23 @@
                                 <label>Teacher <span class="text-danger">*</span></label>
                                 <select class="form-control" name="teacher_id" id="teacher_id" required>
                                     <option value="">Select Teacher</option>
-                                    @foreach($teachers as $teacher)
-                                        <option value="{{ $teacher->id }}" {{ (int) old('teacher_id', $schedule->teacher_id) === (int) $teacher->id ? 'selected' : '' }}>
-                                            {{ $teacher->full_name }}
+                                    <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($teacher->id); ?>" <?php echo e((int) old('teacher_id', $schedule->teacher_id) === (int) $teacher->id ? 'selected' : ''); ?>>
+                                            <?php echo e($teacher->full_name); ?>
+
                                                 </option>
-                                            @endforeach
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
-                                @error('teacher_id')
-                                    <span class="text-danger small">{{ $message }}</span>
-                                        @enderror
+                                <?php $__errorArgs = ['teacher_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <span class="text-danger small"><?php echo e($message); ?></span>
+                                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                 <div id="teacher-assign-hint" class="mdp-hint"></div>
                             </div>
                                     </div>
@@ -72,9 +79,16 @@
                                 <select class="form-control" name="section_id" id="section_id" required>
                                     <option value="">Select Section</option>
                                         </select>
-                                @error('section_id')
-                                    <span class="text-danger small">{{ $message }}</span>
-                                        @enderror
+                                <?php $__errorArgs = ['section_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <span class="text-danger small"><?php echo e($message); ?></span>
+                                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                     </div>
                                 </div>
                                 
@@ -84,9 +98,16 @@
                                 <select class="form-control" name="subject_id" id="subject_id" required>
                                     <option value="">Select Subject</option>
                                         </select>
-                                @error('subject_id')
-                                    <span class="text-danger small">{{ $message }}</span>
-                                        @enderror
+                                <?php $__errorArgs = ['subject_id'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <span class="text-danger small"><?php echo e($message); ?></span>
+                                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                 <small class="text-muted" id="subject-filter-hint"></small>
                                     </div>
                                 </div>
@@ -96,11 +117,11 @@
                                         <label>Room</label>
                                 <select class="form-control" name="room_id" id="room_id">
                                             <option value="">Select Room (Optional)</option>
-                                            @foreach($rooms as $room)
-                                        <option value="{{ $room->id }}" {{ (int) old('room_id', $schedule->room_id) === (int) $room->id ? 'selected' : '' }}>
-                                            {{ $room->room_name }}@if($room->room_type) — {{ $room->room_type }}@endif
+                                            <?php $__currentLoopData = $rooms; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $room): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($room->id); ?>" <?php echo e((int) old('room_id', $schedule->room_id) === (int) $room->id ? 'selected' : ''); ?>>
+                                            <?php echo e($room->room_name); ?><?php if($room->room_type): ?> — <?php echo e($room->room_type); ?><?php endif; ?>
                                                 </option>
-                                            @endforeach
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                 </div>
@@ -121,9 +142,9 @@
                                 <label>Day of Week <span class="text-danger">*</span></label>
                                         <select class="form-control" name="day_of_week" required>
                                             <option value="">Select Day</option>
-                                    @foreach(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as $day)
-                                        <option value="{{ $day }}" {{ old('day_of_week', $schedule->day_of_week) == $day ? 'selected' : '' }}>{{ ucfirst($day) }}</option>
-                                    @endforeach
+                                    <?php $__currentLoopData = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($day); ?>" <?php echo e(old('day_of_week', $schedule->day_of_week) == $day ? 'selected' : ''); ?>><?php echo e(ucfirst($day)); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                 </div>
@@ -131,12 +152,26 @@
                                 <div class="col-12 col-sm-4">
                             <div class="form-group mdp-field">
                                 <label>Start Time <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control js-time @error('start_time') is-invalid @enderror" name="start_time" id="schedule_start_time"
-                                       value="{{ old('start_time', \Carbon\Carbon::parse($schedule->start_time)->format('H:i')) }}"
+                                <input type="time" class="form-control js-time <?php $__errorArgs = ['start_time'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" name="start_time" id="schedule_start_time"
+                                       value="<?php echo e(old('start_time', \Carbon\Carbon::parse($schedule->start_time)->format('H:i'))); ?>"
                                        placeholder="HH:mm" autocomplete="off" required>
-                                @error('start_time')
-                                    <span class="text-danger small">{{ $message }}</span>
-                                @enderror
+                                <?php $__errorArgs = ['start_time'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <span class="text-danger small"><?php echo e($message); ?></span>
+                                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                     </div>
                                 </div>
                                 
@@ -144,7 +179,7 @@
                             <div class="form-group mdp-field">
                                 <label>End Time <span class="text-danger">*</span></label>
                                 <input type="time" class="form-control js-time" name="end_time" id="schedule_end_time"
-                                       value="{{ old('end_time', \Carbon\Carbon::parse($schedule->end_time)->format('H:i')) }}"
+                                       value="<?php echo e(old('end_time', \Carbon\Carbon::parse($schedule->end_time)->format('H:i'))); ?>"
                                        placeholder="HH:mm" autocomplete="off" required>
                                 <small class="mdp-hint" id="schedule-time-hint">End time must be after start time.</small>
                                     </div>
@@ -154,11 +189,11 @@
                             <div class="form-group">
                                 <label>Class Type <span class="text-danger">*</span></label>
                                         <select class="form-control" name="class_type" required>
-                                    <option value="lecture" {{ old('class_type', $schedule->class_type) == 'lecture' ? 'selected' : '' }}>Regular Class</option>
-                                            <option value="laboratory" {{ old('class_type', $schedule->class_type) == 'laboratory' ? 'selected' : '' }}>Laboratory</option>
-                                    <option value="tutorial" {{ old('class_type', $schedule->class_type) == 'tutorial' ? 'selected' : '' }}>Activity / Tutorial</option>
-                                            <option value="exam" {{ old('class_type', $schedule->class_type) == 'exam' ? 'selected' : '' }}>Exam</option>
-                                            <option value="other" {{ old('class_type', $schedule->class_type) == 'other' ? 'selected' : '' }}>Other</option>
+                                    <option value="lecture" <?php echo e(old('class_type', $schedule->class_type) == 'lecture' ? 'selected' : ''); ?>>Regular Class</option>
+                                            <option value="laboratory" <?php echo e(old('class_type', $schedule->class_type) == 'laboratory' ? 'selected' : ''); ?>>Laboratory</option>
+                                    <option value="tutorial" <?php echo e(old('class_type', $schedule->class_type) == 'tutorial' ? 'selected' : ''); ?>>Activity / Tutorial</option>
+                                            <option value="exam" <?php echo e(old('class_type', $schedule->class_type) == 'exam' ? 'selected' : ''); ?>>Exam</option>
+                                            <option value="other" <?php echo e(old('class_type', $schedule->class_type) == 'other' ? 'selected' : ''); ?>>Other</option>
                                         </select>
                                     </div>
                                 </div>
@@ -166,7 +201,7 @@
                                 <div class="col-12 col-sm-4">
                             <div class="form-group">
                                         <label>Color</label>
-                                <input type="color" class="form-control" name="color" value="{{ old('color', $schedule->color ?: '#3d5ee1') }}">
+                                <input type="color" class="form-control" name="color" value="<?php echo e(old('color', $schedule->color ?: '#3d5ee1')); ?>">
                                     </div>
                                 </div>
                                 
@@ -174,8 +209,8 @@
                             <div class="form-group">
                                         <label>Status</label>
                                         <select class="form-control" name="is_active">
-                                            <option value="1" {{ old('is_active', $schedule->is_active) == 1 ? 'selected' : '' }}>Active</option>
-                                            <option value="0" {{ old('is_active', $schedule->is_active) == 0 ? 'selected' : '' }}>Inactive</option>
+                                            <option value="1" <?php echo e(old('is_active', $schedule->is_active) == 1 ? 'selected' : ''); ?>>Active</option>
+                                            <option value="0" <?php echo e(old('is_active', $schedule->is_active) == 0 ? 'selected' : ''); ?>>Inactive</option>
                                         </select>
                                     </div>
                                 </div>
@@ -183,7 +218,7 @@
                                 <div class="col-12">
                             <div class="form-group">
                                         <label>Notes</label>
-                                <textarea class="form-control" name="notes" rows="3">{{ old('notes', $schedule->notes) }}</textarea>
+                                <textarea class="form-control" name="notes" rows="3"><?php echo e(old('notes', $schedule->notes)); ?></textarea>
                                     </div>
                                 </div>
                                 
@@ -191,7 +226,7 @@
                             <button type="submit" class="btn btn-primary dir-btn">
                                 <i class="fas fa-save me-1"></i> Update Schedule
                                         </button>
-                            <a href="{{ route('admin.schedules.index') }}" class="btn btn-outline-secondary dir-btn">Cancel</a>
+                            <a href="<?php echo e(route('admin.schedules.index')); ?>" class="btn btn-outline-secondary dir-btn">Cancel</a>
                                 </div>
                             </div>
                         </form>
@@ -200,17 +235,17 @@
             </div>
         </div>
 
-@push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">
-@endpush
+<?php $__env->startPush('styles'); ?>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914c">
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script>
 (function () {
-    const assignmentsUrl = @json(url('/admin/schedules/teacher'));
-    const initialTeacher = @json((int) old('teacher_id', $schedule->teacher_id));
-    const initialSection = @json((int) old('section_id', $schedule->section_id));
-    const initialSubject = @json((int) old('subject_id', $schedule->subject_id));
+    const assignmentsUrl = <?php echo json_encode(url('/admin/schedules/teacher'), 15, 512) ?>;
+    const initialTeacher = <?php echo json_encode((int) old('teacher_id', $schedule->teacher_id), 512) ?>;
+    const initialSection = <?php echo json_encode((int) old('section_id', $schedule->section_id), 512) ?>;
+    const initialSubject = <?php echo json_encode((int) old('subject_id', $schedule->subject_id), 512) ?>;
 
     let allSubjects = [];
     let allSections = [];
@@ -237,7 +272,7 @@
         if (selectedId && ![...sectionSelect.options].some(function (o) { return String(o.value) === String(selectedId); })) {
             const opt = document.createElement('option');
             opt.value = selectedId;
-            opt.textContent = @json(($schedule->section->name ?? 'Current') . ' (' . ($schedule->section->grade_level ?? 'N/A') . ')') + ' — current';
+            opt.textContent = <?php echo json_encode(($schedule->section->name ?? 'Current') . ' (' . ($schedule->section->grade_level ?? 'N/A') . ')', 15, 512) ?> + ' — current';
             opt.selected = true;
             sectionSelect.appendChild(opt);
         }
@@ -267,7 +302,7 @@
         if (selectedId && ![...subjectSelect.options].some(function (o) { return String(o.value) === String(selectedId); })) {
             const opt = document.createElement('option');
             opt.value = selectedId;
-            opt.textContent = @json(($schedule->subject->subject_name ?? 'Current') . ' (' . ($schedule->subject->class ?? 'N/A') . ')') + ' — current';
+            opt.textContent = <?php echo json_encode(($schedule->subject->subject_name ?? 'Current') . ' (' . ($schedule->subject->class ?? 'N/A') . ')', 15, 512) ?> + ' — current';
             opt.selected = true;
             subjectSelect.appendChild(opt);
         }
@@ -350,5 +385,7 @@
     checkTimes();
 })();
 </script>
-@endpush
-@endsection
+<?php $__env->stopPush(); ?>
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/admin/schedules/edit.blade.php ENDPATH**/ ?>

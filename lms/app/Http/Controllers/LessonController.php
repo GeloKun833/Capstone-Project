@@ -63,8 +63,14 @@ class LessonController extends Controller
             'teacher_id' => Auth::user()->teacher ? Auth::user()->teacher->id : null
         ]);
 
-        $subjects = Subject::all();
-        $sections = Section::all();
+        if (Auth::user()->role_name === 'Teacher' && Auth::user()->teacher) {
+            $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor(Auth::user()->teacher);
+            $subjects = $assignmentOptions['subjects'];
+            $sections = $assignmentOptions['sections'];
+        } else {
+            $subjects = Subject::orderBy('class')->orderBy('subject_name')->get();
+            $sections = Section::orderBy('grade_level')->orderBy('name')->get();
+        }
         $academicYears = AcademicYear::all();
         $semesters = Semester::all();
 
@@ -183,16 +189,22 @@ class LessonController extends Controller
 
     public function edit(Lesson $lesson)
     {
+        $subjectsBySection = [];
         // Check if teacher owns this lesson
         if (Auth::user()->role_name === 'Teacher') {
             $teacher = Auth::user()->teacher;
-            if ($teacher && $lesson->teacher_id !== $teacher->id) {
+            if (!$teacher || $lesson->teacher_id !== $teacher->id) {
                 abort(403, 'Unauthorized action.');
             }
-        }
 
-        $subjects = Subject::all();
-        $sections = Section::all();
+            $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $subjects = $assignmentOptions['subjects'];
+            $sections = $assignmentOptions['sections'];
+            $subjectsBySection = $assignmentOptions['subjectsBySection'];
+        } else {
+            $subjects = Subject::orderBy('class')->orderBy('subject_name')->get();
+            $sections = Section::orderBy('grade_level')->orderBy('name')->get();
+        }
         $academicYears = AcademicYear::all();
         $semesters = Semester::all();
 
@@ -200,6 +212,7 @@ class LessonController extends Controller
             'lesson',
             'subjects',
             'sections',
+            'subjectsBySection',
             'academicYears',
             'semesters'
         ));
@@ -215,18 +228,45 @@ class LessonController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             }
-            $request->validate([
+            $rules = [
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
-                'subject_id' => 'required|exists:subjects,id',
-                'section_id' => 'required|exists:sections,id',
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'semester_id' => 'required|exists:semesters,id',
                 'lesson_date' => 'required|date',
                 'file' => 'nullable|file|max:10240|mimes:pdf,docx,ppt,pptx',
-            ], [
+            ];
+
+            $subjectsBySection = [];
+            if (Auth::user()->role_name === 'Teacher') {
+                $teacher = Auth::user()->teacher;
+                if (!$teacher || $lesson->teacher_id !== $teacher->id) {
+                    abort(403, 'Unauthorized action.');
+                }
+
+                $allowed = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+                $rules['subject_id'] = ['required', Rule::in($allowed['subjects']->pluck('id')->all())];
+                $rules['section_id'] = ['required', Rule::in($allowed['sections']->pluck('id')->all())];
+                $subjectsBySection = $allowed['subjectsBySection'];
+            } else {
+                $rules['subject_id'] = 'required|exists:subjects,id';
+                $rules['section_id'] = 'required|exists:sections,id';
+            }
+
+            $request->validate($rules, [
+                'subject_id.in' => 'Select a subject assigned to you by Admin.',
+                'section_id.in' => 'Select a section assigned to you by Admin.',
                 'file.mimes' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
             ]);
+
+            if (Auth::user()->role_name === 'Teacher') {
+                $validSubjectIds = array_map('intval', $subjectsBySection[(int) $request->section_id] ?? []);
+                if (! in_array((int) $request->subject_id, $validSubjectIds, true)) {
+                    return redirect()->back()->withInput()->withErrors([
+                        'subject_id' => 'That subject is not linked to the selected section in your teaching assignment.',
+                    ]);
+                }
+            }
             $data = $request->only([
                 'title',
                 'description',

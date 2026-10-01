@@ -214,7 +214,9 @@ class CalendarEventController extends Controller
         }
 
         $subjects = $this->subjectsForCalendarUser($user);
-        $teachers = Teacher::orderBy('full_name')->get(['id', 'full_name']);
+        $teachers = Teacher::whereHas('user', function ($query) {
+            $query->where('role_name', 'Teacher');
+        })->orderBy('full_name')->get(['id', 'full_name']);
         $rooms = Room::active()->orderBy('room_name')->get();
         $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
         $isAdmin = $user && $user->role_name === 'Admin';
@@ -232,7 +234,9 @@ class CalendarEventController extends Controller
         }
 
         $subjects = $this->subjectsForCalendarUser(Auth::user());
-        $teachers = Teacher::all();
+        $teachers = Teacher::whereHas('user', function ($query) {
+            $query->where('role_name', 'Teacher');
+        })->orderBy('full_name')->get();
         $rooms = Room::active()->get();
         $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
 
@@ -391,7 +395,9 @@ class CalendarEventController extends Controller
         }
 
         $subjects = $this->subjectsForCalendarUser(Auth::user());
-        $teachers = Teacher::all();
+        $teachers = Teacher::whereHas('user', function ($query) {
+            $query->where('role_name', 'Teacher');
+        })->orderBy('full_name')->get();
         $rooms = Room::active()->get();
         $eventTypes = ['exam', 'activity', 'meeting', 'deadline', 'holiday', 'other'];
 

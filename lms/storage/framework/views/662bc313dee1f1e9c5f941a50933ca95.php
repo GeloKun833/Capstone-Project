@@ -170,7 +170,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-2">
-                <p class="text-muted mb-0">This will remove the teacher record. This action cannot be undone.</p>
+                <p class="text-muted mb-0">This permanently deletes the teacher account and profile. Linked schedules and teacher assignments may also be removed.</p>
             </div>
             <div class="modal-footer border-0">
                 <form action="<?php echo e(route('teacher/delete')); ?>" method="POST" class="d-flex gap-2 w-100 justify-content-end">

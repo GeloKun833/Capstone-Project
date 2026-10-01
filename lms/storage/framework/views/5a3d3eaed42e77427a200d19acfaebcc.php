@@ -5,6 +5,14 @@
     $gpaRows = $gpaRecords ?? collect();
     $promotions = $promotionHistory ?? collect();
     $documents = collect($enrollmentDocuments ?? []);
+    $documentChecklist = collect(\App\Models\EnrollmentDocument::REQUIRED_DOCUMENT_TYPES)
+        ->map(function ($type) use ($documents) {
+            return [
+                'type' => $type,
+                'document' => $documents->firstWhere('document_type', $type),
+            ];
+        });
+    $additionalDocuments = $documents->whereNotIn('document_type', \App\Models\EnrollmentDocument::REQUIRED_DOCUMENT_TYPES);
     $lateCount = $lateCount ?? 0;
     $excusedCount = $excusedCount ?? 0;
     $sectionName = $sectionAssignment?->name ?? $student->sectionLabel();
@@ -322,32 +330,63 @@
         <div class="tab-pane fade" id="sis_documents">
             <section class="sis-card">
                 <div class="sis-card-head"><h3>Enrollment documents</h3></div>
-                <?php if($documents->isEmpty()): ?>
-                    <p class="sis-empty">No enrollment documents are on file yet.</p>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table class="sis-table">
-                            <thead>
+                <div class="table-responsive">
+                    <table class="sis-table">
+                        <thead>
+                            <tr>
+                                <th>Document type</th>
+                                <th>File name</th>
+                                <th>Status</th>
+                                <th>Uploaded</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $__currentLoopData = $documentChecklist; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php
+                                    $doc = $item['document'];
+                                    $status = match($doc?->status) {
+                                        'verified' => 'Approved',
+                                        'rejected' => 'Not approved',
+                                        'pending' => 'Pending review',
+                                        default => 'Need documents',
+                                    };
+                                ?>
                                 <tr>
-                                    <th>Document type</th>
-                                    <th>File name</th>
-                                    <th>Status</th>
-                                    <th>Uploaded</th>
+                                    <td><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$item['type']] ?? $item['type']); ?></td>
+                                    <td><?php echo e($doc?->file_name ?? '—'); ?></td>
+                                    <td>
+                                        <span class="sis-badge"><?php echo e($status); ?></span>
+                                        <?php if($doc?->verification_notes): ?>
+                                            <small class="d-block text-muted mt-1"><?php echo e($doc->verification_notes); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo e(optional($doc?->created_at)->format('M j, Y') ?: '—'); ?></td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php $__currentLoopData = $documents; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $doc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <tr>
-                                        <td><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type); ?></td>
-                                        <td><?php echo e($doc->file_name); ?></td>
-                                        <td><span class="sis-badge"><?php echo e(ucfirst($doc->status)); ?></span></td>
-                                        <td><?php echo e(optional($doc->created_at)->format('M j, Y') ?: '—'); ?></td>
-                                    </tr>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $additionalDocuments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $doc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php
+                                    $status = match($doc->status) {
+                                        'verified' => 'Approved',
+                                        'rejected' => 'Not approved',
+                                        'pending' => 'Pending review',
+                                        default => ucfirst($doc->status),
+                                    };
+                                ?>
+                                <tr>
+                                    <td><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type); ?></td>
+                                    <td><?php echo e($doc->file_name); ?></td>
+                                    <td>
+                                        <span class="sis-badge"><?php echo e($status); ?></span>
+                                        <?php if($doc->verification_notes): ?>
+                                            <small class="d-block text-muted mt-1"><?php echo e($doc->verification_notes); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo e(optional($doc->created_at)->format('M j, Y') ?: '—'); ?></td>
+                                </tr>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </tbody>
+                    </table>
+                </div>
             </section>
         </div>
     </div>

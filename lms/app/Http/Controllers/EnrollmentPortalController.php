@@ -43,6 +43,24 @@ class EnrollmentPortalController extends Controller
     {
         // Get student category
         $studentCategory = $request->input('student_category', 'new_student');
+        $gradeLevel = (string) $request->input('grade_level_applying_for', '');
+        $parentAccountRequested = $request->input('create_parent_account') === '1';
+        $parentAccountWillBeCreated = $this->shouldCreateParentAccount($gradeLevel, $parentAccountRequested);
+
+        $fatherName = trim(implode(' ', array_filter([
+            $request->input('father_first_name'),
+            $request->input('father_middle_name'),
+            $request->input('father_last_name'),
+        ])));
+        $motherName = trim(implode(' ', array_filter([
+            $request->input('mother_first_name'),
+            $request->input('mother_middle_name'),
+            $request->input('mother_last_name'),
+        ])));
+        $request->merge([
+            'parent_name' => $request->input('parent_name') ?: ($fatherName ?: ($motherName ?: $request->input('guardian_name'))),
+            'parent_email' => $request->input('parent_email') ?: ($request->input('father_email') ?: ($request->input('mother_email') ?: $request->input('guardian_email'))),
+        ]);
         
         // Base validation rules
         $rules = [
@@ -63,8 +81,8 @@ class EnrollmentPortalController extends Controller
             'date_enrolled' => 'nullable|date',
             'lrn' => 'nullable|string|max:255',
             'esc_no' => 'nullable|string|max:255',
-            'covid_vaccinated' => 'required|in:Yes,No',
-            'covid_first_shot_date' => 'nullable|date|required_if:covid_vaccinated,Yes',
+            'covid_vaccinated' => 'nullable|in:Yes,No',
+            'covid_first_shot_date' => 'nullable|date',
             'covid_full_vaccination_date' => 'nullable|date',
             'religion' => 'nullable|string|max:255',
             'citizenship' => 'nullable|string|max:255',
@@ -129,6 +147,11 @@ class EnrollmentPortalController extends Controller
             'id_photo' => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'parent_guardian_id' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ];
+
+        if ($parentAccountWillBeCreated) {
+            $rules['parent_name'] = 'required|string|max:255';
+            $rules['parent_email'] = 'required|email|different:email';
+        }
         
         // SF9 validation based on category
         if ($studentCategory === 'transferee') {
@@ -171,7 +194,6 @@ class EnrollmentPortalController extends Controller
                 'address_lot_block_village', 'address_barangay_district', 'address_city_municipality',
                 'age_years', 'age_months',
                 'date_enrolled', 'lrn', 'esc_no',
-                'covid_vaccinated', 'covid_first_shot_date', 'covid_full_vaccination_date',
                 'religion', 'citizenship', 'birthplace',
                 'previous_school', 'previous_school_id', 'previous_school_location', 'previous_school_type',
                 'psa_birth_cert_no',
@@ -233,19 +255,10 @@ class EnrollmentPortalController extends Controller
             $application = EnrollmentApplication::createUnique($applicationData);
 
             // Process required documents
-            $requiredDocuments = [
-                'birth_certificate',
-                'sf9',
-                'sf10', 
-                'good_moral',
-                'id_photo',
-                'parent_guardian_id'
-            ];
-            
             $uploadedDocuments = [];
             $missingDocuments = [];
             
-            foreach ($requiredDocuments as $documentType) {
+            foreach (EnrollmentDocument::REQUIRED_DOCUMENT_TYPES as $documentType) {
                 if ($request->hasFile($documentType)) {
                     $document = $request->file($documentType);
                     
@@ -298,7 +311,10 @@ class EnrollmentPortalController extends Controller
             }
             
             // Add account creation info
-            $createParentAccount = $request->input('create_parent_account', '1') === '1';
+            $createParentAccount = $this->shouldCreateParentAccount(
+                $application->grade_level_applying_for,
+                $request->input('create_parent_account')
+            );
             
             if ($createParentAccount) {
                 $successMessage .= "\n\n✅ Accounts Created:";
@@ -673,7 +689,10 @@ class EnrollmentPortalController extends Controller
         $parentPassword = null;
         $parentUser = null;
 
-        $shouldCreateParent = request()->input('create_parent_account', '1') === '1';
+        $shouldCreateParent = $this->shouldCreateParentAccount(
+            $application->grade_level_applying_for,
+            request()->input('create_parent_account')
+        );
 
         if ($shouldCreateParent && $application->parent_email && $application->parent_email !== $application->email) {
             $parentUser = User::where('email', $application->parent_email)
@@ -776,6 +795,24 @@ class EnrollmentPortalController extends Controller
                 'password' => $parentPassword,
             ] : null,
         ];
+    }
+
+    private function parentAccountRequiredForGrade(string $gradeLevel): bool
+    {
+        return in_array($gradeLevel, [
+            'Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3',
+            'Grade 4', 'Grade 5', 'Grade 6',
+        ], true);
+    }
+
+    private function shouldCreateParentAccount(string $gradeLevel, $requested): bool
+    {
+        if ($this->parentAccountRequiredForGrade($gradeLevel)) {
+            return true;
+        }
+
+        return in_array($gradeLevel, ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'], true)
+            && in_array($requested, [true, 1, '1', 'on'], true);
     }
 
     /**

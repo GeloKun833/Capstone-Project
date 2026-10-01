@@ -43,13 +43,6 @@
                 </a>
             </div>
 
-            <div class="top-nav-search">
-                <form>
-                    <input type="text" class="form-control"
-                           placeholder="<?php echo e(Session::get('role_name') === 'Teacher' ? 'Search students, classes, assignments...' : 'Search here'); ?>">
-                    <button class="btn" type="submit"><i class="fas fa-search"></i></button>
-                </form>
-            </div>
             <a class="mobile_btn" id="mobile_btn">
                 <i class="fas fa-bars"></i>
             </a>
@@ -72,8 +65,8 @@
                     <div class="dropdown-menu notifications">
                         <div class="topnav-dropdown-header">
                             <span class="notification-title">Notifications</span>
-                            <?php if(($headerUnreadCount ?? 0) > 0): ?>
-                                <a href="javascript:void(0)" class="clear-noti" onclick="markAllAsRead()"> Clear All </a>
+                            <?php if(collect($headerNotifications ?? [])->isNotEmpty()): ?>
+                                <a href="javascript:void(0)" class="clear-noti" onclick="clearAllNotifications()">Clear All</a>
                             <?php endif; ?>
                         </div>
                         <div class="noti-content">
@@ -545,6 +538,27 @@
                 },
                 error: function (xhr, status, error) {
                     console.error('Error marking all notifications as read:', error);
+                }
+            });
+        }
+
+        function clearAllNotifications() {
+            $.ajax({
+                url: '<?php echo e(route('notifications.clear-all')); ?>',
+                type: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function () {
+                    const list = document.querySelector('.notifications .notification-list');
+                    if (list) {
+                        list.innerHTML = '<li class="notification-message"><div class="media d-flex"><div class="media-body flex-grow-1 text-center"><p class="noti-details text-muted">No notifications</p></div></div></li>';
+                    }
+                    document.querySelector('.notifications .clear-noti')?.remove();
+                    $('.noti-dropdown .badge').remove();
+                },
+                error: function (xhr, status, error) {
+                    console.error('Error clearing notifications:', error);
                 }
             });
         }

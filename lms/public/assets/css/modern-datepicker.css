@@ -131,11 +131,31 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.25rem;
     margin-bottom: 0.4rem;
 }
-.mdp-event-month {
+.mdp-event-month-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+.mdp-event-select {
+    min-width: 0;
+    height: 28px;
+    padding: 0 0.2rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 0.78rem;
     font-weight: 700;
-    font-size: 0.92rem;
+}
+.mdp-event-select:first-child { width: 100px; }
+.mdp-event-select.mdp-event-year { width: 68px; }
+.mdp-event-select:focus {
+    outline: 2px solid #93c5fd;
+    outline-offset: 1px;
 }
 .mdp-event-nav {
     border: 0;

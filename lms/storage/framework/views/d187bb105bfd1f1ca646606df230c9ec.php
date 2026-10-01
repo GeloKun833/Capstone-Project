@@ -640,79 +640,6 @@ unset($__errorArgs, $__bag); ?>
                             </div>
                         </div>
                         
-                        <h6 class="fw-bold mb-3 mt-4 text-primary">COVID-19 Vaccination</h6>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">Vaccinated against COVID-19? <span class="text-danger">*</span></label>
-                                <select class="form-select <?php $__errorArgs = ['covid_vaccinated'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>" name="covid_vaccinated" id="covid_vaccinated" required>
-                                    <option value="">Select</option>
-                                    <option value="Yes" <?php echo e(old('covid_vaccinated') == 'Yes' ? 'selected' : ''); ?>>Yes</option>
-                                    <option value="No" <?php echo e(old('covid_vaccinated') == 'No' ? 'selected' : ''); ?>>No</option>
-                                </select>
-                                <?php $__errorArgs = ['covid_vaccinated'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?>
-                                    <div class="invalid-feedback"><?php echo e($message); ?></div>
-                                <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>
-                            </div>
-                            <div class="col-md-4" id="covid_first_shot_div" style="display: none;">
-                                <label class="form-label">Date of 1st Shot</label>
-                                <input type="date" class="form-control <?php $__errorArgs = ['covid_first_shot_date'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>" 
-                                       name="covid_first_shot_date" value="<?php echo e(old('covid_first_shot_date')); ?>">
-                                <?php $__errorArgs = ['covid_first_shot_date'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?>
-                                    <div class="invalid-feedback"><?php echo e($message); ?></div>
-                                <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>
-                            </div>
-                            <div class="col-md-4" id="covid_full_vacc_div" style="display: none;">
-                                <label class="form-label">Full Vaccination Date</label>
-                                <input type="date" class="form-control <?php $__errorArgs = ['covid_full_vaccination_date'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>" 
-                                       name="covid_full_vaccination_date" value="<?php echo e(old('covid_full_vaccination_date')); ?>">
-                                <?php $__errorArgs = ['covid_full_vaccination_date'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?>
-                                    <div class="invalid-feedback"><?php echo e($message); ?></div>
-                                <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>
-                            </div>
-                        </div>
-                        
                         <h6 class="fw-bold mb-3 mt-4 text-primary">Additional Information</h6>
                         <div class="row g-3">
                             <div class="col-md-4">
@@ -1578,28 +1505,38 @@ unset($__errorArgs, $__bag); ?>
                         <input type="hidden" name="parent_phone" id="parent_phone_auto" value="">
                         <input type="hidden" name="parent_relationship" id="parent_relationship_auto" value="">
                         
-                        <!-- Parent Account Creation Option -->
-                        <div class="row g-3 mt-4">
+                        <?php
+                            $parentPortalRequiredGrades = ['Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+                            $parentPortalOptionalGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+                            $initialGradeLevel = old('grade_level_applying_for', '');
+                            $parentPortalIsRequired = in_array($initialGradeLevel, $parentPortalRequiredGrades, true);
+                            $showParentPortalAccess = $parentPortalIsRequired || in_array($initialGradeLevel, $parentPortalOptionalGrades, true);
+                        ?>
+                        <div class="row g-3 mt-4" id="parent-portal-access" style="<?php echo e($showParentPortalAccess ? '' : 'display: none;'); ?>">
                             <div class="col-12">
                                 <div class="alert alert-info">
                                     <i class="fas fa-info-circle me-2"></i>
-                                    <strong>Parent Portal Access</strong>
+                                    <strong id="parent-portal-heading"><?php echo e($parentPortalIsRequired ? 'Parent Portal Access Required' : 'Parent Portal Access (Optional)'); ?></strong>
                                 </div>
                                 <div class="card border-primary">
                                     <div class="card-body">
                                         <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="create_parent_account" id="create_parent_account" value="1" <?php echo e(old('create_parent_account', '1') == '1' ? 'checked' : ''); ?>>
+                                            <input class="form-check-input" type="checkbox" name="create_parent_account" id="create_parent_account" value="1"
+                                                   <?php echo e($parentPortalIsRequired || ($showParentPortalAccess && old('create_parent_account') == '1') ? 'checked' : ''); ?>
+
+                                                   <?php echo e($parentPortalIsRequired ? 'disabled' : ''); ?>>
                                             <label class="form-check-label" for="create_parent_account">
-                                                <strong class="text-primary">✓ Create a parent/guardian account</strong>
+                                                <strong class="text-primary" id="parent-portal-checkbox-label"><?php echo e($parentPortalIsRequired ? 'Create a parent/guardian account (required)' : 'Create a parent/guardian account (optional)'); ?></strong>
                                             </label>
                                         </div>
                                         <div class="mt-2 ms-4">
                                             <p class="mb-2 text-muted">
                                                 <small>
                                                     <i class="fas fa-check-circle text-success me-1"></i>
-                                                    When checked, we will create a parent portal account where the parent/guardian can:
+                                                    <span id="parent-portal-description"><?php echo e($parentPortalIsRequired ? 'A parent portal account will be created where the parent/guardian can:' : 'Choose whether to create a parent portal account. When enabled, the parent/guardian can:'); ?></span>
                                                 </small>
                                             </p>
+                                            <p class="mb-2 text-muted"><small id="parent-portal-contact-note"><?php echo e($parentPortalIsRequired ? 'Enter a parent/guardian name and email in the family information section to create the required account.' : 'If you choose to create an account, enter a parent/guardian name and email in the family information section.'); ?></small></p>
                                             <ul class="mb-2" style="font-size: 0.875rem;">
                                                 <li class="text-muted">Monitor their child's academic progress and grades</li>
                                                 <li class="text-muted">View attendance records and schedules</li>
@@ -1612,17 +1549,31 @@ unset($__errorArgs, $__bag); ?>
                                                     <strong>Login Credentials:</strong> After you submit, a temporary password will be shown once on the success page. Save it and change it after first login.
                                                 </small>
                                             </p>
-                                            <p class="mb-0 mt-1">
-                                                <small class="text-muted">
-                                                    <i class="fas fa-info-circle text-info me-1"></i>
-                                                    <em>Uncheck this box if the student is enrolling themselves and parent access is not needed.</em>
-                                                </small>
-                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        <?php $__errorArgs = ['parent_name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                            <div class="text-danger small mt-2" role="alert"><?php echo e($message); ?></div>
+                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                        <?php $__errorArgs = ['parent_email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                            <div class="text-danger small mt-2" role="alert"><?php echo e($message); ?></div>
+                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                     </div>
                 </div>
             </div>
@@ -2852,6 +2803,52 @@ document.getElementById('grade_level_applying_for').addEventListener('change', f
     if (typeof loadSections === 'function') {
         loadSections(selectedGrade);
     }
+    updateParentPortalAccess(selectedGrade);
+});
+
+function updateParentPortalAccess(gradeLevel) {
+    const requiredGrades = ['Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+    const optionalGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+    const panel = document.getElementById('parent-portal-access');
+    const checkbox = document.getElementById('create_parent_account');
+    const heading = document.getElementById('parent-portal-heading');
+    const checkboxLabel = document.getElementById('parent-portal-checkbox-label');
+    const description = document.getElementById('parent-portal-description');
+    const contactNote = document.getElementById('parent-portal-contact-note');
+    const accessRequired = requiredGrades.includes(gradeLevel);
+    const accessOptional = optionalGrades.includes(gradeLevel);
+
+    panel.style.display = accessRequired || accessOptional ? '' : 'none';
+    checkbox.disabled = !accessOptional;
+    if (accessRequired) {
+        checkbox.checked = true;
+    } else if (!accessOptional) {
+        checkbox.checked = false;
+    }
+
+    heading.textContent = accessRequired ? 'Parent Portal Access Required' : 'Parent Portal Access (Optional)';
+    checkboxLabel.textContent = accessRequired
+        ? 'Create a parent/guardian account (required)'
+        : 'Create a parent/guardian account (optional)';
+    description.textContent = accessRequired
+        ? 'A parent portal account will be created where the parent/guardian can:'
+        : 'Choose whether to create a parent portal account. When enabled, the parent/guardian can:';
+    contactNote.textContent = accessRequired
+        ? 'Enter a parent/guardian name and email in the family information section to create the required account.'
+        : 'If you choose to create an account, enter a parent/guardian name and email in the family information section.';
+}
+
+const gradeLevelSelect = document.getElementById('grade_level_applying_for');
+const optionalParentPortalGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+let previousGradeAllowsOptionalParentPortal = optionalParentPortalGrades.includes(gradeLevelSelect.value);
+updateParentPortalAccess(gradeLevelSelect.value);
+gradeLevelSelect.addEventListener('change', function() {
+    const nextGradeAllowsOptionalParentPortal = optionalParentPortalGrades.includes(this.value);
+    if (nextGradeAllowsOptionalParentPortal && !previousGradeAllowsOptionalParentPortal) {
+        document.getElementById('create_parent_account').checked = false;
+    }
+    updateParentPortalAccess(this.value);
+    previousGradeAllowsOptionalParentPortal = nextGradeAllowsOptionalParentPortal;
 });
 
 // Birthdate calculation from month/date/year
@@ -2901,23 +2898,6 @@ function calculateAge() {
     }
 }
 
-// COVID vaccination fields visibility
-function toggleCovidFields() {
-    const vaccinated = document.getElementById('covid_vaccinated').value;
-    const firstShotDiv = document.getElementById('covid_first_shot_div');
-    const fullVaccDiv = document.getElementById('covid_full_vacc_div');
-    
-    if (vaccinated === 'Yes') {
-        firstShotDiv.style.display = 'block';
-        fullVaccDiv.style.display = 'block';
-    } else {
-        firstShotDiv.style.display = 'none';
-        fullVaccDiv.style.display = 'none';
-        document.querySelector('input[name="covid_first_shot_date"]').value = '';
-        document.querySelector('input[name="covid_full_vaccination_date"]').value = '';
-    }
-}
-
 // Auto-fill parent fields from father/mother
 function updateParentFields() {
     const fatherFirst = document.querySelector('input[name="father_first_name"]').value;
@@ -2959,13 +2939,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const birthDate = document.getElementById('birth_date');
     const birthYear = document.getElementById('birth_year');
     const dateOfBirth = document.getElementById('date_of_birth');
-    const covidVaccinated = document.getElementById('covid_vaccinated');
     
     if (birthMonth) birthMonth.addEventListener('change', updateBirthdate);
     if (birthDate) birthDate.addEventListener('change', updateBirthdate);
     if (birthYear) birthYear.addEventListener('change', updateBirthdate);
     if (dateOfBirth) dateOfBirth.addEventListener('change', calculateAge);
-    if (covidVaccinated) covidVaccinated.addEventListener('change', toggleCovidFields);
     
     // Auto-fill parent fields when father/mother fields change
     const parentFields = ['father_first_name', 'father_last_name', 'father_email', 'father_contact_no', 

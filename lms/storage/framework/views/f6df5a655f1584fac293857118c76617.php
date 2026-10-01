@@ -533,7 +533,7 @@
                     <div class="ep-card-header">
                         <h5 class="card-title mb-0">
                             <i class="fas fa-file-alt me-2"></i>Documents Status
-                            <span class="badge bg-info ms-2"><?php echo e($application->documents->count()); ?>/6 uploaded</span>
+                            <span class="badge bg-info ms-2"><?php echo e($application->documents->count()); ?>/6 recorded</span>
                         </h5>
                     </div>
                     <div class="ep-card-body">
@@ -556,7 +556,7 @@
                             <div class="col-md-6">
                                 <div class="alert alert-success">
                                     <i class="fas fa-check-circle me-2"></i>
-                                    <strong>Uploaded Documents:</strong> <?php echo e($application->documents->count()); ?>
+                                    <strong>Documents on file:</strong> <?php echo e($application->documents->count()); ?>
 
                                 </div>
                             </div>
@@ -581,6 +581,47 @@
                                 </ul>
                             </div>
                         <?php endif; ?>
+
+                        <?php if(count($missingDocuments) > 0): ?>
+                            <div class="table-responsive mb-4">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Missing document</th>
+                                            <th>Record face-to-face review</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php $__currentLoopData = $missingDocuments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $missingType): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <tr>
+                                                <td><?php echo e($requiredDocuments[$missingType]); ?></td>
+                                                <td>
+                                                    <div class="d-flex flex-wrap gap-2 align-items-start">
+                                                        <form action="<?php echo e(route('enrollment.registrar.document.record-in-person', $application->id)); ?>" method="POST">
+                                                            <?php echo csrf_field(); ?>
+                                                            <input type="hidden" name="document_type" value="<?php echo e($missingType); ?>">
+                                                            <input type="hidden" name="status" value="verified">
+                                                            <button type="submit" class="btn btn-sm btn-success">
+                                                                <i class="fas fa-check me-1"></i>Mark approved
+                                                            </button>
+                                                        </form>
+                                                        <form action="<?php echo e(route('enrollment.registrar.document.record-in-person', $application->id)); ?>" method="POST" class="d-flex flex-wrap gap-2">
+                                                            <?php echo csrf_field(); ?>
+                                                            <input type="hidden" name="document_type" value="<?php echo e($missingType); ?>">
+                                                            <input type="hidden" name="status" value="rejected">
+                                                            <input type="text" name="verification_notes" class="form-control form-control-sm" placeholder="Reason required" aria-label="Reason for not approving <?php echo e($requiredDocuments[$missingType]); ?>" required maxlength="500">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                                <i class="fas fa-times me-1"></i>Not approved
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
                         
                         <?php if($application->documents->count() > 0): ?>
                             <div class="table-responsive">
@@ -600,7 +641,7 @@
                                                 <td>
                                                     <strong><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$document->document_type] ?? $document->document_type); ?></strong>
                                                 </td>
-                                                <td><?php echo e($document->file_name); ?></td>
+                                                <td><?php echo e($document->submission_method === 'in_person' ? 'Received in person' : $document->file_name); ?></td>
                                                 <td><?php echo e($document->file_size_formatted); ?></td>
                                                 <td>
                                                     <span class="badge bg-<?php echo e($document->status_badge); ?>">
@@ -610,10 +651,11 @@
                                                 </td>
                                                 <td>
                                                     <div class="btn-group">
-                                                        <a href="<?php echo e(route('enrollment.portal.download-document', $document->id)); ?>" 
-                                                           class="btn btn-sm btn-outline-primary">
-                                                            <i class="fas fa-download"></i>
-                                                        </a>
+                                                        <?php if($document->submission_method !== 'in_person'): ?>
+                                                            <a href="<?php echo e(route('enrollment.portal.download-document', $document->id)); ?>" class="btn btn-sm btn-outline-primary">
+                                                                <i class="fas fa-download"></i>
+                                                            </a>
+                                                        <?php endif; ?>
                                                         <?php if($document->status === 'pending'): ?>
                                                             <button type="button" class="btn btn-sm btn-success" 
                                                                     onclick="openVerifyModal(<?php echo e($document->id); ?>)"

@@ -169,21 +169,34 @@
                                             if ($endM <= $startM) {
                                                 $endM = $startM + 30;
                                             }
+                                            $durationMinutes = $endM - $startM;
                                             $topPct = (($startM - $gridStart) / $spanMinutes) * 100;
-                                            $heightPct = (($endM - $startM) / $spanMinutes) * 100;
+                                            $heightPct = ($durationMinutes / $spanMinutes) * 100;
                                             $color = $schedule->color ?: '#7c8cff';
                                             $startLabel = $formatMinutes($startM);
                                             $endLabel = $formatMinutes($endM);
+                                            $subjectName = $schedule->subject->subject_name ?? 'Subject';
+                                            $sectionName = $schedule->section->name ?? 'Section';
+                                            $gradeName = $schedule->section?->grade_level ?? '';
+                                            $roomName = $schedule->room->room_name ?? 'Room TBD';
                                         ?>
                                         <article class="plan-event"
+                                                 role="button" tabindex="0"
+                                                 aria-label="<?php echo e($subjectName); ?>, <?php echo e($day); ?>, <?php echo e($startLabel); ?> to <?php echo e($endLabel); ?>. View class details."
+                                                 data-subject="<?php echo e($subjectName); ?>"
+                                                 data-code="<?php echo e($schedule->subject->subject_id ?? ''); ?>"
+                                                 data-day="<?php echo e(ucfirst($day)); ?>"
+                                                 data-start="<?php echo e($startLabel); ?>"
+                                                 data-end="<?php echo e($endLabel); ?>"
+                                                 data-section="<?php echo e($sectionName); ?>"
+                                                 data-grade="<?php echo e($gradeName); ?>"
+                                                 data-room="<?php echo e($roomName); ?>"
+                                                 data-color="<?php echo e($color); ?>"
                                                  style="top: <?php echo e($topPct); ?>%; --block-h: calc(<?php echo e($heightPct); ?>% - 4px); --event: <?php echo e($color); ?>;">
-                                            <?php if($schedule->subject->subject_id): ?>
-                                                <div class="plan-event-code"><?php echo e($schedule->subject->subject_id); ?></div>
+                                            <span class="plan-event-name"><?php echo e($subjectName); ?></span>
+                                            <?php if($durationMinutes >= 60): ?>
+                                                <span class="plan-event-time"><?php echo e($startLabel); ?> – <?php echo e($endLabel); ?></span>
                                             <?php endif; ?>
-                                            <div class="plan-event-name"><?php echo e($schedule->subject->subject_name); ?></div>
-                                            <div class="plan-event-time"><?php echo e($startLabel); ?> – <?php echo e($endLabel); ?></div>
-                                            <div class="plan-event-meta"><?php echo e($schedule->section->name); ?><?php if($schedule->section?->grade_level): ?> · <?php echo e($schedule->section->grade_level); ?><?php endif; ?></div>
-                                            <div class="plan-event-meta"><?php echo e($schedule->room->room_name ?? 'Room TBD'); ?></div>
                                         </article>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
@@ -192,6 +205,28 @@
                     </div>
                 <?php endif; ?>
             </section>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="scheduleEventModal" tabindex="-1" aria-labelledby="scheduleEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="scheduleEventModalHeader">
+                <h5 class="modal-title" id="scheduleEventModalLabel">Class details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row mb-0">
+                    <dt class="col-4">Subject</dt><dd class="col-8" id="scheduleDetailSubject">—</dd>
+                    <dt class="col-4">Subject code</dt><dd class="col-8" id="scheduleDetailCode">—</dd>
+                    <dt class="col-4">Day</dt><dd class="col-8" id="scheduleDetailDay">—</dd>
+                    <dt class="col-4">Time</dt><dd class="col-8" id="scheduleDetailTime">—</dd>
+                    <dt class="col-4">Section</dt><dd class="col-8" id="scheduleDetailSection">—</dd>
+                    <dt class="col-4">Grade</dt><dd class="col-8" id="scheduleDetailGrade">—</dd>
+                    <dt class="col-4">Room</dt><dd class="col-8 mb-0" id="scheduleDetailRoom">—</dd>
+                </dl>
+            </div>
         </div>
     </div>
 </div>
@@ -420,16 +455,25 @@
     left: 6px;
     right: 6px;
     z-index: 2;
-    min-height: max(5.75rem, var(--block-h, 5.75rem));
-    height: auto;
-    padding: 0.5rem 0.65rem 0.5rem 0.75rem;
-    border-radius: 12px;
-    overflow: visible;
+    height: var(--block-h);
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 0 0.45rem 0 0.6rem;
+    border-radius: 8px;
+    overflow: hidden;
     background: color-mix(in srgb, var(--event) 18%, #fff);
     box-shadow: inset 4px 0 0 var(--event);
-    color: color-mix(in srgb, var(--event) 42%, #1e293b);
+    color: var(--event);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .plan-event:hover { z-index: 8; }
+.plan-event:focus-visible {
+    outline: 2px solid var(--event);
+    outline-offset: 1px;
+}
 .plan-event-code {
     font-size: 0.68rem;
     font-weight: 750;
@@ -438,23 +482,23 @@
     margin-bottom: 0.1rem;
 }
 .plan-event-name {
-    font-size: 0.88rem;
+    display: block;
+    min-width: 0;
+    font-size: 0.72rem;
     font-weight: 750;
-    line-height: 1.3;
-    margin-bottom: 0.18rem;
-    white-space: normal;
-    overflow: visible;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.plan-event-time,
-.plan-event-meta {
-    font-size: 0.74rem;
+.plan-event-time {
+    display: block;
+    font-size: 0.64rem;
     font-weight: 650;
-    opacity: 0.88;
-    line-height: 1.35;
-    white-space: normal;
-    overflow: visible;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
 }
-.plan-event-meta { opacity: 0.78; }
 @media (max-width: 1100px) {
     .plan-shell {
         grid-template-columns: 1fr;
@@ -464,6 +508,41 @@
     .plan-board { min-height: 70vh; }
 }
 </style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modalElement = document.getElementById('scheduleEventModal');
+    if (!modalElement || !window.bootstrap) return;
+
+    function showScheduleDetails(eventElement) {
+        document.getElementById('scheduleEventModalLabel').textContent = eventElement.dataset.subject || 'Class details';
+        document.getElementById('scheduleDetailSubject').textContent = eventElement.dataset.subject || '—';
+        document.getElementById('scheduleDetailCode').textContent = eventElement.dataset.code || '—';
+        document.getElementById('scheduleDetailDay').textContent = eventElement.dataset.day || '—';
+        document.getElementById('scheduleDetailTime').textContent =
+            (eventElement.dataset.start || '—') + ' – ' + (eventElement.dataset.end || '—');
+        document.getElementById('scheduleDetailSection').textContent = eventElement.dataset.section || '—';
+        document.getElementById('scheduleDetailGrade').textContent = eventElement.dataset.grade || '—';
+        document.getElementById('scheduleDetailRoom').textContent = eventElement.dataset.room || '—';
+        document.getElementById('scheduleEventModalHeader').style.borderTop = '4px solid ' + eventElement.dataset.color;
+        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    }
+
+    document.querySelectorAll('.plan-event').forEach(function(eventElement) {
+        eventElement.addEventListener('click', function() {
+            showScheduleDetails(eventElement);
+        });
+        eventElement.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                showScheduleDetails(eventElement);
+            }
+        });
+    });
+});
+</script>
 <?php $__env->stopPush(); ?>
 
 <?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/schedule/teacher-schedule.blade.php ENDPATH**/ ?>

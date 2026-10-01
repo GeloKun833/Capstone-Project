@@ -131,7 +131,7 @@ unset($__errorArgs, $__bag); ?>" id="subject_id" name="subject_id" required>
                                                     <option value="">Select Subject</option>
                                                     <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                         <option value="<?php echo e($subject->id); ?>" <?php echo e(old('subject_id', $lesson->subject_id) == $subject->id ? 'selected' : ''); ?>>
-                                                            <?php echo e($subject->subject_name); ?>
+                                                            <?php echo e($subject->subject_name); ?><?php echo e($subject->class ? ' (' . $subject->class . ')' : ''); ?>
 
                                                         </option>
                                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -619,6 +619,33 @@ unset($__errorArgs, $__bag); ?>
 <?php $__env->startPush('scripts'); ?>
 <script>
 $(document).ready(function() {
+    const subjectsBySection = <?php echo json_encode($subjectsBySection ?? [], 15, 512) ?>;
+    const subjects = <?php echo json_encode($subjects->map(function ($subject) {
+        return [
+            'id' => $subject->id, 'label' => $subject->subject_name . ($subject->class ? ' (' . $subject->class . ')' : ''), ];
+    })->values()) ?>;
+
+    function filterAssignedSubjects() {
+        if (!Object.keys(subjectsBySection).length) return;
+
+        const sectionId = String($('#section_id').val() || '');
+        const selectedSubjectId = String($('#subject_id').val() || '');
+        const allowedIds = (subjectsBySection[sectionId] || []).map(String);
+        const $subject = $('#subject_id').empty();
+        $subject.append(new Option(sectionId ? 'Select Subject' : 'Select Section First', ''));
+
+        subjects.forEach(function(subject) {
+            if (allowedIds.includes(String(subject.id))) {
+                $subject.append(new Option(subject.label, subject.id, false, String(subject.id) === selectedSubjectId));
+            }
+        });
+
+        $subject.prop('disabled', !sectionId || !allowedIds.length);
+        if (sectionId && !allowedIds.length) {
+            $subject.empty().append(new Option('No subjects assigned to this section', ''));
+        }
+    }
+
     // Update preview on form changes
     function updatePreview() {
         const subjectSelect = $('#subject_id option:selected');
@@ -638,8 +665,15 @@ $(document).ready(function() {
     }
     
     // Bind preview updates to form changes
-    $('#subject_id, #section_id, #academic_year_id, #semester_id').on('change', updatePreview);
+    $('#section_id').on('change', function() {
+        filterAssignedSubjects();
+        updatePreview();
+    });
+    $('#subject_id, #academic_year_id, #semester_id').on('change', updatePreview);
     $('#title, #description').on('input', updatePreview);
+
+    filterAssignedSubjects();
+    updatePreview();
     
     // Form validation
     $('#lessonForm').on('submit', function(e) {

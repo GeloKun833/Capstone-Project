@@ -1,5 +1,4 @@
-@extends('layouts.master')
-@section('content')
+<?php $__env->startSection('content'); ?>
 
 <div class="page-wrapper">
     <div class="content container-fluid dir-page">
@@ -11,7 +10,7 @@
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-0">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">Teachers</li>
                     </ul>
                 </div>
@@ -19,24 +18,24 @@
         </div>
 
         <div class="dir-card dir-filters">
-            <form method="GET" action="{{ route('teacher/list/page') }}">
+            <form method="GET" action="<?php echo e(route('teacher/list/page')); ?>">
                 <div class="row g-2 align-items-end">
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Teacher ID</label>
-                        <input type="text" name="search_id" class="form-control" placeholder="Search by ID" value="{{ request('search_id') }}">
+                        <input type="text" name="search_id" class="form-control" placeholder="Search by ID" value="<?php echo e(request('search_id')); ?>">
                     </div>
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Name</label>
-                        <input type="text" name="search_name" class="form-control" placeholder="Search by name" value="{{ request('search_name') }}">
+                        <input type="text" name="search_name" class="form-control" placeholder="Search by name" value="<?php echo e(request('search_name')); ?>">
                     </div>
                     <div class="col-lg-4 col-md-6">
                         <label class="form-label">Phone</label>
-                        <input type="text" name="search_phone" class="form-control" placeholder="Search by phone" value="{{ request('search_phone') }}">
+                        <input type="text" name="search_phone" class="form-control" placeholder="Search by phone" value="<?php echo e(request('search_phone')); ?>">
                     </div>
                     <div class="col-lg-2 col-md-6 pb-3">
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary dir-btn flex-fill">Search</button>
-                            <a href="{{ route('teacher/list/page') }}" class="btn btn-outline-secondary dir-btn">Clear</a>
+                            <a href="<?php echo e(route('teacher/list/page')); ?>" class="btn btn-outline-secondary dir-btn">Clear</a>
                         </div>
                     </div>
                 </div>
@@ -47,20 +46,20 @@
             <div class="dir-toolbar">
                 <div>
                     <h5 class="dir-toolbar-title">All teachers</h5>
-                    <span class="dir-count mt-1">{{ method_exists($listTeacher, 'total') ? $listTeacher->total() : $listTeacher->count() }} records</span>
+                    <span class="dir-count mt-1"><?php echo e(method_exists($listTeacher, 'total') ? $listTeacher->total() : $listTeacher->count()); ?> records</span>
                 </div>
                 <div class="dir-actions">
-                    <form action="{{ route('teacher/sync-users') }}" method="POST" class="d-inline">
-                        @csrf
+                    <form action="<?php echo e(route('teacher/sync-users')); ?>" method="POST" class="d-inline">
+                        <?php echo csrf_field(); ?>
                         <button type="submit" class="btn btn-outline-secondary dir-btn btn-sm" title="Sync existing teacher users">
                             <i class="fas fa-sync-alt me-1"></i> Sync
                         </button>
                     </form>
                     <div class="dir-toggle" role="group" aria-label="View">
-                        <a href="{{ route('teacher/list/page') }}" class="is-active" title="List view"><i class="fa fa-list"></i></a>
-                        <a href="{{ route('teacher/grid/page') }}" title="Grid view"><i class="fa fa-th"></i></a>
+                        <a href="<?php echo e(route('teacher/list/page')); ?>" class="is-active" title="List view"><i class="fa fa-list"></i></a>
+                        <a href="<?php echo e(route('teacher/grid/page')); ?>" title="Grid view"><i class="fa fa-th"></i></a>
                     </div>
-                    <a href="{{ route('teacher/add/page') }}" class="btn btn-primary dir-btn btn-sm">
+                    <a href="<?php echo e(route('teacher/add/page')); ?>" class="btn btn-primary dir-btn btn-sm">
                         <i class="fas fa-plus me-1"></i> Add
                     </a>
                 </div>
@@ -82,58 +81,58 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse ($listTeacher as $list)
-                            @php
+                        <?php $__empty_1 = true; $__currentLoopData = $listTeacher; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $list): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                            <?php
                                 $tName = $list->full_name ?: ($list->user_name ?? ($list->user->name ?? 'Unnamed Teacher'));
                                 $tPhoto = \App\Support\AvatarUploader::url(optional($list->user)->avatar ?? $list->avatar ?? null);
                                 $classes = ($list->subjects && $list->subjects->isNotEmpty()) ? $list->subjects->pluck('class')->unique()->filter()->implode(', ') : null;
                                 $subjects = ($list->subjects && $list->subjects->isNotEmpty()) ? $list->subjects->pluck('subject_name')->filter()->implode(', ') : null;
                                 $sections = ($list->sections && $list->sections->isNotEmpty()) ? $list->sections->pluck('name')->filter()->implode(', ') : null;
-                            @endphp
+                            ?>
                             <tr>
-                                <td hidden class="user_id">{{ $list->user_id }}</td>
-                                <td class="text-muted">{{ $list->user_id }}</td>
+                                <td hidden class="user_id"><?php echo e($list->user_id); ?></td>
+                                <td class="text-muted"><?php echo e($list->user_id); ?></td>
                                 <td>
                                     <div class="dir-person">
-                                        <a href="{{ url('teacher/sis/'.$list->user_id) }}">
-                                            <img src="{{ $tPhoto }}" alt="{{ $tName }}" onerror="this.onerror=null;this.src='{{ asset('images/photo_defaults.jpg') }}';">
+                                        <a href="<?php echo e(url('teacher/sis/'.$list->user_id)); ?>">
+                                            <img src="<?php echo e($tPhoto); ?>" alt="<?php echo e($tName); ?>" onerror="this.onerror=null;this.src='<?php echo e(asset('images/photo_defaults.jpg')); ?>';">
                                         </a>
                                         <span>
-                                            <a href="{{ url('teacher/sis/'.$list->user_id) }}" class="dir-person-name">{{ $tName }}</a>
+                                            <a href="<?php echo e(url('teacher/sis/'.$list->user_id)); ?>" class="dir-person-name"><?php echo e($tName); ?></a>
                                             <span class="dir-person-meta">Teacher</span>
                                         </span>
                                     </div>
                                 </td>
                                 <td>
-                                    @if($classes)
-                                        <span class="dir-chip" title="{{ $classes }}">{{ \Illuminate\Support\Str::limit($classes, 28) }}</span>
-                                    @else
+                                    <?php if($classes): ?>
+                                        <span class="dir-chip" title="<?php echo e($classes); ?>"><?php echo e(\Illuminate\Support\Str::limit($classes, 28)); ?></span>
+                                    <?php else: ?>
                                         <span class="dir-muted">Not assigned</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
-                                <td>{{ $list->gender ?: '—' }}</td>
+                                <td><?php echo e($list->gender ?: '—'); ?></td>
                                 <td>
-                                    @if($subjects)
-                                        <span class="dir-muted" title="{{ $subjects }}">{{ \Illuminate\Support\Str::limit($subjects, 42) }}</span>
-                                    @else
+                                    <?php if($subjects): ?>
+                                        <span class="dir-muted" title="<?php echo e($subjects); ?>"><?php echo e(\Illuminate\Support\Str::limit($subjects, 42)); ?></span>
+                                    <?php else: ?>
                                         <span class="dir-muted">Not assigned</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                                 <td>
-                                    @if($sections)
-                                        <span class="dir-chip dir-chip--soft">{{ \Illuminate\Support\Str::limit($sections, 24) }}</span>
-                                    @else
+                                    <?php if($sections): ?>
+                                        <span class="dir-chip dir-chip--soft"><?php echo e(\Illuminate\Support\Str::limit($sections, 24)); ?></span>
+                                    <?php else: ?>
                                         <span class="dir-muted">Not assigned</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
-                                <td>{{ $list->phone_number ?: '—' }}</td>
-                                <td><span class="dir-muted">{{ $list->address ?: '—' }}</span></td>
+                                <td><?php echo e($list->phone_number ?: '—'); ?></td>
+                                <td><span class="dir-muted"><?php echo e($list->address ?: '—'); ?></span></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-1 justify-content-end">
-                                        <a href="{{ url('teacher/sis/'.$list->user_id) }}" class="dir-icon-btn is-success" title="Teacher Information System">
+                                        <a href="<?php echo e(url('teacher/sis/'.$list->user_id)); ?>" class="dir-icon-btn is-success" title="Teacher Information System">
                                             <i class="fas fa-id-card"></i>
                                         </a>
-                                        <a href="{{ url('teacher/edit/'.$list->user_id) }}" class="dir-icon-btn" title="Edit teacher">
+                                        <a href="<?php echo e(url('teacher/edit/'.$list->user_id)); ?>" class="dir-icon-btn" title="Edit teacher">
                                             <i class="far fa-edit"></i>
                                         </a>
                                         <a class="dir-icon-btn is-danger teacher_delete" data-bs-toggle="modal" data-bs-target="#teacherDelete" title="Delete teacher">
@@ -142,7 +141,7 @@
                                     </div>
                                 </td>
                             </tr>
-                        @empty
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                             <tr>
                                 <td colspan="9">
                                     <div class="dir-empty">
@@ -152,13 +151,13 @@
                                     </div>
                                 </td>
                             </tr>
-                        @endforelse
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-            @if(method_exists($listTeacher, 'links'))
-                <div class="d-flex justify-content-center py-3">{{ $listTeacher->links() }}</div>
-            @endif
+            <?php if(method_exists($listTeacher, 'links')): ?>
+                <div class="d-flex justify-content-center py-3"><?php echo e($listTeacher->links()); ?></div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -174,8 +173,8 @@
                 <p class="text-muted mb-0">This permanently deletes the teacher account and profile. Linked schedules and teacher assignments may also be removed.</p>
             </div>
             <div class="modal-footer border-0">
-                <form action="{{ route('teacher/delete') }}" method="POST" class="d-flex gap-2 w-100 justify-content-end">
-                    @csrf
+                <form action="<?php echo e(route('teacher/delete')); ?>" method="POST" class="d-flex gap-2 w-100 justify-content-end">
+                    <?php echo csrf_field(); ?>
                     <input type="hidden" name="id" class="e_user_id" value="">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">Delete</button>
@@ -185,17 +184,19 @@
     </div>
 </div>
 
-@section('script')
+<?php $__env->startSection('script'); ?>
 <script>
     $(document).on('click', '.teacher_delete', function () {
         var _this = $(this).closest('tr');
         $('.e_user_id').val(_this.find('.user_id').text());
     });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914b">
-@endpush
+<?php $__env->startPush('styles'); ?>
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914b">
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/teacher/list-teachers.blade.php ENDPATH**/ ?>

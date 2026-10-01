@@ -15,9 +15,6 @@
                 </div>
                 <div class="col-12 col-sm-6">
                     <div class="float-end d-flex flex-wrap gap-2">
-                        <a href="{{ url('teacher/edit/'.$user->user_id) }}" class="btn btn-outline-primary">
-                            <i class="fas fa-edit me-1"></i>Edit Teacher
-                        </a>
                         <a href="{{ url('view/user/edit/'.$user->user_id) }}" class="btn btn-outline-info">
                             <i class="fas fa-user-edit me-1"></i>Edit User
                         </a>

@@ -5,6 +5,14 @@
     $gpaRows = $gpaRecords ?? collect();
     $promotions = $promotionHistory ?? collect();
     $documents = collect($enrollmentDocuments ?? []);
+    $documentChecklist = collect(\App\Models\EnrollmentDocument::REQUIRED_DOCUMENT_TYPES)
+        ->map(function ($type) use ($documents) {
+            return [
+                'type' => $type,
+                'document' => $documents->firstWhere('document_type', $type),
+            ];
+        });
+    $additionalDocuments = $documents->whereNotIn('document_type', \App\Models\EnrollmentDocument::REQUIRED_DOCUMENT_TYPES);
     $lateCount = $lateCount ?? 0;
     $excusedCount = $excusedCount ?? 0;
     $sectionName = $sectionAssignment?->name ?? $student->sectionLabel();
@@ -322,32 +330,63 @@
         <div class="tab-pane fade" id="sis_documents">
             <section class="sis-card">
                 <div class="sis-card-head"><h3>Enrollment documents</h3></div>
-                @if($documents->isEmpty())
-                    <p class="sis-empty">No enrollment documents are on file yet.</p>
-                @else
-                    <div class="table-responsive">
-                        <table class="sis-table">
-                            <thead>
+                <div class="table-responsive">
+                    <table class="sis-table">
+                        <thead>
+                            <tr>
+                                <th>Document type</th>
+                                <th>File name</th>
+                                <th>Status</th>
+                                <th>Uploaded</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($documentChecklist as $item)
+                                @php
+                                    $doc = $item['document'];
+                                    $status = match($doc?->status) {
+                                        'verified' => 'Approved',
+                                        'rejected' => 'Not approved',
+                                        'pending' => 'Pending review',
+                                        default => 'Need documents',
+                                    };
+                                @endphp
                                 <tr>
-                                    <th>Document type</th>
-                                    <th>File name</th>
-                                    <th>Status</th>
-                                    <th>Uploaded</th>
+                                    <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$item['type']] ?? $item['type'] }}</td>
+                                    <td>{{ $doc?->file_name ?? '—' }}</td>
+                                    <td>
+                                        <span class="sis-badge">{{ $status }}</span>
+                                        @if($doc?->verification_notes)
+                                            <small class="d-block text-muted mt-1">{{ $doc->verification_notes }}</small>
+                                        @endif
+                                    </td>
+                                    <td>{{ optional($doc?->created_at)->format('M j, Y') ?: '—' }}</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($documents as $doc)
-                                    <tr>
-                                        <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type }}</td>
-                                        <td>{{ $doc->file_name }}</td>
-                                        <td><span class="sis-badge">{{ ucfirst($doc->status) }}</span></td>
-                                        <td>{{ optional($doc->created_at)->format('M j, Y') ?: '—' }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
+                            @endforeach
+                            @foreach($additionalDocuments as $doc)
+                                @php
+                                    $status = match($doc->status) {
+                                        'verified' => 'Approved',
+                                        'rejected' => 'Not approved',
+                                        'pending' => 'Pending review',
+                                        default => ucfirst($doc->status),
+                                    };
+                                @endphp
+                                <tr>
+                                    <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type }}</td>
+                                    <td>{{ $doc->file_name }}</td>
+                                    <td>
+                                        <span class="sis-badge">{{ $status }}</span>
+                                        @if($doc->verification_notes)
+                                            <small class="d-block text-muted mt-1">{{ $doc->verification_notes }}</small>
+                                        @endif
+                                    </td>
+                                    <td>{{ optional($doc->created_at)->format('M j, Y') ?: '—' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </section>
         </div>
     </div>

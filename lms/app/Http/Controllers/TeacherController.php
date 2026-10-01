@@ -209,12 +209,16 @@ class TeacherController extends Controller
     {
         DB::beginTransaction();
         try {
-            // Find teacher by user_id and delete
+            // Delete both records so Class & Subject sync cannot recreate this teacher.
             $teacher = Teacher::where('user_id', $request->id)->first();
             if ($teacher) {
+                $teacherUser = User::where('user_id', $teacher->user_id)
+                    ->where('role_name', 'Teacher')
+                    ->first();
                 $teacher->delete();
+                $teacherUser?->delete();
                 DB::commit();
-                Toastr::success('Deleted record successfully :)','Success');
+                Toastr::success('Teacher account and profile deleted successfully.','Success');
             } else {
                 Toastr::error('Teacher not found :)','Error');
             }

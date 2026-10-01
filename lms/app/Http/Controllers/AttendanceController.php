@@ -428,6 +428,24 @@ class AttendanceController extends Controller
             return back()->with('error', 'You do not have permission to export attendance.');
         }
 
+        $teacherSectionIds = [];
+        if ($teacher) {
+            $subjectsBySection = app(TeacherClassAssignmentService::class)->optionsFor($teacher)['subjectsBySection'];
+            $teacherSectionIds = array_map('intval', array_keys($subjectsBySection));
+            $assignedSubjectIds = collect($subjectsBySection)->flatten()->map(fn ($id) => (int) $id)->unique()->all();
+
+            if ($request->filled('section_id') && ! in_array((int) $request->input('section_id'), $teacherSectionIds, true)) {
+                abort(403, 'You can only export attendance for your assigned sections.');
+            }
+            if ($request->filled('subject_id') && ! in_array((int) $request->input('subject_id'), $assignedSubjectIds, true)) {
+                abort(403, 'You can only export attendance for your assigned subjects.');
+            }
+            if ($request->filled('section_id') && $request->filled('subject_id')
+                && ! in_array((int) $request->input('subject_id'), array_map('intval', $subjectsBySection[(int) $request->input('section_id')] ?? []), true)) {
+                abort(403, 'This subject is not assigned to you in the selected section.');
+            }
+        }
+
         $subjects = Subject::orderBy('subject_name')->get();
         $subjectId = $request->input('subject_id');
         $sectionId = $request->input('section_id');
@@ -439,6 +457,12 @@ class AttendanceController extends Controller
 
         // Get students for the subject/section or all
         $studentsQuery = Student::query();
+
+        if ($teacher) {
+            $studentsQuery->whereHas('sections', function ($query) use ($teacherSectionIds) {
+                $query->whereIn('sections.id', $teacherSectionIds);
+            });
+        }
         
         if ($sectionId) {
             $studentsQuery->whereHas('sections', function($q) use ($sectionId) {

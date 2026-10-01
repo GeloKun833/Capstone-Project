@@ -29,6 +29,8 @@ class AnalyticsController extends Controller
      */
     public function adminDashboard(Request $request)
     {
+        abort_unless(Auth::user()?->role_name === User::ROLE_ADMIN, 403);
+
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
 

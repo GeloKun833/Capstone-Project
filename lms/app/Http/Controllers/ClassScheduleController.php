@@ -295,7 +295,9 @@ class ClassScheduleController extends Controller
         
         // Get filter data
         $sections = \App\Models\Section::orderBy('grade_level')->orderBy('name')->get();
-        $teachers = \App\Models\Teacher::orderBy('full_name')->get();
+        $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
+            $query->where('role_name', 'Teacher');
+        })->orderBy('full_name')->get();
         $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         
         return view('admin.schedules.index', compact('schedules', 'sections', 'teachers', 'days'));
@@ -374,7 +376,9 @@ class ClassScheduleController extends Controller
      */
     public function create()
     {
-        $teachers = \App\Models\Teacher::orderBy('full_name')->get();
+        $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
+            $query->where('role_name', 'Teacher');
+        })->orderBy('full_name')->get();
         $rooms = \App\Models\Room::orderBy('room_name')->get();
 
         return view('admin.schedules.create', compact('teachers', 'rooms'));
@@ -409,6 +413,11 @@ class ClassScheduleController extends Controller
         
         $validated['is_active'] = true;
         $validated['color'] = $validated['color'] ?? '#3d5ee1';
+
+        $conflictErrors = $this->scheduleConflictErrors($validated);
+        if ($conflictErrors) {
+            return redirect()->back()->withInput()->withErrors($conflictErrors);
+        }
         
         $schedule = ClassSchedule::create($validated);
         
@@ -442,7 +451,9 @@ class ClassScheduleController extends Controller
     public function edit(ClassSchedule $schedule)
     {
         $schedule->load(['subject', 'section', 'teacher', 'room']);
-        $teachers = \App\Models\Teacher::orderBy('full_name')->get();
+        $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
+            $query->where('role_name', 'Teacher');
+        })->orderBy('full_name')->get();
         $rooms = \App\Models\Room::orderBy('room_name')->get();
 
         return view('admin.schedules.edit', compact('schedule', 'teachers', 'rooms'));
@@ -477,11 +488,86 @@ class ClassScheduleController extends Controller
         }
 
         $validated['is_active'] = $request->boolean('is_active');
+
+        $conflictErrors = $this->scheduleConflictErrors($validated, $schedule->id);
+        if ($conflictErrors) {
+            return redirect()->back()->withInput()->withErrors($conflictErrors);
+        }
         
         $schedule->update($validated);
         
         return redirect()->route('admin.schedules.index')
             ->with('success', 'Class schedule updated successfully!');
+    }
+
+    protected function scheduleConflictErrors(array $scheduleData, ?int $excludeId = null): array
+    {
+        if (! ($scheduleData['is_active'] ?? true)) {
+            return [];
+        }
+
+        $startTime = Carbon::parse($scheduleData['start_time'])->format('H:i:s');
+        $endTime = Carbon::parse($scheduleData['end_time'])->format('H:i:s');
+        $sameDaySchedules = ClassSchedule::active()
+            ->where('day_of_week', $scheduleData['day_of_week'])
+            ->when($excludeId, fn ($query) => $query->where('id', '!=', $excludeId))
+            ->get(['id', 'section_id', 'teacher_id', 'room_id', 'start_time', 'end_time']);
+
+        $overlapping = $sameDaySchedules->filter(function ($existing) use ($scheduleData, $startTime, $endTime) {
+            $existingStart = Carbon::parse($existing->start_time)->format('H:i:s');
+            $existingEnd = Carbon::parse($existing->end_time)->format('H:i:s');
+            $sharesResource = (int) $existing->teacher_id === (int) $scheduleData['teacher_id']
+                || (int) $existing->section_id === (int) $scheduleData['section_id']
+                || (! empty($scheduleData['room_id']) && (int) $existing->room_id === (int) $scheduleData['room_id']);
+
+            return $sharesResource && $existingStart < $endTime && $existingEnd > $startTime;
+        });
+
+        if ($overlapping->isEmpty()) {
+            return [];
+        }
+
+        $conflicts = [];
+        if ($overlapping->contains(fn ($item) => (int) $item->teacher_id === (int) $scheduleData['teacher_id'])) {
+            $conflicts['teacher_id'] = 'This teacher already has a class during the selected time.';
+        }
+        if ($overlapping->contains(fn ($item) => (int) $item->section_id === (int) $scheduleData['section_id'])) {
+            $conflicts['section_id'] = 'This section already has a class during the selected time.';
+        }
+        if (! empty($scheduleData['room_id']) && $overlapping->contains(fn ($item) => (int) $item->room_id === (int) $scheduleData['room_id'])) {
+            $conflicts['room_id'] = 'This room is already assigned during the selected time.';
+        }
+
+        $duration = Carbon::parse($scheduleData['start_time'])->diffInMinutes(Carbon::parse($scheduleData['end_time']));
+        $relevantSchedules = $sameDaySchedules->filter(function ($existing) use ($scheduleData) {
+            return (int) $existing->teacher_id === (int) $scheduleData['teacher_id']
+                || (int) $existing->section_id === (int) $scheduleData['section_id']
+                || (! empty($scheduleData['room_id']) && (int) $existing->room_id === (int) $scheduleData['room_id']);
+        });
+        $availableSlots = [];
+        for ($candidateStart = 6 * 60; $candidateStart + $duration <= 20 * 60; $candidateStart += 30) {
+            $candidateEnd = $candidateStart + $duration;
+            $candidateStartTime = sprintf('%02d:%02d:00', intdiv($candidateStart, 60), $candidateStart % 60);
+            $candidateEndTime = sprintf('%02d:%02d:00', intdiv($candidateEnd, 60), $candidateEnd % 60);
+            $hasConflict = $relevantSchedules->contains(function ($existing) use ($candidateStartTime, $candidateEndTime) {
+                $existingStart = Carbon::parse($existing->start_time)->format('H:i:s');
+                $existingEnd = Carbon::parse($existing->end_time)->format('H:i:s');
+                return $existingStart < $candidateEndTime && $existingEnd > $candidateStartTime;
+            });
+
+            if (! $hasConflict) {
+                $availableSlots[] = Carbon::createFromTime(intdiv($candidateStart, 60), $candidateStart % 60)->format('g:i A');
+                if (count($availableSlots) === 3) {
+                    break;
+                }
+            }
+        }
+
+        $conflicts['start_time'] = $availableSlots
+            ? 'Available start times for this duration: '.implode(', ', $availableSlots).'.'
+            : 'No available half-hour start times were found for this duration between 6:00 AM and 8:00 PM.';
+
+        return $conflicts;
     }
 
     /**

@@ -48,21 +48,32 @@ class ReportController extends Controller
     public function index()
     {
         $gradeLevels = \App\Services\GradeSubjectCatalogService::gradeLevels();
+        $user = Auth::user();
+        $performanceService = app(\App\Services\StudentPerformanceService::class);
+        $allowedStudentIds = $user->role_name === 'Teacher' && $user->teacher
+            ? $performanceService->studentIdsForTeacher($user->teacher)
+            : null;
+        $sections = $user->role_name === 'Teacher'
+            ? $performanceService->sectionsForUser($user)
+            : Section::query()->orderBy('grade_level')->orderBy('name')->get(['id', 'name', 'grade_level']);
+        $allowedSectionIds = $sections->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $students = Student::query()
+        $studentsQuery = Student::query()
             ->with('sections')
             ->orderBy('year_level')
             ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+            ->orderBy('first_name');
+        if ($allowedStudentIds !== null) {
+            $studentsQuery->whereIn('id', $allowedStudentIds);
+        }
+        $students = $studentsQuery->get();
 
-        $sections = Section::query()
-            ->orderBy('grade_level')
-            ->orderBy('name')
-            ->get(['id', 'name', 'grade_level']);
-
-        $studentsPayload = $students->map(function ($s) {
-            $sectionIds = $s->sections->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        $studentsPayload = $students->map(function ($s) use ($user, $allowedSectionIds) {
+            $studentSections = $s->sections;
+            if ($user->role_name === 'Teacher') {
+                $studentSections = $studentSections->whereIn('id', $allowedSectionIds);
+            }
+            $sectionIds = $studentSections->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
             // Also include legacy section_student pivot if present
             if (empty($sectionIds) && method_exists($s, 'sections')) {
                 // already loaded above
@@ -116,6 +127,7 @@ class ReportController extends Controller
         }
 
         $student = Student::with(['user', 'sections'])->findOrFail($studentId);
+        $this->authorizeTeacherStudent($student);
         $format = $request->get('format', 'pdf');
         if ($format !== 'pdf') {
             $format = 'pdf';
@@ -216,6 +228,7 @@ class ReportController extends Controller
         }
 
         $section = Section::with(['adviser'])->findOrFail($sectionId);
+        $this->authorizeTeacherSection($section);
         $format = $request->get('format', 'pdf');
         if ($format !== 'pdf') {
             $format = 'pdf';
@@ -274,6 +287,7 @@ class ReportController extends Controller
         }
 
         $student = Student::with(['user', 'sections'])->findOrFail($studentId);
+        $this->authorizeTeacherStudent($student);
         $format = $request->get('format', 'pdf');
         if ($format !== 'pdf') {
             $format = 'pdf';
@@ -336,6 +350,7 @@ class ReportController extends Controller
         }
 
         $student = Student::with(['user', 'sections'])->findOrFail($studentId);
+        $this->authorizeTeacherStudent($student);
         $format = $request->get('format', 'pdf');
         if ($format !== 'pdf') {
             $format = 'pdf';
@@ -418,6 +433,10 @@ class ReportController extends Controller
         $gradeLevel = trim((string) $request->get('grade_level', ''));
         $sectionId = $request->get('section_id');
 
+        if ($sectionId) {
+            $this->authorizeTeacherSection(Section::findOrFail($sectionId));
+        }
+
         if ($gradeLevel === '' && !$sectionId) {
             return redirect()->route('reports.index')
                 ->with('error', 'Please select a grade level or section.');
@@ -444,6 +463,12 @@ class ReportController extends Controller
             $filename = 'class_list_' . $label . '_' . date('Y-m-d') . '.pdf';
         } else {
             $students = $this->studentsForScope($gradeLevel, $sectionId);
+            if ($user->role_name === 'Teacher') {
+                $allowedStudentIds = $user->teacher
+                    ? app(\App\Services\StudentPerformanceService::class)->studentIdsForTeacher($user->teacher)
+                    : [];
+                $students = $students->whereIn('id', $allowedStudentIds)->values();
+            }
             if ($students->isEmpty()) {
                 return redirect()->route('reports.index')
                     ->with('error', 'No enrolled students found for the selected section.');
@@ -681,6 +706,15 @@ class ReportController extends Controller
     protected function sectionsForScope(string $gradeLevel, $sectionId)
     {
         $query = Section::query()->orderBy('name');
+        if (Auth::user()->role_name === 'Teacher') {
+            $allowedSectionIds = app(\App\Services\StudentPerformanceService::class)
+                ->sectionsForUser(Auth::user())
+                ->pluck('id')->map(fn ($id) => (int) $id)->all();
+            if ($sectionId && ! in_array((int) $sectionId, $allowedSectionIds, true)) {
+                abort(403, 'You are not allowed to generate reports for this section.');
+            }
+            $query->whereIn('id', $allowedSectionIds);
+        }
         if ($sectionId) {
             $query->where('id', $sectionId);
         } elseif ($gradeLevel !== '') {
@@ -694,6 +728,32 @@ class ReportController extends Controller
         }
 
         return $query->get();
+    }
+
+    protected function authorizeTeacherStudent(Student $student): void
+    {
+        $user = Auth::user();
+        if ($user->role_name !== 'Teacher') {
+            return;
+        }
+
+        $allowedStudentIds = $user->teacher
+            ? app(\App\Services\StudentPerformanceService::class)->studentIdsForTeacher($user->teacher)
+            : [];
+        abort_unless(in_array((int) $student->id, $allowedStudentIds, true), 403, 'You are not allowed to generate reports for this student.');
+    }
+
+    protected function authorizeTeacherSection(Section $section): void
+    {
+        $user = Auth::user();
+        if ($user->role_name !== 'Teacher') {
+            return;
+        }
+
+        $allowedSectionIds = app(\App\Services\StudentPerformanceService::class)
+            ->sectionsForUser($user)
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+        abort_unless(in_array((int) $section->id, $allowedSectionIds, true), 403, 'You are not allowed to generate reports for this section.');
     }
 
     protected function studentsForScope(string $gradeLevel, $sectionId)
