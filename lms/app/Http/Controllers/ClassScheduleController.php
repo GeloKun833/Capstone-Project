@@ -308,11 +308,9 @@ class ClassScheduleController extends Controller
      */
     public function teacherAssignments(\App\Models\Teacher $teacher)
     {
-        $teacher->load(['subjects', 'sections', 'gradeLevels']);
+        $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
 
-        $sections = $teacher->sections
-            ->sortBy(['grade_level', 'name'])
-            ->values()
+        $sections = $options['sections']
             ->map(function ($section) {
                 return [
                     'id' => $section->id,
@@ -322,35 +320,7 @@ class ClassScheduleController extends Controller
                 ];
             });
 
-        // Fallback: sections by assigned grade levels if no section_teacher rows
-        if ($sections->isEmpty()) {
-            $grades = $teacher->gradeLevels->pluck('grade_level')->filter()->unique()->values();
-            if ($grades->isNotEmpty()) {
-                $expanded = collect();
-                foreach ($grades as $grade) {
-                    foreach (\App\Services\GradeSubjectCatalogService::gradeAliases($grade) as $alias) {
-                        $expanded->push($alias);
-                    }
-                }
-                $sections = \App\Models\Section::query()
-                    ->whereIn('grade_level', $expanded->unique()->all())
-                    ->orderBy('grade_level')
-                    ->orderBy('name')
-                    ->get()
-                    ->map(function ($section) {
-                        return [
-                            'id' => $section->id,
-                            'name' => $section->name,
-                            'grade_level' => $section->grade_level,
-                            'label' => $section->name . ' (' . ($section->grade_level ?: 'N/A') . ')',
-                        ];
-                    });
-            }
-        }
-
-        $subjects = $teacher->subjects
-            ->sortBy(['class', 'subject_name'])
-            ->values()
+        $subjects = $options['subjects']
             ->map(function ($subject) {
                 return [
                     'id' => $subject->id,
@@ -367,7 +337,7 @@ class ClassScheduleController extends Controller
             ],
             'sections' => $sections,
             'subjects' => $subjects,
-            'grade_levels' => $teacher->gradeLevels->pluck('grade_level')->values(),
+            'grade_levels' => $teacher->gradeLevels()->pluck('grade_level')->values(),
         ]);
     }
 

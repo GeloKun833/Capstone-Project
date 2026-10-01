@@ -24,10 +24,21 @@ class SectionController extends Controller
             return 1;
         });
 
-        $sectionsByGrade = Cache::remember('sections.grouped.by.grade.v2', 120, function () use ($catalog) {
+        $sectionsByGrade = Cache::remember('sections.grouped.by.grade.v3', 120, function () use ($catalog) {
             return $catalog->sectionsGroupedByGrade();
         });
         $sections = $sectionsByGrade->flatten();
+        $subjectsByGrade = $catalog->subjectsGroupedByGrade();
+        $sections->each(function ($section) use ($subjectsByGrade) {
+            $hasSectionSubjects = $section->subjects->isNotEmpty();
+            $section->setRelation(
+                'displaySubjects',
+                $hasSectionSubjects
+                    ? $section->subjects
+                    : ($subjectsByGrade->get($section->grade_level) ?? collect())
+            );
+            $section->setAttribute('subjects_are_grade_defaults', ! $hasSectionSubjects);
+        });
         $gradeLevels = GradeSubjectCatalogService::gradeLevels();
         $teachers = Teacher::with('user')
             ->whereHas('user', function ($query) {
@@ -74,7 +85,7 @@ class SectionController extends Controller
         ]);
 
         Cache::forget('sections.grouped.by.grade');
-        Cache::forget('sections.grouped.by.grade.v2');
+        Cache::forget('sections.grouped.by.grade.v3');
 
         return redirect()->route('sections.index')
             ->with('success', 'Section created. It will appear as a Block Section option for ' . $request->grade_level . ' on enrollment.');
@@ -120,7 +131,7 @@ class SectionController extends Controller
         ]);
 
         Cache::forget('sections.grouped.by.grade');
-        Cache::forget('sections.grouped.by.grade.v2');
+        Cache::forget('sections.grouped.by.grade.v3');
 
         return redirect()->route('sections.index')
             ->with('success', 'Section updated. Enrollment Block Section list uses this catalog.');
@@ -130,7 +141,7 @@ class SectionController extends Controller
     {
         $section->delete();
         Cache::forget('sections.grouped.by.grade');
-        Cache::forget('sections.grouped.by.grade.v2');
+        Cache::forget('sections.grouped.by.grade.v3');
         return redirect()->route('sections.index')->with('success', 'Section deleted successfully.');
     }
 
@@ -159,7 +170,7 @@ class SectionController extends Controller
         }
 
         Cache::forget('sections.grouped.by.grade');
-        Cache::forget('sections.grouped.by.grade.v2');
+        Cache::forget('sections.grouped.by.grade.v3');
 
         $teacher = Teacher::find($teacherId);
         $name = $teacher?->full_name ?: 'Teacher';
@@ -186,7 +197,7 @@ class SectionController extends Controller
         }
 
         Cache::forget('sections.grouped.by.grade');
-        Cache::forget('sections.grouped.by.grade.v2');
+        Cache::forget('sections.grouped.by.grade.v3');
 
         return redirect()->route('sections.index')
             ->with('success', 'Teacher unassigned from ' . $section->name . '.');

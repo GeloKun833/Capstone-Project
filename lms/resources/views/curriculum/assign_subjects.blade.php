@@ -7,8 +7,7 @@
                 <div class="col">
                     <h3 class="page-title">Choose Subjects — {{ $curriculum->grade_level }}</h3>
                     <p class="text-muted mb-0">
-                        Only subjects from the <strong>{{ $curriculum->grade_level }}</strong> catalog are shown
-                        (same list as Enrollment).
+                        Choose subjects for <strong>{{ $curriculum->grade_level }}</strong>, then assign them to each created section.
                     </p>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
@@ -54,6 +53,37 @@
                                 </div>
                             @endforeach
                         </div>
+
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-1">Subjects by section</h6>
+                            <p class="text-muted small mb-0">All sections created for this grade appear here. Choose which catalog subjects belong to each section.</p>
+                        </div>
+                        @forelse($sections as $section)
+                            <section class="section-subject-card mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>{{ $section->name }}</strong>
+                                    <span class="text-muted small">{{ $section->grade_level }}</span>
+                                </div>
+                                <div class="row g-2">
+                                    @foreach($subjects as $subject)
+                                        <div class="col-md-4 col-lg-3">
+                                            <label class="ams-check-card w-100">
+                                                <input type="checkbox"
+                                                    name="section_subjects[{{ $section->id }}][]"
+                                                    value="{{ $subject->id }}"
+                                                    class="form-check-input me-2"
+                                                    {{ $section->subjects->contains('id', $subject->id) ? 'checked' : '' }}>
+                                                <span>{{ $subject->subject_name }}</span>
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </section>
+                        @empty
+                            <div class="alert alert-info mb-0">No sections have been created for {{ $curriculum->grade_level }} yet. Create a section first, then return here to assign its subjects.</div>
+                        @endforelse
+
                         <div class="text-end mt-4">
                             <a href="{{ route('curriculum.index') }}" class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-primary">Save Subjects</button>
@@ -74,6 +104,7 @@
     background: #fff; cursor: pointer; font-weight: 600; color: #111827;
 }
 .ams-check-card:hover { border-color: #93c5fd; background: #f8faff; }
+.section-subject-card { padding: 1rem; border: 1px solid #e5e7eb; border-radius: 10px; background: #f8fafc; }
 </style>
 @endpush
 

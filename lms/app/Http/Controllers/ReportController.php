@@ -58,6 +58,21 @@ class ReportController extends Controller
             : Section::query()->orderBy('grade_level')->orderBy('name')->get(['id', 'name', 'grade_level']);
         $allowedSectionIds = $sections->pluck('id')->map(fn ($id) => (int) $id)->all();
 
+        if ($user->role_name === 'Teacher') {
+            $assignedGradeLabels = $sections->pluck('grade_level')
+                ->filter()
+                ->map(fn ($grade) => trim((string) $grade))
+                ->unique()
+                ->values();
+            $gradeLevels = collect($gradeLevels)
+                ->filter(function ($grade) use ($assignedGradeLabels) {
+                    $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($grade);
+                    return $assignedGradeLabels->contains(fn ($assignedGrade) => in_array($assignedGrade, $aliases, true));
+                })
+                ->values()
+                ->all();
+        }
+
         $studentsQuery = Student::query()
             ->with('sections')
             ->orderBy('year_level')

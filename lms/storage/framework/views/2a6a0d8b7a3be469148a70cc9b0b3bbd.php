@@ -262,6 +262,11 @@
     border-color: #fcd34d;
     color: #92400e;
 }
+.att-choice.is-absent:has(input:checked) {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
 .att-choice.is-excused:has(input:checked) {
     background: #e0e7ff;
     border-color: #a5b4fc;

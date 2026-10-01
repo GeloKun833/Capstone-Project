@@ -242,7 +242,7 @@ class ClassSubjectController extends Controller
         ]);
 
         \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
-        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v3');
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -873,7 +873,7 @@ class ClassSubjectController extends Controller
     private function forgetSectionCache(): void
     {
         \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
-        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v2');
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v3');
     }
 
     private function respondTeacherAssignment(Request $request, string $grade, string $message, bool $ok = true)

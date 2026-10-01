@@ -162,15 +162,16 @@
                                                 <label class="form-label">
                                                     Semester <span class="text-danger">*</span>
                                                 </label>
-                                                <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required>
+                                                <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required disabled>
                                                     <option value="">Select Semester</option>
                                                     @foreach($semesters as $semester)
-                                                        <option value="{{ $semester->id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
+                                                        <option value="{{ $semester->id }}" data-academic-year="{{ $semester->academic_year_id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
                                                             {{ $semester->name }}
                                                         </option>
                                                     @endforeach
                                                 </select>
                                                 @error('semester_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                <div class="form-text">Choose an academic year to see its semesters.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -311,6 +312,37 @@ $(document).ready(function() {
     const allSubjects = @json($subjectsForJs);
     const oldSectionId = @json(old('section_id'));
     const oldSubjectId = @json(old('subject_id'));
+    const oldSemesterId = @json(old('semester_id'));
+    const semesterOptions = $('#semester_id option[data-academic-year]').map(function() {
+        return {
+            id: String(this.value),
+            yearId: String(this.dataset.academicYear),
+            label: this.textContent.trim(),
+        };
+    }).get();
+
+    function filterSemesters(preferredId) {
+        const academicYearId = String($('#academic_year_id').val() || '');
+        const currentSemesterId = String(preferredId || $('#semester_id').val() || oldSemesterId || '');
+        const $semester = $('#semester_id').empty();
+        const matchingSemesters = semesterOptions.filter(function(semester) {
+            return semester.yearId === academicYearId;
+        });
+
+        if (!academicYearId) {
+            $semester.append(new Option('Select academic year first', ''));
+            $semester.prop('disabled', true);
+            updatePreview();
+            return;
+        }
+
+        $semester.append(new Option(matchingSemesters.length ? 'Select Semester' : 'No semesters for this academic year', ''));
+        matchingSemesters.forEach(function(semester) {
+            $semester.append(new Option(semester.label, semester.id, false, semester.id === currentSemesterId));
+        });
+        $semester.prop('disabled', matchingSemesters.length === 0);
+        updatePreview();
+    }
 
     function filterSubjects() {
         const sectionId = $('#section_id').val();
@@ -367,12 +399,16 @@ $(document).ready(function() {
     $('#section_id').on('change', function() {
         filterSubjects();
     });
-    $('#subject_id, #academic_year_id, #semester_id').on('change', updatePreview);
+    $('#academic_year_id').on('change', function() {
+        filterSemesters('');
+    });
+    $('#subject_id, #semester_id').on('change', updatePreview);
     $('#title').on('input', updatePreview);
 
     if (oldSectionId) {
         $('#section_id').val(String(oldSectionId));
     }
+    filterSemesters(oldSemesterId);
     filterSubjects();
 
     $('#lessonForm').on('submit', function(e) {

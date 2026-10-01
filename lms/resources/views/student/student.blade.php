@@ -67,9 +67,6 @@
                             <a href="{{ route('student/list') }}{{ $showingArchived ? '?archived=1' : '' }}" class="is-active" title="List view"><i class="fa fa-list"></i></a>
                             <a href="{{ route('student/grid') }}{{ $showingArchived ? '?archived=1' : '' }}" title="Grid view"><i class="fa fa-th"></i></a>
                         </div>
-                        <a href="{{ route('student/add/page') }}" class="btn btn-primary dir-btn btn-sm">
-                            <i class="fas fa-plus me-1"></i> Add
-                        </a>
                     </div>
                 </div>
 

@@ -149,8 +149,9 @@ class CurriculumController extends Controller
         // Prefer subjects for this grade from the shared catalog
         $subjects = $catalog->subjectsForGrade($curriculum->grade_level);
         $assigned = $curriculum->subjects->pluck('id')->all();
+        $sections = $catalog->sectionsForGrade($curriculum->grade_level)->load('subjects');
 
-        return view('curriculum.assign_subjects', compact('curriculum', 'subjects', 'assigned'));
+        return view('curriculum.assign_subjects', compact('curriculum', 'subjects', 'assigned', 'sections'));
     }
 
     public function assignSubjects(Request $request, Curriculum $curriculum)
@@ -170,6 +171,24 @@ class CurriculumController extends Controller
 
         $subjectIds = array_values(array_intersect($subjectIds, $allowed));
         $curriculum->subjects()->sync($subjectIds);
+
+        $sections = app(GradeSubjectCatalogService::class)->sectionsForGrade($curriculum->grade_level);
+        $sectionAssignments = $request->input('section_subjects', []);
+        foreach ($sections as $section) {
+            $requestedIds = collect($sectionAssignments[$section->id] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->all();
+            $sectionSubjectIds = array_values(array_intersect($requestedIds, $allowed));
+            $otherGradeSubjectIds = $section->subjects()
+                ->whereNotIn('subjects.id', $allowed ?: [0])
+                ->pluck('subjects.id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $section->subjects()->sync(array_values(array_unique(array_merge($otherGradeSubjectIds, $sectionSubjectIds))));
+        }
 
         if ($request->expectsJson() || $request->ajax()) {
             $curriculum->load('subjects');

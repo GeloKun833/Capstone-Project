@@ -121,7 +121,10 @@ class LessonController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
                 'academic_year_id' => 'required|exists:academic_years,id',
-                'semester_id' => 'required|exists:semesters,id',
+                'semester_id' => [
+                    'required',
+                    Rule::exists('semesters', 'id')->where('academic_year_id', $request->input('academic_year_id')),
+                ],
                 'lesson_date' => 'required|date',
                 'file' => 'nullable|file|max:10240|mimes:pdf,docx,ppt,pptx',
             ], [
@@ -232,7 +235,10 @@ class LessonController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
                 'academic_year_id' => 'required|exists:academic_years,id',
-                'semester_id' => 'required|exists:semesters,id',
+                'semester_id' => [
+                    'required',
+                    Rule::exists('semesters', 'id')->where('academic_year_id', $request->input('academic_year_id')),
+                ],
                 'lesson_date' => 'required|date',
                 'file' => 'nullable|file|max:10240|mimes:pdf,docx,ppt,pptx',
             ];

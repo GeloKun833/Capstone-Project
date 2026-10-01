@@ -65,6 +65,7 @@
                     <?php
                         $adviserName = $section->adviser ? $section->adviser->full_name : 'To be assigned';
                         $description = $section->description ?: '';
+                        $subjectNames = $section->displaySubjects->pluck('subject_name')->filter()->values();
                     ?>
                     <div class="col-6 col-md-4 col-xl-3 section-grid-item"
                         data-grade="<?php echo e($section->grade_level); ?>"
@@ -79,6 +80,8 @@
                             data-adviser="<?php echo e($adviserName); ?>"
                             data-adviser-id="<?php echo e($section->adviser_id); ?>"
                             data-teachers='<?php echo json_encode($section->teachers->map(fn ($t) => ["id" => $t->id, "name" => ($t->full_name ?: "Teacher")])->values(), 512) ?>'
+                            data-subjects='<?php echo json_encode($subjectNames, 15, 512) ?>'
+                            data-subject-source="<?php echo e($section->subjects_are_grade_defaults ? 'grade' : 'section'); ?>"
                             data-capacity="<?php echo e($section->capacity ?? 25); ?>"
                             data-description="<?php echo e($description); ?>"
                             data-edit-url="<?php echo e(route('sections.edit', $section->id)); ?>">
@@ -90,6 +93,11 @@
                             <div class="ams-section-meta mt-2">
                                 <i class="fas fa-user-tie me-1"></i>
                                 <?php echo e($adviserName); ?>
+
+                            </div>
+                            <div class="ams-section-meta mt-1">
+                                <i class="fas fa-book me-1"></i>
+                                <?php echo e($subjectNames->isEmpty() ? 'No subjects assigned' : $subjectNames->take(2)->implode(', ').($subjectNames->count() > 2 ? ' +' . ($subjectNames->count() - 2) . ' more' : '')); ?>
 
                             </div>
                             <div class="ams-section-hint mt-3">
@@ -135,6 +143,11 @@
                     <div class="ams-detail-item ams-detail-item--full">
                         <span class="ams-detail-label">Assigned teachers</span>
                         <div class="ams-detail-value" id="sectionDetailTeachers">None yet</div>
+                    </div>
+                    <div class="ams-detail-item ams-detail-item--full">
+                        <span class="ams-detail-label" id="sectionDetailSubjectsLabel">Subjects</span>
+                        <div class="ams-detail-value" id="sectionDetailSubjects">None assigned yet</div>
+                        <small class="text-muted" id="sectionDetailSubjectsSource"></small>
                     </div>
                     <div class="ams-detail-item ams-detail-item--full">
                         <span class="ams-detail-label">Description</span>
@@ -506,6 +519,8 @@
                 adviser: btn.getAttribute('data-adviser') || 'To be assigned',
                 adviserId: btn.getAttribute('data-adviser-id') || '',
                 teachers: [],
+                subjects: [],
+                subjectSource: btn.getAttribute('data-subject-source') || 'section',
                 capacity: btn.getAttribute('data-capacity') || '25',
                 description: btn.getAttribute('data-description') || '',
                 editUrl: btn.getAttribute('data-edit-url') || '#'
@@ -514,6 +529,11 @@
                 activeSection.teachers = JSON.parse(btn.getAttribute('data-teachers') || '[]');
             } catch (e) {
                 activeSection.teachers = [];
+            }
+            try {
+                activeSection.subjects = JSON.parse(btn.getAttribute('data-subjects') || '[]');
+            } catch (e) {
+                activeSection.subjects = [];
             }
 
             document.getElementById('sectionDetailTitle').textContent = activeSection.name;
@@ -533,6 +553,25 @@
                         return '<span class="d-block">' + (t.name || 'Teacher') + (isAdv ? ' <small class="text-muted">(adviser)</small>' : '') + '</span>';
                     }).join('');
                 }
+            }
+
+            const subjectsEl = document.getElementById('sectionDetailSubjects');
+            const subjectsLabel = document.getElementById('sectionDetailSubjectsLabel');
+            const subjectsSource = document.getElementById('sectionDetailSubjectsSource');
+            if (subjectsEl) {
+                subjectsEl.textContent = activeSection.subjects.length
+                    ? activeSection.subjects.join(', ')
+                    : 'None assigned yet';
+            }
+            if (subjectsLabel) {
+                subjectsLabel.textContent = activeSection.subjectSource === 'grade'
+                    ? 'Grade subjects available to this section'
+                    : 'Subjects assigned to this section';
+            }
+            if (subjectsSource) {
+                subjectsSource.textContent = activeSection.subjectSource === 'grade'
+                    ? 'Showing the grade catalog; no section-specific subject list has been saved.'
+                    : '';
             }
 
             const assignForm = document.getElementById('sectionAssignTeacherForm');

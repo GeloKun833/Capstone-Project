@@ -66,9 +66,6 @@
                             <a href="<?php echo e(route('student/list')); ?><?php echo e($showingArchived ? '?archived=1' : ''); ?>" class="is-active" title="List view"><i class="fa fa-list"></i></a>
                             <a href="<?php echo e(route('student/grid')); ?><?php echo e($showingArchived ? '?archived=1' : ''); ?>" title="Grid view"><i class="fa fa-th"></i></a>
                         </div>
-                        <a href="<?php echo e(route('student/add/page')); ?>" class="btn btn-primary dir-btn btn-sm">
-                            <i class="fas fa-plus me-1"></i> Add
-                        </a>
                     </div>
                 </div>
 

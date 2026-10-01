@@ -39,18 +39,22 @@ class TeacherClassAssignmentService
         }
         $sections = $teacher->sections->sortBy(['grade_level', 'name'])->values();
 
-        if ($sections->isEmpty() && $teacher->gradeLevels->isNotEmpty()) {
+        if ($teacher->gradeLevels->isNotEmpty()) {
             $expanded = collect();
             foreach ($teacher->gradeLevels->pluck('grade_level')->filter()->unique() as $grade) {
                 foreach (GradeSubjectCatalogService::gradeAliases($grade) as $alias) {
                     $expanded->push($alias);
                 }
             }
-            $sections = Section::query()
+            $gradeSections = Section::query()
                 ->whereIn('grade_level', $expanded->unique()->all())
                 ->orderBy('grade_level')
                 ->orderBy('name')
                 ->get();
+            $sections = $sections->concat($gradeSections)
+                ->unique('id')
+                ->sortBy(['grade_level', 'name'])
+                ->values();
         }
 
         $map = [];

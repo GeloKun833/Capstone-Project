@@ -160,6 +160,14 @@ class UserManagementController extends Controller
             $previousEmail = $user->email;
             $user->update($payload);
 
+            if ($user->role_name === User::ROLE_STUDENT) {
+                $nameParts = preg_split('/\s+/', trim($request->name), 2);
+                Student::where('user_id', $user->user_id)->update([
+                    'first_name' => $nameParts[0] ?? '',
+                    'last_name' => $nameParts[1] ?? null,
+                ]);
+            }
+
             if ($user->role_name === 'Parent') {
                 Student::query()
                     ->where(function ($q) use ($user, $previousEmail) {
