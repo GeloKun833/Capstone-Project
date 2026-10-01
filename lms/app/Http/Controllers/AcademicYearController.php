@@ -35,8 +35,13 @@ class AcademicYearController extends Controller
 
     public function store(Request $request)
     {
+        $yearName = trim((string) $request->input('name', ''));
+        if (preg_match('/^(\d{4})\s*[-–]\s*(\d{4})$/u', $yearName, $yearParts)) {
+            $request->merge(['name' => $yearParts[1].'-'.$yearParts[2]]);
+        }
+
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name', 'regex:/^\d{4}\s*[–\-]\s*\d{4}$/'],
+            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name', 'regex:/^\d{4}-\d{4}$/'],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
         ], [
@@ -81,8 +86,13 @@ class AcademicYearController extends Controller
 
     public function update(Request $request, AcademicYear $academicYear)
     {
+        $yearName = trim((string) $request->input('name', ''));
+        if (preg_match('/^(\d{4})\s*[-–]\s*(\d{4})$/u', $yearName, $yearParts)) {
+            $request->merge(['name' => $yearParts[1].'-'.$yearParts[2]]);
+        }
+
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name,' . $academicYear->id, 'regex:/^\d{4}\s*[–\-]\s*\d{4}$/'],
+            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name,' . $academicYear->id, 'regex:/^\d{4}-\d{4}$/'],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
         ], [

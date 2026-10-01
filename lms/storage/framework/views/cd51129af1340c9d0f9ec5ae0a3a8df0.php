@@ -1,5 +1,4 @@
-@extends('layouts.master')
-@section('content')
+<?php $__env->startSection('content'); ?>
     <div class="page-wrapper">
     <div class="content container-fluid ams-years">
             <div class="page-header">
@@ -12,11 +11,11 @@
                     </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-2">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
                             <li class="breadcrumb-item active">Academic Years</li>
                         </ul>
                     <div class="d-flex flex-wrap gap-2 justify-content-end">
-                    <a href="{{ route('semesters.index') }}" class="btn btn-outline-secondary">
+                    <a href="<?php echo e(route('semesters.index')); ?>" class="btn btn-outline-secondary">
                         <i class="fas fa-calendar-week me-1"></i> Semesters
                     </a>
                     <button type="button" class="btn btn-primary" id="btnAddYear"
@@ -28,22 +27,22 @@
             </div>
         </div>
 
-        @if(session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
+        <?php if(session('success')): ?>
+            <div class="alert alert-success"><?php echo e(session('success')); ?></div>
+        <?php endif; ?>
 
         <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
-                <div class="ams-stat"><span class="ams-stat-val">{{ $stats['total'] }}</span><span class="ams-stat-lbl">Total</span></div>
+                <div class="ams-stat"><span class="ams-stat-val"><?php echo e($stats['total']); ?></span><span class="ams-stat-lbl">Total</span></div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="ams-stat ams-stat--ok"><span class="ams-stat-val">{{ $stats['current'] }}</span><span class="ams-stat-lbl">Current</span></div>
+                <div class="ams-stat ams-stat--ok"><span class="ams-stat-val"><?php echo e($stats['current']); ?></span><span class="ams-stat-lbl">Current</span></div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="ams-stat ams-stat--info"><span class="ams-stat-val">{{ $stats['upcoming'] }}</span><span class="ams-stat-lbl">Upcoming</span></div>
+                <div class="ams-stat ams-stat--info"><span class="ams-stat-val"><?php echo e($stats['upcoming']); ?></span><span class="ams-stat-lbl">Upcoming</span></div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="ams-stat ams-stat--muted"><span class="ams-stat-val">{{ $stats['completed'] }}</span><span class="ams-stat-lbl">Completed</span></div>
+                <div class="ams-stat ams-stat--muted"><span class="ams-stat-val"><?php echo e($stats['completed']); ?></span><span class="ams-stat-lbl">Completed</span></div>
             </div>
         </div>
 
@@ -62,44 +61,45 @@
             </div>
 
         <div class="row g-3" id="yearsGrid">
-            @forelse($academicYears as $year)
-                @php $status = $year->statusLabel(); @endphp
+            <?php $__empty_1 = true; $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                <?php $status = $year->statusLabel(); ?>
                 <div class="col-6 col-md-4 col-xl-3 year-grid-item"
-                    data-status="{{ $status }}"
-                    data-search="{{ strtolower($year->name) }}"
-                    data-id="{{ $year->id }}">
+                    data-status="<?php echo e($status); ?>"
+                    data-search="<?php echo e(strtolower($year->name)); ?>"
+                    data-id="<?php echo e($year->id); ?>">
                     <button type="button"
                         class="ams-year-card w-100 text-start"
                         data-bs-toggle="modal"
                         data-bs-target="#yearDetailModal"
-                        data-id="{{ $year->id }}"
-                        data-name="{{ $year->name }}"
-                        data-start="{{ $year->start_date->format('Y-m-d') }}"
-                        data-end="{{ $year->end_date->format('Y-m-d') }}"
-                        data-start-label="{{ $year->start_date->format('M d, Y') }}"
-                        data-end-label="{{ $year->end_date->format('M d, Y') }}"
-                        data-status="{{ $status }}"
-                        data-semesters="{{ $year->semesters_count }}"
-                        data-update-url="{{ route('academic_years.update', $year) }}"
-                        data-destroy-url="{{ route('academic_years.destroy', $year) }}">
+                        data-id="<?php echo e($year->id); ?>"
+                        data-name="<?php echo e($year->name); ?>"
+                        data-start="<?php echo e($year->start_date->format('Y-m-d')); ?>"
+                        data-end="<?php echo e($year->end_date->format('Y-m-d')); ?>"
+                        data-start-label="<?php echo e($year->start_date->format('M d, Y')); ?>"
+                        data-end-label="<?php echo e($year->end_date->format('M d, Y')); ?>"
+                        data-status="<?php echo e($status); ?>"
+                        data-semesters="<?php echo e($year->semesters_count); ?>"
+                        data-update-url="<?php echo e(route('academic_years.update', $year)); ?>"
+                        data-destroy-url="<?php echo e(route('academic_years.destroy', $year)); ?>">
                         <div class="d-flex justify-content-between align-items-start gap-2">
-                            <span class="ams-year-title">{{ $year->name }}</span>
-                            <span class="ams-status-pill ams-status-pill--{{ $status }}">{{ ucfirst($status) }}</span>
+                            <span class="ams-year-title"><?php echo e($year->name); ?></span>
+                            <span class="ams-status-pill ams-status-pill--<?php echo e($status); ?>"><?php echo e(ucfirst($status)); ?></span>
                         </div>
                         <div class="ams-year-dates mt-2">
-                            {{ $year->start_date->format('M d, Y') }} → {{ $year->end_date->format('M d, Y') }}
+                            <?php echo e($year->start_date->format('M d, Y')); ?> → <?php echo e($year->end_date->format('M d, Y')); ?>
+
                         </div>
                         <div class="ams-year-meta mt-2">
-                            <i class="fas fa-calendar-week me-1"></i>{{ $year->semesters_count }} semester(s)
+                            <i class="fas fa-calendar-week me-1"></i><?php echo e($year->semesters_count); ?> semester(s)
                         </div>
                         <div class="ams-year-hint mt-3">Click to manage <i class="fas fa-arrow-right ms-1"></i></div>
                     </button>
                     </div>
-            @empty
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <div class="col-12" id="yearsEmptyState">
                     <div class="alert alert-warning mb-0">No academic years yet. Add one to start enrollment periods.</div>
                 </div>
-            @endforelse
+            <?php endif; ?>
             </div>
         <div id="yearsFilterEmpty" class="alert alert-light border text-center d-none mt-3">
             No academic years match your search or filter.
@@ -107,7 +107,7 @@
                                 </div>
                             </div>
 
-{{-- Detail modal --}}
+
 <div class="modal fade" id="yearDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content ams-float-modal">
@@ -138,14 +138,14 @@
                 <button type="button" class="btn btn-warning" id="yearEditBtn"><i class="fas fa-edit me-1"></i> Edit</button>
                 <button type="button" class="btn btn-danger" id="yearDeleteBtn"
                     data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-trash me-1"></i> Delete</button>
-                <a href="{{ route('semesters.index') }}" class="btn btn-outline-primary">Manage Semesters</a>
+                <a href="<?php echo e(route('semesters.index')); ?>" class="btn btn-outline-primary">Manage Semesters</a>
                 <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">Close</button>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-{{-- Create / Edit modal --}}
+
 <div class="modal fade" id="yearFormModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content ams-float-modal">
@@ -197,7 +197,7 @@
                                 </div>
                             </div>
 
-{{-- Delete modal --}}
+
 <div class="modal custom-modal fade" id="yearDeleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -222,12 +222,12 @@
 </div>
 
 <div id="yearsPageConfig" class="d-none"
-    data-store-url="{{ route('academic_years.store') }}"
-    data-csrf="{{ csrf_token() }}"
+    data-store-url="<?php echo e(route('academic_years.store')); ?>"
+    data-csrf="<?php echo e(csrf_token()); ?>"
     aria-hidden="true"></div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <style>
 .ams-years { --ams-line:#e5e7eb; --ams-ink:#111827; --ams-muted:#6b7280; --ams-blue:#1e3a8a; --ams-soft:#f8fafc; }
 .ams-stat { background:#fff; border:1px solid var(--ams-line); border-radius:14px; padding:1rem; }
@@ -260,9 +260,9 @@
 .ams-detail-label { display:block; font-size:.72rem; font-weight:700; text-transform:uppercase; color:var(--ams-muted); margin-bottom:.25rem; }
 .ams-detail-value { font-weight:600; color:var(--ams-ink); }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script>
 (function () {
     const cfg = document.getElementById('yearsPageConfig');
@@ -429,4 +429,6 @@
     });
 })();
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/academic_years/index.blade.php ENDPATH**/ ?>

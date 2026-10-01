@@ -640,24 +640,17 @@
     function initAcademicYearPickers() {
         document.querySelectorAll('[data-mdp-academic-year]').forEach(function (root) {
             var nameInput = root.querySelector('[data-mdp-year-name]');
-            var startSel = root.querySelector('[data-mdp-year-start]');
-            var endSel = root.querySelector('[data-mdp-year-end]');
+            var startInput = root.querySelector('[data-mdp-year-start]');
+            var endInput = root.querySelector('[data-mdp-year-end]');
             var preview = root.querySelector('[data-mdp-year-preview]');
-            if (!nameInput || !startSel || !endSel) return;
+            if (!nameInput || !startInput || !endInput) return;
 
             function applyFromName() {
                 var existing = (nameInput.value || '').match(/(\d{4})\s*[–\-]\s*(\d{4})/);
                 if (!existing) return;
-                if ([].some.call(startSel.options, function (o) { return o.value === existing[1]; })) {
-                    startSel.value = existing[1];
-                }
-                if ([].some.call(endSel.options, function (o) { return o.value === existing[2]; })) {
-                    endSel.value = existing[2];
-                } else {
-                    endSel.value = String(parseInt(existing[1], 10) + 1);
-                }
-                nameInput.value = startSel.value + '–' + endSel.value;
-                if (preview) preview.textContent = 'Academic Year: ' + nameInput.value;
+                startInput.value = existing[1];
+                endInput.value = existing[2];
+                sync();
             }
 
             if (root.dataset.mdpReady === '1') {
@@ -671,30 +664,38 @@
             var startY = existing ? parseInt(existing[1], 10) : current;
             var endY = existing ? parseInt(existing[2], 10) : current + 1;
 
-            startSel.innerHTML = '';
-            endSel.innerHTML = '';
-            for (var y = current - 5; y <= current + 8; y++) {
-                startSel.appendChild(new Option(String(y), String(y), y === startY, y === startY));
-                endSel.appendChild(new Option(String(y), String(y), y === endY, y === endY));
-            }
+            startInput.value = String(startY);
+            endInput.value = String(endY);
 
-            function sync() {
-                var s = parseInt(startSel.value, 10);
-                var e = parseInt(endSel.value, 10);
-                if (e <= s) {
-                    e = s + 1;
-                    endSel.value = String(e);
+            function sync(changedField) {
+                var startValue = String(startInput.value || '').trim();
+                var endValue = String(endInput.value || '').trim();
+                if (!/^\d{4}$/.test(startValue) || !/^\d{4}$/.test(endValue)) {
+                    nameInput.value = '';
+                    if (preview) preview.textContent = 'Enter a four-digit start and end year.';
+                    return;
                 }
-                nameInput.value = s + '–' + e;
-                if (preview) preview.textContent = 'Academic Year: ' + nameInput.value;
+
+                var s = parseInt(startValue, 10);
+                var e = parseInt(endValue, 10);
+                if (e <= s) {
+                    if (changedField === 'start') {
+                        e = s + 1;
+                        endInput.value = String(e);
+                    } else {
+                        nameInput.value = '';
+                        if (preview) preview.textContent = 'End year must be later than start year.';
+                        return;
+                    }
+                }
+                nameInput.value = s + '-' + e;
+                if (preview) preview.textContent = 'Academic Year: ' + s + '–' + e;
             }
 
-            startSel.addEventListener('change', function () {
-                var s = parseInt(startSel.value, 10);
-                endSel.value = String(s + 1);
-                sync();
-            });
-            endSel.addEventListener('change', sync);
+            startInput.addEventListener('input', function () { sync(); });
+            endInput.addEventListener('input', function () { sync(); });
+            startInput.addEventListener('change', function () { sync('start'); });
+            endInput.addEventListener('change', function () { sync('end'); });
             sync();
         });
     }

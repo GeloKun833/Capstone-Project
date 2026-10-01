@@ -164,17 +164,17 @@
                         <div class="mdp-year-range">
                             <div>
                                 <label class="form-label small text-muted mb-1" for="yearStartSelect">Start year</label>
-                                <select class="form-control form-select" id="yearStartSelect" data-mdp-year-start></select>
+                                <input class="form-control" id="yearStartSelect" data-mdp-year-start type="number" inputmode="numeric" min="1000" max="9999" step="1" required>
                                             </div>
                             <div class="mdp-year-sep">–</div>
                             <div>
                                 <label class="form-label small text-muted mb-1" for="yearEndSelect">End year</label>
-                                <select class="form-control form-select" id="yearEndSelect" data-mdp-year-end></select>
+                                <input class="form-control" id="yearEndSelect" data-mdp-year-end type="number" inputmode="numeric" min="1000" max="9999" step="1" required>
                                         </div>
                                     </div>
                         <input type="hidden" id="yearName" name="name" data-mdp-year-name required value="">
                         <div class="mdp-year-preview" data-mdp-year-preview>Academic Year: —</div>
-                        <small class="text-muted">Select years only (example: 2026–2027). Start/end dates are set automatically.</small>
+                        <small class="text-muted">Type the start and end years (example: 2026–2027). Start/end dates are set automatically.</small>
                                 </div>
                     <div class="row g-2 d-none" id="yearDateRow">
                         <div class="col-md-6">
@@ -369,6 +369,12 @@
             end_date: '',
             _token: csrf
         };
+        const yearRange = payload.name.match(/^(\d{4})-(\d{4})$/);
+        if (!yearRange || Number(yearRange[2]) <= Number(yearRange[1])) {
+            document.getElementById('yearFormMsg').innerHTML =
+                '<div class="alert alert-danger py-2 mb-0">Enter a valid range with the end year later than the start year.</div>';
+            return;
+        }
         const url = mode === 'edit' && active ? active.updateUrl : storeUrl;
         if (mode === 'edit') payload._method = 'PUT';
 
