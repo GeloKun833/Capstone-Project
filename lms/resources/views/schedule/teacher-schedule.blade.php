@@ -38,18 +38,10 @@
     };
 
     $gridStart = 7 * 60;
-    $gridEnd = 16 * 60;
-    if ($allSchedules->isNotEmpty()) {
-        $minMin = $allSchedules->min(fn ($s) => $clockMinutes($s->start_time));
-        $maxMin = $allSchedules->max(fn ($s) => $clockMinutes($s->end_time));
-        $gridStart = min($gridStart, max(6 * 60, intdiv($minMin, 60) * 60));
-        $gridEnd = max($gridEnd, min(20 * 60, (int) ceil($maxMin / 60) * 60));
-    }
+    $gridEnd = 17 * 60;
     $spanMinutes = max(60, $gridEnd - $gridStart);
-    $hourSlots = [];
-    for ($minute = $gridStart; $minute < $gridEnd; $minute += 60) {
-        $hourSlots[] = $minute;
-    }
+    $timeSlots = range($gridStart, $gridEnd, 30);
+    $hourCount = intdiv($spanMinutes, 60);
 
     $todayClasses = collect($weeklySchedule[$todayKey] ?? [])->sortBy(fn ($s) => $clockMinutes($s->start_time));
     $legend = $allSchedules
@@ -160,10 +152,12 @@
                                 </div>
                             @endforeach
                         </div>
-                        <div class="plan-body" style="--days: {{ count($days) }}; --hours: {{ count($hourSlots) }};">
+                        <div class="plan-body" style="--days: {{ count($days) }}; --hours: {{ $hourCount }};">
                             <div class="plan-times">
-                                @foreach($hourSlots as $slot)
-                                    <div class="plan-time"><span>{{ $formatMinutes($slot) }}</span></div>
+                                @foreach($timeSlots as $slot)
+                                    <div class="plan-time" style="top: {{ (($slot - $gridStart) / $spanMinutes) * 100 }}%;">
+                                        <span>{{ $formatMinutes($slot) }}</span>
+                                    </div>
                                 @endforeach
                             </div>
                             @foreach($days as $day)
@@ -390,8 +384,10 @@
 .plan-col { height: 100%; }
 .plan-times { position: relative; }
 .plan-time {
-    height: calc(100% / var(--hours, 9));
-    position: relative;
+    height: 0;
+    left: 0;
+    position: absolute;
+    right: 0;
 }
 .plan-time span {
     position: absolute;

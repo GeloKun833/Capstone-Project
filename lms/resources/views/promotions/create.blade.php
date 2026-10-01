@@ -22,6 +22,9 @@
             @csrf
             <input type="hidden" name="from_grade" value="{{ $fromGradeLevel }}">
             <input type="hidden" name="to_grade" value="{{ $toGradeLevel }}">
+            <div id="promotion-selection-error" class="alert alert-warning d-none" role="alert">
+                Please select at least one student to promote.
+            </div>
 
             {{-- Academic Year Selection --}}
             <div class="card mb-4">
@@ -179,6 +182,26 @@
             </div>
         </form>
 
+        <div class="modal fade" id="promotionConfirmModal" tabindex="-1" aria-labelledby="promotionConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="promotionConfirmModalLabel">Confirm Promotion</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-0">You are about to process <strong id="promotion-confirm-student-count">0</strong> student(s) from {{ $fromGradeLevel }} to {{ $toGradeLevel }}. Continue?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmPromotion">
+                            <i class="fas fa-graduation-cap" aria-hidden="true"></i> Confirm Promotion
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -206,20 +229,30 @@ $(document).ready(function() {
         $('#checkAll').prop('checked', false);
     });
 
-    // Form validation
+    let promotionConfirmationApproved = false;
+
     $('#promotionForm').on('submit', function(e) {
         var checkedStudents = $('.student-checkbox:checked').length;
-        
+
         if (checkedStudents === 0) {
             e.preventDefault();
-            alert('Please select at least one student to promote.');
+            $('#promotion-selection-error').removeClass('d-none');
             return false;
         }
 
-        if (!confirm(`Are you sure you want to promote ${checkedStudents} student(s)?`)) {
+        $('#promotion-selection-error').addClass('d-none');
+
+        if (!promotionConfirmationApproved) {
             e.preventDefault();
-            return false;
+            $('#promotion-confirm-student-count').text(checkedStudents);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('promotionConfirmModal')).show();
         }
+    });
+
+    $('#confirmPromotion').on('click', function() {
+        promotionConfirmationApproved = true;
+        bootstrap.Modal.getInstance(document.getElementById('promotionConfirmModal')).hide();
+        document.getElementById('promotionForm').requestSubmit();
     });
 
     // DataTable

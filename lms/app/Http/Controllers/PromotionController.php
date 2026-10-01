@@ -166,10 +166,12 @@ class PromotionController extends Controller
 
             DB::commit();
             
-            $message = "Promotion completed! Promoted: {$promoted}, Retained: {$retained}, Graduated: {$graduated}";
-            Toastr::success($message, 'Success');
-            
-            return redirect()->route('promotions.history');
+            return redirect()->route('promotions.history')->with('promotion_result', [
+                'promoted' => $promoted,
+                'retained' => $retained,
+                'graduated' => $graduated,
+                'total' => $promoted + $retained + $graduated,
+            ]);
             
         } catch (\Exception $e) {
             DB::rollback();

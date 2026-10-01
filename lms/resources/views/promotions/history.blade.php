@@ -269,5 +269,50 @@
 
     </div>
 </div>
+
+@if(session('promotion_result'))
+    <div class="modal fade" id="promotionSuccessModal" tabindex="-1" aria-labelledby="promotionSuccessModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="promotionSuccessModalLabel">
+                        <i class="fas fa-circle-check text-success me-2" aria-hidden="true"></i>Promotion Successful
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Promotion processing is complete for {{ number_format(session('promotion_result.total')) }} student(s).</p>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <strong class="d-block text-success">{{ number_format(session('promotion_result.promoted')) }}</strong>
+                            <small class="text-muted">Promoted</small>
+                        </div>
+                        <div class="col-4">
+                            <strong class="d-block text-warning">{{ number_format(session('promotion_result.retained')) }}</strong>
+                            <small class="text-muted">Retained</small>
+                        </div>
+                        <div class="col-4">
+                            <strong class="d-block text-info">{{ number_format(session('promotion_result.graduated')) }}</strong>
+                            <small class="text-muted">Graduated</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
 @endsection
+
+@if(session('promotion_result'))
+    @section('script')
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('promotionSuccessModal')).show();
+            });
+        </script>
+    @endsection
+@endif
 

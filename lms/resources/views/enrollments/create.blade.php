@@ -86,20 +86,37 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>Password <span class="text-danger">*</span></label>
-                                        <input type="password" class="form-control @error('password') is-invalid @enderror" 
-                                               name="password" required>
+                                        <div class="input-group">
+                                            <input type="password" id="password" class="form-control @error('password') is-invalid @enderror"
+                                                   name="password" autocomplete="new-password" required>
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-outline-secondary password-visibility-toggle"
+                                                        data-target="password" aria-label="Show password" aria-pressed="false">
+                                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                         @error('password')
-                                            <span class="invalid-feedback">{{ $message }}</span>
+                                            <span class="invalid-feedback d-block">{{ $message }}</span>
                                         @enderror
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>Confirm Password <span class="text-danger">*</span></label>
-                                        <input type="password" class="form-control @error('password_confirmation') is-invalid @enderror" 
-                                               name="password_confirmation" required>
+                                        <div class="input-group">
+                                            <input type="password" id="password_confirmation" class="form-control @error('password_confirmation') is-invalid @enderror"
+                                                   name="password_confirmation" autocomplete="new-password" aria-describedby="password-match-status" required>
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-outline-secondary password-visibility-toggle"
+                                                        data-target="password_confirmation" aria-label="Show confirm password" aria-pressed="false">
+                                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <small id="password-match-status" class="form-text" role="status" aria-live="polite"></small>
                                         @error('password_confirmation')
-                                            <span class="invalid-feedback">{{ $message }}</span>
+                                            <span class="invalid-feedback d-block">{{ $message }}</span>
                                         @enderror
                                     </div>
                                 </div>
@@ -192,6 +209,34 @@
 document.addEventListener('DOMContentLoaded', function() {
     const roleSelect = document.getElementById('role_name');
     const teacherFields = document.getElementById('teacher-fields');
+    const passwordInput = document.getElementById('password');
+    const passwordConfirmation = document.getElementById('password_confirmation');
+    const passwordMatchStatus = document.getElementById('password-match-status');
+
+    document.querySelectorAll('.password-visibility-toggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function() {
+            const input = document.getElementById(toggle.dataset.target);
+            const icon = toggle.querySelector('i');
+            const isVisible = input.type === 'text';
+
+            input.type = isVisible ? 'password' : 'text';
+            toggle.setAttribute('aria-pressed', String(!isVisible));
+            toggle.setAttribute('aria-label', (isVisible ? 'Show ' : 'Hide ') + (input.id === 'password' ? 'password' : 'confirm password'));
+            icon.classList.toggle('fa-eye', isVisible);
+            icon.classList.toggle('fa-eye-slash', !isVisible);
+        });
+    });
+
+    function updatePasswordMatch() {
+        const confirmation = passwordConfirmation.value;
+        passwordMatchStatus.textContent = confirmation === '' ? '' :
+            (passwordInput.value === confirmation ? 'Passwords match.' : 'Passwords do not match.');
+        passwordMatchStatus.classList.toggle('text-success', confirmation !== '' && passwordInput.value === confirmation);
+        passwordMatchStatus.classList.toggle('text-danger', confirmation !== '' && passwordInput.value !== confirmation);
+    }
+
+    passwordInput.addEventListener('input', updatePasswordMatch);
+    passwordConfirmation.addEventListener('input', updatePasswordMatch);
 
     function toggleFields() {
         const selectedRole = roleSelect.value;
