@@ -31,7 +31,7 @@ class ParentController extends Controller
         $academicYear = $this->portalService->getAcademicYear(
             $request->integer('academic_year_id') ?: null
         );
-        $semester = Semester::orderByDesc('id')->first();
+        $semester = Semester::current();
         $academicYears = AcademicYear::orderByDesc('name')->get();
 
         $overview = $this->portalService->getChildOverview($child);

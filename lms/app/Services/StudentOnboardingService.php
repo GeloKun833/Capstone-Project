@@ -121,8 +121,8 @@ class StudentOnboardingService
             return [];
         }
 
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::current();
+        $semester = \App\Models\Semester::current();
         if (! $academicYear || ! $semester) {
             throw new \Exception('No academic year or semester found. Please set up academic periods first.');
         }

@@ -935,13 +935,7 @@ class DummyStudentService
                 throw new RuntimeException("Academic year #{$academicYearId} does not exist.");
             }
         } else {
-            $today = now()->toDateString();
-            $academicYear = AcademicYear::query()
-                ->whereDate('start_date', '<=', $today)
-                ->whereDate('end_date', '>=', $today)
-                ->orderByDesc('start_date')
-                ->first()
-                ?? AcademicYear::query()->latest('id')->first();
+            $academicYear = AcademicYear::current();
         }
 
         if (! $academicYear) {

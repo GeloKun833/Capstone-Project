@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Services\SectionScheduleReadiness;
 use App\Support\TemporaryPassword;
 
 class EnrollmentPortalController extends Controller
@@ -51,18 +52,27 @@ class EnrollmentPortalController extends Controller
                 ? $this->draftFormValues($sourceDraft, $openDraft !== null)
                 : [],
         ];
+        $activeAcademicYear = \App\Models\AcademicYear::active();
+        $enrollmentClosedMessage = app(SectionScheduleReadiness::class)->yearEnrollmentBlock();
 
         return view('enrollment.portal.create', compact(
             'type',
             'enrollmentGroupToken',
             'enrollmentGroupStarted',
             'currentDraftId',
-            'enrollmentServerRestore'
+            'enrollmentServerRestore',
+            'activeAcademicYear',
+            'enrollmentClosedMessage'
         ));
     }
 
     public function saveChildDraft(Request $request)
     {
+        $yearError = app(SectionScheduleReadiness::class)->yearEnrollmentBlock();
+        if ($yearError) {
+            return response()->json(['message' => $yearError], 422);
+        }
+
         $validated = $request->validate([
             'enrollment_group_token' => 'required|uuid',
             'current_child_draft_id' => 'nullable|integer',
@@ -111,6 +121,7 @@ class EnrollmentPortalController extends Controller
             $draftData['phone_number'] = null;
         }
         $draftData['enrollment_group_token'] = $groupToken;
+        $draftData['academic_year_id'] = \App\Models\AcademicYear::active()?->id;
         $draftData['status'] = 'draft';
 
         if (! $draft) {
@@ -258,6 +269,11 @@ class EnrollmentPortalController extends Controller
             return response()->json([
                 'message' => 'Choose a section for '.$draft->grade_level_applying_for.'.',
             ], 422);
+        }
+
+        $scheduleMessage = app(SectionScheduleReadiness::class)->enrollmentBlockMessage((int) $sectionId, $draft->full_name);
+        if ($scheduleMessage) {
+            return response()->json(['message' => $scheduleMessage], 422);
         }
 
         $draft->preferred_section_id = (int) $sectionId;
@@ -546,11 +562,27 @@ class EnrollmentPortalController extends Controller
                 ->withInput();
         }
 
+        $yearError = app(SectionScheduleReadiness::class)->yearEnrollmentBlock();
+        if ($yearError) {
+            return redirect()->back()
+                ->with('error', $yearError)
+                ->withInput();
+        }
+
         if ($request->filled('enrollment_group_token') && EnrollmentApplication::query()
             ->where('enrollment_group_token', $request->input('enrollment_group_token'))
             ->where('status', 'draft')
             ->exists()) {
             return $this->finalizeSiblingEnrollment($request, $request->boolean('save_as_draft'));
+        }
+
+        if (! $request->boolean('save_as_draft')) {
+            $scheduleError = $this->selectedSectionScheduleError($request);
+            if ($scheduleError) {
+                return redirect()->back()
+                    ->with('error', $scheduleError)
+                    ->withInput();
+            }
         }
 
         try {
@@ -634,6 +666,7 @@ class EnrollmentPortalController extends Controller
             if (! empty($applicationData['date_enrolled'])) {
                 $applicationData['date_of_first_attendance'] = $applicationData['date_enrolled'];
             }
+            $applicationData['academic_year_id'] = \App\Models\AcademicYear::active()?->id;
             
             // Create the enrollment application (unique APP-YYYY-######, incl. soft-deleted)
             $application = EnrollmentApplication::createUnique($applicationData);
@@ -764,8 +797,12 @@ class EnrollmentPortalController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Failed to submit enrollment application.', ['exception' => $e]);
+            $message = str_starts_with($e->getMessage(), 'Enrollment ')
+                ? $e->getMessage()
+                : 'Failed to submit your application. Please try again or contact the school for assistance.';
+
             return redirect()->back()
-                ->with('error', 'Failed to submit your application. Please try again or contact the school for assistance.')
+                ->with('error', $message)
                 ->withInput();
         }
     }
@@ -819,7 +856,7 @@ class EnrollmentPortalController extends Controller
             $sharedFields[$checkbox] = $request->boolean($checkbox);
         }
 
-        $sectionError = $this->assignRequestedSections($request, $drafts, $currentDraft);
+        $sectionError = $this->assignRequestedSections($request, $drafts, $currentDraft, $saveAsDraft);
         if ($sectionError) {
             return redirect()->back()
                 ->with('error', $sectionError)
@@ -837,6 +874,7 @@ class EnrollmentPortalController extends Controller
                 }
 
                 $draft->fill($sharedFields);
+                $draft->academic_year_id = \App\Models\AcademicYear::active()?->id;
                 if ($draft->date_enrolled) {
                     $draft->date_of_first_attendance = $draft->date_enrolled;
                 }
@@ -864,9 +902,12 @@ class EnrollmentPortalController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Unable to finalize sibling enrollment drafts.', ['group' => $groupToken, 'exception' => $e]);
+            $message = str_starts_with($e->getMessage(), 'Enrollment ')
+                ? $e->getMessage()
+                : 'Failed to submit the saved child enrollments. Please try again.';
 
             return redirect()->back()
-                ->with('error', 'Failed to submit the saved child enrollments. Please try again.')
+                ->with('error', $message)
                 ->withInput();
         }
 
@@ -1064,11 +1105,12 @@ class EnrollmentPortalController extends Controller
     private function assignStudentToSelectedSection($student, $sectionId, $gradeLevel)
     {
         // Get the latest academic year and semester
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
-        if (!$academicYear || !$semester) {
-            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        if (!$academicYear || !$semester || !$academicYear->enrollmentIsOpen()) {
+            throw new \Exception(app(SectionScheduleReadiness::class)->yearEnrollmentBlock()
+                ?: 'No academic year or semester found. Please set up academic periods first.');
         }
 
         // Get the selected section
@@ -1076,6 +1118,11 @@ class EnrollmentPortalController extends Controller
         
         if (!$section) {
             throw new \Exception("Selected section not found.");
+        }
+
+        $scheduleMessage = app(SectionScheduleReadiness::class)->enrollmentBlockMessage((int) $section->id);
+        if ($scheduleMessage) {
+            throw new \Exception($scheduleMessage);
         }
 
         // Verify section is for the correct grade level (allow aliases e.g. Kinder/Kindergarten)
@@ -1130,11 +1177,12 @@ class EnrollmentPortalController extends Controller
     private function autoAssignStudentToSection($student, $gradeLevel)
     {
         // Get the latest academic year and semester (since is_active column doesn't exist)
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
-        if (!$academicYear || !$semester) {
-            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        if (!$academicYear || !$semester || !$academicYear->enrollmentIsOpen()) {
+            throw new \Exception(app(SectionScheduleReadiness::class)->yearEnrollmentBlock()
+                ?: 'No academic year or semester found. Please set up academic periods first.');
         }
 
         // Find sections for the student's grade level (canonical + aliases)
@@ -1155,15 +1203,23 @@ class EnrollmentPortalController extends Controller
 
             $capacity = $section->capacity ?? 25; // Default capacity if not set
 
-            if ($currentCount < $capacity) {
+            if ($currentCount < $capacity && app(SectionScheduleReadiness::class)->enrollmentAllowed((int) $section->id)) {
                 $assignedSection = $section;
                 break;
             }
         }
 
+        if (! $assignedSection) {
+            foreach ($sections as $section) {
+                if (app(SectionScheduleReadiness::class)->enrollmentAllowed((int) $section->id)) {
+                    $assignedSection = $section;
+                    break;
+                }
+            }
+        }
+
         if (!$assignedSection) {
-            // If no section has capacity, assign to the first available section
-            $assignedSection = $sections->first();
+            throw new \Exception(app(SectionScheduleReadiness::class)->gradeBlockMessage((string) $gradeLevel));
         }
 
         // Check if student is already assigned to this section
@@ -1197,11 +1253,12 @@ class EnrollmentPortalController extends Controller
      */
     private function autoEnrollStudentInSubjects($student, $gradeLevel)
     {
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
-        if (!$academicYear || !$semester) {
-            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        if (!$academicYear || !$semester || !$academicYear->enrollmentIsOpen()) {
+            throw new \Exception(app(SectionScheduleReadiness::class)->yearEnrollmentBlock()
+                ?: 'No academic year or semester found. Please set up academic periods first.');
         }
 
         $subjects = app(\App\Services\GradeSubjectCatalogService::class)->subjectsForGrade($gradeLevel);
@@ -1337,6 +1394,9 @@ class EnrollmentPortalController extends Controller
                 Log::info("✅ Auto-assigned student to section: {$assignedSection->name}");
             }
         } catch (\Exception $e) {
+            if (str_starts_with($e->getMessage(), 'Enrollment ')) {
+                throw $e;
+            }
             // If section assignment fails, continue without error (will be assigned later)
             Log::warning("⚠️ Section assignment failed: " . $e->getMessage());
             $assignedSection = null;
@@ -1526,12 +1586,14 @@ class EnrollmentPortalController extends Controller
         return [$uploaded, $missing];
     }
 
-    private function assignRequestedSections(Request $request, $drafts, EnrollmentApplication $currentDraft): ?string
+    private function assignRequestedSections(Request $request, $drafts, EnrollmentApplication $currentDraft, bool $saveAsDraft = false): ?string
     {
         $choices = $request->input('child_sections', []);
         if (! is_array($choices)) {
             $choices = [];
         }
+
+        $readiness = app(SectionScheduleReadiness::class);
 
         foreach ($drafts as $draft) {
             $chosen = $choices[$draft->id] ?? $choices[(string) $draft->id] ?? null;
@@ -1539,12 +1601,36 @@ class EnrollmentPortalController extends Controller
                 $chosen = $request->input('selected_section_id');
             }
             if ($chosen === null || $chosen === '') {
+                if (! $saveAsDraft && ! $readiness->gradeHasEnrollableSection((string) $draft->grade_level_applying_for)) {
+                    return $readiness->gradeBlockMessage((string) $draft->grade_level_applying_for, $draft->full_name);
+                }
                 continue;
             }
             if (! $this->sectionMatchesGrade((int) $chosen, (string) $draft->grade_level_applying_for)) {
                 return 'The section chosen for '.$draft->full_name.' does not match '.$draft->grade_level_applying_for.'.';
             }
+            if (! $saveAsDraft) {
+                $scheduleMessage = $readiness->enrollmentBlockMessage((int) $chosen, $draft->full_name);
+                if ($scheduleMessage) {
+                    return $scheduleMessage;
+                }
+            }
             $draft->preferred_section_id = (int) $chosen;
+        }
+
+        return null;
+    }
+
+    private function selectedSectionScheduleError(Request $request, ?string $childName = null): ?string
+    {
+        $readiness = app(SectionScheduleReadiness::class);
+        if ($request->filled('selected_section_id')) {
+            return $readiness->enrollmentBlockMessage((int) $request->input('selected_section_id'), $childName);
+        }
+
+        $grade = (string) $request->input('grade_level_applying_for', '');
+        if ($grade !== '' && ! $readiness->gradeHasEnrollableSection($grade)) {
+            return $readiness->gradeBlockMessage($grade, $childName);
         }
 
         return null;
@@ -1969,8 +2055,8 @@ class EnrollmentPortalController extends Controller
             ->get();
 
         // Get the latest academic year and semester
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
         // Check which sections have available capacity
         foreach ($availableSections as $section) {
@@ -1983,9 +2069,15 @@ class EnrollmentPortalController extends Controller
             $capacity = $section->capacity ?? 25;
             $section->available_spots = max(0, $capacity - $currentCount);
             $section->is_full = $section->available_spots === 0;
+            $schedule = app(SectionScheduleReadiness::class)->assess((int) $section->id, $academicYear?->id);
+            $section->schedule_label = $schedule['label'];
+            $section->enrollment_allowed = $schedule['enrollment_allowed'] && app(SectionScheduleReadiness::class)->yearEnrollmentBlock() === null;
+            $section->academic_year_name = $schedule['academic_year'] ?: $academicYear?->displayName();
         }
 
-        return view('enrollment.portal.old-student.dashboard', compact('student', 'subjects', 'schedules', 'availableSections', 'academicYear', 'semester'));
+        $enrollmentClosedMessage = app(SectionScheduleReadiness::class)->yearEnrollmentBlock();
+
+        return view('enrollment.portal.old-student.dashboard', compact('student', 'subjects', 'schedules', 'availableSections', 'academicYear', 'semester', 'enrollmentClosedMessage'));
     }
 
     /**
@@ -2002,6 +2094,12 @@ class EnrollmentPortalController extends Controller
         $request->validate([
             'section_id' => 'required|exists:sections,id',
         ]);
+
+        $scheduleMessage = app(SectionScheduleReadiness::class)->enrollmentBlockMessage((int) $request->section_id);
+        if ($scheduleMessage) {
+            return redirect()->route('enrollment.old-student.dashboard')
+                ->with('error', $scheduleMessage);
+        }
 
         $enrollmentData = session('old_student_enrollment');
         $sectionId = $request->section_id;
@@ -2035,12 +2133,18 @@ class EnrollmentPortalController extends Controller
                 ->with('error', 'Selected section does not match your grade level.');
         }
 
+        $scheduleMessage = app(SectionScheduleReadiness::class)->enrollmentBlockMessage((int) $section->id);
+        if ($scheduleMessage) {
+            return redirect()->route('enrollment.old-student.dashboard')
+                ->with('error', $scheduleMessage);
+        }
+
         try {
             DB::beginTransaction();
 
             // Get the latest academic year and semester
-            $academicYear = \App\Models\AcademicYear::latest()->first();
-            $semester = \App\Models\Semester::latest()->first();
+            $academicYear = \App\Models\AcademicYear::active();
+            $semester = \App\Models\Semester::current();
 
             if (!$academicYear || !$semester) {
                 throw new \Exception('No academic year or semester found. Please contact the registrar.');
@@ -2070,6 +2174,7 @@ class EnrollmentPortalController extends Controller
 
             // Create enrollment application for old student
             $application = EnrollmentApplication::createUnique([
+                'academic_year_id' => $academicYear?->id,
                 'student_category' => 'old_student',
                 'existing_student_id' => $student->id,
                 'first_name' => $student->first_name,
@@ -2126,8 +2231,8 @@ class EnrollmentPortalController extends Controller
     {
         try {
             // Get the latest academic year and semester
-            $academicYear = \App\Models\AcademicYear::latest()->first();
-            $semester = \App\Models\Semester::latest()->first();
+            $academicYear = \App\Models\AcademicYear::active();
+            $semester = \App\Models\Semester::current();
 
             // Get sections for the specified grade level (canonical + aliases)
             $sections = app(\App\Services\GradeSubjectCatalogService::class)
@@ -2151,6 +2256,7 @@ class EnrollmentPortalController extends Controller
 
                 $capacity = $section->capacity ?? 25;
                 $availableSpots = max(0, $capacity - $currentCount);
+                $schedule = app(SectionScheduleReadiness::class)->assess((int) $section->id, $academicYear?->id);
 
                 return [
                     'id' => $section->id,
@@ -2162,6 +2268,10 @@ class EnrollmentPortalController extends Controller
                     'available_spots' => $availableSpots,
                     'is_full' => $availableSpots === 0,
                     'description' => $section->description,
+                    'academic_year' => $schedule['academic_year'],
+                    'schedule_status' => $schedule['status'],
+                    'schedule_label' => $schedule['label'],
+                    'enrollment_allowed' => $schedule['enrollment_allowed'] && app(SectionScheduleReadiness::class)->yearEnrollmentBlock() === null,
                 ];
             });
 

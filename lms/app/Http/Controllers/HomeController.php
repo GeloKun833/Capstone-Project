@@ -1424,8 +1424,8 @@ class HomeController extends Controller
                 $child->setRelation('sections', $child->resolvedSections());
             });
 
-            $currentAcademicYear = Cache::remember('academic.year.latest', 600, fn () => \App\Models\AcademicYear::latest('id')->first());
-            $currentSemester = Cache::remember('academic.semester.latest', 600, fn () => \App\Models\Semester::latest('id')->first());
+            $currentAcademicYear = Cache::remember('academic.year.current', 600, fn () => \App\Models\AcademicYear::current());
+            $currentSemester = Cache::remember('academic.semester.current', 600, fn () => \App\Models\Semester::current());
 
             $hasEnrollmentStatus = true;
             $enrollments = Enrollment::where('student_id', $selectedChild->id)

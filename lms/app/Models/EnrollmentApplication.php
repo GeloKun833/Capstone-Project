@@ -11,6 +11,7 @@ class EnrollmentApplication extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'academic_year_id',
         'application_number',
         'enrollment_group_token',
         'enrollment_type',

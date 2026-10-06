@@ -6,7 +6,7 @@
             <div class="row align-items-center">
                 <div class="col">
                     <h3 class="page-title">Semesters</h3>
-                    <p class="text-muted mb-0">Semesters belong to an academic year and power enrollment periods.</p>
+                    <p class="text-muted mb-0">Semesters follow their academic year. A completed year keeps its semesters on record.</p>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('academic_years.index') }}">Academic Years</a></li>
@@ -28,6 +28,9 @@
 
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
 
         @if($academicYears->isEmpty())
@@ -66,9 +69,13 @@
                         data-name="{{ $semester->name }}"
                         data-year-id="{{ $semester->academic_year_id }}"
                         data-year-name="{{ optional($semester->academicYear)->name ?? '—' }}"
+                        data-status="{{ $semester->statusLabel() }}"
                         data-update-url="{{ route('semesters.update', $semester) }}"
                         data-destroy-url="{{ route('semesters.destroy', $semester) }}">
-                        <div class="ams-sem-title">{{ $semester->name }}</div>
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="ams-sem-title">{{ $semester->name }}</div>
+                            <span class="ams-status-pill ams-status-pill--{{ $semester->statusLabel() }}">{{ ucfirst($semester->statusLabel()) }}</span>
+                        </div>
                         <div class="ams-sem-year mt-2">{{ optional($semester->academicYear)->name ?? 'No year' }}</div>
                         <div class="ams-sem-hint mt-3">Click to manage <i class="fas fa-arrow-right ms-1"></i></div>
                     </button>
@@ -97,9 +104,13 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-3">
-                <div class="ams-detail-item">
+                <div class="ams-detail-item mb-2">
                     <span class="ams-detail-label">Academic Year</span>
                     <span class="ams-detail-value" id="semDetailYear">—</span>
+                </div>
+                <div class="ams-detail-item">
+                    <span class="ams-detail-label">Status</span>
+                    <span class="ams-detail-value" id="semDetailStatus">—</span>
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
@@ -193,6 +204,11 @@
 .ams-sem-card { border:1px solid var(--ams-line); background:#fff; border-radius:14px; padding:1rem; min-height:128px; transition:transform .18s ease, box-shadow .18s ease; }
 .ams-sem-card:hover { transform:translateY(-3px); border-color:#93c5fd; box-shadow:0 12px 24px rgba(30,58,138,.12); }
 .ams-sem-title { font-weight:700; font-size:1.05rem; color:var(--ams-ink); }
+.ams-status-pill { font-size:.72rem; font-weight:700; border-radius:999px; padding:.2rem .55rem; white-space:nowrap; }
+.ams-status-pill--current { background:#d1fae5; color:#065f46; }
+.ams-status-pill--upcoming { background:#dbeafe; color:#1e40af; }
+.ams-status-pill--completed { background:#e2e8f0; color:#475569; }
+.ams-status-pill--archived { background:#fef3c7; color:#92400e; }
 .ams-sem-year { display:inline-block; font-size:.78rem; font-weight:700; color:#1e40af; background:#eff6ff; border-radius:999px; padding:.2rem .65rem; }
 .ams-sem-hint { font-size:.75rem; font-weight:600; color:#2563eb; }
 .ams-float-modal { border:0; border-radius:18px; box-shadow:0 24px 48px rgba(15,23,42,.18); }
@@ -251,11 +267,14 @@
             name: btn.getAttribute('data-name') || '',
             yearId: btn.getAttribute('data-year-id') || '',
             yearName: btn.getAttribute('data-year-name') || '',
+            status: btn.getAttribute('data-status') || '',
             updateUrl: btn.getAttribute('data-update-url') || '',
             destroyUrl: btn.getAttribute('data-destroy-url') || ''
         };
         document.getElementById('semDetailTitle').textContent = active.name;
         document.getElementById('semDetailYear').textContent = active.yearName;
+        document.getElementById('semDetailStatus').textContent = (active.status || '').charAt(0).toUpperCase() + (active.status || '').slice(1);
+        document.getElementById('semDeleteBtn')?.classList.toggle('d-none', active.status === 'completed' || active.status === 'archived');
     });
 
     document.getElementById('btnAddSemester')?.addEventListener('click', function () {

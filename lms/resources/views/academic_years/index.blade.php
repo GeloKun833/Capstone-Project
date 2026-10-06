@@ -7,7 +7,7 @@
                     <div class="col">
                         <div>
                             <h3 class="page-title mb-1">Academic Years</h3>
-                            <p class="text-muted mb-0">Manage school years used by enrollment, grading, and semesters.</p>
+                            <p class="text-muted mb-0">Create and edit school years. A finished year is completed or archived, and it is not deleted. Classes, subjects, and curriculum stay for every year.</p>
                         </div>
                     </div>
                 <div class="col-auto text-end">
@@ -30,6 +30,9 @@
 
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
 
         <div class="row g-3 mb-4">
@@ -58,6 +61,7 @@
                 <button type="button" class="ams-filter-chip" data-status="current">Current</button>
                 <button type="button" class="ams-filter-chip" data-status="upcoming">Upcoming</button>
                 <button type="button" class="ams-filter-chip" data-status="completed">Completed</button>
+                <button type="button" class="ams-filter-chip" data-status="archived">Archive</button>
                 </div>
             </div>
 
@@ -79,9 +83,12 @@
                         data-start-label="{{ $year->start_date->format('M d, Y') }}"
                         data-end-label="{{ $year->end_date->format('M d, Y') }}"
                         data-status="{{ $status }}"
+                        data-enrollment-open="{{ $year->enrollment_open ? '1' : '0' }}"
+                        data-enrollment-url="{{ route('academic_years.enrollment', $year) }}"
                         data-semesters="{{ $year->semesters_count }}"
                         data-update-url="{{ route('academic_years.update', $year) }}"
-                        data-destroy-url="{{ route('academic_years.destroy', $year) }}">
+                        data-destroy-url="{{ route('academic_years.destroy', $year) }}"
+                        data-unarchive-url="{{ route('academic_years.unarchive', $year) }}">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <span class="ams-year-title">{{ $year->name }}</span>
                             <span class="ams-status-pill ams-status-pill--{{ $status }}">{{ ucfirst($status) }}</span>
@@ -90,7 +97,10 @@
                             {{ $year->start_date->format('M d, Y') }} → {{ $year->end_date->format('M d, Y') }}
                         </div>
                         <div class="ams-year-meta mt-2">
-                            <i class="fas fa-calendar-week me-1"></i>{{ $year->semesters_count }} semester(s)
+                            <i class="fas fa-door-open me-1"></i>Enrollment: {{ $year->enrollment_open ? 'Open' : 'Closed' }}
+                        </div>
+                        <div class="ams-year-meta mt-1">
+                            <i class="fas fa-calendar-week me-1"></i>{{ ucfirst($status) }} · {{ $year->semesters_count }} semester(s)
                         </div>
                         <div class="ams-year-hint mt-3">Click to manage <i class="fas fa-arrow-right ms-1"></i></div>
                     </button>
@@ -123,7 +133,11 @@
                     <div class="ams-detail-item">
                         <span class="ams-detail-label">Status</span>
                         <span class="ams-detail-value" id="yearDetailStatus">—</span>
-                                                </div>
+                    </div>
+                    <div class="ams-detail-item">
+                        <span class="ams-detail-label">Enrollment</span>
+                        <span class="ams-detail-value" id="yearDetailEnrollment">—</span>
+                    </div>
                     <div class="ams-detail-item">
                         <span class="ams-detail-label">Semesters</span>
                         <span class="ams-detail-value" id="yearDetailSemesters">—</span>
@@ -132,12 +146,23 @@
                         <span class="ams-detail-label">Date Range</span>
                         <span class="ams-detail-value" id="yearDetailDates">—</span>
                                         </div>
+                    <div class="ams-detail-item ams-detail-item--full">
+                        <span class="ams-detail-label">Kept records</span>
+                        <span class="ams-detail-value">Classes, subjects, and curriculum stay in place for this year and for any new upcoming year.</span>
+                                        </div>
                                     </div>
                                 </div>
             <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
                 <button type="button" class="btn btn-warning" id="yearEditBtn"><i class="fas fa-edit me-1"></i> Edit</button>
-                <button type="button" class="btn btn-danger" id="yearDeleteBtn"
-                    data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-trash me-1"></i> Delete</button>
+                <form id="yearEnrollmentForm" method="POST" class="d-inline">
+                    @csrf
+                    <input type="hidden" name="enrollment_open" id="yearEnrollmentOpen" value="1">
+                    <button type="submit" class="btn btn-success" id="yearEnrollmentBtn">Open Enrollment</button>
+                </form>
+                <button type="button" class="btn btn-outline-secondary" id="yearDeleteBtn"
+                    data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-box-archive me-1"></i> Archive</button>
+                <button type="button" class="btn btn-outline-primary d-none" id="yearUnarchiveBtn"
+                    data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-box-open me-1"></i> Unarchive</button>
                 <a href="{{ route('semesters.index') }}" class="btn btn-outline-primary">Manage Semesters</a>
                 <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">Close</button>
                                                 </div>
@@ -186,7 +211,15 @@
                             <input type="date" class="form-control" id="yearEnd" name="end_date">
                                                 </div>
                                             </div>
-                    <p class="text-muted small mt-2 mb-0">School year status is derived from the year label.</p>
+                    <div class="mb-0" id="yearStatusRow">
+                        <label class="form-label fw-semibold" for="yearStatus">Status</label>
+                        <select class="form-control" id="yearStatus" name="status">
+                            <option value="upcoming">Upcoming</option>
+                            <option value="current">Current (Active)</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                        <small class="text-muted">Current is the one active academic year. Enrollment stays closed until you open it. Classes, subjects, and curriculum stay available.</small>
+                    </div>
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -203,13 +236,13 @@
         <div class="modal-content">
             <div class="modal-body">
                 <div class="form-header">
-                    <h3>Delete Academic Year</h3>
-                    <p class="mb-0">Delete <strong id="yearDeleteName">this year</strong>? Linked semesters will also be removed.</p>
+                    <h3 id="yearDeleteTitle">Archive Academic Year</h3>
+                    <p class="mb-0" id="yearDeleteText">Archive <strong id="yearDeleteName">this year</strong>? It stays on record with its semesters and class schedules. Classes, subjects, and curriculum are not removed.</p>
                                                 </div>
                 <div class="modal-btn delete-action">
                     <div class="row">
                         <div class="col-6">
-                            <button type="button" class="btn btn-primary paid-continue-btn w-100" id="yearDeleteConfirm">Delete</button>
+                            <button type="button" class="btn btn-primary paid-continue-btn w-100" id="yearDeleteConfirm">Archive</button>
                                                     </div>
                         <div class="col-6">
                             <button type="button" class="btn btn-primary paid-cancel-btn w-100" data-bs-dismiss="modal">Cancel</button>
@@ -252,6 +285,7 @@
 .ams-status-pill--current { background:#d1fae5; color:#065f46; }
 .ams-status-pill--upcoming { background:#dbeafe; color:#1e40af; }
 .ams-status-pill--completed { background:#e2e8f0; color:#475569; }
+.ams-status-pill--archived { background:#fef3c7; color:#92400e; }
 .ams-float-modal { border:0; border-radius:18px; box-shadow:0 24px 48px rgba(15,23,42,.18); }
 .ams-modal-eyebrow { font-size:.75rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ams-muted); margin:0; }
 .ams-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:.85rem; }
@@ -318,13 +352,29 @@
             startLabel: btn.getAttribute('data-start-label') || '',
             endLabel: btn.getAttribute('data-end-label') || '',
             status: btn.getAttribute('data-status') || '',
+            enrollmentOpen: btn.getAttribute('data-enrollment-open') || '0',
+            enrollmentUrl: btn.getAttribute('data-enrollment-url') || '',
             semesters: btn.getAttribute('data-semesters') || '0',
             updateUrl: btn.getAttribute('data-update-url') || '',
             destroyUrl: btn.getAttribute('data-destroy-url') || '',
+            unarchiveUrl: btn.getAttribute('data-unarchive-url') || '',
             cardBtn: btn
         };
+        document.getElementById('yearDeleteBtn')?.classList.toggle('d-none', active.status === 'current' || active.status === 'archived');
+        document.getElementById('yearUnarchiveBtn')?.classList.toggle('d-none', active.status !== 'archived');
         document.getElementById('yearDetailTitle').textContent = active.name;
         document.getElementById('yearDetailStatus').textContent = statusLabel(active.status);
+        document.getElementById('yearDetailEnrollment').textContent = active.enrollmentOpen === '1' ? 'Open' : 'Closed';
+        const enrollmentForm = document.getElementById('yearEnrollmentForm');
+        const enrollmentBtn = document.getElementById('yearEnrollmentBtn');
+        if (enrollmentForm && enrollmentBtn) {
+            enrollmentForm.action = active.enrollmentUrl;
+            const isOpen = active.enrollmentOpen === '1';
+            document.getElementById('yearEnrollmentOpen').value = isOpen ? '0' : '1';
+            enrollmentBtn.textContent = isOpen ? 'Close Enrollment' : 'Open Enrollment';
+            enrollmentBtn.disabled = !isOpen && active.status !== 'current';
+            enrollmentBtn.title = enrollmentBtn.disabled ? 'Set this year as Current before opening enrollment.' : '';
+        }
         document.getElementById('yearDetailSemesters').textContent = active.semesters;
         document.getElementById('yearDetailDates').textContent = active.startLabel + ' → ' + active.endLabel;
     });
@@ -334,6 +384,7 @@
         active = null;
         document.getElementById('yearFormEyebrow').textContent = 'New Academic Year';
         document.getElementById('yearFormTitle').textContent = 'Add Academic Year';
+        document.getElementById('yearStatusRow').classList.add('d-none');
         document.getElementById('yearForm').reset();
         document.getElementById('yearStart').value = '';
         document.getElementById('yearEnd').value = '';
@@ -350,6 +401,8 @@
         mode = 'edit';
         document.getElementById('yearFormEyebrow').textContent = 'Edit Academic Year';
         document.getElementById('yearFormTitle').textContent = active.name;
+        document.getElementById('yearStatusRow').classList.remove('d-none');
+        document.getElementById('yearStatus').value = ['upcoming', 'current', 'completed'].indexOf(active.status) >= 0 ? active.status : 'completed';
         document.getElementById('yearName').value = active.name;
         document.getElementById('yearStart').value = active.start;
         document.getElementById('yearEnd').value = active.end;
@@ -367,6 +420,7 @@
             name: document.getElementById('yearName').value.trim(),
             start_date: '',
             end_date: '',
+            status: mode === 'edit' ? document.getElementById('yearStatus').value : 'upcoming',
             _token: csrf
         };
         const yearRange = payload.name.match(/^(\d{4})-(\d{4})$/);
@@ -411,12 +465,18 @@
 
     deleteEl?.addEventListener('show.bs.modal', function () {
         if (!active) return;
-        document.getElementById('yearDeleteName').textContent = active.name;
+        const restoring = active.status === 'archived';
+        document.getElementById('yearDeleteTitle').textContent = restoring ? 'Unarchive Academic Year' : 'Archive Academic Year';
+        document.getElementById('yearDeleteText').innerHTML = restoring
+            ? 'Unarchive <strong>' + active.name + '</strong>? It will be labeled Completed again. Classes, subjects, and curriculum stay in place.'
+            : 'Archive <strong>' + active.name + '</strong>? It stays on record with its semesters and class schedules. Classes, subjects, and curriculum are not removed.';
+        document.getElementById('yearDeleteConfirm').textContent = restoring ? 'Unarchive' : 'Archive';
     });
 
     document.getElementById('yearDeleteConfirm')?.addEventListener('click', function () {
         if (!active) return;
-        fetch(active.destroyUrl, {
+        const restoring = active.status === 'archived';
+        fetch(restoring ? active.unarchiveUrl : active.destroyUrl, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -424,8 +484,11 @@
                 'X-CSRF-TOKEN': csrf,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ _token: csrf, _method: 'DELETE' })
-        }).then(function () { window.location.reload(); });
+            body: JSON.stringify(restoring ? { _token: csrf } : { _token: csrf, _method: 'DELETE' })
+        })
+        .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw d; return d; }); })
+        .then(function () { window.location.reload(); })
+        .catch(function (err) { window.alert(err?.message || (restoring ? 'Unable to unarchive this academic year.' : 'Unable to archive this academic year.')); });
     });
 })();
 </script>

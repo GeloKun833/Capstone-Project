@@ -38,6 +38,7 @@ class SectionController extends Controller
                     : ($subjectsByGrade->get($section->grade_level) ?? collect())
             );
             $section->setAttribute('subjects_are_grade_defaults', ! $hasSectionSubjects);
+            $section->setAttribute('schedule_readiness', app(\App\Services\SectionScheduleReadiness::class)->assess((int) $section->id));
         });
         $gradeLevels = GradeSubjectCatalogService::gradeLevels();
         $teachers = Teacher::with('user')

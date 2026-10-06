@@ -29,7 +29,11 @@
 
 <div class="card flex-fill comman-shadow">
     <div class="card-header d-flex align-items-center">
-        <h5 class="card-title">My Schedule</h5>
+        <h5 class="card-title mb-0">My Schedule</h5>
+        @php $scheduleYear = collect($weeklySchedule)->flatten()->first()?->academicYear; @endphp
+        @if($scheduleYear)
+            <span class="text-muted ms-auto">Academic Year {{ $scheduleYear->displayName() }}</span>
+        @endif
     </div>
     <div class="card-body">
         <div class="schedule-container">

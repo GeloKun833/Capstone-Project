@@ -100,6 +100,13 @@ class AssignmentController extends Controller
             });
         }
 
+        $viewingYearId = app(\App\Services\AcademicYearContext::class)->viewing()?->id;
+        if ($request->filled('academic_year_id')) {
+            $query->where('academic_year_id', $request->academic_year_id);
+        } elseif ($viewingYearId) {
+            $query->where('academic_year_id', $viewingYearId);
+        }
+
         $stats = [
             'total' => (clone $query)->count(),
             'published' => (clone $query)->where('status', 'published')->count(),

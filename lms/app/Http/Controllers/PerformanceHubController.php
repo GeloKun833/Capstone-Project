@@ -34,7 +34,7 @@ class PerformanceHubController extends Controller
 
         $academicYears = AcademicYear::orderByDesc('name')->get();
         $selectedAcademicYearId = (int) ($request->get('academic_year_id')
-            ?: AcademicYear::orderByDesc('id')->value('id'));
+            ?: AcademicYear::current()?->id);
 
         $semesters = Semester::where('academic_year_id', $selectedAcademicYearId)
             ->orderBy('id')

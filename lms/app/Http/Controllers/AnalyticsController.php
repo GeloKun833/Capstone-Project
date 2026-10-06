@@ -31,7 +31,9 @@ class AnalyticsController extends Controller
     {
         abort_unless(Auth::user()?->role_name === User::ROLE_ADMIN, 403);
 
-        $academicYearId = $request->get('academic_year_id');
+        $academicYearId = $request->exists('academic_year_id')
+            ? ($request->input('academic_year_id') ?: null)
+            : AcademicYear::current()?->id;
         $semesterId = $request->get('semester_id');
 
         $academicYears = AcademicYear::orderByDesc('start_date')->get();
@@ -61,7 +63,9 @@ class AnalyticsController extends Controller
             return redirect()->back()->with('error', 'Student profile not found.');
         }
 
-        $academicYearId = $request->get('academic_year_id');
+        $academicYearId = $request->exists('academic_year_id')
+            ? ($request->input('academic_year_id') ?: null)
+            : AcademicYear::current()?->id;
         $semesterId = $request->get('semester_id');
 
         $academicYears = AcademicYear::all();
@@ -96,7 +100,9 @@ class AnalyticsController extends Controller
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
 
-        $academicYearId = $request->get('academic_year_id');
+        $academicYearId = $request->exists('academic_year_id')
+            ? ($request->input('academic_year_id') ?: null)
+            : AcademicYear::current()?->id;
         $semesterId = $request->get('semester_id');
 
         $academicYears = AcademicYear::all();

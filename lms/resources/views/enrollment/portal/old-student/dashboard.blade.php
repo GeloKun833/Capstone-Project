@@ -85,6 +85,18 @@
         <h3><i class="fas fa-users me-2"></i>Available Sections — {{ $student->year_level }}</h3>
     </div>
     <div class="ep-card-body">
+        @if(!empty($enrollmentClosedMessage))
+            <div class="ep-alert ep-alert-warning mb-4">
+                <strong>Academic Year:</strong> {{ $academicYear?->displayName() ?? 'None' }}<br>
+                <strong>Enrollment Status:</strong> CLOSED<br>
+                {{ $enrollmentClosedMessage }}
+            </div>
+        @else
+            <div class="ep-alert ep-alert-info mb-4">
+                <strong>Academic Year:</strong> {{ $academicYear?->displayName() ?? 'None' }}<br>
+                <strong>Enrollment Status:</strong> OPEN
+            </div>
+        @endif
         <div class="ep-alert ep-alert-info mb-4">
             <i class="fas fa-info-circle me-2"></i>
             <strong>Choose your section</strong> to complete enrollment. Sections are assigned based on your grade level.
@@ -94,17 +106,19 @@
             <div class="row g-3">
                 @foreach($availableSections as $section)
                     <div class="col-md-6">
-                        <div class="ep-section-card {{ $section->is_full ? 'is-full' : '' }}"
-                             @if(!$section->is_full) role="button" tabindex="0" data-section-id="{{ $section->id }}" @endif>
+                        <div class="ep-section-card {{ $section->is_full || empty($section->enrollment_allowed) ? 'is-full' : '' }}"
+                             @if(!$section->is_full && !empty($section->enrollment_allowed)) role="button" tabindex="0" data-section-id="{{ $section->id }}" @endif>
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
                                     <h5 class="mb-1"><i class="fas fa-chalkboard me-2 text-primary"></i>{{ $section->name }}</h5>
                                     <small class="text-muted">Grade {{ $section->grade_level }}</small>
                                 </div>
-                                @if($section->is_full)
+                                @if(empty($section->enrollment_allowed))
+                                    <span class="ep-chip ep-chip-rejected">{{ $section->schedule_label ?? 'Not Plotted' }}</span>
+                                @elseif($section->is_full)
                                     <span class="ep-chip ep-chip-rejected">Full</span>
                                 @else
-                                    <span class="ep-chip ep-chip-approved">Available</span>
+                                    <span class="ep-chip ep-chip-approved">Ready for Enrollment</span>
                                 @endif
                             </div>
 
@@ -112,6 +126,18 @@
                                 <i class="fas fa-user-tie me-1"></i>
                                 <strong>Adviser:</strong> {{ $section->adviser?->full_name ?? 'To be assigned' }}
                             </p>
+                            <p class="mb-2 small">
+                                <strong>Academic Year:</strong> {{ $section->academic_year_name ?? 'Current year' }}
+                            </p>
+                            <p class="mb-2 small">
+                                <strong>Schedule Status:</strong> {{ $section->schedule_label ?? 'Not Plotted' }}
+                            </p>
+                            @if(empty($section->enrollment_allowed))
+                                <div class="ep-alert ep-alert-warning py-2 px-3 small mb-3">
+                                    <strong>Enrollment unavailable.</strong>
+                                    The schedule for this section has not been configured yet. Please wait until the class schedule has been finalized before proceeding with enrollment.
+                                </div>
+                            @endif
                             <p class="mb-3 small">
                                 <i class="fas fa-users me-1"></i>
                                 <strong>Capacity:</strong>
@@ -126,9 +152,13 @@
                                 <p class="small text-muted mb-3">{{ $section->description }}</p>
                             @endif
 
-                            @if(!$section->is_full)
+                            @if(!$section->is_full && !empty($section->enrollment_allowed))
                                 <button type="button" class="ep-btn ep-btn-success w-100">
                                     <i class="fas fa-check-circle me-2"></i>Select This Section
+                                </button>
+                            @elseif(empty($section->enrollment_allowed))
+                                <button type="button" class="ep-btn w-100" disabled style="opacity:.6;">
+                                    <i class="fas fa-times-circle me-2"></i>Enrollment Unavailable
                                 </button>
                             @else
                                 <button type="button" class="ep-btn w-100" disabled style="opacity:.6;">

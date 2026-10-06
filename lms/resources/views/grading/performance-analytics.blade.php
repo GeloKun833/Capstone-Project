@@ -43,7 +43,7 @@
                             <select class="form-control" id="academic_year_filter" name="academic_year_id">
                                 <option value="">Select Academic Year</option>
                                 @foreach($academicYears as $year)
-                                    <option value="{{ $year->id }}">{{ $year->year }}</option>
+                                    <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $academicYearId ?? $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                                 @endforeach
                             </select>
                         </div>

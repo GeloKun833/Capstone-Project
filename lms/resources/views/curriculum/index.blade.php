@@ -9,7 +9,7 @@
                     <p class="text-muted mb-0">
                         One curriculum per grade — subjects come from
                         <a href="{{ route('class-subject.unified-management') }}">Classes &amp; Subjects</a>
-                        (same source as Enrollment).
+                        (same source as Enrollment). A subject added in Classes &amp; Subjects is synced here automatically.
                     </p>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>

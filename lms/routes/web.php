@@ -225,6 +225,8 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 });
 
 // Add resource routes for academic years, semesters, and enrollments
+Route::post('academic_years/{academic_year}/unarchive', [AcademicYearController::class, 'unarchive'])->middleware('auth')->name('academic_years.unarchive');
+Route::post('academic_years/{academic_year}/enrollment', [AcademicYearController::class, 'setEnrollment'])->middleware('auth')->name('academic_years.enrollment');
 Route::resource('academic_years', AcademicYearController::class)->middleware('auth');
 Route::resource('semesters', SemesterController::class)->middleware('auth');
 Route::resource('sections', SectionController::class)->middleware('auth');
@@ -266,6 +268,7 @@ Route::group(['middleware' => ['role:Admin']], function () {
         Route::get('/', [App\Http\Controllers\ClassScheduleController::class, 'adminIndex'])->name('index');
         Route::get('create', [App\Http\Controllers\ClassScheduleController::class, 'create'])->name('create');
         Route::post('store', [App\Http\Controllers\ClassScheduleController::class, 'store'])->name('store');
+        Route::post('sections/{section}/finalize', [App\Http\Controllers\ClassScheduleController::class, 'finalizeSection'])->name('finalize-section');
         Route::get('teacher/{teacher}/assignments', [App\Http\Controllers\ClassScheduleController::class, 'teacherAssignments'])->name('teacher-assignments');
         Route::get('{schedule}/edit', [App\Http\Controllers\ClassScheduleController::class, 'edit'])->name('edit');
         Route::put('{schedule}', [App\Http\Controllers\ClassScheduleController::class, 'update'])->name('update');

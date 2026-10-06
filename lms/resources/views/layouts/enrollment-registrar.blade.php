@@ -20,7 +20,7 @@
                 <img src="{{ URL::to('assets/img/Logo.jpg') }}" alt="Logo">
                 <div class="ep-brand-text">
                     <h1>Enrollment Admin</h1>
-                    <span>Registrar Portal</span>
+                    <span>SY {{ $currentSchoolYear->name ?? '2025-2026' }}</span>
                 </div>
             </div>
             <nav class="ep-nav">

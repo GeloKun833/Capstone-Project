@@ -86,6 +86,20 @@ class Student extends Model
             ->withTimestamps();
     }
 
+    public function scopeForAcademicYear($query, int $yearId)
+    {
+        return $query->where(function ($outer) use ($yearId) {
+            $outer->whereHas('enrollments', function ($enrollments) use ($yearId) {
+                $enrollments->where('academic_year_id', $yearId);
+            })->orWhereExists(function ($assignments) use ($yearId) {
+                $assignments->selectRaw('1')
+                    ->from('student_section_assignments')
+                    ->whereColumn('student_section_assignments.student_id', 'students.id')
+                    ->where('student_section_assignments.academic_year_id', $yearId);
+            });
+        });
+    }
+
     public function legacySections()
     {
         return $this->belongsToMany(Section::class, 'section_student', 'student_id', 'section_id');

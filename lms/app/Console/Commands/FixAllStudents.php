@@ -95,8 +95,8 @@ class FixAllStudents extends Command
                     $this->info("🔧 Creating subject enrollments...");
                     
                     // Get academic year and semester
-                    $academicYear = AcademicYear::latest()->first();
-                    $semester = Semester::latest()->first();
+                    $academicYear = AcademicYear::current();
+                    $semester = Semester::current();
                     
                     if (!$academicYear || !$semester) {
                         $this->error("❌ No academic year or semester found!");

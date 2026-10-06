@@ -272,35 +272,104 @@ class ClassScheduleController extends Controller
      */
     public function adminIndex(Request $request)
     {
-        $query = ClassSchedule::with(['subject', 'section', 'teacher', 'room']);
-        
-        // Filter by section if provided
-        if ($request->has('section_id') && $request->section_id) {
-            $query->where('section_id', $request->section_id);
-        }
-        
-        // Filter by teacher if provided
-        if ($request->has('teacher_id') && $request->teacher_id) {
-            $query->where('teacher_id', $request->teacher_id);
-        }
-        
-        // Filter by day if provided
-        if ($request->has('day_of_week') && $request->day_of_week) {
-            $query->where('day_of_week', $request->day_of_week);
-        }
-        
-        $schedules = $query->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->paginate(20);
-        
-        // Get filter data
-        $sections = \App\Models\Section::orderBy('grade_level')->orderBy('name')->get();
+        $years = \App\Models\AcademicYear::query()->orderByDesc('start_date')->get();
+        $activeYear = \App\Models\AcademicYear::active();
+        $viewYear = $years->firstWhere('id', (int) $request->input('academic_year_id'))
+            ?: $activeYear
+            ?: $years->first();
+
+        $yearSchedules = ClassSchedule::with(['subject', 'section', 'teacher', 'room', 'academicYear'])
+            ->when($viewYear, fn ($query) => $query->where('academic_year_id', $viewYear->id))
+            ->get();
+
+        $conflictIds = $this->conflictingScheduleIds($yearSchedules);
+
+        $schedules = $yearSchedules
+            ->when($request->filled('section_id'), fn ($items) => $items->where('section_id', (int) $request->section_id))
+            ->when($request->filled('teacher_id'), fn ($items) => $items->where('teacher_id', (int) $request->teacher_id))
+            ->when($request->filled('subject_id'), fn ($items) => $items->where('subject_id', (int) $request->subject_id))
+            ->when($request->filled('day_of_week'), fn ($items) => $items->where('day_of_week', $request->day_of_week))
+            ->sortBy(function ($schedule) {
+                $days = ['monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6, 'sunday' => 7];
+                $day = $days[$schedule->day_of_week] ?? 9;
+
+                return ($day * 100000) + Carbon::parse($schedule->start_time)->secondsSinceMidnight();
+            })
+            ->values();
+
+        $sections = \App\Models\Section::with('subjects')->orderBy('grade_level')->orderBy('name')->get();
+        $readiness = app(\App\Services\SectionScheduleReadiness::class);
+        $sections->each(function ($section) use ($readiness, $viewYear, $yearSchedules, $conflictIds) {
+            $section->schedule_readiness = $readiness->assess((int) $section->id, $viewYear?->id);
+            $required = $section->subjects->pluck('id')->map(fn ($id) => (int) $id);
+            $covered = $yearSchedules
+                ->where('section_id', $section->id)
+                ->where('is_active', true)
+                ->pluck('subject_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique();
+            $section->subjects_required = $required->count();
+            $section->subjects_scheduled = $required->intersect($covered)->count();
+            $section->conflict_count = $yearSchedules
+                ->where('section_id', $section->id)
+                ->filter(fn ($schedule) => isset($conflictIds[$schedule->id]))
+                ->count();
+        });
+
         $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
             $query->where('role_name', 'Teacher');
         })->orderBy('full_name')->get();
+        $subjects = \App\Models\Subject::query()->orderBy('subject_name')->get(['id', 'subject_name', 'class']);
         $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        
-        return view('admin.schedules.index', compact('schedules', 'sections', 'teachers', 'days'));
+        $selectedSection = $request->filled('section_id')
+            ? $sections->firstWhere('id', (int) $request->section_id)
+            : null;
+
+        return view('admin.schedules.index', compact(
+            'schedules',
+            'sections',
+            'teachers',
+            'subjects',
+            'days',
+            'activeYear',
+            'viewYear',
+            'years',
+            'conflictIds',
+            'selectedSection'
+        ));
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, ClassSchedule>  $schedules
+     * @return array<int, true>
+     */
+    protected function conflictingScheduleIds($schedules): array
+    {
+        $active = $schedules->where('is_active', true)->values();
+        $conflicts = [];
+
+        foreach ($active as $schedule) {
+            foreach ($active as $other) {
+                if ((int) $other->id === (int) $schedule->id || $other->day_of_week !== $schedule->day_of_week) {
+                    continue;
+                }
+
+                if (ClassSchedule::sharesOverlappingSlot(
+                    $other,
+                    (string) $schedule->day_of_week,
+                    (string) $schedule->start_time,
+                    (string) $schedule->end_time,
+                    (int) $schedule->teacher_id,
+                    (int) $schedule->section_id,
+                    $schedule->room_id
+                )) {
+                    $conflicts[(int) $schedule->id] = true;
+                    break;
+                }
+            }
+        }
+
+        return $conflicts;
     }
 
     /**
@@ -381,7 +450,16 @@ class ClassScheduleController extends Controller
             return redirect()->back()->withInput()->withErrors(['teacher_id' => $assignmentError]);
         }
         
+        $year = \App\Models\AcademicYear::active();
+        if (! $year) {
+            return redirect()->back()->withInput()->withErrors([
+                'section_id' => 'Set an academic year as Current before plotting a schedule.',
+            ]);
+        }
+
         $validated['is_active'] = true;
+        $validated['is_finalized'] = false;
+        $validated['academic_year_id'] = $year->id;
         $validated['color'] = $validated['color'] ?? '#3d5ee1';
 
         $conflictErrors = $this->scheduleConflictErrors($validated);
@@ -458,6 +536,8 @@ class ClassScheduleController extends Controller
         }
 
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['is_finalized'] = false;
+        $validated['academic_year_id'] = $schedule->academic_year_id ?: \App\Models\AcademicYear::active()?->id;
 
         $conflictErrors = $this->scheduleConflictErrors($validated, $schedule->id);
         if ($conflictErrors) {
@@ -481,16 +561,23 @@ class ClassScheduleController extends Controller
         $sameDaySchedules = ClassSchedule::active()
             ->where('day_of_week', $scheduleData['day_of_week'])
             ->when($excludeId, fn ($query) => $query->where('id', '!=', $excludeId))
+            ->when(
+                ! empty($scheduleData['academic_year_id']),
+                fn ($query) => $query->where('academic_year_id', $scheduleData['academic_year_id']),
+                fn ($query) => $query->whereNull('academic_year_id')
+            )
             ->get(['id', 'section_id', 'teacher_id', 'room_id', 'start_time', 'end_time']);
 
         $overlapping = $sameDaySchedules->filter(function ($existing) use ($scheduleData, $startTime, $endTime) {
-            $existingStart = Carbon::parse($existing->start_time)->format('H:i:s');
-            $existingEnd = Carbon::parse($existing->end_time)->format('H:i:s');
-            $sharesResource = (int) $existing->teacher_id === (int) $scheduleData['teacher_id']
-                || (int) $existing->section_id === (int) $scheduleData['section_id']
-                || (! empty($scheduleData['room_id']) && (int) $existing->room_id === (int) $scheduleData['room_id']);
-
-            return $sharesResource && $existingStart < $endTime && $existingEnd > $startTime;
+            return ClassSchedule::sharesOverlappingSlot(
+                $existing,
+                (string) $scheduleData['day_of_week'],
+                $startTime,
+                $endTime,
+                (int) $scheduleData['teacher_id'],
+                (int) $scheduleData['section_id'],
+                $scheduleData['room_id'] ?? null
+            );
         });
 
         if ($overlapping->isEmpty()) {
@@ -581,6 +668,37 @@ class ClassScheduleController extends Controller
     /**
      * Remove the specified resource from storage.
      */
+    public function finalizeSection(Request $request, \App\Models\Section $section)
+    {
+        $year = \App\Models\AcademicYear::active();
+        if (! $year) {
+            return redirect()->route('admin.schedules.index')
+                ->with('error', 'Set an academic year as Current before finalizing a schedule.');
+        }
+
+        $status = app(\App\Services\SectionScheduleReadiness::class)->assess((int) $section->id, $year->id);
+        if (! in_array($status['status'], [\App\Services\SectionScheduleReadiness::NOT_FINALIZED, \App\Services\SectionScheduleReadiness::READY], true)) {
+            $reason = match ($status['status']) {
+                \App\Services\SectionScheduleReadiness::CONFLICT => 'This section has unresolved schedule conflicts.',
+                \App\Services\SectionScheduleReadiness::SUBJECTS_MISSING => 'This section does not have its subjects assigned yet.',
+                \App\Services\SectionScheduleReadiness::NOT_PLOTTED => 'The schedule for this section has not been configured yet.',
+                default => 'The schedule for this section is incomplete.',
+            };
+
+            return redirect()->route('admin.schedules.index')
+                ->with('error', 'The schedule for '.$section->grade_level.' – '.$section->name.' cannot be finalized. '.$reason);
+        }
+
+        ClassSchedule::query()
+            ->where('section_id', $section->id)
+            ->where('academic_year_id', $year->id)
+            ->where('is_active', true)
+            ->update(['is_finalized' => true]);
+
+        return redirect()->route('admin.schedules.index')
+            ->with('success', 'Schedule finalized for '.$section->grade_level.' – '.$section->name.' in '.$year->displayName().'.');
+    }
+
     public function destroy(ClassSchedule $schedule)
     {
         $schedule->delete();
@@ -660,11 +778,16 @@ class ClassScheduleController extends Controller
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
         
-        // All active schedules for this teacher
+        $years = \App\Models\AcademicYear::query()->orderByDesc('start_date')->get();
+        $viewYear = $years->firstWhere('id', (int) request('academic_year_id'))
+            ?: \App\Models\AcademicYear::active()
+            ?: $years->first();
+
         $dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         $weeklySchedule = ClassSchedule::where('teacher_id', $teacher->id)
             ->where('is_active', true)
-            ->with(['subject', 'section', 'room'])
+            ->when($viewYear, fn ($query) => $query->where('academic_year_id', $viewYear->id))
+            ->with(['subject', 'section', 'room', 'academicYear'])
             ->get()
             ->sortBy(function ($schedule) use ($dayOrder) {
                 $dayIndex = array_search($schedule->day_of_week, $dayOrder, true);
@@ -674,6 +797,6 @@ class ClassScheduleController extends Controller
             })
             ->groupBy('day_of_week');
         
-        return view('schedule.teacher-schedule', compact('teacher', 'weeklySchedule'));
+        return view('schedule.teacher-schedule', compact('teacher', 'weeklySchedule', 'viewYear', 'years'));
     }
 }

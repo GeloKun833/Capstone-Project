@@ -80,6 +80,13 @@ class ClassPostController extends Controller
             });
         }
 
+        $viewingYearId = app(\App\Services\AcademicYearContext::class)->viewing()?->id;
+        if ($request->filled('academic_year_id')) {
+            $query->where('academic_year_id', $request->academic_year_id);
+        } elseif ($viewingYearId) {
+            $query->where('academic_year_id', $viewingYearId);
+        }
+
         $posts = $query->orderBy('is_pinned', 'desc')
                       ->orderBy('created_at', 'desc')
                       ->paginate(15);

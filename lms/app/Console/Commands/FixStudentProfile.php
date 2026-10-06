@@ -81,8 +81,8 @@ class FixStudentProfile extends Command
             $this->info("No enrollments found. Creating enrollments...");
             
             // Get academic year and semester
-            $academicYear = AcademicYear::latest()->first();
-            $semester = Semester::latest()->first();
+            $academicYear = AcademicYear::current();
+            $semester = Semester::current();
             
             if (!$academicYear || !$semester) {
                 $this->error("No academic year or semester found!");

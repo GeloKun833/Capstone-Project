@@ -7,7 +7,7 @@
             <div class="row align-items-start">
                 <div class="col">
                     <h3 class="page-title mb-1">Class Schedules</h3>
-                    <p class="dir-subtitle">Assign class times by teacher, section, and subject.</p>
+                    <p class="dir-subtitle">Class times stay on record. Schedules for the current year stay active. A completed year keeps its schedules instead of deleting them.</p>
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-2">
@@ -21,16 +21,33 @@
             </div>
         </div>
 
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
         <div class="dir-card dir-filters">
             <form method="GET" action="{{ route('admin.schedules.index') }}">
                 <div class="row g-2 align-items-end">
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Academic Year</label>
+                        <select name="academic_year_id" class="form-control">
+                            @foreach($years as $year)
+                                <option value="{{ $year->id }}" {{ (int) ($viewYear?->id) === (int) $year->id ? 'selected' : '' }}>
+                                    {{ $year->displayName() }}{{ $year->isCurrent() ? ' (Current)' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Section</label>
                         <select name="section_id" class="form-control">
                             <option value="">All Sections</option>
                             @foreach($sections as $section)
-                                <option value="{{ $section->id }}" {{ request('section_id') == $section->id ? 'selected' : '' }}>
-                                    {{ $section->name }}@if($section->grade_level) ({{ $section->grade_level }})@endif
+                                <option value="{{ $section->id }}" {{ (int) request('section_id') === (int) $section->id ? 'selected' : '' }}>
+                                    {{ $section->grade_level }} – {{ $section->name }}
                                 </option>
                             @endforeach
                         </select>
@@ -40,8 +57,19 @@
                         <select name="teacher_id" class="form-control">
                             <option value="">All Teachers</option>
                             @foreach($teachers as $teacher)
-                                <option value="{{ $teacher->id }}" {{ request('teacher_id') == $teacher->id ? 'selected' : '' }}>
+                                <option value="{{ $teacher->id }}" {{ (int) request('teacher_id') === (int) $teacher->id ? 'selected' : '' }}>
                                     {{ $teacher->full_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Subject</label>
+                        <select name="subject_id" class="form-control">
+                            <option value="">All Subjects</option>
+                            @foreach($subjects as $subject)
+                                <option value="{{ $subject->id }}" {{ (int) request('subject_id') === (int) $subject->id ? 'selected' : '' }}>
+                                    {{ $subject->subject_name }}@if($subject->class) ({{ $subject->class }})@endif
                                 </option>
                             @endforeach
                         </select>
@@ -60,7 +88,7 @@
                     <div class="col-lg-3 col-md-6 pb-3">
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary dir-btn flex-fill">
-                                <i class="fas fa-filter me-1"></i> Filter
+                                <i class="fas fa-filter me-1"></i> View
                             </button>
                             <a href="{{ route('admin.schedules.index') }}" class="btn btn-outline-secondary dir-btn">Clear</a>
                         </div>
@@ -69,104 +97,148 @@
             </form>
         </div>
 
-        <div class="dir-card">
-            <div class="dir-toolbar">
-                <div>
-                    <h5 class="dir-toolbar-title">Weekly class times</h5>
-                    <span class="dir-count mt-1">{{ $schedules->total() }} schedule{{ $schedules->total() === 1 ? '' : 's' }}</span>
+        @php
+            $focus = now();
+            if (request()->filled('week')) {
+                try { $focus = \Carbon\Carbon::parse(request('week')); } catch (\Exception $e) { $focus = now(); }
+            }
+            $weekStart = $focus->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
+            $isCurrentWeek = $weekStart->isSameDay(now()->startOfWeek(\Carbon\Carbon::MONDAY));
+            $kept = request()->except('week');
+            $prevWeekUrl = route('admin.schedules.index', array_merge($kept, ['week' => $weekStart->copy()->subWeek()->toDateString()]));
+            $nextWeekUrl = route('admin.schedules.index', array_merge($kept, ['week' => $weekStart->copy()->addWeek()->toDateString()]));
+            $currentWeekUrl = route('admin.schedules.index', $kept);
+            $gridDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+            if ($schedules->contains(fn ($schedule) => $schedule->day_of_week === 'saturday')) {
+                $gridDays[] = 'saturday';
+            }
+            $startHour = 7;
+            $endHour = 16;
+            foreach ($schedules as $schedule) {
+                $startHour = min($startHour, (int) \Carbon\Carbon::parse($schedule->start_time)->format('G'));
+                $endHour = max($endHour, (int) \Carbon\Carbon::parse($schedule->end_time)->format('G'));
+            }
+            $endHour = max($endHour, $startHour);
+        @endphp
+
+        @if($selectedSection)
+            <div class="dir-card mb-3">
+                <div class="px-3 py-3">
+                    <strong>{{ $selectedSection->grade_level }} – {{ $selectedSection->name }}</strong>
+                    <span class="dir-person-meta d-block">Academic Year {{ $viewYear?->displayName() }}</span>
+                    <div class="mt-2">
+                        Schedule status:
+                        @if(($selectedSection->schedule_readiness['status'] ?? '') === 'ready')
+                            <strong class="text-success">Ready for enrollment</strong>
+                        @else
+                            <strong>Not ready — {{ $selectedSection->schedule_readiness['label'] ?? 'Not Plotted' }}</strong>
+                        @endif
+                    </div>
+                    <div class="dir-person-meta mt-1">
+                        Subjects scheduled: {{ $selectedSection->subjects_scheduled }} / {{ $selectedSection->subjects_required }}
+                        · Conflicts: {{ $selectedSection->conflict_count }}
+                    </div>
                 </div>
             </div>
-            <div class="table-responsive">
-                <table class="table dir-table mb-0">
-                    <thead>
-                        <tr>
-                            <th>Day</th>
-                            <th>Time</th>
-                            <th>Subject</th>
-                            <th>Section</th>
-                            <th>Teacher</th>
-                            <th>Room</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th class="text-end">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($schedules as $schedule)
-                            <tr>
-                                <td>
-                                    <span class="dir-day">{{ ucfirst($schedule->day_of_week) }}</span>
-                                </td>
-                                <td>
-                                    <div class="dir-time">{{ \Carbon\Carbon::parse($schedule->start_time)->format('h:i A') }}</div>
-                                    <span class="dir-person-meta">{{ \Carbon\Carbon::parse($schedule->end_time)->format('h:i A') }}</span>
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span class="dir-dot" style="background: {{ $schedule->color ?: '#3d5ee1' }};"></span>
-                                        <div>
-                                            <span class="dir-person-name">{{ $schedule->subject->subject_name ?? 'N/A' }}</span>
-                                            @if($schedule->subject?->class)
-                                                <span class="dir-person-meta">{{ $schedule->subject->class }}</span>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div>{{ $schedule->section->name ?? 'N/A' }}</div>
-                                    @if($schedule->section?->grade_level)
-                                        <span class="dir-person-meta">{{ $schedule->section->grade_level }}</span>
-                                    @endif
-                                </td>
-                                <td>{{ $schedule->teacher->full_name ?? 'N/A' }}</td>
-                                <td>{{ $schedule->room->room_name ?? 'TBD' }}</td>
-                                <td>
-                                    <span class="dir-chip">{{ ucfirst($schedule->class_type ?? 'lecture') }}</span>
-                                </td>
-                                <td>
-                                    @if($schedule->is_active)
-                                        <span class="dir-badge dir-badge--active">Active</span>
-                                    @else
-                                        <span class="dir-badge dir-badge--disabled">Inactive</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">
-                                    <div class="d-inline-flex gap-1">
-                                        <a href="{{ route('admin.schedules.edit', $schedule) }}" class="dir-icon-btn" title="Edit">
-                                            <i class="fas fa-pen"></i>
-                                        </a>
-                                        <form action="{{ route('admin.schedules.destroy', $schedule) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this class schedule?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="dir-icon-btn is-danger" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="9">
-                                    <div class="dir-empty">
-                                        <i class="fas fa-clock d-block"></i>
-                                        <h5 class="mt-2 mb-1">No class schedules found</h5>
-                                        <p class="mb-3">Create a class schedule to show it on teacher, student, and parent calendars.</p>
-                                        <a href="{{ route('admin.schedules.create') }}" class="btn btn-primary dir-btn">
-                                            <i class="fas fa-plus me-1"></i> Create Schedule
-                                        </a>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        @endif
+
+        <div class="dir-card">
+            <div class="dir-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="dir-toolbar-title mb-0">Weekly timetable</h5>
+                    <span class="dir-count mt-1 d-block">{{ $viewYear?->displayName() }} · {{ $schedules->count() }} class{{ $schedules->count() === 1 ? '' : 'es' }} · repeats every week</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ $prevWeekUrl }}" class="btn btn-outline-secondary btn-sm">Previous</a>
+                    <a href="{{ $currentWeekUrl }}" class="btn btn-outline-primary btn-sm {{ $isCurrentWeek ? 'disabled' : '' }}">This week</a>
+                    <a href="{{ $nextWeekUrl }}" class="btn btn-outline-secondary btn-sm">Next</a>
+                </div>
             </div>
-            @if($schedules->hasPages())
-                <div class="px-3 py-3">
-                    {{ $schedules->links() }}
+            <div class="sched-scroll">
+                <div class="sched-grid" style="--sched-days: {{ count($gridDays) }};">
+                    <div class="sched-corner">Time</div>
+                    @foreach($gridDays as $index => $day)
+                        <div class="sched-day">
+                            <strong>{{ ucfirst($day) }}</strong>
+                            <span>{{ $weekStart->copy()->addDays($index)->format('M j') }}</span>
+                        </div>
+                    @endforeach
+                    @for($hour = $startHour; $hour <= $endHour; $hour++)
+                        <div class="sched-time">{{ \Carbon\Carbon::createFromTime($hour)->format('g:i A') }}</div>
+                        @foreach($gridDays as $day)
+                            <div class="sched-cell">
+                                @foreach($schedules as $schedule)
+                                    @if($schedule->day_of_week === $day && (int) \Carbon\Carbon::parse($schedule->start_time)->format('G') === $hour)
+                                        @php
+                                            $hasConflict = isset($conflictIds[$schedule->id]);
+                                            $finalLabel = $schedule->is_finalized ? 'Finalized' : ($schedule->is_active ? 'Not finalized' : 'Unpublished');
+                                        @endphp
+                                        <button type="button"
+                                            class="sched-block {{ $hasConflict ? 'is-conflict' : '' }} {{ $schedule->is_active ? '' : 'is-off' }}"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#scheduleDetailModal"
+                                            data-subject="{{ $schedule->subject->subject_name ?? 'Subject' }}"
+                                            data-teacher="{{ $schedule->teacher->full_name ?? 'Unassigned' }}"
+                                            data-section="{{ trim(($schedule->section->grade_level ?? '').' – '.($schedule->section->name ?? '')) }}"
+                                            data-day="{{ ucfirst($schedule->day_of_week) }}"
+                                            data-time="{{ \Carbon\Carbon::parse($schedule->start_time)->format('g:i A') }} – {{ \Carbon\Carbon::parse($schedule->end_time)->format('g:i A') }}"
+                                            data-room="{{ $schedule->room->room_name ?? 'Not assigned' }}"
+                                            data-year="{{ $schedule->academicYear?->displayName() ?? ($viewYear?->displayName() ?? '') }}"
+                                            data-status="{{ $finalLabel }}"
+                                            data-conflict="{{ $hasConflict ? '1' : '0' }}"
+                                            data-edit="{{ route('admin.schedules.edit', $schedule) }}">
+                                            <strong>{{ $schedule->subject->subject_name ?? 'Subject' }}</strong>
+                                            <span>{{ \Carbon\Carbon::parse($schedule->start_time)->format('g:i A') }} – {{ \Carbon\Carbon::parse($schedule->end_time)->format('g:i A') }}</span>
+                                            <span>{{ $schedule->teacher->full_name ?? 'Teacher' }}</span>
+                                            @if(!request('section_id'))
+                                                <span>{{ $schedule->section->grade_level ?? '' }} {{ $schedule->section->name ?? '' }}</span>
+                                            @endif
+                                            @if($schedule->room)
+                                                <span>{{ $schedule->room->room_name }}</span>
+                                            @endif
+                                            @if($hasConflict)
+                                                <span class="sched-warn">Schedule conflict</span>
+                                            @endif
+                                        </button>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endforeach
+                    @endfor
+                </div>
+            </div>
+            @if($schedules->isEmpty())
+                <div class="dir-empty py-4">
+                    <h5 class="mt-2 mb-1">No class schedules for {{ $viewYear?->displayName() ?? 'this year' }}</h5>
+                    <p class="mb-0">Schedules from other academic years are not shown here.</p>
                 </div>
             @endif
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="scheduleDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Schedule details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2"><strong id="schedDetailSubject">Subject</strong></p>
+                <p class="mb-1">Teacher: <span id="schedDetailTeacher"></span></p>
+                <p class="mb-1">Section: <span id="schedDetailSection"></span></p>
+                <p class="mb-1">Day: <span id="schedDetailDay"></span></p>
+                <p class="mb-1">Time: <span id="schedDetailTime"></span></p>
+                <p class="mb-1">Room: <span id="schedDetailRoom"></span></p>
+                <p class="mb-1">Academic Year: <span id="schedDetailYear"></span></p>
+                <p class="mb-1">Status: <span id="schedDetailStatus"></span></p>
+                <p class="mb-0 text-danger d-none" id="schedDetailConflict">This class overlaps another class for the same teacher, section, or room.</p>
+            </div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-primary" id="schedDetailEdit">Edit</a>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -174,4 +246,69 @@
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">
+<style>
+.sched-scroll { overflow-x: auto; }
+.sched-grid {
+    display: grid;
+    grid-template-columns: 88px repeat(var(--sched-days), minmax(140px, 1fr));
+    min-width: 760px;
+}
+.sched-corner, .sched-day, .sched-time, .sched-cell {
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    padding: .45rem;
+}
+.sched-corner, .sched-day {
+    background: #f8fafc;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.sched-day { display: flex; flex-direction: column; font-size: .85rem; }
+.sched-day span, .sched-time { color: #6b7280; font-size: .78rem; }
+.sched-time { font-weight: 600; }
+.sched-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    text-align: left;
+    border: 1px solid #c7d2fe;
+    background: #eef2ff;
+    color: #1e1b4b;
+    border-radius: 8px;
+    padding: .4rem .5rem;
+    margin-bottom: .35rem;
+    font-size: .78rem;
+    line-height: 1.3;
+}
+.sched-block strong { font-size: .84rem; }
+.sched-block.is-conflict { border-color: #f59e0b; background: #fff7ed; }
+.sched-block.is-off { opacity: .6; }
+.sched-warn { color: #b45309; font-weight: 700; }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+document.getElementById('scheduleDetailModal')?.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    if (!button) return;
+    const set = function (id, value) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = value || '';
+    };
+    set('schedDetailSubject', button.getAttribute('data-subject'));
+    set('schedDetailTeacher', button.getAttribute('data-teacher'));
+    set('schedDetailSection', button.getAttribute('data-section'));
+    set('schedDetailDay', button.getAttribute('data-day'));
+    set('schedDetailTime', button.getAttribute('data-time'));
+    set('schedDetailRoom', button.getAttribute('data-room'));
+    set('schedDetailYear', button.getAttribute('data-year'));
+    set('schedDetailStatus', button.getAttribute('data-status'));
+    document.getElementById('schedDetailConflict')?.classList.toggle('d-none', button.getAttribute('data-conflict') !== '1');
+    const edit = document.getElementById('schedDetailEdit');
+    if (edit) edit.href = button.getAttribute('data-edit') || '#';
+});
+</script>
 @endpush

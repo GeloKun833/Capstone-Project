@@ -249,7 +249,7 @@ class ParentPortalService
             return AcademicYear::find($academicYearId);
         }
 
-        return AcademicYear::orderByDesc('name')->first();
+        return AcademicYear::current();
     }
 
     protected function getEnrolledSubjectIds(Student $child): Collection

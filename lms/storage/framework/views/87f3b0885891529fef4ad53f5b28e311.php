@@ -7,7 +7,7 @@
         <div class="ep-card-body py-5">
             <div class="row align-items-center">
                 <div class="col-lg-8">
-                    <span class="ep-chip" style="background:rgba(255,255,255,.2);color:#fff;margin-bottom:1rem;">SY 2025–2026 Enrollment Open</span>
+                    <span class="ep-chip" style="background:rgba(255,255,255,.2);color:#fff;margin-bottom:1rem;">SY <?php echo e($currentSchoolYear->name ?? '2025-2026'); ?> Enrollment Open</span>
                     <h1 class="ep-page-title" style="color:#fff!important;font-size:2.25rem;">Welcome to Our Enrollment Portal</h1>
                     <p style="color:rgba(255,255,255,.9)!important;font-size:1.1rem;max-width:560px;">
                         Begin your educational journey with Panorama Montessori School. Select your enrollment type to get started — it only takes a few minutes.

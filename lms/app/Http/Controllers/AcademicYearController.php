@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicYear;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class AcademicYearController extends Controller
 {
@@ -59,8 +60,11 @@ class AcademicYearController extends Controller
         }
 
         $data['name'] = preg_replace('/\s*[–\-]\s*/', '–', $data['name']);
+        $data['status'] = 'upcoming';
+        $data['enrollment_open'] = false;
 
         $year = AcademicYear::create($data);
+        $this->forgetYearCache();
         $year->loadCount('semesters');
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -99,16 +103,48 @@ class AcademicYearController extends Controller
             'name.regex' => 'Academic year must look like 2026–2027 (years only).',
         ]);
 
-        $data['name'] = preg_replace('/\s*[–\-]\s*/', '–', $data['name']);
-
+        if (empty($data['start_date'])) {
+            $data['start_date'] = optional($academicYear->start_date)->format('Y-m-d');
+        }
+        if (empty($data['end_date'])) {
+            $data['end_date'] = optional($academicYear->end_date)->format('Y-m-d');
+        }
+        if ((empty($data['start_date']) || empty($data['end_date'])) && preg_match('/^(\d{4})-(\d{4})$/', $data['name'], $m)) {
+            $data['start_date'] = $data['start_date'] ?: $m[1].'-06-01';
+            $data['end_date'] = $data['end_date'] ?: $m[2].'-05-31';
+        }
         if (empty($data['start_date']) || empty($data['end_date'])) {
-            if (preg_match('/(\d{4})\s*[–\-]\s*(\d{4})/', $data['name'], $m)) {
-                $data['start_date'] = $m[1].'-06-01';
-                $data['end_date'] = $m[2].'-05-31';
+            $message = 'This academic year needs a start date and an end date.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
+
+            return back()->withErrors(['start_date' => $message])->withInput();
+        }
+
+        $data['name'] = preg_replace('/\s*[–\-]\s*/u', '–', $data['name']);
+
+        $status = (string) $request->input('status', $academicYear->status);
+        $data['status'] = in_array($status, ['upcoming', 'current', 'completed', 'archived'], true)
+            ? $status
+            : ($academicYear->status ?: 'upcoming');
+
+        if ($data['status'] === 'current') {
+            AcademicYear::query()
+                ->where('id', '!=', $academicYear->id)
+                ->where('status', 'current')
+                ->get()
+                ->each(function (AcademicYear $other) {
+                    $other->update(['status' => 'completed', 'enrollment_open' => false]);
+                    $other->syncTermRecords();
+                });
+        } else {
+            $data['enrollment_open'] = false;
         }
 
         $academicYear->update($data);
+        $academicYear->syncTermRecords();
+        $this->forgetYearCache();
         $academicYear->loadCount('semesters');
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -125,16 +161,88 @@ class AcademicYearController extends Controller
     public function destroy(Request $request, AcademicYear $academicYear)
     {
         $name = $academicYear->name;
-        $academicYear->delete();
+        if ($academicYear->statusLabel() === 'current') {
+            $message = 'The current academic year cannot be archived. Set another year as Current first.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
 
+            return redirect()->route('academic_years.index')->with('error', $message);
+        }
+
+        $academicYear->update(['status' => 'archived', 'enrollment_open' => false]);
+        $academicYear->syncTermRecords();
+        $this->forgetYearCache();
+
+        $message = 'Academic year "'.$name.'" was archived. Classes, subjects, and curriculum were kept.';
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Academic year "' . $name . '" deleted.',
+                'message' => $message,
             ]);
         }
 
-        return redirect()->route('academic_years.index')->with('success', 'Academic year deleted.');
+        return redirect()->route('academic_years.index')->with('success', $message);
+    }
+
+    public function unarchive(Request $request, AcademicYear $academicYear)
+    {
+        $name = $academicYear->name;
+        if ($academicYear->statusLabel() !== 'archived') {
+            $message = 'Only an archived academic year can be restored.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->route('academic_years.index')->with('error', $message);
+        }
+
+        $academicYear->update(['status' => 'completed', 'enrollment_open' => false]);
+        $academicYear->syncTermRecords();
+        $this->forgetYearCache();
+
+        $message = 'Academic year "'.$name.'" is Completed again.';
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+            ]);
+        }
+
+        return redirect()->route('academic_years.index')->with('success', $message);
+    }
+
+    public function setEnrollment(Request $request, AcademicYear $academicYear)
+    {
+        $open = $request->boolean('enrollment_open');
+        if ($open && $academicYear->statusLabel() !== 'current') {
+            $message = 'Open enrollment only after this academic year is the active year.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->route('academic_years.index')->with('error', $message);
+        }
+
+        $academicYear->update(['enrollment_open' => $open && $academicYear->statusLabel() === 'current']);
+        $this->forgetYearCache();
+
+        $message = $academicYear->enrollment_open
+            ? 'Enrollment is open for Academic Year '.$academicYear->displayName().'.'
+            : 'Enrollment is currently closed for Academic Year '.$academicYear->displayName().'.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => $message]);
+        }
+
+        return redirect()->route('academic_years.index')->with('success', $message);
+    }
+
+    protected function forgetYearCache(): void
+    {
+        Cache::forget('academic.year.current.shared');
+        Cache::forget('academic.year.current');
+        Cache::forget('academic.semester.current');
     }
 
     protected function yearPayload(AcademicYear $year): array
@@ -147,6 +255,9 @@ class AcademicYearController extends Controller
             'start_label' => optional($year->start_date)->format('M d, Y'),
             'end_label' => optional($year->end_date)->format('M d, Y'),
             'status' => $year->statusLabel(),
+            'enrollment_open' => (bool) $year->enrollment_open,
+            'enrollment_label' => $year->enrollment_open ? 'Open' : 'Closed',
+            'archive_url' => route('academic_years.destroy', $year),
             'semesters_count' => (int) ($year->semesters_count ?? $year->semesters()->count()),
             'update_url' => route('academic_years.update', $year),
             'destroy_url' => route('academic_years.destroy', $year),

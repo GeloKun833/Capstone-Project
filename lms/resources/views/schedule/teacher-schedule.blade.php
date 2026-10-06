@@ -63,7 +63,7 @@
             <div class="row align-items-start">
                 <div class="col">
                     <h3 class="page-title mb-1">My Teaching Schedule</h3>
-                    <p class="dir-subtitle">Weekly planner for your assigned classes.</p>
+                    <p class="dir-subtitle">Weekly planner for {{ $viewYear?->displayName() ?? 'the current year' }}. Classes from other years are not included.</p>
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-0">
@@ -73,6 +73,21 @@
                 </div>
             </div>
         </div>
+
+        <form method="GET" action="{{ route('teacher.my-schedule') }}" class="mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Academic Year</label>
+                    <select name="academic_year_id" class="form-control" onchange="this.form.submit()">
+                        @foreach($years as $year)
+                            <option value="{{ $year->id }}" {{ (int) ($viewYear?->id) === (int) $year->id ? 'selected' : '' }}>
+                                {{ $year->displayName() }}{{ $year->isCurrent() ? ' (Current)' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </form>
 
         <div class="plan-shell">
             <aside class="plan-side">

@@ -603,9 +603,9 @@ class StudentController extends Controller
         
         // Get all academic years
         $academicYears = \App\Models\AcademicYear::orderBy('name', 'desc')->get();
-        $currentAcademicYear = $selectedAcademicYearId 
-            ? \App\Models\AcademicYear::find($selectedAcademicYearId) 
-            : $academicYears->first();
+        $currentAcademicYear = $selectedAcademicYearId
+            ? \App\Models\AcademicYear::find($selectedAcademicYearId)
+            : \App\Models\AcademicYear::current();
         
         // Get all subjects the student is enrolled in or assigned to
         $allSubjects = collect();

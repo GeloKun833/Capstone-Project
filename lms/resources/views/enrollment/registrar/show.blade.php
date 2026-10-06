@@ -735,8 +735,10 @@
                                     <select name="section_id" class="form-control" required>
                                         <option value="">Select a section</option>
                                         @foreach($sections as $section)
-                                            <option value="{{ $section->id }}" @selected((int) old('section_id', $application->preferred_section_id) === (int) $section->id)>
-                                                {{ $section->name }} ({{ $section->grade_level }})
+                                            <option value="{{ $section->id }}"
+                                                @disabled(empty($section->schedule_readiness['enrollment_allowed']))
+                                                @selected((int) old('section_id', $application->preferred_section_id) === (int) $section->id)>
+                                                {{ $section->name }} ({{ $section->grade_level }}) — {{ $section->schedule_readiness['label'] ?? 'Not Plotted' }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -1084,8 +1086,10 @@ function testModal() {
                         <select name="section_id" id="section_id" class="form-control" required>
                             <option value="">Select a section</option>
                             @foreach($sections as $section)
-                                <option value="{{ $section->id }}" @selected((int) old('section_id', $application->preferred_section_id) === (int) $section->id)>
-                                    {{ $section->name }} ({{ $section->grade_level }})
+                                <option value="{{ $section->id }}"
+                                    @disabled(empty($section->schedule_readiness['enrollment_allowed']))
+                                    @selected((int) old('section_id', $application->preferred_section_id) === (int) $section->id)>
+                                    {{ $section->name }} ({{ $section->grade_level }}) — {{ $section->schedule_readiness['label'] ?? 'Not Plotted' }}
                                 </option>
                             @endforeach
                         </select>

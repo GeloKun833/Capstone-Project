@@ -13,6 +13,7 @@ class Section extends Model
         'name',
         'grade_level',
         'adviser_id',
+        'academic_year_id',
         'capacity',
         'description',
     ];
@@ -98,5 +99,30 @@ class Section extends Model
     public function classSchedules()
     {
         return $this->hasMany(ClassSchedule::class);
+    }
+
+    /**
+     * Sections for a year: rows tagged with that year, or older rows that
+     * already have a schedule or student placement in that year.
+     * Untagged rows are not copied and are not shown for a different year.
+     */
+    public function scopeForAcademicYear($query, int $yearId)
+    {
+        return $query->where(function ($outer) use ($yearId) {
+            $outer->where('academic_year_id', $yearId)
+                ->orWhere(function ($legacy) use ($yearId) {
+                    $legacy->whereNull('academic_year_id')
+                        ->where(function ($linked) use ($yearId) {
+                            $linked->whereHas('classSchedules', function ($schedules) use ($yearId) {
+                                $schedules->where('academic_year_id', $yearId);
+                            })->orWhereExists(function ($assignments) use ($yearId) {
+                                $assignments->selectRaw('1')
+                                    ->from('student_section_assignments')
+                                    ->whereColumn('student_section_assignments.section_id', 'sections.id')
+                                    ->where('student_section_assignments.academic_year_id', $yearId);
+                            });
+                        });
+                });
+        });
     }
 }

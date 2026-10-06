@@ -17,7 +17,7 @@ class QuarterlyGradeSyncService
 
         $semesterId = $semesterId
             ?? Semester::where('academic_year_id', $quarterlyGrade->academic_year_id)->orderBy('id')->value('id')
-            ?? Semester::latest()->value('id');
+            ?? Semester::current()?->id;
 
         if (!$semesterId) {
             return null;

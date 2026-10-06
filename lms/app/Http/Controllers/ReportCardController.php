@@ -88,7 +88,7 @@ class ReportCardController extends Controller
         }
 
         $academicYear = AcademicYear::find($request->get('academic_year_id'))
-            ?: AcademicYear::orderByDesc('name')->first();
+            ?: AcademicYear::current();
         $quarter = (int) $request->get('quarter', 0);
         $quarter = in_array($quarter, [1, 2, 3, 4], true) ? $quarter : null;
 
@@ -103,7 +103,7 @@ class ReportCardController extends Controller
         $student = app(ParentPortalService::class)->resolveChildForParent($parent, (int) $childId);
 
         $academicYear = AcademicYear::find($request->get('academic_year_id'))
-            ?: AcademicYear::orderByDesc('name')->first();
+            ?: AcademicYear::current();
         $quarter = (int) $request->get('quarter', 0);
         $quarter = in_array($quarter, [1, 2, 3, 4], true) ? $quarter : null;
 

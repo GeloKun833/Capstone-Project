@@ -7,7 +7,21 @@
         <div class="text-center mb-4">
             <h1 class="ep-page-title"><i class="fas fa-graduation-cap text-primary me-2"></i>Enrollment Application</h1>
             <p class="ep-page-subtitle">Complete each step to submit your application.</p>
+            <div class="alert <?php echo e(empty($enrollmentClosedMessage) ? 'alert-info' : 'alert-warning'); ?> text-start mx-auto mt-3" style="max-width: 640px;">
+                <div class="fw-bold mb-1">New Enrollment</div>
+                <div>Academic Year: <?php echo e($activeAcademicYear?->displayName() ?? 'None'); ?></div>
+                <div>Enrollment Status: <?php echo e(empty($enrollmentClosedMessage) ? 'OPEN' : 'CLOSED'); ?></div>
+            </div>
         </div>
+
+        <?php if(!empty($enrollmentClosedMessage)): ?>
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i><?php echo e($enrollmentClosedMessage); ?>
+
+            </div>
+        </div>
+    </div>
+        <?php else: ?>
         
         <!-- Progress Steps -->
         <div class="wizard-steps mb-5">
@@ -1702,7 +1716,7 @@ unset($__errorArgs, $__bag); ?>
                     <div class="card-body p-4">
                         <div class="alert alert-info mb-4">
                             <i class="fas fa-info-circle me-2"></i>
-                            <strong>Block Section Assignment:</strong> Choose a section for each child. The choices shown for a child are the sections for that child's own grade.
+                            <strong>Block Section Assignment:</strong> Choose a section for each child. A section can be selected after its class schedule has been plotted for the current academic year.
                         </div>
 
                         <div id="sectionSelectionStatus" class="section-selection-status is-empty mb-4" role="status" aria-live="polite">
@@ -3926,13 +3940,22 @@ function validateStep(step) {
         const childGroups = document.querySelectorAll('[data-child-section]');
         if (childGroups.length > 1) {
             const missing = [];
+            const unscheduled = [];
             childGroups.forEach(function (group) {
                 const input = group.querySelector('input[name^="child_sections["]');
-                const hasChoices = group.querySelector('.section-choice-card:not(.is-full)');
-                if (hasChoices && (!input || !input.value)) {
-                    missing.push(group.getAttribute('data-child-name') || 'a child');
+                const name = group.getAttribute('data-child-name') || 'a child';
+                const selectable = group.querySelector('.section-choice-card:not(.is-full):not(.is-unscheduled)');
+                const anyCard = group.querySelector('.section-choice-card');
+                if (anyCard && !selectable) {
+                    unscheduled.push(name);
+                } else if (selectable && (!input || !input.value)) {
+                    missing.push(name);
                 }
             });
+            if (unscheduled.length) {
+                showAlert('Enrollment unavailable for ' + unscheduled.join(', ') + '. The schedule for the selected section has not been configured yet. Please wait until the class schedule has been finalized before proceeding with enrollment.', 'error');
+                return false;
+            }
             if (missing.length) {
                 showAlert('Choose a block section for ' + missing.join(', ') + '. Each child uses the sections for their own grade.', 'error');
                 return false;
@@ -3945,6 +3968,13 @@ function validateStep(step) {
         const noSections = document.getElementById('noSectionsMessage')
             && document.getElementById('noSectionsMessage').style.display !== 'none';
         if (sectionsVisible && !noSections) {
+            const selectable = document.querySelector('#sectionsList .section-choice-card:not(.is-full):not(.is-unscheduled)');
+            const anyCard = document.querySelector('#sectionsList .section-choice-card');
+            if (anyCard && !selectable) {
+                showAlert('Enrollment unavailable. The schedule for this section has not been configured yet. Please wait until the class schedule has been finalized before proceeding with enrollment.', 'error');
+                updateSectionSelectionStatus(false);
+                return false;
+            }
             const chosen = document.getElementById('selected_section_id');
             if (!chosen || !chosen.value) {
                 showAlert('Please select a block section before continuing. Look for the blue “Your Choice” badge on the card you pick.', 'error');
@@ -4161,7 +4191,7 @@ function loadSingleGradeSections(gradeLevel) {
                 // Drop stale selection if that section is no longer in the list
                 if (selectedSectionId != null) {
                     const stillThere = data.sections.some(function (s) {
-                        return String(s.id) === String(selectedSectionId) && s.available_spots !== 0;
+                        return String(s.id) === String(selectedSectionId) && s.available_spots !== 0 && s.enrollment_allowed !== false;
                     });
                     if (!stillThere) {
                         selectedSectionId = null;
@@ -4190,25 +4220,57 @@ function loadSingleGradeSections(gradeLevel) {
         });
 }
 
+function sectionIsScheduleLocked(section) {
+    return section.enrollment_allowed === false;
+}
+
+function sectionScheduleDetails(section) {
+    const year = escapeHtml(section.academic_year || 'Current year');
+    const label = escapeHtml(section.schedule_label || 'Not Plotted');
+    const locked = sectionIsScheduleLocked(section);
+    const reasons = {
+        incomplete: 'The schedule for this section is incomplete.',
+        conflict: 'This section has unresolved schedule conflicts.',
+        not_finalized: 'The schedule for this section has not been finalized.',
+        subjects_missing: 'This section does not have its subjects assigned yet.'
+    };
+    const badgeClass = locked ? 'bg-warning text-dark' : 'bg-success';
+    const reason = reasons[section.schedule_status]
+        || 'The schedule for this section has not been configured or finalized yet. Please wait until the class schedule has been finalized before proceeding with enrollment.';
+    return `
+        <p class="mb-2">
+            <i class="fas fa-calendar-alt me-1 text-primary"></i>
+            <strong>Academic Year:</strong> ${year}
+        </p>
+        <p class="mb-2">
+            <strong>Schedule Status:</strong>
+            <span class="badge ${badgeClass}">${label}</span>
+        </p>
+        ${locked ? `<div class="alert alert-warning py-2 px-3 small mb-3"><strong>Enrollment unavailable.</strong> ${reason}</div>` : ''}
+    `;
+}
+
 function renderSections(sections) {
     const sectionsList = document.getElementById('sectionsList');
     sectionsList.innerHTML = '';
     
     sections.forEach(section => {
         const isFull = section.available_spots === 0;
+        const scheduleLocked = sectionIsScheduleLocked(section);
+        const locked = isFull || scheduleLocked;
         const safeName = escapeHtml(section.name);
         const safeGrade = escapeHtml(section.grade_level);
         const safeAdviser = escapeHtml(section.adviser || '');
         const safeDesc = escapeHtml(section.description || '');
         const sectionCard = `
             <div class="col-md-6">
-                <div class="card section-choice-card h-100 ${isFull ? 'is-full' : ''}"
+                <div class="card section-choice-card h-100 ${isFull ? 'is-full' : ''} ${scheduleLocked ? 'is-unscheduled' : ''}"
                      data-section-id="${section.id}"
                      data-section-name="${safeName}"
                      role="button"
-                     tabindex="${isFull ? '-1' : '0'}"
+                     tabindex="${locked ? '-1' : '0'}"
                      aria-pressed="false"
-                     style="cursor: ${isFull ? 'not-allowed' : 'pointer'}; opacity: ${isFull ? '0.65' : '1'};">
+                     style="cursor: ${locked ? 'not-allowed' : 'pointer'}; opacity: ${locked ? '0.65' : '1'};">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
@@ -4221,7 +4283,7 @@ function renderSections(sections) {
                                 <span class="badge section-select-badge" style="display:none;">
                                     <i class="fas fa-check me-1"></i>Your Choice
                                 </span>
-                                ${isFull ? '<span class="badge bg-danger">Full</span>' : '<span class="badge bg-success">Available</span>'}
+                                ${isFull ? '<span class="badge bg-danger">Full</span>' : (scheduleLocked ? '' : '<span class="badge bg-success">Available</span>')}
                             </div>
                         </div>
                         
@@ -4236,6 +4298,8 @@ function renderSections(sections) {
                                 <strong>Adviser:</strong> To be assigned
                             </p>
                         `}
+
+                        ${sectionScheduleDetails(section)}
                         
                         <p class="mb-3">
                             <i class="fas fa-users me-1 text-info"></i>
@@ -4244,13 +4308,13 @@ function renderSections(sections) {
                         
                         ${section.description ? `<p class="text-muted mb-3"><small>${safeDesc}</small></p>` : ''}
                         
-                        ${!isFull ? `
+                        ${!locked ? `
                             <button type="button" class="btn btn-outline-success w-100 section-select-btn">
                                 <i class="fas fa-hand-pointer me-2"></i>Select This Section
                             </button>
                         ` : `
                             <button type="button" class="btn btn-secondary w-100 section-select-btn" disabled>
-                                <i class="fas fa-times-circle me-2"></i>Section is Full
+                                <i class="fas fa-times-circle me-2"></i>${scheduleLocked ? 'Enrollment Unavailable' : 'Section is Full'}
                             </button>
                         `}
                     </div>
@@ -4260,7 +4324,7 @@ function renderSections(sections) {
         sectionsList.innerHTML += sectionCard;
     });
 
-    sectionsList.querySelectorAll('.section-choice-card:not(.is-full)').forEach(function (card) {
+    sectionsList.querySelectorAll('.section-choice-card:not(.is-full):not(.is-unscheduled)').forEach(function (card) {
         const pick = function () {
             selectSection(
                 parseInt(card.getAttribute('data-section-id'), 10),
@@ -4362,7 +4426,7 @@ async function loadFamilySections(children) {
         sections.forEach(function (section) {
             cardRow.insertAdjacentHTML('beforeend', familySectionCard(section));
         });
-        cardRow.querySelectorAll('.section-choice-card:not(.is-full)').forEach(function (card) {
+        cardRow.querySelectorAll('.section-choice-card:not(.is-full):not(.is-unscheduled)').forEach(function (card) {
             const pick = function () {
                 selectChildSection(
                     child.id,
@@ -4390,13 +4454,16 @@ async function loadFamilySections(children) {
                 });
             }
         });
-        if (child.preferred_section_id && group.querySelector('.section-choice-card[data-section-id="' + child.preferred_section_id + '"]:not(.is-full)')) {
+        if (child.preferred_section_id && group.querySelector('.section-choice-card[data-section-id="' + child.preferred_section_id + '"]:not(.is-full):not(.is-unscheduled)')) {
             const input = group.querySelector('input[name^="child_sections["]');
             if (input) input.value = child.preferred_section_id;
             markChildSectionChoice(group, child.preferred_section_id);
             if (String(child.id) === String(openDraftId)) {
                 document.getElementById('selected_section_id').value = child.preferred_section_id;
             }
+        } else {
+            const input = group.querySelector('input[name^="child_sections["]');
+            if (input) input.value = '';
         }
     });
 
@@ -4409,19 +4476,21 @@ async function loadFamilySections(children) {
 
 function familySectionCard(section) {
     const isFull = section.available_spots === 0;
+    const scheduleLocked = sectionIsScheduleLocked(section);
+    const locked = isFull || scheduleLocked;
     const safeName = escapeHtml(section.name);
     const safeGrade = escapeHtml(section.grade_level);
     const safeAdviser = escapeHtml(section.adviser || '');
     const safeDesc = escapeHtml(section.description || '');
     return `
         <div class="col-md-6">
-            <div class="card section-choice-card h-100 ${isFull ? 'is-full' : ''}"
+            <div class="card section-choice-card h-100 ${isFull ? 'is-full' : ''} ${scheduleLocked ? 'is-unscheduled' : ''}"
                  data-section-id="${section.id}"
                  data-section-name="${safeName}"
                  role="button"
-                 tabindex="${isFull ? '-1' : '0'}"
+                 tabindex="${locked ? '-1' : '0'}"
                  aria-pressed="false"
-                 style="cursor: ${isFull ? 'not-allowed' : 'pointer'}; opacity: ${isFull ? '0.65' : '1'};">
+                 style="cursor: ${locked ? 'not-allowed' : 'pointer'}; opacity: ${locked ? '0.65' : '1'};">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div>
@@ -4434,25 +4503,26 @@ function familySectionCard(section) {
                             <span class="badge section-select-badge" style="display:none;">
                                 <i class="fas fa-check me-1"></i>Your Choice
                             </span>
-                            ${isFull ? '<span class="badge bg-danger">Full</span>' : '<span class="badge bg-success">Available</span>'}
+                            ${isFull ? '<span class="badge bg-danger">Full</span>' : (scheduleLocked ? '' : '<span class="badge bg-success">Available</span>')}
                         </div>
                     </div>
                     <p class="mb-2">
                         <i class="fas fa-user-tie me-1 text-primary"></i>
                         <strong>Adviser:</strong> ${section.adviser ? safeAdviser : 'To be assigned'}
                     </p>
+                    ${sectionScheduleDetails(section)}
                     <p class="mb-3">
                         <i class="fas fa-users me-1 text-info"></i>
                         <strong>Capacity:</strong> ${section.available_spots} / ${section.capacity} spots available
                     </p>
                     ${section.description ? `<p class="text-muted mb-3"><small>${safeDesc}</small></p>` : ''}
-                    ${!isFull ? `
+                    ${!locked ? `
                         <button type="button" class="btn btn-outline-success w-100 section-select-btn">
                             <i class="fas fa-hand-pointer me-2"></i>Select This Section
                         </button>
                     ` : `
                         <button type="button" class="btn btn-secondary w-100 section-select-btn" disabled>
-                            <i class="fas fa-times-circle me-2"></i>Section is Full
+                            <i class="fas fa-times-circle me-2"></i>${scheduleLocked ? 'Enrollment Unavailable' : 'Section is Full'}
                         </button>
                     `}
                 </div>
@@ -4683,7 +4753,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 </script>
-
+        <?php endif; ?>
 
 <style>
 .section-selection-status {

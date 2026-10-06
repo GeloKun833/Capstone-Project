@@ -149,7 +149,7 @@
                                                 <select class="form-control @error('academic_year_id') is-invalid @enderror" id="academic_year_id" name="academic_year_id" required>
                                                     <option value="">Select Academic Year</option>
                                                     @foreach($academicYears as $year)
-                                                        <option value="{{ $year->id }}" {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
+                                                        <option value="{{ $year->id }}" {{ (string) old('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id ? 'selected' : '' }}>
                                                             {{ $year->name }}
                                                         </option>
                                                     @endforeach

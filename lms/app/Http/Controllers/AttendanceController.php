@@ -82,17 +82,26 @@ class AttendanceController extends Controller
             }
             $classes = $classes->sortBy('label')->values();
         } else {
-            $sectionModels = Section::orderBy('name')->get()->keyBy('id');
-            $subjectModels = Subject::orderBy('subject_name')->get()->keyBy('id');
-            foreach ($sectionModels as $section) {
-                foreach ($subjectModels as $subject) {
-                    $classes->push([
-                        'key' => $section->id . '_' . $subject->id,
-                        'section_id' => $section->id,
-                        'subject_id' => $subject->id,
-                        'label' => $section->name . ' · ' . $subject->subject_name,
-                    ]);
+            $yearId = app(\App\Services\AcademicYearContext::class)->viewing()?->id;
+            $pairs = \App\Models\ClassSchedule::query()
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+                ->where('is_active', true)
+                ->get(['section_id', 'subject_id'])
+                ->unique(fn ($row) => $row->section_id.'-'.$row->subject_id);
+            $sectionModels = Section::whereIn('id', $pairs->pluck('section_id')->filter()->unique())->orderBy('name')->get()->keyBy('id');
+            $subjectModels = Subject::whereIn('id', $pairs->pluck('subject_id')->filter()->unique())->orderBy('subject_name')->get()->keyBy('id');
+            foreach ($pairs as $pair) {
+                $section = $sectionModels->get((int) $pair->section_id);
+                $subject = $subjectModels->get((int) $pair->subject_id);
+                if (! $section || ! $subject) {
+                    continue;
                 }
+                $classes->push([
+                    'key' => $section->id . '_' . $subject->id,
+                    'section_id' => $section->id,
+                    'subject_id' => $subject->id,
+                    'label' => $section->name . ' · ' . $subject->subject_name,
+                ]);
             }
         }
 
@@ -105,8 +114,12 @@ class AttendanceController extends Controller
         $ready = $sectionId > 0 && $subjectId > 0;
 
         if ($ready) {
-            $students = Student::whereHas('sections', function ($query) use ($sectionId) {
+            $yearId = app(\App\Services\AcademicYearContext::class)->viewing()?->id;
+            $students = Student::whereHas('sections', function ($query) use ($sectionId, $yearId) {
                 $query->where('sections.id', $sectionId);
+                if ($yearId) {
+                    $query->where('student_section_assignments.academic_year_id', $yearId);
+                }
             })->orderBy('last_name')->orderBy('first_name')->get();
 
             $dayRecords = Attendance::query()

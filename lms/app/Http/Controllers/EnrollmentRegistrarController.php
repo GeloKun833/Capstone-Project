@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\User;
 use App\Models\Section;
 use App\Services\GradeSubjectCatalogService;
+use App\Services\SectionScheduleReadiness;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -67,6 +68,12 @@ class EnrollmentRegistrarController extends Controller
             ->when(! empty($aliases), fn ($q) => $q->whereIn('grade_level', $aliases))
             ->orderBy('name')
             ->get();
+        $readiness = app(SectionScheduleReadiness::class);
+        $sections->each(function ($section) use ($readiness) {
+            $status = $readiness->assess((int) $section->id);
+            $status['enrollment_allowed'] = $status['enrollment_allowed'] && $readiness->yearEnrollmentBlock() === null;
+            $section->schedule_readiness = $status;
+        });
         $temporaryPassword = TemporaryPassword::make();
 
         return view('enrollment.registrar.show', compact('application', 'sections', 'temporaryPassword'));
@@ -636,11 +643,12 @@ class EnrollmentRegistrarController extends Controller
 
     private function assignStudentToPreferredSection($student, $sectionId, $gradeLevel)
     {
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
-        if (!$academicYear || !$semester) {
-            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        if (!$academicYear || !$semester || !$academicYear->enrollmentIsOpen()) {
+            throw new \Exception(app(SectionScheduleReadiness::class)->yearEnrollmentBlock()
+                ?: 'No academic year or semester found. Please set up academic periods first.');
         }
 
         $section = \App\Models\Section::find($sectionId);
@@ -651,6 +659,11 @@ class EnrollmentRegistrarController extends Controller
         $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
         if (!in_array($section->grade_level, $aliases, true)) {
             throw new \Exception('Selected section does not match the applicant grade level.');
+        }
+
+        $scheduleMessage = app(SectionScheduleReadiness::class)->enrollmentBlockMessage((int) $section->id, $student->full_name ?? null);
+        if ($scheduleMessage) {
+            throw new \Exception($scheduleMessage);
         }
 
         $currentCount = DB::table('student_section_assignments')
@@ -692,11 +705,12 @@ class EnrollmentRegistrarController extends Controller
     private function autoAssignStudentToSection($student, $gradeLevel)
     {
         // Get the latest academic year and semester (since is_active column doesn't exist)
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
-        if (!$academicYear || !$semester) {
-            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        if (!$academicYear || !$semester || !$academicYear->enrollmentIsOpen()) {
+            throw new \Exception(app(SectionScheduleReadiness::class)->yearEnrollmentBlock()
+                ?: 'No academic year or semester found. Please set up academic periods first.');
         }
 
         // Find sections for the student's grade level (canonical + aliases)
@@ -717,15 +731,23 @@ class EnrollmentRegistrarController extends Controller
 
             $capacity = $section->capacity ?? 25; // Default capacity if not set
 
-            if ($currentCount < $capacity) {
+            if ($currentCount < $capacity && app(SectionScheduleReadiness::class)->enrollmentAllowed((int) $section->id)) {
                 $assignedSection = $section;
                 break;
             }
         }
 
+        if (! $assignedSection) {
+            foreach ($sections as $section) {
+                if (app(SectionScheduleReadiness::class)->enrollmentAllowed((int) $section->id)) {
+                    $assignedSection = $section;
+                    break;
+                }
+            }
+        }
+
         if (!$assignedSection) {
-            // If no section has capacity, assign to the first available section
-            $assignedSection = $sections->first();
+            throw new \Exception(app(SectionScheduleReadiness::class)->gradeBlockMessage((string) $gradeLevel));
         }
 
         // Check if student is already assigned to this section
@@ -759,11 +781,12 @@ class EnrollmentRegistrarController extends Controller
      */
     private function autoEnrollStudentInSubjects($student, $gradeLevel)
     {
-        $academicYear = \App\Models\AcademicYear::latest()->first();
-        $semester = \App\Models\Semester::latest()->first();
+        $academicYear = \App\Models\AcademicYear::active();
+        $semester = \App\Models\Semester::current();
 
-        if (!$academicYear || !$semester) {
-            throw new \Exception('No academic year or semester found. Please set up academic periods first.');
+        if (!$academicYear || !$semester || !$academicYear->enrollmentIsOpen()) {
+            throw new \Exception(app(SectionScheduleReadiness::class)->yearEnrollmentBlock()
+                ?: 'No academic year or semester found. Please set up academic periods first.');
         }
 
         $subjects = app(\App\Services\GradeSubjectCatalogService::class)->subjectsForGrade($gradeLevel);

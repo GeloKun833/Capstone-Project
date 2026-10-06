@@ -36,6 +36,9 @@ class SemesterController extends Controller
             'academic_year_id' => 'required|exists:academic_years,id',
         ]);
 
+        $year = AcademicYear::findOrFail($data['academic_year_id']);
+        $data['status'] = $year->statusLabel();
+
         $semester = Semester::create($data);
         $semester->load('academicYear');
 
@@ -67,6 +70,9 @@ class SemesterController extends Controller
             'academic_year_id' => 'required|exists:academic_years,id',
         ]);
 
+        $year = AcademicYear::findOrFail($data['academic_year_id']);
+        $data['status'] = $year->statusLabel();
+
         $semester->update($data);
         $semester->load('academicYear');
 
@@ -84,6 +90,16 @@ class SemesterController extends Controller
     public function destroy(Request $request, Semester $semester)
     {
         $name = $semester->name;
+        $semester->loadMissing('academicYear');
+        if (in_array($semester->academicYear?->statusLabel(), ['completed', 'archived'], true)) {
+            $message = 'Semesters from a completed or archived academic year stay on record.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->route('semesters.index')->with('error', $message);
+        }
+
         $semester->delete();
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -103,6 +119,7 @@ class SemesterController extends Controller
             'name' => $semester->name,
             'academic_year_id' => $semester->academic_year_id,
             'academic_year_name' => optional($semester->academicYear)->name ?? '—',
+            'status' => $semester->statusLabel(),
             'update_url' => route('semesters.update', $semester),
             'destroy_url' => route('semesters.destroy', $semester),
         ];

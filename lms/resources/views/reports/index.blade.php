@@ -128,7 +128,7 @@
                             <select class="form-select" name="academic_year_id">
                                 <option value="">All years</option>
                                 @foreach($ayOptions as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -197,7 +197,7 @@
                             <select class="form-select" name="academic_year_id">
                                 <option value="">Current</option>
                                 @foreach($ayOptions as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -274,7 +274,7 @@
                             <select class="form-select" name="academic_year_id">
                                 <option value="">Current</option>
                                 @foreach($ayOptions as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -351,7 +351,7 @@
                             <select class="form-select" name="academic_year_id">
                                 <option value="">Current</option>
                                 @foreach($ayOptions as $year)
-                                <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
                     </div>

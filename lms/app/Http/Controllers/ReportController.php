@@ -545,10 +545,10 @@ class ReportController extends Controller
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
         if (!$academicYearId) {
-            $academicYearId = optional(AcademicYear::latest('id')->first())->id;
+            $academicYearId = optional(AcademicYear::current())->id;
         }
         if (!$semesterId) {
-            $semesterId = optional(Semester::latest('id')->first())->id;
+            $semesterId = optional(Semester::current())->id;
         }
 
         return [(int) $academicYearId ?: null, (int) $semesterId ?: null];

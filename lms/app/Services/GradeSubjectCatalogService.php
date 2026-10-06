@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Curriculum;
 use App\Models\Subject;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -204,13 +205,36 @@ class GradeSubjectCatalogService
                         'subject_name' => $name,
                         'class' => $grade,
                     ]);
-                    $this->enrollGradeStudentsInSubject($subject);
+                    $this->syncNewSubject($subject);
                     $created++;
                 }
             }
         });
 
         return $created;
+    }
+
+    /**
+     * Put a newly added catalog subject on that grade's curriculum, classes, and student enrollments.
+     */
+    public function syncNewSubject(Subject $subject): int
+    {
+        $grade = trim((string) ($subject->class ?? ''));
+        if ($grade === '' || ! $subject->id) {
+            return 0;
+        }
+
+        $curriculum = Curriculum::firstOrCreate(
+            ['grade_level' => $grade],
+            ['description' => $grade.' curriculum linked to the subject catalog.']
+        );
+        $curriculum->subjects()->syncWithoutDetaching([$subject->id]);
+
+        foreach ($this->sectionsForGrade($grade) as $section) {
+            $section->subjects()->syncWithoutDetaching([$subject->id]);
+        }
+
+        return $this->enrollGradeStudentsInSubject($subject);
     }
 
     /**
@@ -330,13 +354,7 @@ class GradeSubjectCatalogService
      */
     private function resolveDefaultAcademicPeriod(): array
     {
-        $today = now()->toDateString();
-        $year = \App\Models\AcademicYear::query()
-            ->whereDate('start_date', '<=', $today)
-            ->whereDate('end_date', '>=', $today)
-            ->orderByDesc('start_date')
-            ->first()
-            ?? \App\Models\AcademicYear::query()->latest('id')->first();
+        $year = \App\Models\AcademicYear::current();
 
         if (!$year) {
             return [null, null];
@@ -345,8 +363,7 @@ class GradeSubjectCatalogService
         $semester = \App\Models\Semester::query()
             ->where('academic_year_id', $year->id)
             ->orderBy('id')
-            ->first()
-            ?? \App\Models\Semester::query()->latest('id')->first();
+            ->first();
 
         return [$year->id, $semester?->id];
     }

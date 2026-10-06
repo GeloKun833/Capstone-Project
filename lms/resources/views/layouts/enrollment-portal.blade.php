@@ -24,7 +24,7 @@
                 <img src="{{ URL::to('assets/img/Logo.jpg') }}" alt="School Logo">
                 <div class="ep-brand-text">
                     <h1>Panorama Montessori</h1>
-                    <span>Enrollment Portal</span>
+                    <span>SY {{ $currentSchoolYear->name ?? '2025-2026' }}</span>
                 </div>
             </div>
 

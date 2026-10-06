@@ -48,6 +48,12 @@
             </a>
             <ul class="nav user-menu">
 
+                @if(!empty($currentSchoolYear))
+                <li class="nav-item d-flex align-items-center me-2">
+                    <span class="badge rounded-pill" style="background:#1e3a8a;font-weight:700;padding:.45rem .75rem;">SY {{ $currentSchoolYear->name }}</span>
+                </li>
+                @endif
+
 
                 <li class="nav-item me-2">
                     <a href="{{ route('chat.index') }}" class="nav-link header-nav-list" title="Messages">

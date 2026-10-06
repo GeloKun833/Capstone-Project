@@ -12,6 +12,7 @@ class ClassSchedule extends Model
     use HasFactory;
 
     protected $fillable = [
+        'academic_year_id',
         'section_id',
         'subject_id',
         'teacher_id',
@@ -22,16 +23,23 @@ class ClassSchedule extends Model
         'class_type',
         'color',
         'is_active',
+        'is_finalized',
         'notes'
     ];
 
     protected $casts = [
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
+        'is_finalized' => 'boolean',
     ];
 
     /**
      * Get the section for this schedule
      */
+    public function academicYear()
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
+
     public function section()
     {
         return $this->belongsTo(Section::class);
@@ -67,6 +75,33 @@ class ClassSchedule extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Same overlap rule used when an admin saves a class schedule.
+     */
+    public static function sharesOverlappingSlot(
+        self $existing,
+        string $dayOfWeek,
+        string $startTime,
+        string $endTime,
+        int $teacherId,
+        int $sectionId,
+        mixed $roomId
+    ): bool {
+        if ($existing->day_of_week !== null && $existing->day_of_week !== $dayOfWeek) {
+            return false;
+        }
+
+        $existingStart = Carbon::parse($existing->start_time)->format('H:i:s');
+        $existingEnd = Carbon::parse($existing->end_time)->format('H:i:s');
+        $start = Carbon::parse($startTime)->format('H:i:s');
+        $end = Carbon::parse($endTime)->format('H:i:s');
+        $sharesResource = (int) $existing->teacher_id === $teacherId
+            || (int) $existing->section_id === $sectionId
+            || (! empty($roomId) && (int) $existing->room_id === (int) $roomId);
+
+        return $sharesResource && $existingStart < $end && $existingEnd > $start;
     }
 
     /**
@@ -172,26 +207,30 @@ class ClassSchedule extends Model
         }
 
         $sectionIds = collect($student->resolvedSectionIds());
+        $yearId = self::scheduleYearIdForStudent((int) $studentId);
 
         if ($sectionIds->isEmpty()) {
             $subjectIds = Enrollment::where('student_id', $studentId)
                 ->where('status', 'active')
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
                 ->pluck('subject_id');
             if ($subjectIds->isEmpty()) {
                 return collect();
             }
 
-            return self::with(['subject', 'teacher', 'room'])
+            return self::with(['subject', 'teacher', 'room', 'academicYear', 'section'])
                 ->whereIn('subject_id', $subjectIds)
                 ->where('is_active', true)
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
                 ->orderBy('day_of_week')
                 ->orderBy('start_time')
                 ->get();
         }
 
-        $schedules = self::with(['subject', 'teacher', 'room'])
+        $schedules = self::with(['subject', 'teacher', 'room', 'academicYear', 'section'])
             ->whereIn('section_id', $sectionIds)
             ->where('is_active', true)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
             ->orderBy('day_of_week')
             ->orderBy('start_time')
             ->get();
@@ -201,9 +240,10 @@ class ClassSchedule extends Model
                 ->where('status', 'active')
                 ->pluck('subject_id');
             if ($subjectIds->isNotEmpty()) {
-                $schedules = self::with(['subject', 'teacher', 'room'])
+                $schedules = self::with(['subject', 'teacher', 'room', 'academicYear', 'section'])
                     ->whereIn('subject_id', $subjectIds)
                     ->where('is_active', true)
+                    ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
                     ->orderBy('day_of_week')
                     ->orderBy('start_time')
                     ->get();
@@ -261,12 +301,29 @@ class ClassSchedule extends Model
             return collect();
         }
 
-        return self::with(['subject', 'teacher', 'room'])
+        return self::with(['subject', 'teacher', 'room', 'section', 'academicYear'])
             ->whereIn('section_id', $sectionIds)
             ->where('day_of_week', $dayOfWeek)
             ->where('is_active', true)
+            ->when(self::scheduleYearIdForStudent((int) $studentId), fn ($query, $yearId) => $query->where('academic_year_id', $yearId))
             ->orderBy('start_time')
             ->get();
+    }
+
+    public static function scheduleYearIdForStudent(int $studentId): ?int
+    {
+        $assigned = \Illuminate\Support\Facades\DB::table('student_section_assignments')
+            ->where('student_id', $studentId)
+            ->whereNotNull('academic_year_id')
+            ->pluck('academic_year_id')
+            ->map(fn ($id) => (int) $id);
+
+        $activeId = AcademicYear::active()?->id;
+        if ($activeId && $assigned->contains($activeId)) {
+            return (int) $activeId;
+        }
+
+        return $assigned->unique()->sortDesc()->first() ?: ($activeId ? (int) $activeId : null);
     }
 
     /**

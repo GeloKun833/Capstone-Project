@@ -14,7 +14,7 @@
                 <div class="col">
                     <h3 class="page-title mb-1">Classes &amp; Subjects</h3>
                     <p class="ams-unified-sub mb-0">
-                        Manage the subject catalog by grade, then assign teachers to an entire grade at once.
+                        Manage the subject catalog by grade, then assign teachers to an entire grade at once. These classes and subjects stay when an academic year is completed, archived, or created as Upcoming.
                     </p>
                 </div>
                 <div class="col-auto text-end">
@@ -477,7 +477,7 @@
                             <select class="form-control" name="academic_year_id" id="academic_year_id" required>
                             <option value="">Select Academic Year</option>
                             @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}" {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
+                                <option value="{{ $year->id }}" {{ (string) old('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id ? 'selected' : '' }}>
                                     {{ $year->name }}
                                 </option>
                             @endforeach
@@ -488,8 +488,8 @@
                             <select class="form-control" name="semester_id" id="semester_id" required>
                             <option value="">Select Semester</option>
                             @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
-                                    {{ $semester->name }}
+                                <option value="{{ $semester->id }}" {{ (string) old('semester_id', \App\Models\Semester::current()?->id ?? '') === (string) $semester->id ? 'selected' : '' }}>
+                                    {{ $semester->name }}{{ $semester->academicYear ? ' · '.$semester->academicYear->name : '' }}
                                 </option>
                             @endforeach
                         </select>

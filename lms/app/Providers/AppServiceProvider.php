@@ -55,6 +55,20 @@ class AppServiceProvider extends ServiceProvider
         // Register User Observer for automatic role-specific record creation
         User::observe(UserObserver::class);
 
+        View::composer('*', function ($view) {
+            static $resolved = false;
+            static $year = null;
+            if (! $resolved) {
+                $resolved = true;
+                try {
+                    $year = Cache::remember('academic.year.current.shared', 60, fn () => \App\Models\AcademicYear::current());
+                } catch (\Throwable $e) {
+                    $year = null;
+                }
+            }
+            $view->with('currentSchoolYear', $year);
+        });
+
         View::composer('sidebar.sidebar', function ($view) {
             try {
                 $view->with(SidebarMenu::forUser(auth()->user()));

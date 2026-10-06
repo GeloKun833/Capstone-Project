@@ -50,7 +50,7 @@ class GradingController extends Controller
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
         $currentAcademicYear = $selectedAcademicYearId
             ? AcademicYear::find($selectedAcademicYearId)
-            : $academicYears->first();
+            : AcademicYear::current();
 
         $sectionSubjects = collect();
         $students = collect();
@@ -452,7 +452,7 @@ class GradingController extends Controller
 
         $semesterId = $request->semester_id
             ?? Semester::where('academic_year_id', $academicYearId)->orderBy('id')->value('id')
-            ?? Semester::latest()->value('id');
+            ?? Semester::current()?->id;
 
         $savedQuarterlyGrades = [];
         $touchedSubjectIds = [];
@@ -711,8 +711,8 @@ class GradingController extends Controller
         $semesters = Semester::all();
         $sections = Section::all();
 
-        $selectedAcademicYear = $request->get('academic_year_id', AcademicYear::latest()->first()?->id);
-        $selectedSemester = $request->get('semester_id', Semester::latest()->first()?->id);
+        $selectedAcademicYear = $request->get('academic_year_id', AcademicYear::current()?->id);
+        $selectedSemester = $request->get('semester_id', Semester::current()?->id);
         $selectedSection = $request->get('section_id');
 
         $query = StudentGpa::with(['student', 'academicYear', 'semester'])

@@ -196,11 +196,9 @@ class ClassSubjectController extends Controller
             'class' => $request->grade_level,
         ]);
 
-        // Link existing students in this grade (and backfill any older missing subjects)
-        $enrolled = app(GradeSubjectCatalogService::class)
-            ->syncMissingEnrollmentsForGrade($subject->class);
+        $enrolled = app(GradeSubjectCatalogService::class)->syncNewSubject($subject);
 
-        $msg = $subject->subject_name . ' added to ' . $subject->class . '.';
+        $msg = $subject->subject_name.' added to '.$subject->class.' and synced to the curriculum and classes.';
         if ($enrolled > 0) {
             $msg .= " Enrolled {$enrolled} student class link(s).";
         }

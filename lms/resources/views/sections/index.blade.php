@@ -90,6 +90,9 @@
                                 <span class="ams-section-cap">{{ $section->capacity ?? 25 }}</span>
                             </div>
                             <div class="ams-section-grade mt-2">{{ $section->grade_level }}</div>
+                            @if(!empty($section->schedule_readiness['label']))
+                                <div class="ams-section-meta mt-1">{{ ($section->schedule_readiness['academic_year'] ? $section->schedule_readiness['academic_year'].' · ' : '').$section->schedule_readiness['label'] }}</div>
+                            @endif
                             <div class="ams-section-meta mt-2">
                                 <i class="fas fa-user-tie me-1"></i>
                                 {{ $adviserName }}
