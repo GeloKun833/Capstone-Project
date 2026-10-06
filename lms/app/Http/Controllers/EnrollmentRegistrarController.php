@@ -29,9 +29,10 @@ class EnrollmentRegistrarController extends Controller
     {
         $query = EnrollmentApplication::with(['documents', 'reviewer']);
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        } else {
+            $query->where('status', '!=', 'draft');
         }
 
         // Search functionality
@@ -94,15 +95,28 @@ class EnrollmentRegistrarController extends Controller
 
         $application = EnrollmentApplication::findOrFail($id);
         
-        // Check if student already exists
-        $existingStudent = Student::where('email', $application->email)->first();
+        // The portal already creates the student record on submission. Match that
+        // record first so Nursery–Grade 6 students, who have no login email, are
+        // not given a separate student account during approval.
+        $existingStudent = Student::where('enrollment_application_id', $application->id)->first();
+        if (! $existingStudent && $application->email) {
+            $existingStudent = Student::where('email', $application->email)->first();
+        }
         if ($existingStudent) {
-            // Just approve the application if student already exists
+            if ($application->parent_user_id && ! $existingStudent->parent_user_id) {
+                $existingStudent->parent_user_id = $application->parent_user_id;
+                $existingStudent->parent_email = $application->parent_email;
+                $existingStudent->save();
+            }
             $application->approve();
             if ($request->filled('notes')) {
                 $application->update(['notes' => $request->notes]);
             }
-            return back()->with('success', 'Application approved successfully. Student account already exists.');
+            $message = $existingStudent->user_id
+                ? 'Application approved successfully. Student account already exists.'
+                : 'Application approved successfully. The student record stays linked to the parent account.';
+
+            return back()->with('success', $message);
         }
 
         try {
@@ -138,27 +152,34 @@ class EnrollmentRegistrarController extends Controller
                 }
             }
 
-            $studentPassword = TemporaryPassword::make();
+            $parentOnlyGrades = [
+                'Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3',
+                'Grade 4', 'Grade 5', 'Grade 6',
+            ];
+            $createStudentUser = ! in_array($application->grade_level_applying_for, $parentOnlyGrades, true);
+            $studentPassword = $createStudentUser ? TemporaryPassword::make() : null;
+            $user = null;
 
-            // Create user account for student
-            $user = User::create([
-                'name' => $application->full_name,
-                'email' => $application->email,
-                'password' => Hash::make($studentPassword),
-                'role_name' => 'Student',
-                'status' => 'active',
-                'join_date' => now()->format('Y-m-d'),
-                'phone_number' => $application->phone_number,
-                'position' => 'Student',
-                'department' => 'Student Affairs',
-                'avatar' => 'default-avatar.png',
-            ]);
+            if ($createStudentUser) {
+                $user = User::create([
+                    'name' => $application->full_name,
+                    'email' => $application->email,
+                    'password' => Hash::make($studentPassword),
+                    'role_name' => 'Student',
+                    'status' => 'active',
+                    'join_date' => now()->format('Y-m-d'),
+                    'phone_number' => $application->phone_number,
+                    'position' => 'Student',
+                    'department' => 'Student Affairs',
+                    'avatar' => 'default-avatar.png',
+                ]);
 
-            Log::info("✅ Created student user account: {$user->name} (ID: {$user->user_id})");
+                Log::info("✅ Created student user account: {$user->name} (ID: {$user->user_id})");
+            }
 
             // Create student record
             $student = Student::create([
-                'user_id' => $user->user_id,
+                'user_id' => $user?->user_id,
                 'first_name' => $application->first_name,
                 'last_name' => $application->last_name,
                 'middle_name' => $application->middle_name,
@@ -182,10 +203,11 @@ class EnrollmentRegistrarController extends Controller
 
             Log::info("✅ Created student profile: {$student->first_name} {$student->last_name} (ID: {$student->id})");
 
-            // Verify the user-student relationship
-            $verifyStudent = User::find($user->user_id)->student;
-            if (!$verifyStudent) {
-                throw new \Exception("Student profile was not properly linked to user account");
+            if ($user) {
+                $verifyStudent = User::find($user->user_id)->student;
+                if (!$verifyStudent) {
+                    throw new \Exception("Student profile was not properly linked to user account");
+                }
             }
 
             $assignedSection = $this->assignStudentToPreferredSection(
@@ -216,8 +238,8 @@ class EnrollmentRegistrarController extends Controller
 
             // Store credentials in session for display
             $credentials = [
-                'user_id' => $user->user_id,
-                'email' => $user->email,
+                'user_id' => $user?->user_id,
+                'email' => $user?->email,
                 'password' => $studentPassword,
                 'student_name' => $application->full_name,
                 'parent_user_id' => $parentUser ? $parentUser->user_id : null,
@@ -229,14 +251,17 @@ class EnrollmentRegistrarController extends Controller
             
             $sectionInfo = $assignedSection ? "assigned to section: {$assignedSection->name}, " : "";
             $successMessage = "✅ <strong>Application Approved Successfully!</strong><br><br>";
-            $successMessage .= "📋 Student account created, {$sectionInfo}and enrolled in {$subjectCount} subjects.<br><br>";
-            
-            $successMessage .= "<div class='alert alert-success'>";
-            $successMessage .= "<strong>STUDENT LOGIN CREDENTIALS:</strong><br>";
-            $successMessage .= "📧 <strong>Email:</strong> {$user->email}<br>";
-            $successMessage .= "🔑 <strong>Password:</strong> {$studentPassword}<br>";
-            $successMessage .= "🆔 <strong>User ID:</strong> {$user->user_id}";
-            $successMessage .= "</div>";
+            if ($user) {
+                $successMessage .= "📋 Student account created, {$sectionInfo}and enrolled in {$subjectCount} subjects.<br><br>";
+                $successMessage .= "<div class='alert alert-success'>";
+                $successMessage .= "<strong>STUDENT LOGIN CREDENTIALS:</strong><br>";
+                $successMessage .= "📧 <strong>Email:</strong> {$user->email}<br>";
+                $successMessage .= "🔑 <strong>Password:</strong> {$studentPassword}<br>";
+                $successMessage .= "🆔 <strong>User ID:</strong> {$user->user_id}";
+                $successMessage .= "</div>";
+            } else {
+                $successMessage .= "📋 Student record created without a separate student login, {$sectionInfo}and enrolled in {$subjectCount} subjects. The parent account manages this child.<br><br>";
+            }
             
             if ($parentUser) {
                 $successMessage .= "<div class='alert alert-info'>";
@@ -519,10 +544,16 @@ class EnrollmentRegistrarController extends Controller
             return back()->with('error', 'Only approved applications can be processed.');
         }
 
-        // Check if student already exists
-        $existingStudent = Student::where('email', $application->email)->first();
+        $existingStudent = Student::where('enrollment_application_id', $application->id)->first();
+        if (! $existingStudent && $application->email) {
+            $existingStudent = Student::where('email', $application->email)->first();
+        }
         if ($existingStudent) {
-            return back()->with('error', 'A student with this email already exists.');
+            return back()->with('success', 'This application already has a student record.');
+        }
+
+        if ($this->parentAccountOnlyGrade($application->grade_level_applying_for)) {
+            return back()->with('error', 'Nursery through Grade 6 does not use a separate student login. The parent account manages this student.');
         }
 
         try {
@@ -595,6 +626,14 @@ class EnrollmentRegistrarController extends Controller
     /**
      * Assign student to the section they chose on the enrollment form.
      */
+    private function parentAccountOnlyGrade(?string $gradeLevel): bool
+    {
+        return in_array($gradeLevel, [
+            'Nursery', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3',
+            'Grade 4', 'Grade 5', 'Grade 6',
+        ], true);
+    }
+
     private function assignStudentToPreferredSection($student, $sectionId, $gradeLevel)
     {
         $academicYear = \App\Models\AcademicYear::latest()->first();
@@ -769,7 +808,7 @@ class EnrollmentRegistrarController extends Controller
     public function statistics()
     {
         $stats = [
-            'total_applications' => EnrollmentApplication::count(),
+            'total_applications' => EnrollmentApplication::where('status', '!=', 'draft')->count(),
             'pending' => EnrollmentApplication::where('status', 'pending')->count(),
             'under_review' => EnrollmentApplication::where('status', 'under_review')->count(),
             'approved' => EnrollmentApplication::where('status', 'approved')->count(),
@@ -790,6 +829,10 @@ class EnrollmentRegistrarController extends Controller
         // Prevent creating accounts for rejected applications
         if ($application->status === 'rejected') {
             return back()->with('error', 'Cannot create account for rejected applications.');
+        }
+
+        if ($this->parentAccountOnlyGrade($application->grade_level_applying_for)) {
+            return back()->with('error', 'Nursery through Grade 6 does not use a separate student login. The parent account manages this student.');
         }
 
         // Validate form inputs

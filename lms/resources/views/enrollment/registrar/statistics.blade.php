@@ -98,6 +98,7 @@
                 <tbody>
                     @php
                         $gradeLevels = \App\Models\EnrollmentApplication::select('grade_level_applying_for')
+                            ->where('status', '!=', 'draft')
                             ->selectRaw('COUNT(*) as total')
                             ->selectRaw('SUM(CASE WHEN status = "approved" THEN 1 ELSE 0 END) as approved')
                             ->selectRaw('SUM(CASE WHEN status = "pending" OR status = "under_review" THEN 1 ELSE 0 END) as pending')

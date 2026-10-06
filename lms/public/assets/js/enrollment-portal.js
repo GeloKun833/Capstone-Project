@@ -76,47 +76,9 @@
         });
     });
 
-    // Form autosave (localStorage)
-    const form = document.getElementById('enrollmentForm');
-    const AUTOSAVE_KEY = 'ep_enrollment_draft';
-
-    if (form) {
-        // Restore draft
-        try {
-            const saved = localStorage.getItem(AUTOSAVE_KEY);
-            if (saved) {
-                const data = JSON.parse(saved);
-                Object.keys(data).forEach(key => {
-                    const el = form.elements[key];
-                    if (!el || el.type === 'file') return;
-                    if (el.type === 'checkbox' || el.type === 'radio') {
-                        if (el.value === data[key]) el.checked = true;
-                    } else {
-                        el.value = data[key];
-                    }
-                });
-                if (typeof toastr !== 'undefined') {
-                    toastr.info('Draft restored from your last session.', 'Auto-save');
-                }
-            }
-        } catch (e) { /* ignore */ }
-
-        // Save on change
-        let saveTimer;
-        form.addEventListener('input', function () {
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => {
-                const data = {};
-                Array.from(form.elements).forEach(el => {
-                    if (!el.name || el.type === 'file' || el.type === 'password') return;
-                    if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
-                    data[el.name] = el.type === 'checkbox' ? el.value : el.value;
-                });
-                localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
-            }, 800);
-        });
-
-        form.addEventListener('submit', () => localStorage.removeItem(AUTOSAVE_KEY));
+    // Clear any form autosave data left by older versions.
+    if (document.getElementById('enrollmentForm')) {
+        localStorage.removeItem('ep_enrollment_draft');
     }
 
     // Drag & drop file zones

@@ -33,7 +33,317 @@ class EnrollmentPortalController extends Controller
     public function create(Request $request)
     {
         $type = $request->get('type', 'new'); // new, transferee, or old_student
-        return view('enrollment.portal.create', compact('type'));
+        $enrollmentGroupToken = $this->activeEnrollmentGroupToken($request);
+        $drafts = EnrollmentApplication::query()
+            ->where('enrollment_group_token', $enrollmentGroupToken)
+            ->where('status', 'draft')
+            ->orderBy('id')
+            ->get();
+        $openDraftId = (int) session('enrollment_portal_current_draft_id');
+        $openDraft = $openDraftId ? $drafts->firstWhere('id', $openDraftId) : null;
+        $sourceDraft = $openDraft ?: $drafts->last();
+        $enrollmentGroupStarted = $drafts->isNotEmpty();
+        $currentDraftId = $openDraft?->id ?? '';
+        $enrollmentServerRestore = [
+            'draft_id' => $currentDraftId,
+            'group_started' => $enrollmentGroupStarted,
+            'fields' => $sourceDraft
+                ? $this->draftFormValues($sourceDraft, $openDraft !== null)
+                : [],
+        ];
+
+        return view('enrollment.portal.create', compact(
+            'type',
+            'enrollmentGroupToken',
+            'enrollmentGroupStarted',
+            'currentDraftId',
+            'enrollmentServerRestore'
+        ));
+    }
+
+    public function saveChildDraft(Request $request)
+    {
+        $validated = $request->validate([
+            'enrollment_group_token' => 'required|uuid',
+            'current_child_draft_id' => 'nullable|integer',
+            'student_category' => 'required|in:new_student,old_student,transferee',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'date_of_birth' => 'required|date|before:today',
+            'gender' => 'required|in:Male,Female',
+            'grade_level_applying_for' => 'required|string|max:255',
+            'address_city_municipality' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+        ]);
+
+        $groupToken = $validated['enrollment_group_token'];
+        session(['enrollment_portal_group_token' => $groupToken]);
+        $draftId = $validated['current_child_draft_id'] ?? null;
+        $draft = null;
+
+        if ($draftId) {
+            $draft = EnrollmentApplication::query()
+                ->whereKey($draftId)
+                ->where('enrollment_group_token', $groupToken)
+                ->where('status', 'draft')
+                ->first();
+
+            if (! $draft) {
+                return response()->json([
+                    'message' => 'The saved child draft could not be found. Please try again.',
+                ], 422);
+            }
+        }
+
+        $studentFields = [
+            'student_category', 'first_name', 'last_name', 'middle_name', 'date_of_birth', 'gender',
+            'email', 'phone_number', 'address', 'address_lot_block_village', 'address_barangay_district',
+            'address_city_municipality', 'age_years', 'age_months', 'date_enrolled', 'time_enrolled', 'lrn', 'esc_no',
+            'religion', 'citizenship', 'birthplace', 'previous_school', 'previous_school_id',
+            'previous_school_location', 'previous_school_type', 'psa_birth_cert_no', 'grade_level_applying_for',
+        ];
+        $draftData = $request->only($studentFields);
+        $draftData['phone_number'] = $this->normalizePhoneNumber($draftData['phone_number'] ?? null) ?: null;
+        $draftData['address'] = ($draftData['address'] ?? null) ?: null;
+        if ($this->parentAccountRequiredForGrade((string) ($draftData['grade_level_applying_for'] ?? ''))) {
+            $draftData['email'] = null;
+            $draftData['phone_number'] = null;
+        }
+        $draftData['enrollment_group_token'] = $groupToken;
+        $draftData['status'] = 'draft';
+
+        if (! $draft) {
+            $draft = $this->findMatchingChildDraft($groupToken, $draftData);
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($draft) {
+                $draft->fill($draftData)->save();
+            } else {
+                $draft = EnrollmentApplication::createUnique($draftData);
+            }
+
+            $this->mergeParentIdentity($request);
+            if ($this->parentIdentityIsComplete($request)) {
+                $studentEmail = trim((string) $request->input('email', ''));
+                if ($studentEmail !== '' && strcasecmp($studentEmail, (string) $request->input('parent_email')) === 0) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'message' => 'The parent email must be different from the student email.',
+                    ], 422);
+                }
+
+                $parentPhone = (string) $request->input('parent_phone', '');
+                if ($parentPhone !== '' && ! preg_match('/^09\d{9}$/', $parentPhone)) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'message' => 'Parent/Guardian phone number must contain exactly 11 digits and start with 09.',
+                    ], 422);
+                }
+
+                $phoneConflict = $request->input('parent_phone')
+                    ? $this->findParentPhoneConflict($request, (string) $request->input('parent_phone'))
+                    : null;
+                if ($phoneConflict) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'message' => 'This phone number is already registered. Please use a different phone number.',
+                    ], 422);
+                }
+
+                [$parentUser, $plainPassword] = $this->resolveEnrollmentParentUser($request, $groupToken);
+                $this->applyParentProfileToDrafts($request, $groupToken, $parentUser);
+                if ($plainPassword) {
+                    session()->put('enrollment_parent_password_'.$groupToken, $plainPassword);
+                }
+            } else {
+                $this->linkDraftToExistingGroupParent($draft, $groupToken);
+            }
+
+            DB::commit();
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Unable to save enrollment child draft.', ['exception' => $e]);
+
+            return response()->json(['message' => 'Unable to save this child as a draft. Please try again.'], 500);
+        }
+
+        $draft->refresh();
+        session(['enrollment_portal_current_draft_id' => $draft->id]);
+
+        return response()->json([
+            'success' => true,
+            'draft_id' => $draft->id,
+            'application_number' => $draft->application_number,
+            'saved_child' => trim($draft->full_name.' – '.$draft->grade_level_applying_for),
+            'parent_ready' => (bool) $draft->parent_user_id,
+            'children' => $this->draftChildrenPayload($groupToken),
+            'parent' => $this->draftParentPayload($groupToken),
+        ]);
+    }
+
+    public function startNextChild(Request $request)
+    {
+        $groupToken = $request->input('enrollment_group_token');
+        if (! is_string($groupToken) || ! Str::isUuid($groupToken)) {
+            return response()->json(['message' => 'The enrollment session is invalid. Please restart the application.'], 422);
+        }
+
+        if (session('enrollment_portal_group_token') === $groupToken) {
+            session()->forget('enrollment_portal_current_draft_id');
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function editChildDraft(Request $request)
+    {
+        $groupToken = $request->input('enrollment_group_token');
+        $draftId = $request->input('draft_id');
+        if (! is_string($groupToken) || ! Str::isUuid($groupToken)) {
+            return response()->json(['message' => 'The enrollment session is invalid. Please restart the application.'], 422);
+        }
+
+        if (session('enrollment_portal_group_token') !== $groupToken) {
+            return response()->json(['message' => 'This draft does not belong to the current enrollment.'], 422);
+        }
+
+        $draft = EnrollmentApplication::query()
+            ->whereKey($draftId)
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->first();
+
+        if (! $draft) {
+            return response()->json(['message' => 'The saved child draft could not be found.'], 422);
+        }
+
+        session(['enrollment_portal_current_draft_id' => $draft->id]);
+
+        return response()->json([
+            'success' => true,
+            'draft_id' => $draft->id,
+            'fields' => $this->draftFormValues($draft, true),
+        ]);
+    }
+
+    public function saveChildSection(Request $request)
+    {
+        $groupToken = $request->input('enrollment_group_token');
+        $draftId = $request->input('draft_id');
+        $sectionId = $request->input('section_id');
+        if (! is_string($groupToken) || ! Str::isUuid($groupToken) || session('enrollment_portal_group_token') !== $groupToken) {
+            return response()->json(['message' => 'This draft does not belong to the current enrollment.'], 422);
+        }
+
+        $draft = EnrollmentApplication::query()
+            ->whereKey($draftId)
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->first();
+        if (! $draft) {
+            return response()->json(['message' => 'The saved child draft could not be found.'], 422);
+        }
+
+        if (! $this->sectionMatchesGrade((int) $sectionId, (string) $draft->grade_level_applying_for)) {
+            return response()->json([
+                'message' => 'Choose a section for '.$draft->grade_level_applying_for.'.',
+            ], 422);
+        }
+
+        $draft->preferred_section_id = (int) $sectionId;
+        $draft->save();
+
+        return response()->json([
+            'success' => true,
+            'draft_id' => $draft->id,
+            'section_id' => $draft->preferred_section_id,
+        ]);
+    }
+
+    public function childDrafts(Request $request)
+    {
+        $groupToken = $request->query('enrollment_group_token');
+        if (! is_string($groupToken) || ! Str::isUuid($groupToken)) {
+            return response()->json(['message' => 'The enrollment session is invalid. Please restart the application.'], 422);
+        }
+
+        return response()->json([
+            'children' => $this->draftChildrenPayload($groupToken),
+            'parent' => $this->draftParentPayload($groupToken),
+        ]);
+    }
+
+    public function saveEnrollmentParent(Request $request)
+    {
+        $groupToken = $request->input('enrollment_group_token');
+        if (! is_string($groupToken) || ! Str::isUuid($groupToken)) {
+            return response()->json(['message' => 'The enrollment session is invalid. Please restart the application.'], 422);
+        }
+
+        $this->mergeParentIdentity($request);
+
+        $validated = $request->validate([
+            'parent_name' => 'required|string|max:255',
+            'parent_email' => 'required|email|max:255|different:email',
+            'parent_phone' => 'nullable|regex:/^09\d{9}$/',
+        ], [
+            'parent_phone.regex' => 'Parent/Guardian phone number must contain exactly 11 digits and start with 09.',
+        ]);
+
+        $drafts = EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->get();
+        if ($drafts->isEmpty()) {
+            return response()->json(['message' => 'Save the child information before continuing.'], 422);
+        }
+
+        $phoneConflict = $validated['parent_phone']
+            ? $this->findParentPhoneConflict($request, $validated['parent_phone'])
+            : null;
+        if ($phoneConflict) {
+            return response()->json([
+                'message' => 'This phone number is already registered. Please use a different phone number.',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            [$parentUser, $plainPassword] = $this->resolveEnrollmentParentUser($request, $groupToken);
+            $this->applyParentProfileToDrafts($request, $groupToken, $parentUser);
+
+            if ($plainPassword) {
+                session()->put('enrollment_parent_password_'.$groupToken, $plainPassword);
+            }
+
+            DB::commit();
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Unable to save enrollment parent account.', ['exception' => $e]);
+
+            return response()->json(['message' => 'Unable to save the parent account. Please try again.'], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'parent_ready' => true,
+            'children' => $this->draftChildrenPayload($groupToken),
+            'parent' => $this->draftParentPayload($groupToken),
+        ]);
     }
 
     /**
@@ -41,11 +351,25 @@ class EnrollmentPortalController extends Controller
      */
     public function store(Request $request)
     {
+        foreach (['phone_number', 'parent_phone', 'father_contact_no', 'mother_contact_no', 'guardian_contact_no'] as $phoneField) {
+            $rawValue = $request->input($phoneField);
+            if ($rawValue !== null && $rawValue !== '') {
+                $request->merge([$phoneField => $this->normalizePhoneNumber((string) $rawValue)]);
+            }
+        }
+
         // Get student category
         $studentCategory = $request->input('student_category', 'new_student');
         $gradeLevel = (string) $request->input('grade_level_applying_for', '');
         $parentAccountRequested = $request->input('create_parent_account') === '1';
         $parentAccountWillBeCreated = $this->shouldCreateParentAccount($gradeLevel, $parentAccountRequested);
+        $emailRules = ['nullable', 'email', Rule::unique('users', 'email')];
+        if ($request->filled('enrollment_group_token')) {
+            $emailRules[] = Rule::unique('enrollment_applications', 'email')
+                ->ignore($request->input('current_child_draft_id'));
+        } else {
+            $emailRules[] = Rule::unique('enrollment_applications', 'email');
+        }
 
         $fatherName = trim(implode(' ', array_filter([
             $request->input('father_first_name'),
@@ -70,7 +394,7 @@ class EnrollmentPortalController extends Controller
             'middle_name' => 'nullable|string|max:255',
             'date_of_birth' => 'required|date|before:today',
             'gender' => 'required|in:Male,Female',
-            'email' => 'nullable|email|unique:enrollment_applications,email|unique:users,email',
+            'email' => $emailRules,
             'phone_number' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'address_city_municipality' => 'required|string|max:255',
@@ -79,6 +403,7 @@ class EnrollmentPortalController extends Controller
             'age_years' => 'nullable|integer|min:0',
             'age_months' => 'nullable|integer|min:0|max:11',
             'date_enrolled' => 'nullable|date',
+            'time_enrolled' => 'nullable|date_format:H:i',
             'lrn' => 'nullable|string|max:255',
             'esc_no' => 'nullable|string|max:255',
             'covid_vaccinated' => 'nullable|in:Yes,No',
@@ -140,6 +465,8 @@ class EnrollmentPortalController extends Controller
             'selected_section_id' => 'nullable|exists:sections,id',
             'agree_terms' => 'required|accepted',
             'existing_student_id' => 'nullable|exists:students,id',
+            'enrollment_group_token' => 'nullable|uuid',
+            'current_child_draft_id' => 'nullable|integer',
             // Document validation (varies by category)
             'birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'sf10' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
@@ -174,6 +501,42 @@ class EnrollmentPortalController extends Controller
             'sf9.required' => 'SF9 (Learner\'s Permanent Record) is required for transferee students.',
         ]);
 
+        $validator->after(function ($validator) use ($request, $parentAccountWillBeCreated) {
+            $phoneFields = [
+                'parent_phone',
+                'father_contact_no',
+                'mother_contact_no',
+                'guardian_contact_no',
+            ];
+
+            foreach ($phoneFields as $field => $label) {
+                $value = trim((string) $request->input($field, ''));
+
+                if ($value === '') {
+                    continue;
+                }
+
+                if (! preg_match('/^\d+$/', $value)) {
+                    $validator->errors()->add($field, 'Phone number must contain numbers only.');
+                    continue;
+                }
+
+                if (! preg_match('/^09\d{9}$/', $value)) {
+                    $validator->errors()->add($field, 'Phone number must contain exactly 11 digits.');
+                    continue;
+                }
+
+            }
+
+            $parentPhone = trim((string) $request->input('parent_phone', ''));
+            if ($parentAccountWillBeCreated && preg_match('/^09\d{9}$/', $parentPhone)) {
+                $conflictingParent = $this->findParentPhoneConflict($request, $parentPhone);
+                if ($conflictingParent) {
+                    $validator->errors()->add('parent_phone', 'This phone number is already registered. Please use a different phone number.');
+                }
+            }
+        });
+
         // Note: Documents are now OPTIONAL - users can submit applications without documents
         // The registrar can still create student accounts even if documents are incomplete
 
@@ -183,8 +546,17 @@ class EnrollmentPortalController extends Controller
                 ->withInput();
         }
 
+        if ($request->filled('enrollment_group_token') && EnrollmentApplication::query()
+            ->where('enrollment_group_token', $request->input('enrollment_group_token'))
+            ->where('status', 'draft')
+            ->exists()) {
+            return $this->finalizeSiblingEnrollment($request, $request->boolean('save_as_draft'));
+        }
+
         try {
             DB::beginTransaction();
+
+            $saveAsDraft = (bool) $request->boolean('save_as_draft');
 
             // Prepare application data with all fields
             $applicationData = $request->only([
@@ -193,7 +565,7 @@ class EnrollmentPortalController extends Controller
                 'email', 'phone_number', 'address', 
                 'address_lot_block_village', 'address_barangay_district', 'address_city_municipality',
                 'age_years', 'age_months',
-                'date_enrolled', 'lrn', 'esc_no',
+                'date_enrolled', 'time_enrolled', 'lrn', 'esc_no',
                 'religion', 'citizenship', 'birthplace',
                 'previous_school', 'previous_school_id', 'previous_school_location', 'previous_school_type',
                 'psa_birth_cert_no',
@@ -214,6 +586,12 @@ class EnrollmentPortalController extends Controller
                 'doc_submitted_itr', 'doc_submitted_unemployment',
                 'grade_level_applying_for'
             ]);
+
+            $applicationData['status'] = $saveAsDraft ? 'draft' : 'pending';
+            if ($this->parentAccountRequiredForGrade((string) ($applicationData['grade_level_applying_for'] ?? ''))) {
+                $applicationData['email'] = null;
+                $applicationData['phone_number'] = null;
+            }
             
             // Auto-fill parent fields if not provided but father/mother fields are
             if (empty($applicationData['parent_name'])) {
@@ -250,6 +628,12 @@ class EnrollmentPortalController extends Controller
             $applicationData['preferred_section_id'] = $request->filled('selected_section_id')
                 ? (int) $request->input('selected_section_id')
                 : null;
+            if (($applicationData['time_enrolled'] ?? '') === '') {
+                $applicationData['time_enrolled'] = null;
+            }
+            if (! empty($applicationData['date_enrolled'])) {
+                $applicationData['date_of_first_attendance'] = $applicationData['date_enrolled'];
+            }
             
             // Create the enrollment application (unique APP-YYYY-######, incl. soft-deleted)
             $application = EnrollmentApplication::createUnique($applicationData);
@@ -284,6 +668,17 @@ class EnrollmentPortalController extends Controller
                 }
             }
             
+            if ($saveAsDraft) {
+                $application->status = 'draft';
+                $application->save();
+
+                DB::commit();
+
+                return redirect()->route('enrollment.portal.create', ['type' => 'new'])
+                    ->with('draft_saved', true)
+                    ->with('success', 'Child enrollment saved as draft. Add another child or continue later using the same parent email.');
+            }
+
             // Update application status based on document completeness
             if (empty($missingDocuments)) {
                 $application->status = 'under_review';
@@ -299,6 +694,7 @@ class EnrollmentPortalController extends Controller
             DB::commit();
 
             $this->grantPortalApplicationAccess($application->id);
+            $this->rememberSuccessAccountDetails($application->id, $accountDetails);
 
             // Prepare user-friendly success message
             $successMessage = '🎉 Welcome to Panorama Montessori School! Your enrollment application has been submitted successfully.';
@@ -318,9 +714,13 @@ class EnrollmentPortalController extends Controller
             
             if ($createParentAccount) {
                 $successMessage .= "\n\n✅ Accounts Created:";
-                $successMessage .= "\n\n👨‍🎓 Student Account:";
-                $successMessage .= "\n📧 Email: " . $application->email;
-                $successMessage .= "\n🔑 Password: " . ($accountDetails['password'] ?? 'Shown on the next page');
+                if ($accountDetails['student_account'] ?? false) {
+                    $successMessage .= "\n\n👨‍🎓 Student Account:";
+                    $successMessage .= "\n📧 Email: " . $application->email;
+                    $successMessage .= "\n🔑 Password: " . ($accountDetails['password'] ?? 'Shown on the next page');
+                } else {
+                    $successMessage .= "\n\n👨‍🎓 Student record created without a separate student login.";
+                }
                 $successMessage .= "\n\n👨‍👩‍👧 Parent Account:";
                 $successMessage .= "\n📧 Email: " . $application->parent_email;
                 $parentPassword = $accountDetails['parent_account']['password'] ?? null;
@@ -353,6 +753,8 @@ class EnrollmentPortalController extends Controller
             
             $successMessage .= "\n\n💡 Tip: Save your login credentials in a safe place!";
             
+            $this->forgetFinishedEnrollmentForm();
+
             return redirect()->route('enrollment.portal.success', $application->id)
                 ->with('account_details', $accountDetails)
                 ->with('missing_documents', $missingDocuments)
@@ -361,10 +763,167 @@ class EnrollmentPortalController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+            Log::error('Failed to submit enrollment application.', ['exception' => $e]);
             return redirect()->back()
-                ->with('error', 'Failed to submit application: ' . $e->getMessage())
+                ->with('error', 'Failed to submit your application. Please try again or contact the school for assistance.')
                 ->withInput();
         }
+    }
+
+    private function finalizeSiblingEnrollment(Request $request, bool $saveAsDraft = false)
+    {
+        $groupToken = (string) $request->input('enrollment_group_token');
+        $drafts = EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->orderBy('id')
+            ->get();
+        $currentDraft = $drafts->firstWhere('id', (int) $request->input('current_child_draft_id'));
+
+        if ($drafts->isEmpty() || ! $currentDraft) {
+            return redirect()->back()
+                ->with('error', 'The saved child drafts could not be found. Please restart the enrollment process.')
+                ->withInput();
+        }
+
+        $studentFields = [
+            'student_category', 'existing_student_id', 'first_name', 'last_name', 'middle_name',
+            'date_of_birth', 'gender', 'email', 'phone_number', 'address', 'address_lot_block_village',
+            'address_barangay_district', 'address_city_municipality', 'age_years', 'age_months',
+            'date_enrolled', 'time_enrolled', 'lrn', 'esc_no', 'religion', 'citizenship', 'birthplace',
+            'previous_school', 'previous_school_id', 'previous_school_location', 'previous_school_type',
+            'psa_birth_cert_no', 'grade_level_applying_for',
+        ];
+        $currentStudentData = $request->only($studentFields);
+        $currentStudentData['phone_number'] = $this->normalizePhoneNumber($currentStudentData['phone_number'] ?? null) ?: null;
+        $currentStudentData['address'] = $currentStudentData['address'] ?: null;
+
+        $sharedFields = $request->only([
+            'parent_name', 'parent_phone', 'parent_email', 'parent_relationship',
+            'father_last_name', 'father_first_name', 'father_middle_name', 'father_education',
+            'father_employment', 'father_company_name', 'father_work_address', 'father_contact_no', 'father_email',
+            'mother_last_name', 'mother_first_name', 'mother_middle_name', 'mother_education',
+            'mother_employment', 'mother_company_name', 'mother_work_address', 'mother_contact_no', 'mother_email',
+            'family_income_bracket', 'no_of_siblings', 'no_of_siblings_studying', 'siblings_schools',
+            'emergency_contact_name', 'emergency_contact_phone', 'guardian_name', 'guardian_relation',
+            'guardian_contact_no', 'guardian_email', 'authorized_fetcher', 'authorized_fetcher_relation',
+            'parent_signature_name', 'date_of_first_attendance',
+        ]);
+
+        $documentCheckboxes = [
+            'doc_submitted_form138', 'doc_submitted_psa_birth', 'doc_submitted_form137',
+            'doc_submitted_baptismal', 'doc_submitted_pic_1x1', 'doc_submitted_pic_2x2',
+            'doc_submitted_itr', 'doc_submitted_unemployment',
+        ];
+        foreach ($documentCheckboxes as $checkbox) {
+            $sharedFields[$checkbox] = $request->boolean($checkbox);
+        }
+
+        $sectionError = $this->assignRequestedSections($request, $drafts, $currentDraft);
+        if ($sectionError) {
+            return redirect()->back()
+                ->with('error', $sectionError)
+                ->withInput();
+        }
+
+        $stagedDocuments = $this->stagedEnrollmentDocuments($request);
+        $childAccountDetails = [];
+        $missingByChild = [];
+        DB::beginTransaction();
+        try {
+            foreach ($drafts as $draft) {
+                if ($draft->id === $currentDraft->id) {
+                    $draft->fill($currentStudentData);
+                }
+
+                $draft->fill($sharedFields);
+                if ($draft->date_enrolled) {
+                    $draft->date_of_first_attendance = $draft->date_enrolled;
+                }
+                if (blank($draft->time_enrolled)) {
+                    $draft->time_enrolled = null;
+                }
+                if ($this->parentAccountRequiredForGrade((string) $draft->grade_level_applying_for)) {
+                    $draft->email = null;
+                    $draft->phone_number = null;
+                }
+                [$uploadedDocuments, $missingDocuments] = $this->attachStagedDocuments($draft, $stagedDocuments);
+
+                $draft->status = $saveAsDraft ? 'draft' : ($missingDocuments ? 'needs_documents' : 'under_review');
+                $draft->save();
+                $missingByChild[$draft->id] = $missingDocuments;
+
+                if ($saveAsDraft) {
+                    continue;
+                }
+
+                $childAccountDetails[] = $this->createStudentAccount($draft, $draft->preferred_section_id);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Unable to finalize sibling enrollment drafts.', ['group' => $groupToken, 'exception' => $e]);
+
+            return redirect()->back()
+                ->with('error', 'Failed to submit the saved child enrollments. Please try again.')
+                ->withInput();
+        }
+
+            if ($saveAsDraft) {
+                return redirect()->back()
+                ->withInput()
+                ->with('draft_saved', true)
+                ->with('success', 'All child enrollments remain saved as drafts. Submit the application when you are ready.');
+            }
+
+        foreach ($drafts as $draft) {
+            $this->grantPortalApplicationAccess($draft->id);
+        }
+
+        $parentUser = User::query()
+            ->where('email', $request->input('parent_email'))
+            ->where('role_name', User::ROLE_PARENT)
+            ->first();
+        $parentPassword = session()->pull('enrollment_parent_password_'.$groupToken);
+        $parentAccount = $parentUser ? [
+            'user_id' => $parentUser->user_id,
+            'email' => $parentUser->email,
+            'name' => $parentUser->name,
+            'password' => $parentPassword,
+        ] : null;
+        $children = [];
+        foreach ($drafts->values() as $index => $draft) {
+            $details = $childAccountDetails[$index];
+            $children[] = [
+                'student_name' => $draft->full_name,
+                'grade_level' => $draft->grade_level_applying_for,
+                'application_number' => $draft->application_number,
+                'assigned_section' => $details['assigned_section'],
+                'student_account' => $details['student_account'],
+                'email' => $details['email'],
+                'password' => $details['password'],
+            ];
+        }
+
+        $accountDetails = [
+            'student_account' => false,
+            'student_name' => $children[0]['student_name'],
+            'grade_level' => $children[0]['grade_level'],
+            'application_number' => $children[0]['application_number'],
+            'parent_account' => $parentAccount,
+            'children' => $children,
+        ];
+        $allMissingDocuments = collect($missingByChild)->flatten()->unique()->values()->all();
+        foreach ($drafts as $draft) {
+            $this->rememberSuccessAccountDetails($draft->id, $accountDetails);
+        }
+        $this->forgetFinishedEnrollmentForm();
+
+        return redirect()->route('enrollment.portal.success', $drafts->first()->id)
+            ->with('account_details', $accountDetails)
+            ->with('missing_documents', $allMissingDocuments)
+            ->with('success', 'The child enrollment applications have been submitted successfully.');
     }
 
     /**
@@ -405,6 +964,7 @@ class EnrollmentPortalController extends Controller
         $application = EnrollmentApplication::with(['documents', 'reviewer'])
             ->where('application_number', $request->application_number)
             ->where('email', $request->email)
+            ->where('status', '!=', 'draft')
             ->first();
 
         if (!$application) {
@@ -685,7 +1245,8 @@ class EnrollmentPortalController extends Controller
      */
     private function createStudentAccount($application, $selectedSectionId = null)
     {
-        $studentPassword = TemporaryPassword::make();
+        $createStudentUser = ! $this->parentAccountRequiredForGrade($application->grade_level_applying_for);
+        $studentPassword = $createStudentUser ? TemporaryPassword::make() : null;
         $parentPassword = null;
         $parentUser = null;
 
@@ -694,11 +1255,11 @@ class EnrollmentPortalController extends Controller
             request()->input('create_parent_account')
         );
 
-        if ($shouldCreateParent && $application->parent_email && $application->parent_email !== $application->email) {
+        if ($application->parent_email && $application->parent_email !== $application->email) {
             $parentUser = User::where('email', $application->parent_email)
                 ->where('role_name', 'Parent')
                 ->first();
-            if (! $parentUser) {
+            if (! $parentUser && $shouldCreateParent) {
                 $parentPassword = TemporaryPassword::make();
                 $parentUser = User::create([
                     'name' => $application->parent_name,
@@ -716,24 +1277,32 @@ class EnrollmentPortalController extends Controller
             }
         }
 
-        $user = User::create([
-            'name' => $application->full_name,
-            'email' => $application->email,
-            'password' => Hash::make($studentPassword),
-            'role_name' => 'Student',
-            'status' => 'active',
-            'join_date' => now()->format('Y-m-d'),
-            'phone_number' => $application->phone_number,
-            'position' => 'Student',
-            'department' => 'Student Affairs',
-            'avatar' => 'default-avatar.png',
-        ]);
+        if ($parentUser && $application->parent_user_id !== $parentUser->id) {
+            $application->parent_user_id = $parentUser->id;
+            $application->save();
+        }
 
-        Log::info("✅ Created student account: {$user->email}");
+        $user = null;
+        if ($createStudentUser) {
+            $user = User::create([
+                'name' => $application->full_name,
+                'email' => $application->email,
+                'password' => Hash::make($studentPassword),
+                'role_name' => 'Student',
+                'status' => 'active',
+                'join_date' => now()->format('Y-m-d'),
+                'phone_number' => $application->phone_number,
+                'position' => 'Student',
+                'department' => 'Student Affairs',
+                'avatar' => 'default-avatar.png',
+            ]);
+
+            Log::info("✅ Created student account: {$user->email}");
+        }
 
         // Create student record
         $student = Student::create([
-            'user_id' => $user->user_id,
+            'user_id' => $user?->user_id,
             'first_name' => $application->first_name,
             'last_name' => $application->last_name,
             'middle_name' => $application->middle_name,
@@ -781,8 +1350,9 @@ class EnrollmentPortalController extends Controller
         }
 
         return [
-            'user_id' => $user->user_id,
-            'email' => $user->email,
+            'student_account' => $user !== null,
+            'user_id' => $user?->user_id,
+            'email' => $user?->email,
             'password' => $studentPassword,
             'student_name' => $application->full_name,
             'grade_level' => $application->grade_level_applying_for,
@@ -794,6 +1364,407 @@ class EnrollmentPortalController extends Controller
                 'name' => $parentUser->name,
                 'password' => $parentPassword,
             ] : null,
+        ];
+    }
+
+    private function activeEnrollmentGroupToken(Request $request): string
+    {
+        $old = old('enrollment_group_token');
+        if (is_string($old) && Str::isUuid($old)) {
+            session(['enrollment_portal_group_token' => $old]);
+
+            return $old;
+        }
+
+        $requested = $request->query('enrollment_group_token');
+        if ($this->tokenHasOpenDrafts($requested)) {
+            session(['enrollment_portal_group_token' => $requested]);
+
+            return $requested;
+        }
+
+        $sessionToken = session('enrollment_portal_group_token');
+        if (is_string($sessionToken) && Str::isUuid($sessionToken)) {
+            $hasAnyApplication = EnrollmentApplication::query()
+                ->where('enrollment_group_token', $sessionToken)
+                ->exists();
+            if ($this->tokenHasOpenDrafts($sessionToken) || ! $hasAnyApplication) {
+                return $sessionToken;
+            }
+        }
+
+        $token = (string) Str::uuid();
+        session(['enrollment_portal_group_token' => $token]);
+        session()->forget('enrollment_portal_current_draft_id');
+
+        return $token;
+    }
+
+    private function tokenHasOpenDrafts(mixed $token): bool
+    {
+        return is_string($token)
+            && Str::isUuid($token)
+            && EnrollmentApplication::query()
+                ->where('enrollment_group_token', $token)
+                ->where('status', 'draft')
+                ->exists();
+    }
+
+    private function childRestoreFieldNames(): array
+    {
+        return [
+            'student_category', 'first_name', 'last_name', 'middle_name', 'date_of_birth', 'gender',
+            'email', 'phone_number', 'age_years', 'age_months', 'date_enrolled', 'time_enrolled', 'lrn', 'esc_no',
+            'covid_vaccinated', 'covid_first_shot_date', 'covid_full_vaccination_date',
+            'birthplace', 'previous_school', 'previous_school_id', 'previous_school_location',
+            'previous_school_type', 'psa_birth_cert_no', 'grade_level_applying_for', 'preferred_section_id',
+        ];
+    }
+
+    private function householdRestoreFieldNames(): array
+    {
+        return [
+            'address', 'address_lot_block_village', 'address_barangay_district', 'address_city_municipality',
+            'religion', 'citizenship',
+        ];
+    }
+
+    private function draftFormValues(EnrollmentApplication $draft, bool $includeChild): array
+    {
+        $names = array_merge($this->householdRestoreFieldNames(), $this->sharedParentFieldNames(), [
+            'emergency_contact_name', 'emergency_contact_phone', 'parent_signature_name', 'date_of_first_attendance',
+        ]);
+        if ($includeChild) {
+            $names = array_merge($names, $this->childRestoreFieldNames(), [
+                'doc_submitted_form138', 'doc_submitted_psa_birth', 'doc_submitted_form137',
+                'doc_submitted_baptismal', 'doc_submitted_pic_1x1', 'doc_submitted_pic_2x2',
+                'doc_submitted_itr', 'doc_submitted_unemployment',
+            ]);
+        }
+
+        $values = [];
+        foreach ($names as $name) {
+            $value = $draft->{$name};
+            if ($value instanceof \DateTimeInterface) {
+                $value = $value->format('Y-m-d');
+            }
+            if (is_bool($value)) {
+                $value = $value ? '1' : '0';
+            }
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if ($name === 'time_enrolled') {
+                $value = substr((string) $value, 0, 5);
+            }
+            $values[$name] = is_scalar($value) ? (string) $value : $value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array<string, array{contents: string, file_name: string, extension: string, mime_type: ?string, file_size: int}>
+     */
+    private function stagedEnrollmentDocuments(Request $request): array
+    {
+        $staged = [];
+        foreach (EnrollmentDocument::REQUIRED_DOCUMENT_TYPES as $documentType) {
+            $document = $request->file($documentType);
+            if (! $document || ! $document->isValid()) {
+                continue;
+            }
+            $path = $document->getRealPath();
+            if (! is_string($path) || ! is_file($path)) {
+                continue;
+            }
+            $contents = file_get_contents($path);
+            if ($contents === false) {
+                continue;
+            }
+            $staged[$documentType] = [
+                'contents' => $contents,
+                'file_name' => $document->getClientOriginalName(),
+                'extension' => $document->getClientOriginalExtension() ?: 'bin',
+                'mime_type' => $document->getMimeType(),
+                'file_size' => $document->getSize(),
+            ];
+        }
+
+        return $staged;
+    }
+
+    /**
+     * @param  array<string, array{contents: string, file_name: string, extension: string, mime_type: ?string, file_size: int}>  $staged
+     * @return array{0: array<int, string>, 1: array<int, string>}
+     */
+    private function attachStagedDocuments(EnrollmentApplication $application, array $staged): array
+    {
+        $uploaded = [];
+        $missing = [];
+        foreach (EnrollmentDocument::REQUIRED_DOCUMENT_TYPES as $documentType) {
+            if (! isset($staged[$documentType])) {
+                $missing[] = $documentType;
+                continue;
+            }
+            $file = $staged[$documentType];
+            $fileName = time().'_'.Str::random(10).'.'.$file['extension'];
+            $filePath = 'enrollment_documents/'.$application->id.'/'.$fileName;
+            Storage::disk('public')->put($filePath, $file['contents']);
+            EnrollmentDocument::create([
+                'enrollment_application_id' => $application->id,
+                'document_type' => $documentType,
+                'file_name' => $file['file_name'],
+                'file_path' => $filePath,
+                'file_size' => $file['file_size'],
+                'mime_type' => $file['mime_type'],
+                'status' => 'pending',
+            ]);
+            $uploaded[] = $documentType;
+        }
+
+        return [$uploaded, $missing];
+    }
+
+    private function assignRequestedSections(Request $request, $drafts, EnrollmentApplication $currentDraft): ?string
+    {
+        $choices = $request->input('child_sections', []);
+        if (! is_array($choices)) {
+            $choices = [];
+        }
+
+        foreach ($drafts as $draft) {
+            $chosen = $choices[$draft->id] ?? $choices[(string) $draft->id] ?? null;
+            if (($chosen === null || $chosen === '') && $draft->id === $currentDraft->id && $request->filled('selected_section_id')) {
+                $chosen = $request->input('selected_section_id');
+            }
+            if ($chosen === null || $chosen === '') {
+                continue;
+            }
+            if (! $this->sectionMatchesGrade((int) $chosen, (string) $draft->grade_level_applying_for)) {
+                return 'The section chosen for '.$draft->full_name.' does not match '.$draft->grade_level_applying_for.'.';
+            }
+            $draft->preferred_section_id = (int) $chosen;
+        }
+
+        return null;
+    }
+
+    private function sectionMatchesGrade(int $sectionId, string $gradeLevel): bool
+    {
+        $section = \App\Models\Section::query()->find($sectionId);
+
+        return $section
+            && in_array($section->grade_level, \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel), true);
+    }
+
+    private function findMatchingChildDraft(string $groupToken, array $draftData): ?EnrollmentApplication
+    {
+        return EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->where('first_name', $draftData['first_name'])
+            ->where('last_name', $draftData['last_name'])
+            ->whereDate('date_of_birth', $draftData['date_of_birth'])
+            ->where('grade_level_applying_for', $draftData['grade_level_applying_for'])
+            ->first();
+    }
+
+    private function mergeParentIdentity(Request $request): void
+    {
+        $fatherName = trim(implode(' ', array_filter([
+            $request->input('father_first_name'),
+            $request->input('father_middle_name'),
+            $request->input('father_last_name'),
+        ])));
+        $motherName = trim(implode(' ', array_filter([
+            $request->input('mother_first_name'),
+            $request->input('mother_middle_name'),
+            $request->input('mother_last_name'),
+        ])));
+        $phone = $request->input('parent_phone')
+            ?: ($request->input('father_contact_no') ?: $request->input('mother_contact_no'));
+
+        $request->merge([
+            'parent_name' => $request->input('parent_name') ?: ($fatherName ?: ($motherName ?: $request->input('guardian_name'))),
+            'parent_email' => $request->input('parent_email') ?: ($request->input('father_email') ?: ($request->input('mother_email') ?: $request->input('guardian_email'))),
+            'parent_phone' => $this->normalizePhoneNumber(is_string($phone) ? $phone : null) ?: null,
+        ]);
+    }
+
+    private function parentIdentityIsComplete(Request $request): bool
+    {
+        $name = trim((string) $request->input('parent_name', ''));
+        $email = trim((string) $request->input('parent_email', ''));
+
+        return $name !== '' && filter_var($email, FILTER_VALIDATE_EMAIL);
+    }
+
+    /**
+     * @return array{0: User, 1: ?string}
+     */
+    private function resolveEnrollmentParentUser(Request $request, string $groupToken): array
+    {
+        $name = trim((string) $request->input('parent_name'));
+        $email = trim((string) $request->input('parent_email'));
+        $phone = $this->normalizePhoneNumber($request->input('parent_phone')) ?: null;
+
+        if ($name === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('Enter a parent or guardian name and email before continuing.');
+        }
+
+        $linkedId = EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->whereNotNull('parent_user_id')
+            ->value('parent_user_id');
+
+        $parentUser = $linkedId
+            ? User::query()->whereKey($linkedId)->where('role_name', User::ROLE_PARENT)->first()
+            : null;
+
+        if (! $parentUser) {
+            $parentUser = User::query()
+                ->where('email', $email)
+                ->where('role_name', User::ROLE_PARENT)
+                ->first();
+        }
+
+        $plainPassword = null;
+        if ($parentUser) {
+            $emailTaken = User::query()
+                ->where('email', $email)
+                ->where('id', '!=', $parentUser->id)
+                ->exists();
+            if ($emailTaken) {
+                throw new \InvalidArgumentException('That email address is already used by another account.');
+            }
+
+            $parentUser->update([
+                'name' => $name,
+                'email' => $email,
+                'phone_number' => $phone,
+            ]);
+        } else {
+            if (User::query()->where('email', $email)->exists()) {
+                throw new \InvalidArgumentException('That email address is already used by a non-parent account.');
+            }
+
+            $plainPassword = TemporaryPassword::make();
+            $parentUser = User::create([
+                'name' => $name,
+                'email' => $email,
+                'password' => Hash::make($plainPassword),
+                'role_name' => User::ROLE_PARENT,
+                'status' => 'active',
+                'join_date' => now()->format('Y-m-d'),
+                'phone_number' => $phone,
+                'position' => 'Parent/Guardian',
+                'department' => 'Parent Relations',
+                'avatar' => 'default-avatar.png',
+            ]);
+        }
+
+        return [$parentUser, $plainPassword];
+    }
+
+    private function applyParentProfileToDrafts(Request $request, string $groupToken, User $parentUser): void
+    {
+        $parentFields = $request->only($this->sharedParentFieldNames());
+        $parentFields['parent_phone'] = $this->normalizePhoneNumber($parentFields['parent_phone'] ?? null) ?: null;
+        foreach ($parentFields as $field => $value) {
+            if ($value === '') {
+                $parentFields[$field] = null;
+            }
+        }
+
+        EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->update($parentFields + ['parent_user_id' => $parentUser->id]);
+    }
+
+    private function linkDraftToExistingGroupParent(EnrollmentApplication $draft, string $groupToken): void
+    {
+        if ($draft->parent_user_id) {
+            return;
+        }
+
+        $linked = EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->whereNotNull('parent_user_id')
+            ->where('id', '!=', $draft->id)
+            ->first();
+
+        if (! $linked) {
+            return;
+        }
+
+        $draft->parent_user_id = $linked->parent_user_id;
+        foreach ($this->sharedParentFieldNames() as $field) {
+            if (blank($draft->{$field}) && filled($linked->{$field})) {
+                $draft->{$field} = $linked->{$field};
+            }
+        }
+        $draft->save();
+    }
+
+    private function sharedParentFieldNames(): array
+    {
+        return [
+            'parent_name', 'parent_phone', 'parent_email', 'parent_relationship',
+            'father_last_name', 'father_first_name', 'father_middle_name', 'father_education',
+            'father_employment', 'father_company_name', 'father_work_address', 'father_contact_no', 'father_email',
+            'mother_last_name', 'mother_first_name', 'mother_middle_name', 'mother_education',
+            'mother_employment', 'mother_company_name', 'mother_work_address', 'mother_contact_no', 'mother_email',
+            'family_income_bracket', 'no_of_siblings', 'no_of_siblings_studying', 'siblings_schools',
+            'guardian_name', 'guardian_relation', 'guardian_contact_no', 'guardian_email',
+            'authorized_fetcher', 'authorized_fetcher_relation',
+        ];
+    }
+
+    private function draftChildrenPayload(string $groupToken): array
+    {
+        return EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where('status', 'draft')
+            ->orderBy('id')
+            ->get()
+            ->map(function (EnrollmentApplication $draft) {
+                return [
+                    'id' => $draft->id,
+                    'name' => $draft->full_name,
+                    'grade_level' => $draft->grade_level_applying_for,
+                    'date_of_birth' => optional($draft->date_of_birth)->format('M d, Y'),
+                    'application_number' => $draft->application_number,
+                    'preferred_section_id' => $draft->preferred_section_id,
+                    'date_enrolled' => optional($draft->date_enrolled)->format('Y-m-d'),
+                    'time_enrolled' => $draft->time_enrolled ? substr((string) $draft->time_enrolled, 0, 5) : null,
+                    'status' => 'Draft',
+                ];
+            })
+            ->all();
+    }
+
+    private function draftParentPayload(string $groupToken): ?array
+    {
+        $draft = EnrollmentApplication::query()
+            ->where('enrollment_group_token', $groupToken)
+            ->where(function ($query) {
+                $query->whereNotNull('parent_user_id')->orWhereNotNull('parent_name');
+            })
+            ->orderByDesc('parent_user_id')
+            ->orderBy('id')
+            ->first();
+
+        if (! $draft || blank($draft->parent_name)) {
+            return null;
+        }
+
+        return [
+            'name' => $draft->parent_name,
+            'email' => $draft->parent_email,
+            'account_count' => $draft->parent_user_id ? 1 : 0,
         ];
     }
 
@@ -815,6 +1786,67 @@ class EnrollmentPortalController extends Controller
             && in_array($requested, [true, 1, '1', 'on'], true);
     }
 
+    private function normalizePhoneNumber(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return preg_replace('/\D+/', '', (string) $value);
+    }
+
+    private function findParentPhoneConflict(Request $request, string $phoneNumber): ?User
+    {
+        $normalizedPhone = $this->normalizePhoneNumber($phoneNumber);
+
+        if ($normalizedPhone === '') {
+            return null;
+        }
+
+        $existingParent = User::query()
+            ->where('role_name', User::ROLE_PARENT)
+            ->whereNotNull('phone_number')
+            ->get()
+            ->first(function ($user) use ($normalizedPhone) {
+                return $this->normalizePhoneNumber((string) $user->phone_number) === $normalizedPhone;
+            });
+
+        if (! $existingParent) {
+            return null;
+        }
+
+        return $this->isSameParentAccount($request, $existingParent) ? null : $existingParent;
+    }
+
+    private function isSameParentAccount(Request $request, User $existingParent): bool
+    {
+        $groupToken = $request->input('enrollment_group_token');
+        if (is_string($groupToken) && Str::isUuid($groupToken)) {
+            $linkedToGroup = EnrollmentApplication::query()
+                ->where('enrollment_group_token', $groupToken)
+                ->where('parent_user_id', $existingParent->id)
+                ->exists();
+            if ($linkedToGroup) {
+                return true;
+            }
+        }
+
+        $candidateEmails = array_filter(array_map('trim', [
+            (string) $request->input('parent_email', ''),
+            (string) $request->input('father_email', ''),
+            (string) $request->input('mother_email', ''),
+            (string) $request->input('guardian_email', ''),
+        ]), fn ($email) => $email !== '');
+
+        foreach ($candidateEmails as $email) {
+            if (strtolower($email) === strtolower((string) $existingParent->email)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Show success page with account details
      */
@@ -822,7 +1854,17 @@ class EnrollmentPortalController extends Controller
     {
         $application = EnrollmentApplication::findOrFail($id);
         $this->assertPortalApplicationAccess($application);
-        $accountDetails = session('account_details');
+        $accountDetails = $this->successAccountDetails($application);
+        $sessionToken = session('enrollment_portal_group_token');
+        if (is_string($sessionToken) && $sessionToken === $application->enrollment_group_token) {
+            $stillHasDrafts = EnrollmentApplication::query()
+                ->where('enrollment_group_token', $sessionToken)
+                ->where('status', 'draft')
+                ->exists();
+            if (! $stillHasDrafts) {
+                session()->forget(['enrollment_portal_group_token', 'enrollment_portal_current_draft_id']);
+            }
+        }
 
         return view('enrollment.portal.success', compact('application', 'accountDetails'));
     }
@@ -1257,6 +2299,104 @@ class EnrollmentPortalController extends Controller
     protected function grantPortalApplicationAccess(int $applicationId): void
     {
         session()->put('enrollment_access.'.$applicationId, true);
+    }
+
+    protected function forgetFinishedEnrollmentForm(): void
+    {
+        session()->forget(['enrollment_portal_group_token', 'enrollment_portal_current_draft_id']);
+    }
+
+    protected function rememberSuccessAccountDetails(int $applicationId, array $accountDetails): void
+    {
+        session()->put('enrollment_account_details.'.$applicationId, $accountDetails);
+    }
+
+    protected function successAccountDetails(EnrollmentApplication $application): array
+    {
+        $flashed = session('account_details');
+        if (is_array($flashed) && $flashed !== []) {
+            $this->rememberSuccessAccountDetails($application->id, $flashed);
+
+            return $flashed;
+        }
+
+        $stored = session('enrollment_account_details.'.$application->id);
+        if (is_array($stored) && $stored !== []) {
+            return $stored;
+        }
+
+        return $this->accountDetailsFromApplication($application);
+    }
+
+    protected function accountDetailsFromApplication(EnrollmentApplication $application): array
+    {
+        $applications = collect([$application]);
+        if ($application->enrollment_group_token) {
+            $group = EnrollmentApplication::query()
+                ->with(['student', 'preferredSection', 'parentUser'])
+                ->where('enrollment_group_token', $application->enrollment_group_token)
+                ->where('status', '!=', 'draft')
+                ->orderBy('id')
+                ->get();
+            if ($group->isNotEmpty()) {
+                $applications = $group;
+            }
+        } else {
+            $application->loadMissing(['student', 'preferredSection', 'parentUser']);
+        }
+
+        $children = $applications->map(function (EnrollmentApplication $row) {
+            $student = $row->student;
+            $section = $student?->sectionLabel() ?: $row->preferredSection?->name;
+            $hasStudentLogin = $student && filled($student->user_id);
+
+            return [
+                'student_name' => $row->full_name,
+                'grade_level' => $row->grade_level_applying_for,
+                'application_number' => $row->application_number,
+                'assigned_section' => $section ?: 'To be assigned after approval',
+                'student_account' => $hasStudentLogin,
+                'email' => $hasStudentLogin ? $student->email : null,
+                'password' => null,
+            ];
+        })->values()->all();
+
+        $parent = $application->parentUser ?: $applications->first()?->parentUser;
+        $first = $children[0] ?? [
+            'student_name' => $application->full_name,
+            'grade_level' => $application->grade_level_applying_for,
+            'application_number' => $application->application_number,
+            'student_account' => false,
+        ];
+
+        $parentAccount = $parent ? [
+            'user_id' => $parent->user_id,
+            'email' => $parent->email,
+            'name' => $parent->name,
+            'password' => null,
+        ] : null;
+
+        if (count($children) > 1 || ! ($first['student_account'] ?? false)) {
+            return [
+                'student_account' => false,
+                'student_name' => $first['student_name'],
+                'grade_level' => $first['grade_level'],
+                'application_number' => $first['application_number'],
+                'parent_account' => $parentAccount,
+                'children' => $children,
+            ];
+        }
+
+        return [
+            'student_account' => true,
+            'student_name' => $first['student_name'],
+            'grade_level' => $first['grade_level'],
+            'application_number' => $first['application_number'],
+            'assigned_section' => $first['assigned_section'] ?? 'To be assigned after approval',
+            'email' => $first['email'] ?? null,
+            'password' => null,
+            'parent_account' => $parentAccount,
+        ];
     }
 
     protected function assertPortalApplicationAccess(EnrollmentApplication $application): void

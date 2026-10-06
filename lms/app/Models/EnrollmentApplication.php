@@ -12,6 +12,7 @@ class EnrollmentApplication extends Model
 
     protected $fillable = [
         'application_number',
+        'enrollment_group_token',
         'enrollment_type',
         'student_category', // New: new_student, old_student, transferee
         'existing_student_id', // For old students re-enrolling
@@ -29,6 +30,7 @@ class EnrollmentApplication extends Model
         'age_years',
         'age_months',
         'date_enrolled',
+        'time_enrolled',
         'lrn',
         'esc_no',
         'covid_vaccinated',
@@ -45,6 +47,7 @@ class EnrollmentApplication extends Model
         'parent_name',
         'parent_phone',
         'parent_email',
+        'parent_user_id',
         'parent_relationship',
         'father_last_name',
         'father_first_name',
@@ -121,6 +124,11 @@ class EnrollmentApplication extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function parentUser()
+    {
+        return $this->belongsTo(User::class, 'parent_user_id');
     }
 
     public function preferredSection()

@@ -434,6 +434,12 @@ Route::post('sections/{id}/assign-students', [SectionController::class, 'assignS
 Route::get('/enrollment-portal/', [App\Http\Controllers\EnrollmentPortalController::class, 'index'])->name('enrollment.portal.index');
 Route::get('/enrollment-portal/apply', [App\Http\Controllers\EnrollmentPortalController::class, 'create'])->name('enrollment.portal.create');
 Route::post('/enrollment-portal/apply', [App\Http\Controllers\EnrollmentPortalController::class, 'store'])->name('enrollment.portal.store');
+Route::post('/enrollment-portal/drafts/child', [App\Http\Controllers\EnrollmentPortalController::class, 'saveChildDraft'])->name('enrollment.portal.drafts.child');
+Route::post('/enrollment-portal/drafts/child/edit', [App\Http\Controllers\EnrollmentPortalController::class, 'editChildDraft'])->name('enrollment.portal.drafts.edit');
+Route::post('/enrollment-portal/drafts/child/section', [App\Http\Controllers\EnrollmentPortalController::class, 'saveChildSection'])->name('enrollment.portal.drafts.section');
+Route::post('/enrollment-portal/drafts/parent', [App\Http\Controllers\EnrollmentPortalController::class, 'saveEnrollmentParent'])->name('enrollment.portal.drafts.parent');
+Route::get('/enrollment-portal/drafts/children', [App\Http\Controllers\EnrollmentPortalController::class, 'childDrafts'])->name('enrollment.portal.drafts.children');
+Route::post('/enrollment-portal/drafts/next-child', [App\Http\Controllers\EnrollmentPortalController::class, 'startNextChild'])->name('enrollment.portal.drafts.next-child');
 Route::get('/enrollment-portal/status', [App\Http\Controllers\EnrollmentPortalController::class, 'status'])->name('enrollment.portal.status');
 Route::get('/enrollment-portal/check-status', function() { return redirect()->route('enrollment.portal.status'); });
 Route::post('/enrollment-portal/check-status', [App\Http\Controllers\EnrollmentPortalController::class, 'checkStatus'])->name('enrollment.portal.check-status');

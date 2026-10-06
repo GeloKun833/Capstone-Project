@@ -55,7 +55,7 @@
                 <label class="ep-label">Status</label>
                 <select class="form-select" name="status">
                     <option value="">All Statuses</option>
-                    @foreach(['pending','under_review','approved','rejected','needs_documents'] as $st)
+                    @foreach(['draft','pending','under_review','approved','rejected','needs_documents'] as $st)
                     <option value="{{ $st }}" {{ request('status') == $st ? 'selected' : '' }}>{{ ucfirst(str_replace('_',' ',$st)) }}</option>
                     @endforeach
                 </select>
@@ -80,6 +80,9 @@
     <div class="ep-card-header">
         <h3>Applications</h3>
         <div class="d-flex gap-2">
+            <a href="{{ route('enrollment.registrar.index', ['status' => 'draft']) }}" class="ep-btn ep-btn-sm ep-btn-outline">
+                <i class="fas fa-folder-open"></i> View Child Drafts
+            </a>
             <button class="ep-btn ep-btn-sm ep-btn-outline" onclick="window.print()"><i class="fas fa-print"></i></button>
             <button class="ep-btn ep-btn-sm ep-btn-outline" onclick="exportTable()"><i class="fas fa-download"></i> Export</button>
         </div>
@@ -102,13 +105,13 @@
                 <tbody>
                     @foreach($applications as $application)
                     @php
-                        $chips = ['pending'=>'ep-chip-pending','under_review'=>'ep-chip-review','approved'=>'ep-chip-approved','rejected'=>'ep-chip-rejected','needs_documents'=>'ep-chip-docs'];
+                        $chips = ['draft'=>'ep-chip-pending','pending'=>'ep-chip-pending','under_review'=>'ep-chip-review','approved'=>'ep-chip-approved','rejected'=>'ep-chip-rejected','needs_documents'=>'ep-chip-docs'];
                     @endphp
                     <tr>
                         <td><strong class="text-primary">{{ $application->application_number }}</strong></td>
                         <td>
                             <div class="fw-semibold">{{ $application->full_name }}</div>
-                            <small class="text-muted">{{ $application->email }}</small>
+                            <small class="text-muted">{{ $application->email ?: ($application->parent_name ? 'Parent: '.$application->parent_name : 'No student login') }}</small>
                         </td>
                         <td><span class="ep-chip ep-chip-review">{{ $application->grade_level_applying_for }}</span></td>
                         <td><span class="ep-chip {{ $chips[$application->status] ?? 'ep-chip-docs' }}">{{ ucfirst(str_replace('_',' ',$application->status)) }}</span></td>
