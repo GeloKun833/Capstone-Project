@@ -117,11 +117,7 @@
                         @php
                             $gradeSections = ($sectionsByGrade ?? collect())->get($grade, collect());
                             $sectionTeachers = $gradeSections->flatMap(function ($section) {
-                                $teachers = $section->teachers ?? collect();
-                                if ($section->adviser) {
-                                    $teachers = $teachers->push($section->adviser);
-                                }
-                                return $teachers;
+                                return $section->teachers ?? collect();
                             })->unique('id')->values();
                         @endphp
                         <div class="col-6 col-md-4 col-xl-3">
@@ -473,25 +469,22 @@
                         @enderror
                     </div>
                         <div class="col-md-4">
-                            <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
-                            <select class="form-control" name="academic_year_id" id="academic_year_id" required>
-                            <option value="">Select Academic Year</option>
-                            @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}" {{ (string) old('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id ? 'selected' : '' }}>
-                                    {{ $year->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                            <label class="form-label ams-label" for="academic_year_label">Academic Year</label>
+                            <input type="text" class="form-control bg-light" id="academic_year_label" value="{{ $assignmentYear?->displayName() ?? 'No current academic year' }}" readonly>
+                            @if($assignmentYear)
+                                <input type="hidden" name="academic_year_id" id="academic_year_id" value="{{ $assignmentYear->id }}">
+                            @endif
+                        </div>
                         <div class="col-md-4">
                             <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
-                            <select class="form-control" name="semester_id" id="semester_id" required>
-                            <option value="">Select Semester</option>
-                            @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}" {{ (string) old('semester_id', \App\Models\Semester::current()?->id ?? '') === (string) $semester->id ? 'selected' : '' }}>
-                                    {{ $semester->name }}{{ $semester->academicYear ? ' · '.$semester->academicYear->name : '' }}
+                            <select class="form-control" name="semester_id" id="semester_id" required @disabled($semesters->isEmpty())>
+                            @forelse($semesters as $semester)
+                                <option value="{{ $semester->id }}" {{ (string) old('semester_id', $semesters->first()?->id ?? '') === (string) $semester->id ? 'selected' : '' }}>
+                                    {{ $semester->name }}
                                 </option>
-                            @endforeach
+                            @empty
+                                <option value="">No semesters for this academic year</option>
+                            @endforelse
                         </select>
                     </div>
                 <div class="col-md-6">

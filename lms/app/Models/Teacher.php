@@ -29,7 +29,8 @@ class Teacher extends Model
      */
     public function subjects()
     {
-        return $this->belongsToMany(Subject::class, 'subject_teacher', 'teacher_id', 'subject_id');
+        return $this->belongsToMany(Subject::class, 'subject_teacher', 'teacher_id', 'subject_id')
+            ->withPivot('academic_year_id');
     }
 
     /**
@@ -37,7 +38,8 @@ class Teacher extends Model
      */
     public function sections()
     {
-        return $this->belongsToMany(Section::class, 'section_teacher', 'teacher_id', 'section_id');
+        return $this->belongsToMany(Section::class, 'section_teacher', 'teacher_id', 'section_id')
+            ->withPivot('academic_year_id');
     }
 
     /**

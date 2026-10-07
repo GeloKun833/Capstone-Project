@@ -24,8 +24,9 @@ class SectionController extends Controller
             return 1;
         });
 
-        $sectionsByGrade = Cache::remember('sections.grouped.by.grade.v3', 120, function () use ($catalog) {
-            return $catalog->sectionsGroupedByGrade();
+        $yearId = \App\Models\AcademicYear::active()?->id ?? 0;
+        $sectionsByGrade = Cache::remember('sections.grouped.by.grade.v5.'.$yearId, 120, function () use ($catalog, $yearId) {
+            return $catalog->sectionsGroupedByGrade($yearId ?: null);
         });
         $sections = $sectionsByGrade->flatten();
         $subjectsByGrade = $catalog->subjectsGroupedByGrade();
@@ -77,10 +78,16 @@ class SectionController extends Controller
             'description' => 'nullable|string',
         ]);
 
+        $year = \App\Models\AcademicYear::active();
+        if (! $year) {
+            return redirect()->back()->with('error', 'Set an academic year as Current before creating a section.');
+        }
+
         Section::create([
             'name' => $request->name,
             'grade_level' => $request->grade_level,
             'adviser_id' => $request->adviser_id,
+            'academic_year_id' => $year->id,
             'capacity' => $request->capacity ?: 25,
             'description' => $request->description,
         ]);

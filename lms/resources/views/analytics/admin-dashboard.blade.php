@@ -37,7 +37,6 @@
                 <div class="col-md-4">
                     <label class="form-label fw-semibold mb-1">Academic Year</label>
                     <select class="form-control" name="academic_year_id" id="academic_year_filter">
-                        <option value="">All Academic Years</option>
                         @foreach($academicYears as $year)
                             <option value="{{ $year->id }}" @selected((string)$academicYearId === (string)$year->id)>{{ $year->name }}</option>
                         @endforeach

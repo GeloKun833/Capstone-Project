@@ -31,8 +31,13 @@ class GradeController extends Controller
     public function index(Request $request)
     {
         $teacher = auth()->user()->teacher;
-        $subjects = $teacher ? $teacher->subjects : Subject::all();
-        $sections = $teacher ? Section::where('adviser_id', $teacher->id)->get() : Section::all();
+        $yearId = AcademicYear::active()?->id;
+        $subjects = $teacher
+            ? $teacher->subjects()->when($yearId, fn ($query) => $query->where('subject_teacher.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))->get()
+            : Subject::all();
+        $sections = $teacher
+            ? $teacher->sections()->when($yearId, fn ($query) => $query->where('section_teacher.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))->get()
+            : Section::all();
         $academicYears = AcademicYear::orderBy('start_date', 'desc')->get();
         $semesters = Semester::orderBy('name')->get();
 
@@ -83,8 +88,13 @@ class GradeController extends Controller
     public function create(Request $request)
     {
         $teacher = auth()->user()->teacher;
-        $subjects = $teacher ? $teacher->subjects : Subject::all();
-        $sections = $teacher ? Section::where('adviser_id', $teacher->id)->get() : Section::all();
+        $yearId = AcademicYear::active()?->id;
+        $subjects = $teacher
+            ? $teacher->subjects()->when($yearId, fn ($query) => $query->where('subject_teacher.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))->get()
+            : Subject::all();
+        $sections = $teacher
+            ? $teacher->sections()->when($yearId, fn ($query) => $query->where('section_teacher.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))->get()
+            : Section::all();
         $academicYears = AcademicYear::orderBy('start_date', 'desc')->get();
         $semesters = Semester::orderBy('name')->get();
 

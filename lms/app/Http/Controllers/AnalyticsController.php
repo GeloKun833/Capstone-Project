@@ -31,13 +31,14 @@ class AnalyticsController extends Controller
     {
         abort_unless(Auth::user()?->role_name === User::ROLE_ADMIN, 403);
 
-        $academicYearId = $request->exists('academic_year_id')
-            ? ($request->input('academic_year_id') ?: null)
-            : AcademicYear::current()?->id;
+        $academicYearId = $request->input('academic_year_id') ?: AcademicYear::active()?->id;
         $semesterId = $request->get('semester_id');
 
         $academicYears = AcademicYear::orderByDesc('start_date')->get();
-        $semesters = Semester::with('academicYear')->orderByDesc('id')->get();
+        $semesters = Semester::with('academicYear')
+            ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))
+            ->orderBy('id')
+            ->get();
 
         $analytics = $this->analyticsService->getAdminAnalytics(
             $academicYearId,
@@ -63,13 +64,11 @@ class AnalyticsController extends Controller
             return redirect()->back()->with('error', 'Student profile not found.');
         }
 
-        $academicYearId = $request->exists('academic_year_id')
-            ? ($request->input('academic_year_id') ?: null)
-            : AcademicYear::current()?->id;
+        $academicYearId = $request->input('academic_year_id') ?: AcademicYear::active()?->id;
         $semesterId = $request->get('semester_id');
 
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
+        $academicYears = AcademicYear::orderByDesc('start_date')->get();
+        $semesters = Semester::query()->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))->orderBy('id')->get();
 
         $analytics = $this->analyticsService->getStudentAnalytics(
             $student->id,
@@ -100,13 +99,11 @@ class AnalyticsController extends Controller
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
 
-        $academicYearId = $request->exists('academic_year_id')
-            ? ($request->input('academic_year_id') ?: null)
-            : AcademicYear::current()?->id;
+        $academicYearId = $request->input('academic_year_id') ?: AcademicYear::active()?->id;
         $semesterId = $request->get('semester_id');
 
-        $academicYears = AcademicYear::all();
-        $semesters = Semester::all();
+        $academicYears = AcademicYear::orderByDesc('start_date')->get();
+        $semesters = Semester::query()->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))->orderBy('id')->get();
 
         $analytics = $this->analyticsService->getTeacherAnalytics(
             $teacher->id, 

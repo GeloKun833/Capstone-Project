@@ -283,10 +283,12 @@ class AttendanceController extends Controller
             return back()->with('error', 'Only teachers can mark attendance.');
         }
 
+        $yearId = \App\Models\AcademicYear::active()?->id;
         $hasAccess = ClassSchedule::where('teacher_id', $teacher->id)
             ->where('subject_id', $request->subject_id)
             ->where('section_id', $request->section_id)
             ->where('is_active', true)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
             ->exists();
 
         if (! $hasAccess) {

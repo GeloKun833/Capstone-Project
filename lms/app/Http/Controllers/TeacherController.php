@@ -30,7 +30,21 @@ class TeacherController extends Controller
     /** teacher list */
     public function teacherList()
     {
-        $query = Teacher::with(['subjects', 'sections', 'user'])
+        $academicYear = \App\Models\AcademicYear::active();
+        $yearId = $academicYear?->id;
+        $query = Teacher::with([
+                    'user',
+                    'subjects' => function ($relation) use ($yearId) {
+                        $yearId
+                            ? $relation->where('subject_teacher.academic_year_id', $yearId)
+                            : $relation->whereRaw('1 = 0');
+                    },
+                    'sections' => function ($relation) use ($yearId) {
+                        $yearId
+                            ? $relation->where('section_teacher.academic_year_id', $yearId)
+                            : $relation->whereRaw('1 = 0');
+                    },
+                ])
                     ->join('users', 'teachers.user_id','users.user_id')
                     ->select('users.date_of_birth','users.join_date','users.phone_number as user_phone','users.avatar','users.name as user_name','teachers.*')
                     ->where('users.role_name', 'Teacher'); // Only show teachers with valid Teacher role
@@ -53,7 +67,8 @@ class TeacherController extends Controller
         }
         
         $listTeacher = $query->paginate(20)->withQueryString();
-        return view('teacher.list-teachers',compact('listTeacher'));
+        $academicYearName = $academicYear?->displayName();
+        return view('teacher.list-teachers',compact('listTeacher', 'academicYearName'));
     }
 
     /** teacher Grid */
@@ -235,20 +250,33 @@ class TeacherController extends Controller
     public function assignGradeLevelsForm($id)
     {
         $teacher = Teacher::findOrFail($id);
-        $assigned = $teacher->gradeLevels->pluck('grade_level')->toArray();
+        $assignmentYear = \App\Models\AcademicYear::active();
+        $assigned = $teacher->gradeLevels()
+            ->when($assignmentYear, fn ($query) => $query->where('academic_year_id', $assignmentYear->id))
+            ->pluck('grade_level')
+            ->toArray();
         $gradeLevels = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-        return view('teacher.assign_grade_levels', compact('teacher', 'gradeLevels', 'assigned'));
+        return view('teacher.assign_grade_levels', compact('teacher', 'gradeLevels', 'assigned', 'assignmentYear'));
     }
 
     /** Handle assignment of grade levels to a teacher */
     public function assignGradeLevels(Request $request, $id)
     {
-        $teacher = Teacher::findOrFail($id);
+        $teacher = Teacher::with('user')->findOrFail($id);
+        if (! $teacher->user || ! $teacher->user->isActiveAccount()) {
+            return redirect()->back()->with('error', 'Inactive teachers cannot receive new assignments.');
+        }
         $gradeLevels = $request->input('grade_levels', []);
-        // Remove all and re-add
-        $teacher->gradeLevels()->delete();
+        $year = \App\Models\AcademicYear::active();
+        if (! $year) {
+            return redirect()->back()->with('error', 'Set an academic year as Current before assigning grade levels.');
+        }
+        $teacher->gradeLevels()->where('academic_year_id', $year->id)->delete();
         foreach ($gradeLevels as $level) {
-            $teacher->gradeLevels()->create(['grade_level' => $level]);
+            $teacher->gradeLevels()->create([
+                'grade_level' => $level,
+                'academic_year_id' => $year->id,
+            ]);
         }
         return redirect()->route('teacher/list/page')->with('success', 'Grade levels assigned successfully.');
     }
@@ -258,14 +286,22 @@ class TeacherController extends Controller
     {
         // Find user and teacher
         $user = User::where('user_id', $user_id)->firstOrFail();
+        $yearId = \App\Models\AcademicYear::active()?->id;
         $teacher = Teacher::where('user_id', $user_id)->with([
-            'subjects',
-            'sections',
-            'gradeLevels'
+            'subjects' => fn ($query) => $yearId
+                ? $query->where('subject_teacher.academic_year_id', $yearId)
+                : $query->whereRaw('1 = 0'),
+            'sections' => fn ($query) => $yearId
+                ? $query->where('section_teacher.academic_year_id', $yearId)
+                : $query->whereRaw('1 = 0'),
+            'gradeLevels' => fn ($query) => $query->when($yearId, fn ($q) => $q->where('academic_year_id', $yearId)),
         ])->firstOrFail();
 
         // Get assigned subjects with details
-        $assignedSubjects = $teacher->subjects()->with(['sections'])->get();
+        $assignedSubjects = $teacher->subjects()
+            ->when($yearId, fn ($query) => $query->where('subject_teacher.academic_year_id', $yearId))
+            ->with(['sections'])
+            ->get();
 
         // Get assigned sections
         $assignedSections = $teacher->sections;
@@ -282,6 +318,7 @@ class TeacherController extends Controller
 
         $teachingSchedule = ClassSchedule::with(['subject', 'section', 'room'])
             ->where('teacher_id', $teacher->id)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
             ->where('is_active', true)
             ->orderBy('day_of_week')
             ->orderBy('start_time')

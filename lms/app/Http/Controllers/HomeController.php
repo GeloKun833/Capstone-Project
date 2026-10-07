@@ -153,7 +153,18 @@ class HomeController extends Controller
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
         
-        $teacher->load(['subjects', 'sections', 'gradeLevels']);
+        $yearId = \App\Models\AcademicYear::active()?->id;
+        $teacher->load([
+            'subjects' => fn ($query) => $yearId
+                ? $query->where('subject_teacher.academic_year_id', $yearId)
+                : $query->whereRaw('1 = 0'),
+            'sections' => fn ($query) => $yearId
+                ? $query->where('section_teacher.academic_year_id', $yearId)
+                : $query->whereRaw('1 = 0'),
+            'gradeLevels' => fn ($query) => $yearId
+                ? $query->where('academic_year_id', $yearId)
+                : $query->whereRaw('1 = 0'),
+        ]);
 
         $assignedSubjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
         $assignedSections = $teacher->sections->sortBy(['grade_level', 'name'])->values();
@@ -168,6 +179,7 @@ class HomeController extends Controller
             }
             $assignedSections = Section::query()
                 ->whereIn('grade_level', $expanded->unique()->all())
+                ->when($yearId, fn ($query) => $query->forAcademicYear($yearId), fn ($query) => $query->whereRaw('1 = 0'))
                 ->orderBy('grade_level')
                 ->orderBy('name')
                 ->get();
@@ -181,6 +193,7 @@ class HomeController extends Controller
         $schedules = ClassSchedule::query()
             ->where('teacher_id', $teacher->id)
             ->where('is_active', true)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['subject', 'section', 'room'])
             ->orderBy('day_of_week')
             ->orderBy('start_time')
@@ -290,6 +303,7 @@ class HomeController extends Controller
 
         // Homeroom / adviser sections (separate from teaching load)
         $adviserSections = Section::where('adviser_id', $teacher->id)
+            ->whereIn('id', $assignedSections->pluck('id'))
             ->withCount('students')
             ->orderBy('grade_level')
             ->orderBy('name')
@@ -381,7 +395,8 @@ class HomeController extends Controller
     private function loadAdminData()
     {
         try {
-            return Cache::remember('admin.dashboard.data.v3', 300, function () {
+            $yearId = \App\Models\AcademicYear::active()?->id ?? 0;
+            return Cache::remember('admin.dashboard.data.v4.'.$yearId, 180, function () {
                 return $this->queryAdminDashboardData();
             });
         } catch (\Throwable $e) {
@@ -437,44 +452,70 @@ class HomeController extends Controller
 
     private function queryAdminDashboardData(): array
     {
-        $enrollmentCountSql = "(SELECT COUNT(*) FROM enrollments WHERE status = 'active')";
-        $studentDeletedClause = 'WHERE deleted_at IS NULL';
+        $year = \App\Models\AcademicYear::active();
+        $yearId = $year?->id;
+        $academicYearName = $year?->displayName();
 
-        $counts = DB::selectOne("
-            SELECT
-                (SELECT COUNT(*) FROM students {$studentDeletedClause}) AS total_students,
-                (SELECT COUNT(*) FROM teachers) AS total_teachers,
-                (SELECT COUNT(*) FROM subjects) AS total_subjects,
-                (SELECT COUNT(*) FROM sections) AS total_sections,
-                {$enrollmentCountSql} AS total_enrollments,
-                (SELECT COUNT(*) FROM grades) AS total_grades,
-                (SELECT COUNT(*) FROM announcements) AS total_announcements,
-                (SELECT COUNT(*) FROM students WHERE gender IN ('Male', 'male') ".($studentDeletedClause ? 'AND deleted_at IS NULL' : '').") AS male_students,
-                (SELECT COUNT(*) FROM students WHERE gender IN ('Female', 'female') ".($studentDeletedClause ? 'AND deleted_at IS NULL' : '').") AS female_students
-        ");
+        $enrolledStudentIds = collect();
+        if ($yearId) {
+            $enrolledStudentIds = DB::table('enrollments')
+                ->where('academic_year_id', $yearId)
+                ->where('status', 'active')
+                ->pluck('student_id')
+                ->merge(
+                    DB::table('student_section_assignments')
+                        ->where('academic_year_id', $yearId)
+                        ->pluck('student_id')
+                )
+                ->filter()
+                ->unique()
+                ->values();
+        }
 
-        // One attendance scan with conditional aggregates (was 4 full-table subqueries).
-        $attendanceAgg = DB::selectOne("
-            SELECT
-                COUNT(*) AS total_attendance,
-                SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present_count,
-                SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) AS attended_count,
-                SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
-                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_count,
-                SUM(CASE WHEN status = 'excused' THEN 1 ELSE 0 END) AS excused_count
-            FROM attendances
-        ");
+        $studentBase = Student::query()
+            ->whereNull('deleted_at')
+            ->whereIn('id', $enrolledStudentIds->isEmpty() ? [0] : $enrolledStudentIds->all());
+        $totalStudents = $enrolledStudentIds->isEmpty() ? 0 : (clone $studentBase)->count();
+        $maleStudents = $enrolledStudentIds->isEmpty() ? 0 : (clone $studentBase)->whereIn('gender', ['Male', 'male'])->count();
+        $femaleStudents = $enrolledStudentIds->isEmpty() ? 0 : (clone $studentBase)->whereIn('gender', ['Female', 'female'])->count();
+        $totalTeachers = (int) DB::table('teachers')->count();
+        $totalAnnouncements = (int) DB::table('announcements')->count();
 
-        $totalStudents = (int) ($counts->total_students ?? 0);
-        $totalTeachers = (int) ($counts->total_teachers ?? 0);
-        $totalSubjects = (int) ($counts->total_subjects ?? 0);
-        $totalSections = (int) ($counts->total_sections ?? 0);
-        $totalEnrollments = (int) ($counts->total_enrollments ?? 0);
+        if ($yearId) {
+            $totalSubjects = DB::table('enrollments')->where('academic_year_id', $yearId)->pluck('subject_id')
+                ->merge(DB::table('class_schedules')->where('academic_year_id', $yearId)->pluck('subject_id'))
+                ->filter()
+                ->unique()
+                ->count();
+            $totalSections = Section::forAcademicYear($yearId)->count();
+            $totalEnrollments = (int) DB::table('enrollments')->where('academic_year_id', $yearId)->where('status', 'active')->count();
+            $totalGrades = (int) DB::table('grades')->where('academic_year_id', $yearId)->count();
+            $attendanceAgg = DB::selectOne("
+                SELECT
+                    COUNT(*) AS total_attendance,
+                    SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) AS present_count,
+                    SUM(CASE WHEN attendances.status IN ('present','late') THEN 1 ELSE 0 END) AS attended_count,
+                    SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
+                    SUM(CASE WHEN attendances.status = 'late' THEN 1 ELSE 0 END) AS late_count,
+                    SUM(CASE WHEN attendances.status = 'excused' THEN 1 ELSE 0 END) AS excused_count
+                FROM attendances
+                WHERE EXISTS (
+                    SELECT 1 FROM enrollments
+                    WHERE enrollments.student_id = attendances.student_id
+                      AND enrollments.subject_id = attendances.subject_id
+                      AND enrollments.academic_year_id = ?
+                      AND enrollments.status = 'active'
+                )
+            ", [$yearId]);
+        } else {
+            $totalSubjects = 0;
+            $totalSections = 0;
+            $totalEnrollments = 0;
+            $totalGrades = 0;
+            $attendanceAgg = null;
+        }
+
         $totalAttendance = (int) ($attendanceAgg->total_attendance ?? 0);
-        $totalGrades = (int) ($counts->total_grades ?? 0);
-        $totalAnnouncements = (int) ($counts->total_announcements ?? 0);
-        $maleStudents = (int) ($counts->male_students ?? 0);
-        $femaleStudents = (int) ($counts->female_students ?? 0);
         $presentCount = (int) ($attendanceAgg->present_count ?? 0);
         $attendedCount = (int) ($attendanceAgg->attended_count ?? $presentCount);
         $absentCount = (int) ($attendanceAgg->absent_count ?? 0);
@@ -502,6 +543,7 @@ class HomeController extends Controller
 
             $recentEnrollments = \App\Models\Enrollment::with(['student', 'subject'])
                 ->where('status', 'active')
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
                 ->orderByDesc('created_at')
                 ->take(5)
                 ->get();
@@ -512,6 +554,7 @@ class HomeController extends Controller
                 ->get();
 
         $topStudents = \App\Models\StudentGpa::with(['student:id,first_name,last_name,admission_id', 'academicYear:id,name', 'semester:id,name'])
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
                 ->orderByDesc('gpa')
                 ->take(5)
                 ->get();
@@ -521,8 +564,8 @@ class HomeController extends Controller
                 ->take(5)
                 ->get();
 
-        $performanceData = $this->getAcademicPerformanceOverview();
-            $studentsChartData = $this->getStudentsByGradeLevelChartData();
+        $performanceData = $this->getAcademicPerformanceOverview($yearId);
+            $studentsChartData = $this->getStudentsByGradeLevelChartData($yearId);
         $recentActivities = $this->buildAdminRecentActivities($recentEnrollments, $recentAnnouncements);
 
             return compact(
@@ -545,7 +588,8 @@ class HomeController extends Controller
                 'recentEvents',
             'recentActivities',
                 'performanceData',
-                'studentsChartData'
+                'studentsChartData',
+                'academicYearName'
             );
     }
 
@@ -553,7 +597,7 @@ class HomeController extends Controller
      * Real grade averages only — no fabricated "expected" series.
      * Prefer year level; fall back to subject when year-level averages are unavailable.
      */
-    private function getAcademicPerformanceOverview(): array
+    private function getAcademicPerformanceOverview(?int $yearId = null): array
     {
         $empty = [
             'labels' => [],
@@ -567,6 +611,7 @@ class HomeController extends Controller
                 ->join('students', 'grades.student_id', '=', 'students.id')
                 ->whereNotNull('grades.percentage')
                 ->whereNull('students.deleted_at')
+                ->when($yearId, fn ($query) => $query->where('grades.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
                 ->selectRaw('students.year_level as label, ROUND(AVG(grades.percentage), 1) as avg_pct, COUNT(*) as grade_count')
                 ->groupBy('students.year_level')
                 ->havingRaw('COUNT(*) > 0')
@@ -608,6 +653,7 @@ class HomeController extends Controller
             $bySubject = DB::table('grades')
                 ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
                 ->whereNotNull('grades.percentage')
+                ->when($yearId, fn ($query) => $query->where('grades.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
                 ->selectRaw('subjects.subject_name as label, ROUND(AVG(grades.percentage), 1) as avg_pct, COUNT(*) as grade_count')
                 ->groupBy('subjects.subject_name')
                 ->havingRaw('COUNT(*) > 0')
@@ -634,7 +680,7 @@ class HomeController extends Controller
     /**
      * Student counts by grade level (totals + gender when available).
      */
-    private function getStudentsByGradeLevelChartData()
+    private function getStudentsByGradeLevelChartData(?int $yearId = null)
     {
         try {
             $gradeLevels = [
@@ -642,11 +688,17 @@ class HomeController extends Controller
                 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
             ];
 
-            $rows = \App\Models\Student::query()
-                ->selectRaw('year_level, gender, COUNT(*) as total')
-                ->whereIn('year_level', $gradeLevels)
-                ->groupBy('year_level', 'gender')
-                ->get();
+            $rows = $yearId
+                ? DB::table('student_section_assignments')
+                    ->join('students', 'students.id', '=', 'student_section_assignments.student_id')
+                    ->join('sections', 'sections.id', '=', 'student_section_assignments.section_id')
+                    ->where('student_section_assignments.academic_year_id', $yearId)
+                    ->whereNull('students.deleted_at')
+                    ->whereIn('sections.grade_level', $gradeLevels)
+                    ->selectRaw('sections.grade_level as year_level, students.gender, COUNT(DISTINCT students.id) as total')
+                    ->groupBy('sections.grade_level', 'students.gender')
+                    ->get()
+                : collect();
 
             $map = [];
             foreach ($rows as $row) {
@@ -785,22 +837,27 @@ class HomeController extends Controller
             ];
         }
 
-        return Cache::remember('teacher.dashboard.v4.'.$teacher->id, 180, function () use ($teacher, $user) {
-        // Get teacher's subjects with sections, grouped by grade level
-        $subjectCollection = $teacher->subjects()->with('sections')->get();
+        $activeYear = \App\Models\AcademicYear::active();
+        $yearId = $activeYear?->id;
+        return Cache::remember('teacher.dashboard.v6.'.$teacher->id.'.'.($yearId ?? 0), 180, function () use ($teacher, $user, $yearId, $activeYear) {
+        // Subjects and sections assigned for the active academic year only.
+        $subjectCollection = $teacher->subjects()
+            ->when($yearId, fn ($query) => $query->where('subject_teacher.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->with('sections')
+            ->get();
         $subjectIds = $subjectCollection->pluck('id');
         $teacherSubjects = $subjectCollection->groupBy('class')->sortKeys();
         // Production schema always has enrollments.status (avoid INFORMATION_SCHEMA on Aiven).
         $hasEnrollmentStatus = true;
         
-        // Get total classes (sections where teacher is adviser)
-        $totalClasses = Section::where('adviser_id', $teacher->id)->count();
+        $totalClasses = 0;
         
         // Get total students across all teacher's subjects
         $totalStudents = $subjectIds->isEmpty()
             ? 0
             : Enrollment::whereIn('subject_id', $subjectIds)
                 ->when($hasEnrollmentStatus, fn ($q) => $q->where('status', 'active'))
+                ->when($yearId, fn ($q) => $q->where('academic_year_id', $yearId))
             ->distinct('student_id')
             ->count('student_id');
         
@@ -849,7 +906,9 @@ class HomeController extends Controller
             ? round(($attendanceStats->present_count / $attendanceStats->total_records) * 100, 1)
             : 0;
         
-        $teacherSections = $teacher->sections()->get();
+        $teacherSections = $teacher->sections()
+            ->when($yearId, fn ($query) => $query->where('section_teacher.academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->get();
 
         // ---- UI enrichment (same modules; additional presentation data) ----
         $assignedSectionIds = $teacherSections->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -857,6 +916,7 @@ class HomeController extends Controller
         $schedules = ClassSchedule::with(['subject', 'section', 'room'])
             ->where('teacher_id', $teacher->id)
             ->where('is_active', true)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->orderBy('day_of_week')
             ->orderBy('start_time')
             ->get();
@@ -864,7 +924,7 @@ class HomeController extends Controller
         $options = null;
         if ($schedules->isEmpty()) {
             // Only hit assignment service when there are no schedule rows to build cards from.
-            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher, $yearId ?: null);
             $assignedSectionIds = collect($assignedSectionIds)
                 ->merge($options['sections']->pluck('id'))
                 ->map(fn ($id) => (int) $id)
@@ -957,6 +1017,7 @@ class HomeController extends Controller
         });
 
         $lessonStats = Lesson::where('teacher_id', $teacher->id)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->selectRaw("
                 SUM(CASE WHEN status = 'published' OR is_active = 1 THEN 1 ELSE 0 END) as active_count,
                 SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_count,
@@ -971,6 +1032,7 @@ class HomeController extends Controller
 
         $upcomingLessonPlans = Lesson::with(['subject', 'section'])
             ->where('teacher_id', $teacher->id)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->where(function ($q) {
                 $q->whereDate('lesson_date', '>=', now()->toDateString())
                     ->orWhereNull('lesson_date');
@@ -982,6 +1044,7 @@ class HomeController extends Controller
 
         $assignmentRows = Assignment::with(['subject', 'section'])
             ->where('teacher_id', $teacher->id)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('is_active', true)
             ->whereIn('status', ['published', 'closed', 'draft'])
             ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
@@ -1030,7 +1093,14 @@ class HomeController extends Controller
         $lessonsCompleted = (int) ($lessonStats->completed_count ?? 0);
         $lessonsRemaining = (int) ($lessonStats->remaining_count ?? 0);
 
-        $assignmentGradeStats = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('teacher_id', $teacher->id))
+        $assignmentGradeStats = AssignmentSubmission::whereHas('assignment', function ($q) use ($teacher, $yearId) {
+            $q->where('teacher_id', $teacher->id);
+            if ($yearId) {
+                $q->where('academic_year_id', $yearId);
+            } else {
+                $q->whereRaw('1 = 0');
+            }
+        })
             ->selectRaw("
                 SUM(CASE WHEN status = 'graded' THEN 1 ELSE 0 END) as graded_count,
                 SUM(CASE WHEN status IN ('submitted', 'late') THEN 1 ELSE 0 END) as pending_count
@@ -1065,6 +1135,7 @@ class HomeController extends Controller
         }
         // One batched recent-items query instead of 3 sequential latest() hits.
         $recentLessons = Lesson::where('teacher_id', $teacher->id)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->latest('id')
             ->take(2)
             ->get(['id', 'title', 'created_at']);
@@ -1076,6 +1147,7 @@ class HomeController extends Controller
             ]);
         }
         $recentAssignments = Assignment::where('teacher_id', $teacher->id)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->latest('id')
             ->take(2)
             ->get(['id', 'title', 'created_at']);
@@ -1088,7 +1160,10 @@ class HomeController extends Controller
         }
         if (class_exists(ClassPost::class)) {
             try {
-                $post = ClassPost::where('teacher_id', $teacher->id)->latest('id')->first(['id', 'title', 'created_at']);
+                $post = ClassPost::where('teacher_id', $teacher->id)
+                    ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId), fn ($query) => $query->whereRaw('1 = 0'))
+                    ->latest('id')
+                    ->first(['id', 'title', 'created_at']);
                 if ($post) {
                     $recentActivity->push((object) [
                         'icon' => 'fa-bullhorn',
@@ -1101,6 +1176,24 @@ class HomeController extends Controller
             }
         }
         $recentActivity = $recentActivity->take(8)->values();
+
+        $hasYearAssignment = $subjectCollection->isNotEmpty()
+            || $teacherSections->isNotEmpty()
+            || $schedules->isNotEmpty()
+            || ($yearId && $teacher->gradeLevels()->where('academic_year_id', $yearId)->exists());
+        $unassignedMessage = null;
+        if (! $hasYearAssignment) {
+            $yearLabel = $activeYear?->displayName() ?? 'the current academic year';
+            $unassignedMessage = 'No teaching assignments have been assigned to your account for Academic Year '.$yearLabel.' yet. Please contact the administrator.';
+            $upcomingEvents = collect();
+            $upcomingLessons = collect();
+            $teachingHistory = collect();
+            $myClasses = collect();
+            $todaysSchedule = collect();
+            $totalStudents = 0;
+            $totalClasses = 0;
+            $recentActivity = collect();
+        }
 
         $hour = (int) now()->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
@@ -1133,6 +1226,7 @@ class HomeController extends Controller
             'recentActivity' => $recentActivity,
             'greeting' => $greeting,
             'classCardCount' => $classCardCount,
+            'unassignedMessage' => $unassignedMessage,
             'teacherDisplayName' => $teacher->full_name
                 ?? trim(($teacher->first_name ?? '').' '.($teacher->last_name ?? ''))
                 ?: ($user->name ?? 'Teacher'),

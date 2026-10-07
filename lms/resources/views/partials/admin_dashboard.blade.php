@@ -18,7 +18,7 @@
     <div class="admin-dash__welcome">
         <div>
             <h1 class="admin-dash__title">Welcome back, {{ $firstName }}</h1>
-            <p class="admin-dash__subtitle">Here’s an overview of your school today.</p>
+            <p class="admin-dash__subtitle">Academic Year: <strong>{{ $adminData['academicYearName'] ?? 'No current academic year' }}</strong></p>
         </div>
         <div class="admin-dash__welcome-meta">
             <div class="admin-dash__date">

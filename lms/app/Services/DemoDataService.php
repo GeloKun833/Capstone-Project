@@ -458,6 +458,7 @@ class DemoDataService
                 DB::table('subject_teacher')->insertOrIgnore([
                     'subject_id' => $subject->id,
                     'teacher_id' => $teacher->id,
+                    'academic_year_id' => $context['academic_year']->id ?? null,
                     'created_at' => $context['now'],
                     'updated_at' => $context['now'],
                 ]);
@@ -466,6 +467,7 @@ class DemoDataService
                     DB::table('section_teacher')->insertOrIgnore([
                         'teacher_id' => $teacher->id,
                         'section_id' => $section->id,
+                        'academic_year_id' => $context['academic_year']->id ?? null,
                         'created_at' => $context['now'],
                         'updated_at' => $context['now'],
                     ]);

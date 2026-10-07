@@ -95,8 +95,9 @@ class ClassPostController extends Controller
         if ($user->role_name === 'Teacher') {
             $teacher = $user->teacher;
             if ($teacher) {
-                $subjects = $teacher->subjects()->get();
-                $sections = $teacher->sections()->get();
+                $yearId = $viewingYearId ?: \App\Models\AcademicYear::active()?->id;
+                $subjects = $teacher->subjects()->when($yearId, fn ($query) => $query->where('subject_teacher.academic_year_id', $yearId))->get();
+                $sections = $teacher->sections()->when($yearId, fn ($query) => $query->where('section_teacher.academic_year_id', $yearId))->get();
             } else {
                 $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
                 $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());

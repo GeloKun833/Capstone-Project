@@ -58,8 +58,11 @@ class GradeSubjectCatalogService
             return collect();
         }
 
+        $yearId = \App\Models\AcademicYear::active()?->id;
+
         return \App\Models\Section::query()
             ->whereIn('grade_level', $aliases)
+            ->when($yearId, fn ($query) => $query->forAcademicYear($yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->with('adviser')
             ->orderBy('name')
             ->get();
@@ -68,10 +71,20 @@ class GradeSubjectCatalogService
     /**
      * All sections grouped by grade for admin catalog.
      */
-    public function sectionsGroupedByGrade()
+    public function sectionsGroupedByGrade(?int $academicYearId = null)
     {
+        $yearId = $academicYearId ?: \App\Models\AcademicYear::active()?->id;
         $grouped = \App\Models\Section::query()
-            ->with(['adviser', 'teachers', 'subjects'])
+            ->when($yearId, fn ($query) => $query->forAcademicYear($yearId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->with([
+                'adviser',
+                'subjects',
+                'teachers' => function ($query) use ($yearId) {
+                    if ($yearId) {
+                        $query->where('section_teacher.academic_year_id', $yearId);
+                    }
+                },
+            ])
             ->orderBy('grade_level')
             ->orderBy('name')
             ->get()

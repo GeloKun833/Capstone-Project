@@ -6,6 +6,7 @@
             <div class="row">
                 <div class="col-sm-12">
                     <h3 class="page-title">Assign Grade Levels to {{ $teacher->full_name }}</h3>
+                    <p class="text-muted mb-0">Academic Year: <strong>{{ $assignmentYear?->displayName() ?? 'No current academic year' }}</strong></p>
                 </div>
             </div>
         </div>

@@ -14,6 +14,7 @@ class TeacherGradeLevel extends Model
     protected $fillable = [
         'teacher_id',
         'grade_level',
+        'academic_year_id',
     ];
 
     public function teacher()

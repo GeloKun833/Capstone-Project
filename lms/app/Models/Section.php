@@ -26,6 +26,7 @@ class Section extends Model
     public function teachers()
     {
         return $this->belongsToMany(Teacher::class, 'section_teacher', 'section_id', 'teacher_id')
+            ->withPivot('academic_year_id')
             ->withTimestamps();
     }
 
@@ -55,34 +56,21 @@ class Section extends Model
      *
      * @return list<int>
      */
-    public function enrolledStudentIds(): array
+    public function enrolledStudentIds(?int $yearId = null): array
     {
-        $ids = $this->assignedStudents()->pluck('students.id');
-
-        try {
-            $ids = $ids->merge($this->students()->pluck('students.id'));
-        } catch (\Throwable $e) {
-            // Legacy pivot may be missing.
+        $yearId = $yearId ?: $this->academic_year_id ?: AcademicYear::active()?->id;
+        if (! $yearId) {
+            return [];
         }
 
-        $columnQuery = Student::query()->where('section', $this->name);
-        $labels = \App\Services\GradeSubjectCatalogService::gradeAliases($this->grade_level);
-        if (! empty($labels)) {
-            $columnQuery->where(function ($q) use ($labels) {
-                $q->whereIn('year_level', $labels)
-                    ->orWhereIn('class', $labels)
-                    ->orWhere(function ($empty) {
-                        $empty->where(function ($inner) {
-                            $inner->whereNull('year_level')->orWhere('year_level', '');
-                        })->where(function ($inner) {
-                            $inner->whereNull('class')->orWhere('class', '');
-                        });
-                    });
-            });
-        }
-        $ids = $ids->merge($columnQuery->pluck('id'));
-
-        return $ids->unique()->filter()->map(fn ($id) => (int) $id)->values()->all();
+        return $this->assignedStudents()
+            ->wherePivot('academic_year_id', $yearId)
+            ->pluck('students.id')
+            ->unique()
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**

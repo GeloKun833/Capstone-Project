@@ -204,7 +204,8 @@ class SubjectController extends Controller
         // Only get teachers who have valid user relationships with role "Teacher"
         $teachers = \App\Models\Teacher::with('user')
             ->whereHas('user', function($query) {
-                $query->where('role_name', 'Teacher');
+                $query->where('role_name', 'Teacher')
+                    ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
             })
             ->get();
             

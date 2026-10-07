@@ -128,9 +128,13 @@ class ChatController extends Controller
                 Section::query()->whereIn('id', $sectionIds)->pluck('adviser_id')
             );
 
+            $chatYearId = \App\Models\AcademicYear::active()?->id;
             if (Schema::hasTable('section_teacher')) {
                 $teacherIds = $teacherIds->merge(
-                    DB::table('section_teacher')->whereIn('section_id', $sectionIds)->pluck('teacher_id')
+                    DB::table('section_teacher')
+                        ->whereIn('section_id', $sectionIds)
+                        ->when($chatYearId, fn ($query) => $query->where('academic_year_id', $chatYearId))
+                        ->pluck('teacher_id')
                 );
             }
 
@@ -138,14 +142,19 @@ class ChatController extends Controller
                 ClassSchedule::query()
                     ->whereIn('section_id', $sectionIds)
                     ->where('is_active', true)
+                    ->when($chatYearId, fn ($query) => $query->where('academic_year_id', $chatYearId))
                     ->pluck('teacher_id')
             );
         }
 
         if ($subjectIds->isNotEmpty()) {
+            $chatYearId = $chatYearId ?? \App\Models\AcademicYear::active()?->id;
             if (Schema::hasTable('subject_teacher')) {
                 $teacherIds = $teacherIds->merge(
-                    DB::table('subject_teacher')->whereIn('subject_id', $subjectIds)->pluck('teacher_id')
+                    DB::table('subject_teacher')
+                        ->whereIn('subject_id', $subjectIds)
+                        ->when($chatYearId, fn ($query) => $query->where('academic_year_id', $chatYearId))
+                        ->pluck('teacher_id')
                 );
             }
 
@@ -153,6 +162,7 @@ class ChatController extends Controller
                 ClassSchedule::query()
                     ->whereIn('subject_id', $subjectIds)
                     ->where('is_active', true)
+                    ->when($chatYearId, fn ($query) => $query->where('academic_year_id', $chatYearId))
                     ->pluck('teacher_id')
             );
         }

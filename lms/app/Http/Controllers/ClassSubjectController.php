@@ -36,7 +36,8 @@ class ClassSubjectController extends Controller
         
         $teachers = Teacher::with(['user', 'subjects', 'sections'])
             ->whereHas('user', function ($query) {
-                $query->where('role_name', 'Teacher');
+                $query->where('role_name', 'Teacher')
+                    ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
             })
             ->get()
             ->sortBy(function ($teacher) {
@@ -44,22 +45,26 @@ class ClassSubjectController extends Controller
             })
             ->values();
             
-        $academicYears = AcademicYear::orderBy('name')->get();
-        $semesters = Semester::orderBy('name')->get();
+        $assignmentYear = AcademicYear::active();
+        $assignmentYearId = $assignmentYear?->id;
+        $semesters = $assignmentYearId
+            ? Semester::query()->where('academic_year_id', $assignmentYearId)->orderBy('id')->get()
+            : collect();
         $sections = Section::orderBy('grade_level')->orderBy('name')->get();
-        $sectionsByGrade = $catalogService->sectionsGroupedByGrade();
+        $sectionsByGrade = $catalogService->sectionsGroupedByGrade($assignmentYearId);
         $catalogService->normalizeSectionGradeLabels();
-        $sectionsByGrade = $catalogService->sectionsGroupedByGrade();
+        $sectionsByGrade = $catalogService->sectionsGroupedByGrade($assignmentYearId);
 
-        // Teachers currently linked to each grade (via subject_teacher)
+        // Teachers linked to each grade for the selected academic year only.
         $teachersByGrade = [];
         foreach ($subjectsByGrade as $grade => $gradeSubjects) {
             $subjectIds = $gradeSubjects->pluck('id')->all();
-            if (empty($subjectIds)) {
+            if (empty($subjectIds) || ! $assignmentYearId) {
                 $teachersByGrade[$grade] = collect();
                 continue;
             }
             $teacherIds = DB::table('subject_teacher')
+                ->where('academic_year_id', $assignmentYearId)
                 ->whereIn('subject_id', $subjectIds)
                 ->pluck('teacher_id')
                 ->unique()
@@ -86,12 +91,14 @@ class ClassSubjectController extends Controller
                     'id' => $s->id,
                     'name' => $s->name,
                     'capacity' => $s->capacity ?? 25,
-                    'adviser' => $s->adviser->full_name ?? null,
+                    'adviser' => ($s->adviser && $s->teachers->contains('id', $s->adviser_id))
+                        ? $s->adviser->full_name
+                        : null,
                 ];
             })->values()->all();
         }
 
-        $teachersJson = $teachers->map(function ($teacher) use ($teachersByGrade) {
+        $teachersJson = $teachers->map(function ($teacher) use ($teachersByGrade, $assignmentYearId) {
             $assignedGrades = [];
             foreach ($teachersByGrade as $grade => $list) {
                 if ($list->contains('id', $teacher->id)) {
@@ -110,9 +117,13 @@ class ClassSubjectController extends Controller
                 'experience' => $teacher->experience,
                 'gender' => $teacher->gender,
                 'grades' => $assignedGrades,
-                'sections' => $teacher->sections->map(function ($section) {
-                    return trim($section->name.' ('.$section->grade_level.')');
-                })->values()->all(),
+                'sections' => $teacher->sections
+                    ->filter(function ($section) use ($assignmentYearId) {
+                        return $assignmentYearId && (int) $section->pivot->academic_year_id === (int) $assignmentYearId;
+                    })
+                    ->map(function ($section) {
+                        return trim($section->name.' ('.$section->grade_level.')');
+                    })->values()->all(),
             ];
         })->values();
         
@@ -125,7 +136,7 @@ class ClassSubjectController extends Controller
             'teachers', 
             'teachersJson',
             'teachersByGrade',
-            'academicYears', 
+            'assignmentYear',
             'semesters', 
             'sections'
         ));
@@ -233,9 +244,17 @@ class ClassSubjectController extends Controller
             'capacity' => 'nullable|integer|min:1',
         ]);
 
+        $year = AcademicYear::active();
+        if (! $year) {
+            return $request->expectsJson() || $request->ajax()
+                ? response()->json(['success' => false, 'message' => 'Set an academic year as Current before creating a section.'], 422)
+                : back()->with('error', 'Set an academic year as Current before creating a section.');
+        }
+
         $section = Section::create([
             'name' => trim($request->name),
             'grade_level' => $request->grade_level,
+            'academic_year_id' => $year->id,
             'capacity' => $request->capacity ?: 25,
         ]);
 
@@ -450,6 +469,10 @@ class ClassSubjectController extends Controller
             );
         }
 
+        if ($inactive = $this->rejectInactiveTeachers($request)) {
+            return $inactive;
+        }
+
         DB::beginTransaction();
 
         try {
@@ -458,21 +481,17 @@ class ClassSubjectController extends Controller
                 : null;
 
             $linkCount = 0;
-            $teacherNames = [];
+            $yearId = (int) $request->academic_year_id;
 
             foreach ($request->teacher_ids as $teacherId) {
-                $teacher = Teacher::findOrFail($teacherId);
-                $teacherNames[] = $teacher->full_name ?: ($teacher->user->name ?? 'Teacher');
-
                 foreach ($subjects as $subject) {
-                    if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
-                        $subject->teachers()->attach($teacherId);
+                    if ($this->attachSubjectTeacher((int) $subject->id, (int) $teacherId, $yearId)) {
                         $linkCount++;
                     }
                 }
 
-                if ($section && !$teacher->sections()->where('section_id', $section->id)->exists()) {
-                    $teacher->sections()->attach($section->id);
+                if ($section) {
+                    $this->attachSectionTeacher((int) $teacherId, (int) $section->id, $yearId);
                 }
             }
 
@@ -528,21 +547,15 @@ class ClassSubjectController extends Controller
 
         try {
             $unlinkCount = 0;
-            $subjectIds = $subjects->pluck('id')->all();
+            $yearId = (int) $request->academic_year_id;
 
             foreach ($request->teacher_ids as $teacherId) {
-                $teacher = Teacher::findOrFail($teacherId);
-
                 foreach ($subjects as $subject) {
-                    if ($subject->teachers()->where('teacher_id', $teacherId)->exists()) {
-                        $subject->teachers()->detach($teacherId);
-                        $unlinkCount++;
-                    }
+                    $unlinkCount += $this->detachSubjectTeacher((int) $subject->id, (int) $teacherId, $yearId);
                 }
 
-                // Optional: unlink from selected section only when requested
                 if ($request->filled('section_id')) {
-                    $teacher->sections()->detach((int) $request->section_id);
+                    $this->detachSectionTeacher((int) $teacherId, (int) $request->section_id, $yearId);
                 }
             }
 
@@ -588,6 +601,9 @@ class ClassSubjectController extends Controller
         if ($section->grade_level && $section->grade_level !== $request->grade_level) {
             return $this->respondTeacherAssignmentError($request, 'That section does not belong to the selected grade.');
         }
+        if ($inactive = $this->rejectInactiveTeachers($request)) {
+            return $inactive;
+        }
 
         $subjects = app(GradeSubjectCatalogService::class)->subjectsForGrade($request->grade_level);
         $adviserId = $request->filled('adviser_teacher_id')
@@ -596,15 +612,11 @@ class ClassSubjectController extends Controller
 
         DB::beginTransaction();
         try {
+            $yearId = (int) $request->academic_year_id;
             foreach ($request->teacher_ids as $teacherId) {
-                $teacher = Teacher::findOrFail($teacherId);
-                if (!$teacher->sections()->where('section_id', $section->id)->exists()) {
-                    $teacher->sections()->attach($section->id);
-                }
+                $this->attachSectionTeacher((int) $teacherId, (int) $section->id, $yearId);
                 foreach ($subjects as $subject) {
-                    if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
-                        $subject->teachers()->attach($teacherId);
-                    }
+                    $this->attachSubjectTeacher((int) $subject->id, (int) $teacherId, $yearId);
                 }
             }
 
@@ -646,13 +658,11 @@ class ClassSubjectController extends Controller
         DB::beginTransaction();
         try {
             $removed = 0;
+            $yearId = (int) $request->academic_year_id;
             foreach ($request->teacher_ids as $teacherId) {
-                $teacher = Teacher::findOrFail($teacherId);
-                if ($teacher->sections()->where('section_id', $section->id)->exists()) {
-                    $teacher->sections()->detach($section->id);
-                    $removed++;
-                }
-                if ((int) $section->adviser_id === (int) $teacherId) {
+                $removedNow = $this->detachSectionTeacher((int) $teacherId, (int) $section->id, $yearId);
+                $removed += $removedNow;
+                if ($removedNow && (int) $section->adviser_id === (int) $teacherId) {
                     $section->adviser_id = null;
                     $section->save();
                 }
@@ -779,24 +789,23 @@ class ClassSubjectController extends Controller
             'teacher_ids.*' => 'exists:teachers,id',
         ]);
 
+        if ($inactive = $this->rejectInactiveTeachers($request)) {
+            return $inactive;
+        }
+
         DB::beginTransaction();
         
         try {
             $subject = Subject::findOrFail($request->subject_id);
             $section = Section::findOrFail($request->section_id);
             $assignedCount = 0;
+            $yearId = (int) $request->academic_year_id;
 
             foreach ($request->teacher_ids as $teacherId) {
-                $teacher = Teacher::findOrFail($teacherId);
-                
-                if (!$subject->teachers()->where('teacher_id', $teacherId)->exists()) {
-                    $subject->teachers()->attach($teacherId);
+                if ($this->attachSubjectTeacher((int) $subject->id, (int) $teacherId, $yearId)) {
                     $assignedCount++;
                 }
-                
-                if (!$teacher->sections()->where('section_id', $section->id)->exists()) {
-                    $teacher->sections()->attach($section->id);
-                }
+                $this->attachSectionTeacher((int) $teacherId, (int) $section->id, $yearId);
             }
 
             DB::commit();
@@ -831,23 +840,32 @@ class ClassSubjectController extends Controller
         })->values()->all();
     }
 
-    private function assignmentStatusPayload(string $grade): array
+    private function assignmentStatusPayload(string $grade, ?int $yearId = null): array
     {
         $catalog = app(GradeSubjectCatalogService::class);
         $subjectIds = $catalog->subjectsForGrade($grade)->pluck('id')->all();
-        $gradeTeacherIds = empty($subjectIds)
+        $yearId = $yearId ?: AcademicYear::active()?->id;
+        $gradeTeacherIds = empty($subjectIds) || ! $yearId
             ? []
-            : DB::table('subject_teacher')->whereIn('subject_id', $subjectIds)->pluck('teacher_id')->unique()->all();
+            : DB::table('subject_teacher')
+                ->where('academic_year_id', $yearId)
+                ->whereIn('subject_id', $subjectIds)
+                ->pluck('teacher_id')
+                ->unique()
+                ->all();
 
-        $sections = $catalog->sectionsForGrade($grade)->load(['adviser', 'teachers']);
+        $sections = $catalog->sectionsForGrade($grade)->load([
+            'adviser',
+            'teachers' => function ($query) use ($yearId) {
+                if ($yearId) {
+                    $query->where('section_teacher.academic_year_id', $yearId);
+                }
+            },
+        ]);
         $sectionTeacherIds = [];
         $sectionRows = [];
         foreach ($sections as $section) {
-            $ids = $section->teachers->pluck('id')->all();
-            if ($section->adviser_id) {
-                $ids[] = (int) $section->adviser_id;
-            }
-            $ids = array_values(array_unique(array_filter($ids)));
+            $ids = $section->teachers->pluck('id')->map(fn ($id) => (int) $id)->all();
             foreach ($ids as $id) {
                 $sectionTeacherIds[$id] = true;
             }
@@ -870,8 +888,73 @@ class ClassSubjectController extends Controller
 
     private function forgetSectionCache(): void
     {
+        $yearId = AcademicYear::active()?->id ?? 0;
         \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade');
         \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v3');
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v4.'.$yearId);
+        \Illuminate\Support\Facades\Cache::forget('sections.grouped.by.grade.v5.'.$yearId);
+    }
+
+    private function attachSubjectTeacher(int $subjectId, int $teacherId, int $yearId): bool
+    {
+        $exists = DB::table('subject_teacher')->where([
+            'subject_id' => $subjectId,
+            'teacher_id' => $teacherId,
+            'academic_year_id' => $yearId,
+        ])->exists();
+        if ($exists) {
+            return false;
+        }
+
+        DB::table('subject_teacher')->insert([
+            'subject_id' => $subjectId,
+            'teacher_id' => $teacherId,
+            'academic_year_id' => $yearId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return true;
+    }
+
+    private function detachSubjectTeacher(int $subjectId, int $teacherId, int $yearId): int
+    {
+        return DB::table('subject_teacher')->where([
+            'subject_id' => $subjectId,
+            'teacher_id' => $teacherId,
+            'academic_year_id' => $yearId,
+        ])->delete();
+    }
+
+    private function attachSectionTeacher(int $teacherId, int $sectionId, int $yearId): bool
+    {
+        $exists = DB::table('section_teacher')->where([
+            'teacher_id' => $teacherId,
+            'section_id' => $sectionId,
+            'academic_year_id' => $yearId,
+        ])->exists();
+        if ($exists) {
+            return false;
+        }
+
+        DB::table('section_teacher')->insert([
+            'teacher_id' => $teacherId,
+            'section_id' => $sectionId,
+            'academic_year_id' => $yearId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return true;
+    }
+
+    private function detachSectionTeacher(int $teacherId, int $sectionId, int $yearId): int
+    {
+        return DB::table('section_teacher')->where([
+            'teacher_id' => $teacherId,
+            'section_id' => $sectionId,
+            'academic_year_id' => $yearId,
+        ])->delete();
     }
 
     private function respondTeacherAssignment(Request $request, string $grade, string $message, bool $ok = true)
@@ -882,7 +965,7 @@ class ClassSubjectController extends Controller
             return response()->json(array_merge([
                 'success' => $ok,
                 'message' => $message,
-            ], $this->assignmentStatusPayload($grade)));
+            ], $this->assignmentStatusPayload($grade, (int) $request->academic_year_id)));
         }
 
         if ($ok) {
@@ -891,7 +974,17 @@ class ClassSubjectController extends Controller
             Toastr::info($message, 'Info');
         }
 
-        return redirect()->route('class-subject.unified-management');
+        return redirect()->route('class-subject.unified-management', [
+            'academic_year_id' => $request->academic_year_id,
+        ]);
+    }
+
+    private function rejectInactiveTeachers(Request $request)
+    {
+        $message = app(\App\Services\TeacherDeactivationService::class)
+            ->inactiveTeachersMessage(array_map('intval', (array) $request->input('teacher_ids', [])));
+
+        return $message ? $this->respondTeacherAssignmentError($request, $message) : null;
     }
 
     private function respondTeacherAssignmentError(Request $request, string $message)

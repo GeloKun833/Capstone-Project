@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcademicYear;
 use App\Models\ClassSchedule;
 use App\Models\Section;
 use App\Models\Subject;
@@ -20,14 +21,38 @@ class TeacherClassAssignmentService
      *   subjectsBySection:array<int,array<int>>
      * }
      */
-    public function optionsFor(Teacher $teacher): array
+    public function optionsFor(Teacher $teacher, ?int $academicYearId = null): array
     {
-        $teacher->load(['subjects', 'sections', 'gradeLevels']);
+        $academicYearId = $academicYearId ?: AcademicYear::active()?->id;
+        $teacher->load([
+            'subjects' => function ($query) use ($academicYearId) {
+                $query->when(
+                    $academicYearId,
+                    fn ($q) => $q->where('subject_teacher.academic_year_id', $academicYearId),
+                    fn ($q) => $q->whereRaw('1 = 0')
+                );
+            },
+            'sections' => function ($query) use ($academicYearId) {
+                $query->when(
+                    $academicYearId,
+                    fn ($q) => $q->where('section_teacher.academic_year_id', $academicYearId),
+                    fn ($q) => $q->whereRaw('1 = 0')
+                );
+            },
+            'gradeLevels' => function ($query) use ($academicYearId) {
+                $query->when(
+                    $academicYearId,
+                    fn ($q) => $q->where('academic_year_id', $academicYearId),
+                    fn ($q) => $q->whereRaw('1 = 0')
+                );
+            },
+        ]);
 
         $subjects = $teacher->subjects->sortBy(['class', 'subject_name'])->values();
-        $scheduleSubjectIds = ClassSchedule::query()
+        $scheduleSubjectIds =         ClassSchedule::query()
             ->where('teacher_id', $teacher->id)
             ->where('is_active', true)
+            ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))
             ->pluck('subject_id')
             ->filter()
             ->unique();
@@ -48,6 +73,7 @@ class TeacherClassAssignmentService
             }
             $gradeSections = Section::query()
                 ->whereIn('grade_level', $expanded->unique()->all())
+                ->when($academicYearId, fn ($query) => $query->forAcademicYear($academicYearId))
                 ->orderBy('grade_level')
                 ->orderBy('name')
                 ->get();
@@ -79,6 +105,7 @@ class TeacherClassAssignmentService
         ClassSchedule::query()
             ->where('teacher_id', $teacher->id)
             ->where('is_active', true)
+            ->when($academicYearId, fn ($query) => $query->where('academic_year_id', $academicYearId))
             ->get(['subject_id', 'section_id'])
             ->each(function ($row) use ($addPair) {
                 if ($row->subject_id && $row->section_id) {

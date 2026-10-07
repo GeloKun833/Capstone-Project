@@ -8,8 +8,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Models\AcademicYear;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Models\Student;
+use App\Services\TeacherDeactivationService;
 use Brian2694\Toastr\Facades\Toastr;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Http;
@@ -84,6 +87,11 @@ class UserManagementController extends Controller
         $isSoleAdmin = $users->role_name === 'Admin'
             && User::where('role_name', 'Admin')->activeAccounts()->count() <= 1;
 
+        if ($users->role_name === User::ROLE_TEACHER) {
+            app(TeacherDeactivationService::class)->normalizeDisabledTeachers();
+            $users->refresh();
+        }
+
         return view('usermanagement.user_update', compact('users', 'isSoleAdmin'));
     }
 
@@ -105,13 +113,26 @@ class UserManagementController extends Controller
                 return redirect()->back();
             }
 
+            if ($user->role_name === User::ROLE_TEACHER) {
+                app(TeacherDeactivationService::class)->normalizeDisabledTeachers();
+                $user->refresh();
+                $incoming = strtolower(trim((string) $request->input('status')));
+                if (in_array($incoming, ['inactive', 'disable', 'disabled'], true)) {
+                    $request->merge(['status' => 'Inactive']);
+                } elseif ($incoming === 'active') {
+                    $request->merge(['status' => 'Active']);
+                }
+            }
+
             $request->validate([
                 'user_id' => 'required|string',
                 'name' => \App\Support\FormRules::NAME,
                 'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
                 'phone_number' => \App\Support\FormRules::PHONE_REQUIRED,
                 'date_of_birth' => \App\Support\FormRules::DOB,
-                'status' => 'required|string|max:50',
+                'status' => $user->role_name === User::ROLE_TEACHER
+                    ? 'required|in:Active,Inactive'
+                    : 'required|string|max:50',
                 'position' => \App\Support\FormRules::TEXT_REQUIRED,
                 'department' => \App\Support\FormRules::TEXT_REQUIRED,
                 'avatar' => \App\Support\FormRules::AVATAR,
@@ -140,6 +161,42 @@ class UserManagementController extends Controller
             $dob = trim((string) $request->input('date_of_birth', ''));
             if ($dob === '') {
                 $dob = null;
+            }
+
+            $becomingInactive = $user->role_name === User::ROLE_TEACHER
+                && $user->isActiveAccount()
+                && ! User::isActiveStatus($request->status);
+
+            if ($becomingInactive) {
+                $deactivation = app(TeacherDeactivationService::class);
+                $teacher = $user->teacher;
+                $year = AcademicYear::active();
+                if (! $teacher) {
+                    DB::rollBack();
+                    Toastr::error('Teacher profile was not found.', 'Error');
+                    return redirect()->back()->withInput();
+                }
+                if (! $year) {
+                    DB::rollBack();
+                    Toastr::error('Set an academic year as Current before deactivating a teacher.', 'Error');
+                    return redirect()->back()->withInput();
+                }
+
+                $rows = $deactivation->assignmentRows($teacher, $year->id);
+                if ($rows !== []) {
+                    DB::rollBack();
+                    Toastr::error('Teacher cannot be deactivated while active assignments remain. Transfer all assignments first.', 'Assignments');
+                    return redirect()
+                        ->route('teacher.deactivate.transfer', $user->user_id)
+                        ->with('error', 'This teacher cannot be deactivated yet. The teacher still has active assignments for Academic Year '.$year->displayName().'. Please transfer all assignments to another available teacher before deactivating the account.');
+                }
+
+                if (! $request->boolean('confirm_teacher_deactivation')) {
+                    DB::rollBack();
+                    return redirect()->back()
+                        ->withInput()
+                        ->with('confirm_teacher_deactivation', true);
+                }
             }
 
             $payload = [
@@ -197,6 +254,89 @@ class UserManagementController extends Controller
             Toastr::error('User update failed: ' . $e->getMessage(), 'Error');
             return redirect()->back()->withInput();
         }
+    }
+
+    public function teacherDeactivationForm(string $userId)
+    {
+        [$user, $teacher, $year, $rows, $teachers] = $this->teacherDeactivationContext($userId);
+        $service = app(TeacherDeactivationService::class);
+        $blocked = false;
+        foreach ($rows as &$row) {
+            $row['choices'] = $service->replacementChoices($row, $teachers, $year->id);
+            $row['has_eligible'] = $service->rowHasEligibleTeacher($row['choices']);
+            if (! $row['has_eligible']) {
+                $blocked = true;
+            }
+        }
+        unset($row);
+
+        return view('usermanagement.teacher_transfer', compact('user', 'teacher', 'year', 'rows', 'blocked'));
+    }
+
+    public function reviewTeacherDeactivation(Request $request, string $userId)
+    {
+        [$user, $teacher, $year, $rows] = $this->teacherDeactivationContext($userId);
+        $replacements = (array) $request->input('replacements', []);
+        $check = app(TeacherDeactivationService::class)->validateTransfer($teacher, $year->id, $rows, $replacements);
+        if (! $check['ok']) {
+            Toastr::error($check['message'], 'Cannot deactivate');
+            return redirect()
+                ->route('teacher.deactivate.transfer', $user->user_id)
+                ->withErrors($check['errors'])
+                ->withInput();
+        }
+
+        $names = Teacher::query()->whereIn('id', array_map('intval', $replacements))->pluck('full_name', 'id');
+        $summary = [];
+        foreach ($rows as $row) {
+            $replacementId = (int) ($replacements[$row['key']] ?? 0);
+            $summary[] = [
+                'label' => trim($row['grade'].' '.$row['section'].' '.$row['subject'].' '.$row['schedule']),
+                'teacher' => $names[$replacementId] ?? 'Teacher',
+            ];
+        }
+
+        return view('usermanagement.teacher_transfer_confirm', compact('user', 'year', 'summary', 'replacements'));
+    }
+
+    public function confirmTeacherDeactivation(Request $request, string $userId)
+    {
+        [$user, $teacher, $year, $rows] = $this->teacherDeactivationContext($userId);
+        $replacements = (array) $request->input('replacements', []);
+
+        try {
+            app(TeacherDeactivationService::class)->transferAndDeactivate($user, $replacements);
+        } catch (\Throwable $e) {
+            Log::error('Teacher deactivation transfer failed: '.$e->getMessage());
+            Toastr::error($e->getMessage(), 'Cannot deactivate');
+            return redirect()->route('teacher.deactivate.transfer', $user->user_id)->withInput();
+        }
+
+        Toastr::success('Assignments were transferred and the teacher is now Inactive.', 'Success');
+        return redirect('view/user/edit/'.$user->user_id);
+    }
+
+    /**
+     * @return array{0:User,1:\App\Models\Teacher,2:AcademicYear,3:array,4?:\Illuminate\Support\Collection}
+     */
+    private function teacherDeactivationContext(string $userId): array
+    {
+        $user = User::where('user_id', $userId)->where('role_name', User::ROLE_TEACHER)->firstOrFail();
+        $teacher = $user->teacher;
+        $year = AcademicYear::active();
+        if (! $teacher || ! $year) {
+            abort(404);
+        }
+
+        $service = app(TeacherDeactivationService::class);
+        $rows = $service->assignmentRows($teacher, $year->id);
+        if ($rows === []) {
+            abort(404);
+        }
+
+        $teachers = $service->activeReplacementTeachers($teacher->id);
+
+        return [$user, $teacher, $year, $rows, $teachers];
     }
 
     /** user delete */

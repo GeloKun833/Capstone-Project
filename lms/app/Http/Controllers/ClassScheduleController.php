@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
@@ -377,7 +378,8 @@ class ClassScheduleController extends Controller
      */
     public function teacherAssignments(\App\Models\Teacher $teacher)
     {
-        $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $year = \App\Models\AcademicYear::active();
+        $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher, $year?->id);
 
         $sections = $options['sections']
             ->map(function ($section) {
@@ -406,7 +408,10 @@ class ClassScheduleController extends Controller
             ],
             'sections' => $sections,
             'subjects' => $subjects,
-            'grade_levels' => $teacher->gradeLevels()->pluck('grade_level')->values(),
+            'grade_levels' => $teacher->gradeLevels()
+                ->when($year, fn ($query) => $query->where('academic_year_id', $year->id))
+                ->pluck('grade_level')
+                ->values(),
         ]);
     }
 
@@ -416,7 +421,8 @@ class ClassScheduleController extends Controller
     public function create()
     {
         $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
-            $query->where('role_name', 'Teacher');
+            $query->where('role_name', 'Teacher')
+                ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
         })->orderBy('full_name')->get();
         $rooms = \App\Models\Room::orderBy('room_name')->get();
 
@@ -441,20 +447,27 @@ class ClassScheduleController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        $assignmentError = $this->validateTeacherAssignment(
-            (int) $validated['teacher_id'],
-            (int) $validated['section_id'],
-            (int) $validated['subject_id']
-        );
-        if ($assignmentError) {
-            return redirect()->back()->withInput()->withErrors(['teacher_id' => $assignmentError]);
-        }
-        
         $year = \App\Models\AcademicYear::active();
         if (! $year) {
             return redirect()->back()->withInput()->withErrors([
                 'section_id' => 'Set an academic year as Current before plotting a schedule.',
             ]);
+        }
+
+        $inactiveTeacher = app(\App\Services\TeacherDeactivationService::class)
+            ->inactiveTeachersMessage([(int) $validated['teacher_id']]);
+        if ($inactiveTeacher) {
+            return redirect()->back()->withInput()->withErrors(['teacher_id' => $inactiveTeacher]);
+        }
+
+        $assignmentError = $this->validateTeacherAssignment(
+            (int) $validated['teacher_id'],
+            (int) $validated['section_id'],
+            (int) $validated['subject_id'],
+            (int) $year->id
+        );
+        if ($assignmentError) {
+            return redirect()->back()->withInput()->withErrors(['teacher_id' => $assignmentError]);
         }
 
         $validated['is_active'] = true;
@@ -500,7 +513,8 @@ class ClassScheduleController extends Controller
     {
         $schedule->load(['subject', 'section', 'teacher', 'room']);
         $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
-            $query->where('role_name', 'Teacher');
+            $query->where('role_name', 'Teacher')
+                ->whereRaw('LOWER(TRIM(status)) = ?', ['active']);
         })->orderBy('full_name')->get();
         $rooms = \App\Models\Room::orderBy('room_name')->get();
 
@@ -526,10 +540,18 @@ class ClassScheduleController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
+        $assignmentYearId = (int) ($schedule->academic_year_id ?: \App\Models\AcademicYear::active()?->id);
+        $inactiveTeacher = app(\App\Services\TeacherDeactivationService::class)
+            ->inactiveTeachersMessage([(int) $validated['teacher_id']]);
+        if ($inactiveTeacher) {
+            return redirect()->back()->withInput()->withErrors(['teacher_id' => $inactiveTeacher]);
+        }
+
         $assignmentError = $this->validateTeacherAssignment(
             (int) $validated['teacher_id'],
             (int) $validated['section_id'],
-            (int) $validated['subject_id']
+            (int) $validated['subject_id'],
+            $assignmentYearId
         );
         if ($assignmentError) {
             return redirect()->back()->withInput()->withErrors(['teacher_id' => $assignmentError]);
@@ -630,23 +652,38 @@ class ClassScheduleController extends Controller
     /**
      * Ensure selected section/subject belong to the teacher assignments.
      */
-    protected function validateTeacherAssignment(int $teacherId, int $sectionId, int $subjectId): ?string
+    protected function validateTeacherAssignment(int $teacherId, int $sectionId, int $subjectId, ?int $academicYearId): ?string
     {
-        $teacher = \App\Models\Teacher::with(['subjects', 'sections', 'gradeLevels'])->find($teacherId);
+        $teacher = \App\Models\Teacher::find($teacherId);
         if (!$teacher) {
             return 'Selected teacher was not found.';
         }
-
-        $hasSubject = $teacher->subjects->contains('id', $subjectId);
-        if (!$hasSubject) {
-            return 'Selected subject is not assigned to this teacher. Assign it under Classes & Subjects first.';
+        if (! $academicYearId) {
+            return 'Set an academic year as Current before plotting a schedule.';
         }
 
-        $hasSection = $teacher->sections->contains('id', $sectionId);
+        $hasSubject = DB::table('subject_teacher')->where([
+            'teacher_id' => $teacherId,
+            'subject_id' => $subjectId,
+            'academic_year_id' => $academicYearId,
+        ])->exists();
+        if (!$hasSubject) {
+            return 'Selected subject is not assigned to this teacher for this academic year. Assign it under Classes & Subjects first.';
+        }
+
+        $hasSection = DB::table('section_teacher')->where([
+            'teacher_id' => $teacherId,
+            'section_id' => $sectionId,
+            'academic_year_id' => $academicYearId,
+        ])->exists();
         if (!$hasSection) {
-            // allow grade-level fallback
             $section = \App\Models\Section::find($sectionId);
-            $grades = $teacher->gradeLevels->pluck('grade_level')->filter()->all();
+            $grades = DB::table('teacher_grade_level')
+                ->where('teacher_id', $teacherId)
+                ->where('academic_year_id', $academicYearId)
+                ->pluck('grade_level')
+                ->filter()
+                ->all();
             $allowed = false;
             if ($section && !empty($grades)) {
                 foreach ($grades as $grade) {

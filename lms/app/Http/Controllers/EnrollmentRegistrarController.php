@@ -64,8 +64,10 @@ class EnrollmentRegistrarController extends Controller
     {
         $application = EnrollmentApplication::with(['documents', 'reviewer'])->findOrFail($id);
         $aliases = GradeSubjectCatalogService::gradeAliases($application->grade_level_applying_for);
+        $yearId = \App\Models\AcademicYear::active()?->id;
         $sections = Section::query()
             ->when(! empty($aliases), fn ($q) => $q->whereIn('grade_level', $aliases))
+            ->when($yearId, fn ($query) => $query->forAcademicYear($yearId), fn ($query) => $query->whereRaw('1 = 0'))
             ->orderBy('name')
             ->get();
         $readiness = app(SectionScheduleReadiness::class);

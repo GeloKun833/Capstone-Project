@@ -1,34 +1,34 @@
-@php
+<?php
     $t = is_array($teacher) ? $teacher : [];
     $displayName = $t['teacherDisplayName'] ?? (optional($t['teacher'] ?? null)->full_name ?? 'Teacher');
     $greeting = $t['greeting'] ?? 'Hello';
     $firstName = explode(' ', $displayName)[0] ?? 'Teacher';
     $progress = $t['teachingProgress'] ?? [];
-@endphp
+?>
 
 <div class="td-dashboard">
-    {{-- Welcome --}}
+    
     <div class="td-welcome">
         <div class="td-welcome-text">
-            <h1>{{ $greeting }}, Teacher {{ $firstName }}!</h1>
+            <h1><?php echo e($greeting); ?>, Teacher <?php echo e($firstName); ?>!</h1>
             <p>Here&rsquo;s what&rsquo;s happening with your classes today.</p>
         </div>
         <div class="td-welcome-date">
             <i class="far fa-calendar-alt"></i>
-            <span>{{ now()->format('l, F j, Y') }}</span>
+            <span><?php echo e(now()->format('l, F j, Y')); ?></span>
         </div>
     </div>
 
-    @if(!empty($t['unassignedMessage']))
-        <div class="alert alert-info">{{ $t['unassignedMessage'] }}</div>
-    @endif
+    <?php if(!empty($t['unassignedMessage'])): ?>
+        <div class="alert alert-info"><?php echo e($t['unassignedMessage']); ?></div>
+    <?php endif; ?>
 
-    {{-- Overview stats --}}
+    
     <div class="td-stats">
         <div class="td-stat-card">
             <div class="td-stat-icon"><i class="fas fa-chalkboard"></i></div>
             <div>
-                <div class="td-stat-value">{{ $t['classCardCount'] ?? ($t['totalClasses'] ?? 0) }}</div>
+                <div class="td-stat-value"><?php echo e($t['classCardCount'] ?? ($t['totalClasses'] ?? 0)); ?></div>
                 <div class="td-stat-label">My Classes</div>
                 <div class="td-stat-meta">Assigned teaching loads</div>
             </div>
@@ -36,7 +36,7 @@
         <div class="td-stat-card">
             <div class="td-stat-icon"><i class="fas fa-user-graduate"></i></div>
             <div>
-                <div class="td-stat-value">{{ $t['totalStudents'] ?? 0 }}</div>
+                <div class="td-stat-value"><?php echo e($t['totalStudents'] ?? 0); ?></div>
                 <div class="td-stat-label">Total Students</div>
                 <div class="td-stat-meta">Across your subjects</div>
             </div>
@@ -44,7 +44,7 @@
         <div class="td-stat-card">
             <div class="td-stat-icon"><i class="fas fa-book-open"></i></div>
             <div>
-                <div class="td-stat-value">{{ $t['activeLessonsCount'] ?? $t['totalLessons'] }}</div>
+                <div class="td-stat-value"><?php echo e($t['activeLessonsCount'] ?? $t['totalLessons']); ?></div>
                 <div class="td-stat-label">Active Lessons</div>
                 <div class="td-stat-meta">Published lesson plans</div>
             </div>
@@ -52,7 +52,7 @@
         <div class="td-stat-card">
             <div class="td-stat-icon td-stat-icon-warn"><i class="fas fa-clipboard-list"></i></div>
             <div>
-                <div class="td-stat-value">{{ $t['pendingTasksCount'] ?? 0 }}</div>
+                <div class="td-stat-value"><?php echo e($t['pendingTasksCount'] ?? 0); ?></div>
                 <div class="td-stat-label">Pending Tasks</div>
                 <div class="td-stat-meta">Needs your attention</div>
             </div>
@@ -60,50 +60,50 @@
     </div>
 
     <div class="td-layout">
-        {{-- MAIN COLUMN --}}
+        
         <div class="td-main">
-            {{-- My Classes --}}
+            
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>My Classes</h2>
-                    <a href="{{ route('teacher.classes') }}" class="td-link">View all</a>
+                    <a href="<?php echo e(route('teacher.classes')); ?>" class="td-link">View all</a>
                 </div>
                 <div class="td-class-grid">
-                    @forelse(($t['myClasses'] ?? collect()) as $class)
+                    <?php $__empty_1 = true; $__currentLoopData = ($t['myClasses'] ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $class): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <article class="td-class-card">
                             <div class="td-class-top">
-                                <span class="td-pill">{{ $class->grade_level }}</span>
-                                <span class="td-status">{{ $class->status }}</span>
+                                <span class="td-pill"><?php echo e($class->grade_level); ?></span>
+                                <span class="td-status"><?php echo e($class->status); ?></span>
                             </div>
-                            <h3>{{ $class->subject_name }}</h3>
-                            <p class="td-muted">Section {{ $class->section_name }} · {{ $class->student_count }} Students</p>
-                            <p class="td-schedule-line"><i class="far fa-clock"></i> {{ $class->schedule_label }}</p>
-                            @if(!empty($class->room))
-                                <p class="td-muted small"><i class="fas fa-door-open"></i> {{ $class->room }}</p>
-                            @endif
-                            <a href="{{ route('teacher.classes') }}" class="td-btn-outline">View Class</a>
+                            <h3><?php echo e($class->subject_name); ?></h3>
+                            <p class="td-muted">Section <?php echo e($class->section_name); ?> · <?php echo e($class->student_count); ?> Students</p>
+                            <p class="td-schedule-line"><i class="far fa-clock"></i> <?php echo e($class->schedule_label); ?></p>
+                            <?php if(!empty($class->room)): ?>
+                                <p class="td-muted small"><i class="fas fa-door-open"></i> <?php echo e($class->room); ?></p>
+                            <?php endif; ?>
+                            <a href="<?php echo e(route('teacher.classes')); ?>" class="td-btn-outline">View Class</a>
                         </article>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <div class="td-empty">No classes assigned yet.</div>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </section>
 
-            {{-- Upcoming Lessons --}}
+            
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>Upcoming Lessons</h2>
-                    <a href="{{ route('lessons.index') }}" class="td-link">Manage lessons</a>
+                    <a href="<?php echo e(route('lessons.index')); ?>" class="td-link">Manage lessons</a>
                 </div>
                 <div class="td-list">
-                    @php
+                    <?php
                         $lessonRows = ($t['upcomingLessonPlans'] ?? collect());
                         if ($lessonRows->isEmpty()) {
                             $lessonRows = $t['upcomingLessons'] ?? collect();
                         }
-                    @endphp
-                    @forelse($lessonRows as $lesson)
-                        @php
+                    ?>
+                    <?php $__empty_1 = true; $__currentLoopData = $lessonRows; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $lesson): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $isPlan = $lesson instanceof \App\Models\Lesson;
                             $title = $lesson->title ?? 'Lesson';
                             $subject = $lesson->subject->subject_name ?? 'Subject';
@@ -117,55 +117,57 @@
                                 ? '—'
                                 : (optional($lesson->start_time)->format('g:i A') ?? '—');
                             $status = $isPlan ? ucfirst($lesson->status ?? 'planned') : 'Confirmed';
-                        @endphp
+                        ?>
                         <div class="td-list-item">
                             <div class="td-list-main">
-                                <h4>{{ $title }}</h4>
-                                <p class="td-muted">{{ $subject }}@if($classLabel) · {{ $classLabel }}@endif</p>
-                                <p class="td-meta"><i class="far fa-calendar"></i> {{ $dateLabel }}
-                                    @if($timeLabel !== '—') · <i class="far fa-clock"></i> {{ $timeLabel }}@endif
+                                <h4><?php echo e($title); ?></h4>
+                                <p class="td-muted"><?php echo e($subject); ?><?php if($classLabel): ?> · <?php echo e($classLabel); ?><?php endif; ?></p>
+                                <p class="td-meta"><i class="far fa-calendar"></i> <?php echo e($dateLabel); ?>
+
+                                    <?php if($timeLabel !== '—'): ?> · <i class="far fa-clock"></i> <?php echo e($timeLabel); ?><?php endif; ?>
                                 </p>
                             </div>
-                            <span class="td-badge td-badge-{{ strtolower($status) === 'draft' ? 'muted' : 'ok' }}">{{ $status }}</span>
+                            <span class="td-badge td-badge-<?php echo e(strtolower($status) === 'draft' ? 'muted' : 'ok'); ?>"><?php echo e($status); ?></span>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <div class="td-empty">No upcoming lessons scheduled.</div>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </section>
 
-            {{-- Assignments & Grading --}}
+            
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>Assignments &amp; Grading</h2>
-                    <a href="{{ route('assignments.index') }}" class="td-link">View all</a>
+                    <a href="<?php echo e(route('assignments.index')); ?>" class="td-link">View all</a>
                 </div>
                 <div class="td-list">
-                    @forelse(($t['assignmentWorkload'] ?? collect()) as $asg)
+                    <?php $__empty_1 = true; $__currentLoopData = ($t['assignmentWorkload'] ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $asg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <div class="td-list-item td-asg-item">
                             <div class="td-list-main">
-                                <h4>{{ $asg->title }}</h4>
-                                <p class="td-muted">{{ $asg->subject_name }} · {{ $asg->class_label }}</p>
+                                <h4><?php echo e($asg->title); ?></h4>
+                                <p class="td-muted"><?php echo e($asg->subject_name); ?> · <?php echo e($asg->class_label); ?></p>
                                 <p class="td-meta">
-                                    Due {{ $asg->due_date ? $asg->due_date->format('M j, Y g:i A') : '—' }}
-                                    · {{ $asg->submitted }} submissions · {{ $asg->graded }} graded ·
-                                    <strong>{{ $asg->pending }} pending</strong>
+                                    Due <?php echo e($asg->due_date ? $asg->due_date->format('M j, Y g:i A') : '—'); ?>
+
+                                    · <?php echo e($asg->submitted); ?> submissions · <?php echo e($asg->graded); ?> graded ·
+                                    <strong><?php echo e($asg->pending); ?> pending</strong>
                                 </p>
                                 <div class="td-progress">
-                                    <div class="td-progress-bar" style="width: {{ $asg->progress_pct }}%"></div>
+                                    <div class="td-progress-bar" style="width: <?php echo e($asg->progress_pct); ?>%"></div>
                                 </div>
                             </div>
-                            <a href="{{ route('assignments.show', $asg->id) }}" class="td-btn-ghost">Open</a>
+                            <a href="<?php echo e(route('assignments.show', $asg->id)); ?>" class="td-btn-ghost">Open</a>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <div class="td-empty">No assignments yet.
-                            <a href="{{ route('assignments.create') }}" class="td-link">Create one</a>
+                            <a href="<?php echo e(route('assignments.create')); ?>" class="td-link">Create one</a>
                         </div>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </section>
 
-            {{-- Teaching Progress --}}
+            
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>Teaching Progress</h2>
@@ -173,95 +175,97 @@
                 <div class="td-progress-grid">
                     <div class="td-progress-card">
                         <div class="td-progress-label">Lessons completed</div>
-                        <div class="td-progress-value">{{ $progress['lessons_completed'] ?? 0 }}</div>
-                        <div class="td-progress"><div class="td-progress-bar" style="width: {{ $progress['lesson_progress_pct'] ?? 0 }}%"></div></div>
-                        <div class="td-muted small">{{ $progress['lessons_remaining'] ?? 0 }} remaining</div>
+                        <div class="td-progress-value"><?php echo e($progress['lessons_completed'] ?? 0); ?></div>
+                        <div class="td-progress"><div class="td-progress-bar" style="width: <?php echo e($progress['lesson_progress_pct'] ?? 0); ?>%"></div></div>
+                        <div class="td-muted small"><?php echo e($progress['lessons_remaining'] ?? 0); ?> remaining</div>
                     </div>
                     <div class="td-progress-card">
                         <div class="td-progress-label">Assignments graded</div>
-                        <div class="td-progress-value">{{ $progress['assignments_graded'] ?? 0 }}</div>
-                        <div class="td-progress"><div class="td-progress-bar" style="width: {{ $progress['grading_progress_pct'] ?? 0 }}%"></div></div>
-                        <div class="td-muted small">{{ $progress['assignments_pending'] ?? 0 }} pending</div>
+                        <div class="td-progress-value"><?php echo e($progress['assignments_graded'] ?? 0); ?></div>
+                        <div class="td-progress"><div class="td-progress-bar" style="width: <?php echo e($progress['grading_progress_pct'] ?? 0); ?>%"></div></div>
+                        <div class="td-muted small"><?php echo e($progress['assignments_pending'] ?? 0); ?> pending</div>
                     </div>
                     <div class="td-progress-card">
                         <div class="td-progress-label">Attendance recorded</div>
-                        <div class="td-progress-value">{{ $progress['attendance_recorded'] ?? 0 }}</div>
-                        <div class="td-progress"><div class="td-progress-bar" style="width: {{ min(100, $progress['attendance_pct'] ?? 0) }}%"></div></div>
-                        <div class="td-muted small">{{ $progress['attendance_pct'] ?? 0 }}% present rate</div>
+                        <div class="td-progress-value"><?php echo e($progress['attendance_recorded'] ?? 0); ?></div>
+                        <div class="td-progress"><div class="td-progress-bar" style="width: <?php echo e(min(100, $progress['attendance_pct'] ?? 0)); ?>%"></div></div>
+                        <div class="td-muted small"><?php echo e($progress['attendance_pct'] ?? 0); ?>% present rate</div>
                     </div>
                     <div class="td-progress-card">
                         <div class="td-progress-label">Semester progress</div>
-                        <div class="td-progress-value">{{ $t['semesterProgress'] ?? 0 }}%</div>
-                        <div class="td-progress"><div class="td-progress-bar" style="width: {{ $t['semesterProgress'] ?? 0 }}%"></div></div>
+                        <div class="td-progress-value"><?php echo e($t['semesterProgress'] ?? 0); ?>%</div>
+                        <div class="td-progress"><div class="td-progress-bar" style="width: <?php echo e($t['semesterProgress'] ?? 0); ?>%"></div></div>
                         <div class="td-muted small">Based on this month&rsquo;s sessions</div>
                     </div>
                 </div>
             </section>
 
-            {{-- Recent Activity --}}
+            
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>Recent Activity</h2>
                 </div>
                 <div class="td-activity">
-                    @forelse(($t['recentActivity'] ?? collect()) as $act)
+                    <?php $__empty_1 = true; $__currentLoopData = ($t['recentActivity'] ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $act): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <div class="td-activity-item">
-                            <div class="td-activity-icon"><i class="fas {{ $act->icon }}"></i></div>
+                            <div class="td-activity-icon"><i class="fas <?php echo e($act->icon); ?>"></i></div>
                             <div>
-                                <p>{{ $act->text }}</p>
-                                <span class="td-muted small">{{ $act->time }}</span>
+                                <p><?php echo e($act->text); ?></p>
+                                <span class="td-muted small"><?php echo e($act->time); ?></span>
                             </div>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <div class="td-empty">No recent activity yet.</div>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </section>
         </div>
 
-        {{-- RIGHT COLUMN --}}
+        
         <aside class="td-side">
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>Today&rsquo;s Schedule</h2>
-                    <a href="{{ route('teacher.my-schedule') }}" class="td-link">Full week</a>
+                    <a href="<?php echo e(route('teacher.my-schedule')); ?>" class="td-link">Full week</a>
                 </div>
                 <div class="td-timeline">
-                    @forelse(($t['todaysSchedule'] ?? collect()) as $slot)
+                    <?php $__empty_1 = true; $__currentLoopData = ($t['todaysSchedule'] ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $slot): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <div class="td-timeline-item">
-                            <div class="td-timeline-time">{{ $slot->start_label }}</div>
+                            <div class="td-timeline-time"><?php echo e($slot->start_label); ?></div>
                             <div class="td-timeline-body">
-                                <h4>{{ $slot->subject_name }}</h4>
-                                <p class="td-muted">{{ $slot->grade_level }} — Section {{ $slot->section_name }}</p>
-                                <p class="td-meta">{{ $slot->room }} · {{ $slot->student_count }} Students</p>
+                                <h4><?php echo e($slot->subject_name); ?></h4>
+                                <p class="td-muted"><?php echo e($slot->grade_level); ?> — Section <?php echo e($slot->section_name); ?></p>
+                                <p class="td-meta"><?php echo e($slot->room); ?> · <?php echo e($slot->student_count); ?> Students</p>
                             </div>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <div class="td-empty">No classes scheduled for today.</div>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </section>
 
             <section class="td-panel">
                 <div class="td-panel-head">
                     <h2>Upcoming Events</h2>
-                    <a href="{{ route('calendar.index') }}" class="td-link">Calendar</a>
+                    <a href="<?php echo e(route('calendar.index')); ?>" class="td-link">Calendar</a>
                 </div>
                 <div class="td-list td-list-compact">
-                    @forelse(($t['upcomingEvents'] ?? collect())->take(5) as $event)
+                    <?php $__empty_1 = true; $__currentLoopData = ($t['upcomingEvents'] ?? collect())->take(5); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $event): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <div class="td-list-item">
                             <div class="td-list-main">
-                                <h4>{{ $event->title ?? 'Event' }}</h4>
-                                <p class="td-muted">{{ $event->subject->subject_name ?? 'School Event' }}</p>
+                                <h4><?php echo e($event->title ?? 'Event'); ?></h4>
+                                <p class="td-muted"><?php echo e($event->subject->subject_name ?? 'School Event'); ?></p>
                                 <p class="td-meta">
-                                    {{ optional($event->start_time)->format('F j, Y') }}
-                                    · {{ optional($event->start_time)->format('g:i A') }}
+                                    <?php echo e(optional($event->start_time)->format('F j, Y')); ?>
+
+                                    · <?php echo e(optional($event->start_time)->format('g:i A')); ?>
+
                                 </p>
                             </div>
                         </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <div class="td-empty">No upcoming events.</div>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </section>
 
@@ -279,11 +283,11 @@
                     <h2>Quick links</h2>
                 </div>
                 <div class="td-quick-links">
-                    <a href="{{ route('assignments.create') }}"><i class="fas fa-plus"></i> Create Assignment</a>
-                    <a href="{{ route('teacher.grading.grade-entry') }}"><i class="fas fa-edit"></i> Grade Entry</a>
-                    <a href="{{ route('attendance.index') }}"><i class="fas fa-user-check"></i> Attendance</a>
-                    <a href="{{ route('class-posts.create') }}"><i class="fas fa-bullhorn"></i> Class Post</a>
-                    <a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> Chat</a>
+                    <a href="<?php echo e(route('assignments.create')); ?>"><i class="fas fa-plus"></i> Create Assignment</a>
+                    <a href="<?php echo e(route('teacher.grading.grade-entry')); ?>"><i class="fas fa-edit"></i> Grade Entry</a>
+                    <a href="<?php echo e(route('attendance.index')); ?>"><i class="fas fa-user-check"></i> Attendance</a>
+                    <a href="<?php echo e(route('class-posts.create')); ?>"><i class="fas fa-bullhorn"></i> Class Post</a>
+                    <a href="<?php echo e(route('chat.index')); ?>"><i class="fas fa-comments"></i> Chat</a>
                 </div>
             </section>
         </aside>
@@ -466,3 +470,4 @@
     .td-welcome h1 { font-size: 1.35rem; }
 }
 </style>
+<?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/partials/teacher_dashboard.blade.php ENDPATH**/ ?>

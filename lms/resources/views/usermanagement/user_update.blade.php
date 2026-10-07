@@ -18,8 +18,9 @@
                 <div class="col-sm-12">
                     <div class="card">
                         <div class="card-body">
-                            <form action="{{ route('user/update') }}" method="POST" enctype="multipart/form-data">
+                            <form id="editUserForm" action="{{ route('user/update') }}" method="POST" enctype="multipart/form-data">
                                 @csrf
+                                <input type="hidden" name="confirm_teacher_deactivation" id="confirmTeacherDeactivation" value="0">
                                 <div class="row">
                                     <div class="col-12">
                                         <h5 class="form-title"><span>Edit User</span></h5>
@@ -55,12 +56,24 @@
                                     <div class="col-12 col-sm-4">
                                         <div class="form-group local-forms">
                                             <label>Status <span class="login-danger">*</span></label>
-                                            @php $currentStatus = old('status', $users->status); @endphp
-                                            <select class="form-control" name="status" @if(!empty($isSoleAdmin)) data-sole-admin="1" @endif>
-                                                <option value="Active" {{ \App\Models\User::isActiveStatus($currentStatus) ? 'selected' : '' }}>Active</option>
-                                                <option value="Inactive" {{ strtolower((string) $currentStatus) === 'inactive' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Inactive</option>
-                                                <option value="Disable" {{ in_array(strtolower((string) $currentStatus), ['disable', 'disabled'], true) ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Disable</option>
+                                            @php
+                                                $currentStatus = old('status', $users->status);
+                                                $isTeacherAccount = $users->role_name === \App\Models\User::ROLE_TEACHER;
+                                                $statusKey = strtolower(trim((string) $currentStatus));
+                                                if ($isTeacherAccount && in_array($statusKey, ['disable', 'disabled'], true)) {
+                                                    $statusKey = 'inactive';
+                                                }
+                                            @endphp
+                                            <select class="form-control" name="status" id="userStatus" @if(!empty($isSoleAdmin)) data-sole-admin="1" @endif>
+                                                <option value="Active" {{ $statusKey === 'active' ? 'selected' : '' }}>Active</option>
+                                                <option value="Inactive" {{ $statusKey === 'inactive' ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Inactive</option>
+                                                @unless($isTeacherAccount)
+                                                    <option value="Disable" {{ in_array($statusKey, ['disable', 'disabled'], true) ? 'selected' : '' }} @if(!empty($isSoleAdmin)) disabled @endif>Disable</option>
+                                                @endunless
                                             </select>
+                                            @if($isTeacherAccount)
+                                                <small class="form-text text-muted">Inactive teachers keep their account and historical records. Current-year assignments must be transferred first.</small>
+                                            @endif
                                             @if(!empty($isSoleAdmin))
                                                 <small class="text-warning">This is the only active Admin — status is locked.</small>
                                                 <input type="hidden" name="status" value="{{ $users->status }}">
@@ -152,4 +165,30 @@
             </div>
         </div>
     </div>
+
+    @if(session('confirm_teacher_deactivation') && ($users->role_name ?? '') === \App\Models\User::ROLE_TEACHER)
+        <div class="modal fade show" style="display:block; background:rgba(15,23,42,.45);" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Deactivate Teacher</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-1"><strong>{{ $users->name }}</strong> has no active assignments for the current academic year.</p>
+                        <p class="mb-0">Are you sure you want to deactivate this teacher account?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ url('view/user/edit/'.$users->user_id) }}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="button" class="btn btn-danger" id="confirmDeactivateTeacher">Deactivate</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.getElementById('confirmDeactivateTeacher')?.addEventListener('click', function () {
+                document.getElementById('confirmTeacherDeactivation').value = '1';
+                document.getElementById('editUserForm').submit();
+            });
+        </script>
+    @endif
 @endsection

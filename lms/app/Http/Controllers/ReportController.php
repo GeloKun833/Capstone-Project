@@ -545,7 +545,7 @@ class ReportController extends Controller
         $academicYearId = $request->get('academic_year_id');
         $semesterId = $request->get('semester_id');
         if (!$academicYearId) {
-            $academicYearId = optional(AcademicYear::current())->id;
+            $academicYearId = optional(AcademicYear::active())->id;
         }
         if (!$semesterId) {
             $semesterId = optional(Semester::current())->id;

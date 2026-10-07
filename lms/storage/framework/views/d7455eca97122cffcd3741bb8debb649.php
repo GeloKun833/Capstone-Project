@@ -118,11 +118,7 @@
                         <?php
                             $gradeSections = ($sectionsByGrade ?? collect())->get($grade, collect());
                             $sectionTeachers = $gradeSections->flatMap(function ($section) {
-                                $teachers = $section->teachers ?? collect();
-                                if ($section->adviser) {
-                                    $teachers = $teachers->push($section->adviser);
-                                }
-                                return $teachers;
+                                return $section->teachers ?? collect();
                             })->unique('id')->values();
                         ?>
                         <div class="col-6 col-md-4 col-xl-3">
@@ -491,27 +487,23 @@ endif;
 unset($__errorArgs, $__bag); ?>
                     </div>
                         <div class="col-md-4">
-                            <label class="form-label ams-label" for="academic_year_id">Academic Year <span class="text-danger">*</span></label>
-                            <select class="form-control" name="academic_year_id" id="academic_year_id" required>
-                            <option value="">Select Academic Year</option>
-                            <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($year->id); ?>" <?php echo e((string) old('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id ? 'selected' : ''); ?>>
-                                    <?php echo e($year->name); ?>
-
-                                </option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
+                            <label class="form-label ams-label" for="academic_year_label">Academic Year</label>
+                            <input type="text" class="form-control bg-light" id="academic_year_label" value="<?php echo e($assignmentYear?->displayName() ?? 'No current academic year'); ?>" readonly>
+                            <?php if($assignmentYear): ?>
+                                <input type="hidden" name="academic_year_id" id="academic_year_id" value="<?php echo e($assignmentYear->id); ?>">
+                            <?php endif; ?>
+                        </div>
                         <div class="col-md-4">
                             <label class="form-label ams-label" for="semester_id">Semester <span class="text-danger">*</span></label>
-                            <select class="form-control" name="semester_id" id="semester_id" required>
-                            <option value="">Select Semester</option>
-                            <?php $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($semester->id); ?>" <?php echo e((string) old('semester_id', \App\Models\Semester::current()?->id ?? '') === (string) $semester->id ? 'selected' : ''); ?>>
-                                    <?php echo e($semester->name); ?><?php echo e($semester->academicYear ? ' · '.$semester->academicYear->name : ''); ?>
+                            <select class="form-control" name="semester_id" id="semester_id" required <?php if($semesters->isEmpty()): echo 'disabled'; endif; ?>>
+                            <?php $__empty_1 = true; $__currentLoopData = $semesters; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                <option value="<?php echo e($semester->id); ?>" <?php echo e((string) old('semester_id', $semesters->first()?->id ?? '') === (string) $semester->id ? 'selected' : ''); ?>>
+                                    <?php echo e($semester->name); ?>
 
                                 </option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                                <option value="">No semesters for this academic year</option>
+                            <?php endif; ?>
                         </select>
                     </div>
                 <div class="col-md-6">

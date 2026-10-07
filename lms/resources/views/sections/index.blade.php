@@ -57,13 +57,14 @@
 
         @if($sections->isEmpty())
             <div class="alert alert-warning mb-0">
-                No sections yet. Add one to show Block Sections on enrollment.
+                No sections have been created for Academic Year {{ \App\Models\AcademicYear::active()?->displayName() ?? 'the current academic year' }}.
             </div>
         @else
             <div class="row g-3" id="sectionsGrid">
                 @foreach($sections as $section)
                     @php
-                        $adviserName = $section->adviser ? $section->adviser->full_name : 'To be assigned';
+                        $adviserAssigned = $section->adviser && $section->teachers->contains('id', $section->adviser_id);
+                        $adviserName = $adviserAssigned ? $section->adviser->full_name : 'To be assigned';
                         $description = $section->description ?: '';
                         $subjectNames = $section->displaySubjects->pluck('subject_name')->filter()->values();
                     @endphp

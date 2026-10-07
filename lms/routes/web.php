@@ -104,6 +104,9 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
         Route::post('change/password', 'changePassword')->name('change/password');
         Route::get('view/user/edit/{id}', 'userView')->middleware(['auth', 'role:Admin']);
         Route::post('user/update', 'userUpdate')->middleware(['auth', 'role:Admin'])->name('user/update');
+        Route::get('teacher/{userId}/deactivate-transfer', 'teacherDeactivationForm')->middleware(['auth', 'role:Admin'])->name('teacher.deactivate.transfer');
+        Route::post('teacher/{userId}/deactivate-transfer/review', 'reviewTeacherDeactivation')->middleware(['auth', 'role:Admin'])->name('teacher.deactivate.review');
+        Route::post('teacher/{userId}/deactivate-transfer/confirm', 'confirmTeacherDeactivation')->middleware(['auth', 'role:Admin'])->name('teacher.deactivate.confirm');
         Route::post('user/delete', 'userDelete')->middleware(['auth', 'role:Admin'])->name('user/delete');
         Route::get('get-users-data', 'getUsersData')->middleware(['auth', 'role:Admin'])->name('get-users-data'); /** get all data users */
     });

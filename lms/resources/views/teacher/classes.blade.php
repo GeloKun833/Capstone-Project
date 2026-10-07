@@ -22,6 +22,12 @@
             <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
 
+        @if(($assignments ?? collect())->isEmpty() && ($assignedSubjects ?? collect())->isEmpty() && ($assignedSections ?? collect())->isEmpty())
+            <div class="alert alert-info">
+                No teaching assignments have been assigned to your account for Academic Year {{ \App\Models\AcademicYear::active()?->displayName() ?? 'the current academic year' }} yet. Please contact the administrator.
+            </div>
+        @endif
+
         <div class="row g-3 mb-3">
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
