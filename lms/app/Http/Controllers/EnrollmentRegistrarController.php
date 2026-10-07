@@ -53,8 +53,9 @@ class EnrollmentRegistrarController extends Controller
         $query->orderBy($sortBy, $sortOrder);
 
         $applications = $query->paginate(15);
+        $enrollmentReadiness = app(\App\Services\EnrollmentReadiness::class)->checklist();
 
-        return view('enrollment.registrar.index', compact('applications'));
+        return view('enrollment.registrar.index', compact('applications', 'enrollmentReadiness'));
     }
 
     /**

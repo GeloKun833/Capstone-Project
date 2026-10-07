@@ -230,6 +230,7 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 // Add resource routes for academic years, semesters, and enrollments
 Route::post('academic_years/{academic_year}/unarchive', [AcademicYearController::class, 'unarchive'])->middleware('auth')->name('academic_years.unarchive');
 Route::post('academic_years/{academic_year}/enrollment', [AcademicYearController::class, 'setEnrollment'])->middleware('auth')->name('academic_years.enrollment');
+Route::post('academic_years/{academic_year}/enrollment-settings', [AcademicYearController::class, 'updateEnrollmentSettings'])->middleware('auth')->name('academic_years.enrollment-settings');
 Route::resource('academic_years', AcademicYearController::class)->middleware('auth');
 Route::resource('semesters', SemesterController::class)->middleware('auth');
 Route::resource('sections', SectionController::class)->middleware('auth');
@@ -248,6 +249,7 @@ Route::group(['middleware' => ['auth', 'role:Admin']], function () {
 });
 // Attendance routes (available to teachers and admins)
 Route::get('teacher/attendance', [App\Http\Controllers\AttendanceController::class, 'index'])->name('attendance.index');
+Route::get('teacher/attendance/report', [App\Http\Controllers\AttendanceController::class, 'report'])->name('attendance.report');
 Route::resource('teacher/attendance', AttendanceController::class)->except(['index']);
 Route::get('attendance/export', [App\Http\Controllers\AttendanceController::class, 'export'])->name('attendance.export');
 Route::get('attendance/student', [App\Http\Controllers\AttendanceController::class, 'studentView'])->name('attendance.student');
@@ -289,6 +291,7 @@ Route::group(['middleware' => ['role:Admin']], function () {
     // ----------------------- Grading Module Routes (Admin Access) -----------------------------//
     Route::group(['prefix' => 'admin/grading'], function () {
         Route::get('performance-hub', [App\Http\Controllers\PerformanceHubController::class, 'index'])->name('admin.grading.performance-hub');
+        Route::get('progress', [App\Http\Controllers\GradingController::class, 'progress'])->name('admin.grading.progress');
         Route::post('resolve-alert/{alert}', [App\Http\Controllers\PerformanceHubController::class, 'resolveAlert'])->name('admin.grading.resolve-alert');
         Route::get('export-gpa', [App\Http\Controllers\PerformanceHubController::class, 'exportGpa'])->name('admin.grading.export-gpa');
         Route::get('export-grades', [App\Http\Controllers\GradingController::class, 'exportGrades'])->name('admin.grading.export-grades');
@@ -298,6 +301,21 @@ Route::group(['middleware' => ['role:Admin']], function () {
         Route::get('performance-analytics', [App\Http\Controllers\PerformanceHubController::class, 'redirectAnalytics'])->name('admin.grading.performance-analytics');
         Route::get('grade-alerts', [App\Http\Controllers\PerformanceHubController::class, 'redirectAlerts'])->name('admin.grading.grade-alerts');
     });
+
+    Route::get('grade-encoding', [App\Http\Controllers\GradeEncodingAccessController::class, 'index'])->name('admin.grade-encoding.index');
+    Route::post('grade-encoding/{user}', [App\Http\Controllers\GradeEncodingAccessController::class, 'update'])->name('admin.grade-encoding.update');
+});
+
+// Grade encoding is open to Teacher, Registrar, and Admin accounts.
+// The controller still requires the admin-granted "encode grades" permission.
+Route::group(['middleware' => ['auth', 'role:Teacher|Registrar|Admin'], 'prefix' => 'grading'], function () {
+    Route::get('grade-entry', [App\Http\Controllers\GradingController::class, 'gradeEntryForm'])->name('teacher.grading.grade-entry');
+    Route::post('load-students', [App\Http\Controllers\GradingController::class, 'loadStudents'])->name('teacher.grading.load-students');
+    Route::post('store-grades', [App\Http\Controllers\GradingController::class, 'storeGrades'])->name('teacher.grading.store-grades');
+    Route::post('store-quarterly-grades', [App\Http\Controllers\GradingController::class, 'storeQuarterlyGrades'])->name('teacher.grading.store-quarterly-grades');
+    Route::get('observed-values', [App\Http\Controllers\ObservedValuesController::class, 'index'])->name('teacher.grading.observed-values');
+    Route::post('observed-values', [App\Http\Controllers\ObservedValuesController::class, 'store'])->name('teacher.grading.observed-values.store');
+    Route::post('store-weight-settings', [App\Http\Controllers\GradingController::class, 'storeWeightSettings'])->name('teacher.grading.store-weight-settings');
 });
 
 // Teacher-only routes
@@ -311,13 +329,6 @@ Route::group(['middleware' => ['role:Teacher']], function () {
     
     // ----------------------- Grading Module Routes (Teacher Only) -----------------------------//
     Route::group(['prefix' => 'grading'], function () {
-        // Grade Entry
-        Route::get('grade-entry', [App\Http\Controllers\GradingController::class, 'gradeEntryForm'])->name('teacher.grading.grade-entry');
-        Route::post('load-students', [App\Http\Controllers\GradingController::class, 'loadStudents'])->name('teacher.grading.load-students');
-        Route::post('store-grades', [App\Http\Controllers\GradingController::class, 'storeGrades'])->name('teacher.grading.store-grades');
-        Route::post('store-quarterly-grades', [App\Http\Controllers\GradingController::class, 'storeQuarterlyGrades'])->name('teacher.grading.store-quarterly-grades');
-        Route::get('observed-values', [App\Http\Controllers\ObservedValuesController::class, 'index'])->name('teacher.grading.observed-values');
-        Route::post('observed-values', [App\Http\Controllers\ObservedValuesController::class, 'store'])->name('teacher.grading.observed-values.store');
         Route::get('quarter-report', [App\Http\Controllers\ReportCardController::class, 'teacherSectionReport'])->name('teacher.grading.quarter-report');
         Route::get('student-report/{student}', [App\Http\Controllers\ReportCardController::class, 'teacherStudentReport'])->name('teacher.grading.student-report');
         
@@ -333,7 +344,6 @@ Route::group(['middleware' => ['role:Teacher']], function () {
 
         // Weight Settings
         Route::get('weight-settings', [App\Http\Controllers\GradingController::class, 'weightSettings'])->name('teacher.grading.weight-settings');
-        Route::post('store-weight-settings', [App\Http\Controllers\GradingController::class, 'storeWeightSettings'])->name('teacher.grading.store-weight-settings');
 
         // Export Routes
         Route::get('export-grades', [App\Http\Controllers\GradingController::class, 'exportGrades'])->name('teacher.grading.export-grades');

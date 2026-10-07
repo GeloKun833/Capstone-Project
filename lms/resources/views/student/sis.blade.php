@@ -280,11 +280,11 @@
                                     <tr>
                                         <td>{{ $qg->subject->subject_name ?? 'N/A' }}</td>
                                         <td>{{ $qg->academicYear->name ?? 'N/A' }}</td>
-                                        <td class="text-center">{{ $qg->quarter_1 !== null ? number_format($qg->quarter_1, 2) : '—' }}</td>
-                                        <td class="text-center">{{ $qg->quarter_2 !== null ? number_format($qg->quarter_2, 2) : '—' }}</td>
-                                        <td class="text-center">{{ $qg->quarter_3 !== null ? number_format($qg->quarter_3, 2) : '—' }}</td>
-                                        <td class="text-center">{{ $qg->quarter_4 !== null ? number_format($qg->quarter_4, 2) : '—' }}</td>
-                                        <td class="text-center"><strong>{{ $qg->final_grade !== null ? number_format($qg->final_grade, 2) : '—' }}</strong></td>
+                                        <td class="text-center" title="{{ $qg->quarterCaption(1) }}">{{ $qg->presentQuarter(1, true) }}</td>
+                                        <td class="text-center" title="{{ $qg->quarterCaption(2) }}">{{ $qg->presentQuarter(2, true) }}</td>
+                                        <td class="text-center" title="{{ $qg->quarterCaption(3) }}">{{ $qg->presentQuarter(3, true) }}</td>
+                                        <td class="text-center" title="{{ $qg->quarterCaption(4) }}">{{ $qg->presentQuarter(4, true) }}</td>
+                                        <td class="text-center"><strong>{{ $qg->usesDescriptive() ? '—' : ($qg->final_grade !== null ? number_format($qg->final_grade, 2) : '—') }}</strong></td>
                                         <td class="text-center">{{ $qg->remarks ?? '—' }}</td>
                                     </tr>
                                 @endforeach

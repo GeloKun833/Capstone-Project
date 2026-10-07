@@ -88,6 +88,11 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
         return $this->role_name === $role;
     }
 
+    public function canEncodeGrades(): bool
+    {
+        return \App\Support\GradeEncoding::allows($this);
+    }
+
     public function photoUrl(): string
     {
         return \App\Support\AvatarUploader::urlForUser($this);

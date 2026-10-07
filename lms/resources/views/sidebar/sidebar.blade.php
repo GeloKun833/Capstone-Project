@@ -10,7 +10,7 @@
                 @if (Session::get('role_name') === 'Admin')
                     @php
                         $aDash = request()->routeIs('dashboard', 'home');
-                        $aUsers = request()->routeIs('list/users', 'enrollments.*', 'teacher/list/page', 'student/list', 'list/parents', 'activity.log');
+                        $aUsers = request()->routeIs('list/users', 'enrollments.*', 'teacher/list/page', 'student/list', 'list/parents', 'activity.log', 'admin.grade-encoding.*');
                         $aAcademic = request()->routeIs('class-subject.*', 'admin.schedules.*', 'academic_years.*', 'semesters.*', 'curriculum.*', 'promotions.*');
                         $aCal = request()->routeIs('calendar.*');
                         $aAnalytics = request()->routeIs('analytics.*', 'admin.grading.*', 'announcements.*', 'chat.*', 'setting/page', 'admin.backup.*');
@@ -31,6 +31,7 @@
                             <li><a href="{{ route('list/parents') }}"><i class="fas fa-user-friends"></i> <span>Parents</span></a></li>
                             <li><a href="{{ route('enrollments.index') }}"><i class="fas fa-list"></i> <span>Enrollments</span></a></li>
                             <li><a href="{{ route('activity.log') }}"><i class="fas fa-history"></i> <span>Activity Log</span></a></li>
+                            <li><a href="{{ route('admin.grade-encoding.index') }}"><i class="fas fa-user-check"></i> <span>Grade Encoding Access</span></a></li>
                         </ul>
                     </li>
 
@@ -55,6 +56,7 @@
                         <ul>
                             <li><a href="{{ route('analytics.admin-dashboard') }}"><i class="fas fa-chart-bar"></i> <span>School Analytics</span></a></li>
                             <li><a href="{{ route('admin.grading.performance-hub') }}"><i class="fas fa-chart-line"></i> <span>Performance Hub</span></a></li>
+                            <li><a href="{{ route('admin.grading.progress') }}"><i class="fas fa-clipboard-check"></i> <span>Grading Progress</span></a></li>
                             <li><a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a></li>
                             <li><a href="{{ route('setting/page') }}"><i class="fas fa-cog"></i> <span>System Settings</span></a></li>
                             <li><a href="{{ route('admin.backup.index') }}"><i class="fas fa-database"></i> <span>Backup & Recovery</span></a></li>
@@ -85,6 +87,9 @@
                             <li><a href="{{ route('enrollment.registrar.statistics') }}"><i class="fas fa-chart-bar"></i> <span>Statistics</span></a></li>
                             <li><a href="{{ route('enrollment.registrar.archive') }}"><i class="fas fa-archive"></i> <span>Archive</span></a></li>
                             <li><a href="{{ route('enrollment.portal.index') }}" target="_blank"><i class="fas fa-external-link-alt"></i> <span>Portal View</span></a></li>
+                            @if(auth()->user()?->canEncodeGrades())
+                                <li><a href="{{ route('teacher.grading.grade-entry') }}"><i class="fas fa-edit"></i> <span>Grade Entry</span></a></li>
+                            @endif
                         </ul>
                     </li>
 
@@ -122,7 +127,9 @@
                         <a href="javascript:void(0);"><i class="fas fa-tasks"></i> <span>Assignments & Grades</span> <span class="menu-arrow"></span></a>
                         <ul>
                             <li><a href="{{ route('assignments.index') }}"><i class="fas fa-list"></i> <span>All Assignments</span></a></li>
-                            <li><a href="{{ route('teacher.grading.grade-entry') }}"><i class="fas fa-edit"></i> <span>Grade Entry</span></a></li>
+                            @if(auth()->user()?->canEncodeGrades())
+                                <li><a href="{{ route('teacher.grading.grade-entry') }}"><i class="fas fa-edit"></i> <span>Grade Entry</span></a></li>
+                            @endif
                             <li><a href="{{ route('teacher.grading.performance-hub') }}"><i class="fas fa-chart-line"></i> <span>Performance Hub</span></a></li>
                         </ul>
                     </li>

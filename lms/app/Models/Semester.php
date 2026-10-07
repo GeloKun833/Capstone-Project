@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SchoolQuarter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,24 +16,36 @@ class Semester extends Model
 
     public static function current(): ?self
     {
-        $year = AcademicYear::current();
-        if ($year) {
-            return static::query()
-                ->where('academic_year_id', $year->id)
-                ->orderBy('id')
-                ->first();
+        $year = AcademicYear::active();
+        $period = $year ? SchoolQuarter::current($year) : null;
+        if (! $period) {
+            return null;
         }
 
-        return static::query()->latest('id')->first();
+        return static::query()->find($period['semester_id']);
     }
 
     public function statusLabel(): string
     {
-        if (in_array($this->status, ['current', 'upcoming', 'completed', 'archived'], true)) {
-            return $this->status;
+        $yearStatus = $this->academicYear?->statusLabel() ?? 'upcoming';
+        if ($yearStatus !== 'current') {
+            return in_array($yearStatus, ['upcoming', 'completed', 'archived'], true) ? $yearStatus : 'upcoming';
         }
 
-        return $this->academicYear?->statusLabel() ?? 'upcoming';
+        $period = collect(SchoolQuarter::periods($this->academicYear))->firstWhere('semester_id', $this->id);
+        if (! $period) {
+            return 'upcoming';
+        }
+
+        $today = now('Asia/Manila')->startOfDay();
+        if ($today->lt($period['start'])) {
+            return 'upcoming';
+        }
+        if ($today->gt($period['end'])) {
+            return 'completed';
+        }
+
+        return 'current';
     }
     public function enrollments() { return $this->hasMany(Enrollment::class); }
 }

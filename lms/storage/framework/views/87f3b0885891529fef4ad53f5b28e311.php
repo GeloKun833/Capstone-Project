@@ -7,15 +7,24 @@
         <div class="ep-card-body py-5">
             <div class="row align-items-center">
                 <div class="col-lg-8">
-                    <span class="ep-chip" style="background:rgba(255,255,255,.2);color:#fff;margin-bottom:1rem;">SY <?php echo e($currentSchoolYear->name ?? '2025-2026'); ?> Enrollment Open</span>
+                    <span class="ep-chip" style="background:rgba(255,255,255,.2);color:#fff;margin-bottom:1rem;">SY <?php echo e($currentSchoolYear->displayName() ?? 'No current academic year'); ?></span>
                     <h1 class="ep-page-title" style="color:#fff!important;font-size:2.25rem;">Welcome to Our Enrollment Portal</h1>
-                    <p style="color:rgba(255,255,255,.9)!important;font-size:1.1rem;max-width:560px;">
-                        Begin your educational journey with Panorama Montessori School. Select your enrollment type to get started — it only takes a few minutes.
-                    </p>
+                    <?php if(!empty($enrollmentClosedMessage)): ?>
+                        <p style="color:#fff!important;font-size:1.1rem;max-width:640px;background:rgba(0,0,0,.15);border-radius:12px;padding:1rem;">
+                            <?php echo e($enrollmentClosedMessage); ?>
+
+                        </p>
+                    <?php else: ?>
+                        <p style="color:rgba(255,255,255,.9)!important;font-size:1.1rem;max-width:560px;">
+                            Begin your educational journey with Panorama Montessori School. Select your enrollment type to get started — it only takes a few minutes.
+                        </p>
+                    <?php endif; ?>
                     <div class="d-flex flex-wrap gap-2 mt-4">
-                        <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'new'])); ?>" class="ep-btn ep-btn-lg" style="background:#fff;color:#2563EB;">
-                            <i class="fas fa-rocket"></i> Start Application
-                        </a>
+                        <?php if(empty($enrollmentClosedMessage)): ?>
+                            <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'new'])); ?>" class="ep-btn ep-btn-lg" style="background:#fff;color:#2563EB;">
+                                <i class="fas fa-rocket"></i> Start Application
+                            </a>
+                        <?php endif; ?>
                         <a href="<?php echo e(route('enrollment.portal.status')); ?>" class="ep-btn ep-btn-lg ep-btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff;">
                             <i class="fas fa-search"></i> Track Application
                         </a>
@@ -71,9 +80,13 @@
                 <li><i class="fas fa-check-circle"></i> No SF9 required</li>
                 <li><i class="fas fa-check-circle"></i> Auto section assignment</li>
             </ul>
-            <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'new'])); ?>" class="ep-btn ep-btn-primary ep-btn-block ep-btn-lg">
-                Start New Student Enrollment <i class="fas fa-arrow-right"></i>
-            </a>
+            <?php if(empty($enrollmentClosedMessage)): ?>
+                <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'new'])); ?>" class="ep-btn ep-btn-primary ep-btn-block ep-btn-lg">
+                    Start New Student Enrollment <i class="fas fa-arrow-right"></i>
+                </a>
+            <?php else: ?>
+                <button type="button" class="ep-btn ep-btn-primary ep-btn-block ep-btn-lg" disabled>Enrollment Unavailable</button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -90,9 +103,13 @@
                 <li><i class="fas fa-check-circle"></i> Generate enrollment form</li>
                 <li><i class="fas fa-check-circle"></i> Fast-track process</li>
             </ul>
-            <a href="<?php echo e(route('enrollment.old-student.login')); ?>" class="ep-btn ep-btn-success ep-btn-block ep-btn-lg">
-                Login for Old Students <i class="fas fa-sign-in-alt"></i>
-            </a>
+            <?php if(empty($enrollmentClosedMessage)): ?>
+                <a href="<?php echo e(route('enrollment.old-student.login')); ?>" class="ep-btn ep-btn-success ep-btn-block ep-btn-lg">
+                    Login for Old Students <i class="fas fa-sign-in-alt"></i>
+                </a>
+            <?php else: ?>
+                <button type="button" class="ep-btn ep-btn-success ep-btn-block ep-btn-lg" disabled>Enrollment Unavailable</button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -109,9 +126,13 @@
                 <li><i class="fas fa-check-circle"></i> Document verification</li>
                 <li><i class="fas fa-check-circle"></i> Section assignment</li>
             </ul>
-            <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'transferee'])); ?>" class="ep-btn ep-btn-warning ep-btn-block ep-btn-lg">
-                Start Transferee Enrollment <i class="fas fa-arrow-right"></i>
-            </a>
+            <?php if(empty($enrollmentClosedMessage)): ?>
+                <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'transferee'])); ?>" class="ep-btn ep-btn-warning ep-btn-block ep-btn-lg">
+                    Start Transferee Enrollment <i class="fas fa-arrow-right"></i>
+                </a>
+            <?php else: ?>
+                <button type="button" class="ep-btn ep-btn-warning ep-btn-block ep-btn-lg" disabled>Enrollment Unavailable</button>
+            <?php endif; ?>
         </div>
     </div>
 </div>

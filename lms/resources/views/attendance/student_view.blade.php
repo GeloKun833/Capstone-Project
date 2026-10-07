@@ -38,12 +38,22 @@
                     <img src="{{ $photo }}" alt="{{ $displayName }}" class="sa-avatar" onerror="this.onerror=null;this.src='{{ $defaultPhoto }}';">
                     <div>
                         <h1>Attendance</h1>
-                        <p>{{ $displayName }} · {{ $monthLabel }} · {{ $scopeLabel }}</p>
+                        <p>{{ $displayName }} · {{ $academicYear?->name ?? 'Current academic year' }} · {{ $monthLabel }} · {{ $scopeLabel }}</p>
                     </div>
                 </div>
             </header>
 
             <form method="GET" action="{{ route('attendance.student') }}" class="sa-filters">
+                <div class="sa-field">
+                    <label for="academic_year_id">Academic Year</label>
+                    <select name="academic_year_id" id="academic_year_id">
+                        @foreach($academicYears as $yearOption)
+                            <option value="{{ $yearOption->id }}" @selected(($academicYear->id ?? null) == $yearOption->id)>
+                                {{ $yearOption->name }}{{ $yearOption->status === 'current' ? ' (Current)' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="sa-field">
                     <label for="subject_id">Subject</label>
                     <select name="subject_id" id="subject_id">

@@ -678,6 +678,27 @@ class ReportController extends Controller
             if (! $row->subject) {
                 continue;
             }
+            if ($row->usesDescriptive()) {
+                $parts = [];
+                foreach ([1, 2, 3, 4] as $quarter) {
+                    $text = $row->presentQuarter($quarter, true);
+                    if ($text !== '—') {
+                        $parts[] = 'Q'.$quarter.' '.$text;
+                    }
+                }
+                $rows[] = [
+                    'subject' => $row->subject,
+                    'quarterly' => $row,
+                    'average' => null,
+                    'descriptive' => true,
+                    'max' => null,
+                    'min' => null,
+                    'count' => count($parts),
+                    'remarks' => implode('; ', $parts),
+                ];
+                continue;
+            }
+
             $quarters = array_values(array_filter(
                 [$row->quarter_1, $row->quarter_2, $row->quarter_3, $row->quarter_4],
                 fn ($v) => $v !== null && $v !== ''

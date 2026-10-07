@@ -215,13 +215,15 @@ class AcademicYearController extends Controller
     public function setEnrollment(Request $request, AcademicYear $academicYear)
     {
         $open = $request->boolean('enrollment_open');
-        if ($open && $academicYear->statusLabel() !== 'current') {
-            $message = 'Open enrollment only after this academic year is the active year.';
-            if ($request->expectsJson() || $request->ajax()) {
-                return response()->json(['success' => false, 'message' => $message], 422);
-            }
+        if ($open) {
+            $message = app(\App\Services\EnrollmentReadiness::class)->openBlock($academicYear);
+            if ($message) {
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
 
-            return redirect()->route('academic_years.index')->with('error', $message);
+                return redirect()->back()->with('error', $message);
+            }
         }
 
         $academicYear->update(['enrollment_open' => $open && $academicYear->statusLabel() === 'current']);
@@ -236,6 +238,56 @@ class AcademicYearController extends Controller
         }
 
         return redirect()->route('academic_years.index')->with('success', $message);
+    }
+
+    public function updateEnrollmentSettings(Request $request, AcademicYear $academicYear)
+    {
+        if ($academicYear->statusLabel() !== 'current') {
+            return redirect()->back()->with('error', 'Enrollment settings can only be changed for the current academic year.');
+        }
+
+        $validated = $request->validate([
+            'enrollment_starts_at' => 'required|date',
+            'enrollment_ends_at' => 'required|date|after_or_equal:enrollment_starts_at',
+            'enrollment_open' => 'nullable|boolean',
+        ]);
+
+        $start = \Carbon\Carbon::parse($validated['enrollment_starts_at'])->startOfDay();
+        $end = \Carbon\Carbon::parse($validated['enrollment_ends_at'])->startOfDay();
+        if ($academicYear->start_date && $start->lt($academicYear->start_date->copy()->startOfDay())) {
+            return redirect()->back()->withInput()->with('error', 'The enrollment start date must fall within Academic Year '.$academicYear->displayName().'.');
+        }
+        if ($academicYear->end_date && $end->gt($academicYear->end_date->copy()->endOfDay())) {
+            return redirect()->back()->withInput()->with('error', 'The enrollment end date must fall within Academic Year '.$academicYear->displayName().'.');
+        }
+
+        $academicYear->enrollment_starts_at = $start->toDateString();
+        $academicYear->enrollment_ends_at = $end->toDateString();
+
+        $open = $request->boolean('enrollment_open');
+        if ($open) {
+            $block = app(\App\Services\EnrollmentReadiness::class)->openBlock($academicYear);
+            if ($block) {
+                $academicYear->enrollment_open = false;
+                $academicYear->save();
+                $this->forgetYearCache();
+
+                return redirect()->back()->with('error', $block);
+            }
+        }
+
+        $academicYear->enrollment_open = $open;
+        $academicYear->save();
+        $this->forgetYearCache();
+
+        $available = $academicYear->fresh()->enrollmentIsOpen();
+        $message = $available
+            ? 'Enrollment is available for Academic Year '.$academicYear->displayName().'.'
+            : ($open
+                ? app(\App\Services\EnrollmentReadiness::class)->studentMessage($academicYear->fresh())
+                : 'Enrollment is currently closed for Academic Year '.$academicYear->displayName().'.');
+
+        return redirect()->back()->with($available || ! $open ? 'success' : 'error', $message);
     }
 
     protected function forgetYearCache(): void

@@ -10,12 +10,14 @@ class AcademicYear extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'start_date', 'end_date', 'status', 'enrollment_open'];
+    protected $fillable = ['name', 'start_date', 'end_date', 'status', 'enrollment_open', 'enrollment_starts_at', 'enrollment_ends_at'];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'enrollment_open' => 'boolean',
+        'enrollment_starts_at' => 'date',
+        'enrollment_ends_at' => 'date',
     ];
 
     public function getYearAttribute(): ?string
@@ -54,7 +56,7 @@ class AcademicYear extends Model
 
     public function enrollmentIsOpen(): bool
     {
-        return $this->isCurrent() && (bool) $this->enrollment_open;
+        return app(\App\Services\EnrollmentReadiness::class)->isAvailableFor($this);
     }
 
     /**

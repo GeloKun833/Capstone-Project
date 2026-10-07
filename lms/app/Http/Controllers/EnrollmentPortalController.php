@@ -25,7 +25,12 @@ class EnrollmentPortalController extends Controller
      */
     public function index()
     {
-        return view('enrollment.portal.index');
+        $readiness = app(\App\Services\EnrollmentReadiness::class);
+
+        return view('enrollment.portal.index', [
+            'currentSchoolYear' => \App\Models\AcademicYear::active(),
+            'enrollmentClosedMessage' => $readiness->studentMessage(),
+        ]);
     }
 
     /**
@@ -2040,23 +2045,23 @@ class EnrollmentPortalController extends Controller
         $subjects = \App\Models\Subject::where('class', $gradeLevel)->get();
         
         // Get class schedules for these subjects (to show schedule info)
+        $academicYear = \App\Models\AcademicYear::active();
         $schedules = \App\Models\ClassSchedule::with(['subject', 'teacher', 'room', 'section'])
             ->whereHas('subject', function($query) use ($gradeLevel) {
                 $query->where('class', $gradeLevel);
             })
+            ->when($academicYear, fn ($query) => $query->where('academic_year_id', $academicYear->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('is_active', true)
             ->get()
             ->groupBy('section_id');
 
-        // Get available sections for the student's grade level (block sections)
-        $availableSections = \App\Models\Section::where('grade_level', $gradeLevel)
+        $semester = \App\Models\Semester::current();
+        $availableSections = \App\Models\Section::query()
+            ->where('grade_level', $gradeLevel)
+            ->when($academicYear, fn ($query) => $query->forAcademicYear($academicYear->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->with('adviser')
             ->orderBy('name')
             ->get();
-
-        // Get the latest academic year and semester
-        $academicYear = \App\Models\AcademicYear::active();
-        $semester = \App\Models\Semester::current();
 
         // Check which sections have available capacity
         foreach ($availableSections as $section) {

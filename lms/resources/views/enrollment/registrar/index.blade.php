@@ -19,6 +19,70 @@
     <p class="ep-page-subtitle">Manage applications, review documents, and approve enrollments.</p>
 </div>
 
+@php $readinessYear = $enrollmentReadiness['year'] ?? null; @endphp
+<div class="ep-card mb-4">
+    <div class="ep-card-header">
+        <h3>Enrollment Readiness — {{ $readinessYear?->displayName() ?? 'No current academic year' }}</h3>
+    </div>
+    <div class="ep-card-body">
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+
+        @if($readinessYear)
+            <form method="POST" action="{{ route('academic_years.enrollment-settings', $readinessYear) }}" class="row g-3 align-items-end mb-4">
+                @csrf
+                <div class="col-md-3">
+                    <label class="ep-label">Academic Year</label>
+                    <input type="text" class="form-control" value="{{ $readinessYear->displayName() }}" readonly>
+                </div>
+                <div class="col-md-2">
+                    <label class="ep-label">Enrollment Status</label>
+                    <select class="form-select" name="enrollment_open">
+                        <option value="0" @selected(! $readinessYear->enrollment_open)>CLOSED</option>
+                        <option value="1" @selected($readinessYear->enrollment_open)>OPEN</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="ep-label">Enrollment Start Date</label>
+                    <input type="date" class="form-control" name="enrollment_starts_at" value="{{ old('enrollment_starts_at', optional($readinessYear->enrollment_starts_at)->format('Y-m-d')) }}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="ep-label">Enrollment End Date</label>
+                    <input type="date" class="form-control" name="enrollment_ends_at" value="{{ old('enrollment_ends_at', optional($readinessYear->enrollment_ends_at)->format('Y-m-d')) }}" required>
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="ep-btn ep-btn-primary w-100">Save</button>
+                </div>
+            </form>
+        @endif
+
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Requirement</th>
+                        <th>Status</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($enrollmentReadiness['rows'] as $row)
+                        <tr>
+                            <td class="{{ $row['key'] === 'availability' ? 'fw-bold' : '' }}">{{ $row['label'] }}</td>
+                            <td class="{{ $row['ready'] ? 'text-success' : 'text-danger' }} fw-semibold">{{ $row['status'] }}</td>
+                            <td>{{ $row['detail'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <div class="ep-stat-grid mb-4">
     <div class="ep-stat-card">
         <div class="ep-stat-icon blue"><i class="fas fa-inbox"></i></div>

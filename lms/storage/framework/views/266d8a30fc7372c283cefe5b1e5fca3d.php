@@ -1,7 +1,9 @@
 <?php $__env->startSection('content'); ?>
 
 <?php
-    $quarterLabels = [1 => '1st Quarter', 2 => '2nd Quarter', 3 => '3rd Quarter', 4 => '4th Quarter'];
+    $quarterLabels = collect(\App\Support\SchoolQuarter::periods($currentAcademicYear ?? null))
+        ->mapWithKeys(fn ($period) => [$period['number'] => $period['label']])
+        ->all();
     $hasFilters = $selectedSectionId && in_array((int) $selectedQuarter, [1, 2, 3, 4], true) && $currentAcademicYear;
     $sectionName = $sections->where('id', $selectedSectionId)->first()->name ?? 'N/A';
     $stepQuery = fn ($step) => [
@@ -36,51 +38,45 @@
         <div class="ge-card ge-filters">
             <div class="ge-card-head">
                 <h5>Load grade sheet</h5>
-                <p>Choose the class, quarter, and school year first.</p>
+                <p>Choose the section. The academic year and term follow the current school year.</p>
             </div>
-            <?php if($subjects->isEmpty() || $sections->isEmpty()): ?>
+            <?php if($sections->isEmpty()): ?>
                 <div class="alert alert-warning mx-3 mt-0">
-                    You have no subject/section assignment yet. Ask Admin to assign you under
-                    <strong>Classes &amp; Subjects</strong>.
+                    No teaching assignments are available for the current Academic Year.
+                </div>
+            <?php endif; ?>
+            <?php if($currentAcademicYear && ! $currentPeriod): ?>
+                <div class="alert alert-warning mx-3 mt-0">
+                    Today is outside the quarters for <?php echo e($currentAcademicYear->name); ?>.
                 </div>
             <?php endif; ?>
             <form method="GET" action="<?php echo e(route('teacher.grading.grade-entry')); ?>" id="filterForm" class="px-3 pb-3">
                 <input type="hidden" name="step" value="grades">
+                <input type="hidden" id="selected_quarter" value="<?php echo e($selectedQuarter); ?>">
+                <input type="hidden" id="selected_academic_year" value="<?php echo e($currentAcademicYear->id ?? ''); ?>">
                 <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label" for="academic_year_label">Academic Year</label>
+                        <input type="text" class="form-control ge-locked" id="academic_year_label" value="<?php echo e($currentAcademicYear->name ?? 'No current academic year'); ?>" readonly tabindex="-1">
+                    </div>
                     <div class="col-md-4">
+                        <label class="form-label" for="quarter_label">Term</label>
+                        <input type="text" class="form-control ge-locked" id="quarter_label" value="<?php echo e($currentPeriod ? $currentPeriod['label'].' · '.$currentPeriod['start']->format('M j, Y').' – '.$currentPeriod['end']->format('M j, Y') : 'Outside the school year'); ?>" readonly tabindex="-1">
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label" for="selected_section">Section</label>
-                        <select class="form-control form-select" name="section_id" id="selected_section" required <?php if($sections->isEmpty()): ?> disabled <?php endif; ?>>
+                        <select class="form-control form-select" name="section_id" id="selected_section" required <?php if($sections->isEmpty() || ! $currentPeriod): ?> disabled <?php endif; ?>>
                             <option value="">Select section</option>
                             <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <option value="<?php echo e($section->id); ?>" <?php echo e((string) ($selectedSectionId ?? '') === (string) $section->id ? 'selected' : ''); ?>>
-                                    <?php echo e($section->name); ?> (<?php echo e($section->grade_level ?? 'N/A'); ?>)
-                                </option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="selected_quarter">Quarter</label>
-                        <select class="form-control form-select" name="quarter" id="selected_quarter" required>
-                            <option value="">Select quarter</option>
-                            <?php $__currentLoopData = $quarterLabels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $num => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($num); ?>" <?php echo e((int) ($selectedQuarter ?? 0) === $num ? 'selected' : ''); ?>><?php echo e($label); ?></option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="selected_academic_year">Academic year</label>
-                        <select class="form-control form-select" name="academic_year_id" id="selected_academic_year" required>
-                            <option value="">Select year</option>
-                            <?php $__currentLoopData = $academicYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($year->id); ?>" <?php echo e($currentAcademicYear && $currentAcademicYear->id == $year->id ? 'selected' : ''); ?>>
-                                    <?php echo e($year->name); ?>
+                                    <?php echo e($section->grade_level ? $section->grade_level.' · ' : ''); ?><?php echo e($section->name); ?>
 
                                 </option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary dir-btn w-100" <?php if($sections->isEmpty() || $subjects->isEmpty()): ?> disabled <?php endif; ?>>
+                        <button type="submit" class="btn btn-primary dir-btn w-100" <?php if($sections->isEmpty() || $subjects->isEmpty() || ! $currentPeriod): ?> disabled <?php endif; ?>>
                             <i class="fas fa-search me-1"></i> Load
                         </button>
                     </div>
@@ -101,8 +97,17 @@
             <div class="ge-card" id="gradesStepCard">
                 <div class="ge-card-head ge-card-head-row">
                     <div>
-                        <h5>Step 1 — <?php echo e($quarterLabels[(int) $selectedQuarter]); ?> grades</h5>
-                        <p><?php echo e($sectionName); ?> · <?php echo e($currentAcademicYear->name); ?> · <?php echo e($students->count()); ?> students</p>
+                        <h5><?php echo e($descriptive ? 'Descriptive Method' : 'Numerical Method'); ?> — <?php echo e($quarterLabels[(int) $selectedQuarter] ?? 'Current term'); ?></h5>
+                        <p>
+                            <?php echo e($sectionName); ?> uses the <?php echo e($descriptive ? 'Descriptive' : 'Numerical'); ?> Method
+                            · <?php echo e($currentAcademicYear->name); ?>
+
+                            · <?php echo e($gradedCount); ?> / <?php echo e($expectedCount); ?> <?php echo e($descriptive ? 'assessed' : 'graded'); ?>
+
+                            <?php if($expectedCount > $gradedCount): ?>
+                                · <?php echo e($expectedCount - $gradedCount); ?> missing
+                            <?php endif; ?>
+                        </p>
                     </div>
                     <?php if($hasQuarterGrades): ?>
                         <a class="btn btn-outline-primary dir-btn"
@@ -111,9 +116,21 @@
                         </a>
                     <?php endif; ?>
                 </div>
-                <div class="ge-note">Enter scores from 0–100 for each learning area, then save to continue.</div>
+                <?php if($descriptive): ?>
+                    <div class="ge-note">
+                        This class uses the Descriptive Method. Choose A, B, C, D, or E. Numerical scores are not accepted.
+                        A Advancing (Namumukod-tangi) · B Benchmarking (Napamamalas) · C Connecting (Natutungo) · D Developing (Napauunlad) · E Emerging (Nagsisimula).
+                    </div>
+                    <div class="ge-levels">
+                        <?php $__currentLoopData = $descriptiveScale; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $letter => $meta): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <span title="<?php echo e($meta['description']); ?>"><?php echo e($letter); ?> — <?php echo e($meta['english']); ?></span>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </div>
+                <?php else: ?>
+                    <div class="ge-note">This class uses the Numerical Method. Enter a score from 0 to 100. Descriptive letters are not accepted.</div>
+                <?php endif; ?>
                 <div class="table-responsive">
-                    <table class="table dir-table mb-0" id="gradesTable">
+                    <table class="table dir-table mb-0" id="gradesTable" data-method="<?php echo e($descriptive ? 'descriptive' : 'numerical'); ?>">
                         <thead>
                             <tr>
                                 <th style="width:48px">#</th>
@@ -133,11 +150,25 @@
                                     <?php $__currentLoopData = $sectionSubjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <?php $key = $student->id . '_' . $subject->id; ?>
                                         <td>
-                                            <input type="number" class="form-control quarter-subject-input"
-                                                   data-student-id="<?php echo e($student->id); ?>"
-                                                   data-subject-id="<?php echo e($subject->id); ?>"
-                                                   value="<?php echo e($gradeMap[$key] ?? ''); ?>"
-                                                   min="0" max="100" step="0.01" placeholder="—">
+                                            <?php if($descriptive): ?>
+                                                <select class="form-select form-select-sm quarter-subject-input"
+                                                        data-student-id="<?php echo e($student->id); ?>"
+                                                        data-subject-id="<?php echo e($subject->id); ?>">
+                                                    <option value="">—</option>
+                                                    <?php $__currentLoopData = $descriptiveScale; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $letter => $meta): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($letter); ?>" <?php if(($gradeMap[$key] ?? '') === $letter): echo 'selected'; endif; ?> title="<?php echo e($meta['description']); ?>">
+                                                            <?php echo e($letter); ?> — <?php echo e($meta['english']); ?>
+
+                                                        </option>
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                </select>
+                                            <?php else: ?>
+                                                <input type="number" class="form-control quarter-subject-input"
+                                                       data-student-id="<?php echo e($student->id); ?>"
+                                                       data-subject-id="<?php echo e($subject->id); ?>"
+                                                       value="<?php echo e($gradeMap[$key] ?? ''); ?>"
+                                                       min="0" max="100" step="0.01" placeholder="—">
+                                            <?php endif; ?>
                                         </td>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </tr>
@@ -229,7 +260,7 @@
             <div class="ge-card">
                 <div class="ge-card-head ge-card-head-row">
                     <div>
-                        <h5>Step 3 — <?php echo e($quarterLabels[(int) $selectedQuarter]); ?> average &amp; remarks</h5>
+                        <h5>Step 3 — <?php echo e($quarterLabels[(int) $selectedQuarter]); ?> <?php echo e($descriptive ? 'assessments' : 'average & remarks'); ?></h5>
                         <p><?php echo e($sectionName); ?> · <?php echo e($currentAcademicYear->name); ?></p>
                     </div>
                     <a class="btn btn-primary dir-btn"
@@ -244,8 +275,8 @@
                             <tr>
                                 <th style="width:48px">#</th>
                                 <th>Student</th>
-                                <th class="text-center">Quarter average</th>
-                                <th class="text-center">Remarks</th>
+                                <th class="text-center"><?php echo e($descriptive ? 'Assessed' : 'Quarter average'); ?></th>
+                                <th class="text-center"><?php echo e($descriptive ? 'Missing' : 'Remarks'); ?></th>
                                 <th class="text-end">Print</th>
                             </tr>
                         </thead>
@@ -255,9 +286,20 @@
                                 <tr>
                                     <td class="text-center dir-muted"><?php echo e($index + 1); ?></td>
                                     <td><span class="dir-person-name"><?php echo e($student->last_name); ?>, <?php echo e($student->first_name); ?></span></td>
-                                    <td class="text-center"><?php echo e($sum['average'] !== null ? number_format($sum['average'], 2) : '—'); ?></td>
                                     <td class="text-center">
-                                        <?php if(($sum['remark'] ?? '—') === 'Passed'): ?>
+                                        <?php if($descriptive): ?>
+                                            <?php echo e($sum['filled'] ?? 0); ?> / <?php echo e($sectionSubjects->count()); ?>
+
+                                        <?php else: ?>
+                                            <?php echo e($sum['average'] !== null ? number_format($sum['average'], 2) : '—'); ?>
+
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php if($descriptive): ?>
+                                            <?php echo e($sum['missing'] ?? 0); ?>
+
+                                        <?php elseif(($sum['remark'] ?? '—') === 'Passed'): ?>
                                             <span class="dir-badge dir-badge--active">Passed</span>
                                         <?php elseif(($sum['remark'] ?? '—') === 'Failed'): ?>
                                             <span class="dir-badge dir-badge--disabled">Failed</span>
@@ -360,11 +402,26 @@
     min-height: 42px;
     border-color: #e5e7eb;
 }
+.ge-locked { background: #fafaf9; color: #1c1917; pointer-events: none; }
 .quarter-subject-input {
     text-align: center;
     font-weight: 650;
     min-width: 72px;
     border-radius: 10px;
+}
+.ge-levels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0 1rem 0.75rem;
+    color: #57534e;
+    font-size: 0.78rem;
+}
+.ge-levels span {
+    background: #fafaf9;
+    border: 1px solid #e7e5e4;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
 }
 .ge-steps {
     display: flex;
@@ -432,21 +489,27 @@ $(document).ready(function() {
         const quarter = $('#selected_quarter').val();
         const academicYearId = $('#selected_academic_year').val();
         if (!sectionId || !quarter || !academicYearId) {
-            toastr.error('Please select Section, Quarter, and Academic Year.');
+            toastr.error('Select a section. The academic year and quarter are set from the current school calendar.');
             return;
         }
 
         const grades = [];
+        const descriptive = $('#gradesTable').data('method') === 'descriptive';
         $('.quarter-subject-input').each(function() {
             const value = $(this).val();
             if (value === '' || value === null) return;
-            const num = parseFloat(value);
-            if (isNaN(num) || num < 0 || num > 100) return;
-            grades.push({
+            const row = {
                 student_id: parseInt($(this).data('student-id'), 10),
-                subject_id: parseInt($(this).data('subject-id'), 10),
-                score: num
-            });
+                subject_id: parseInt($(this).data('subject-id'), 10)
+            };
+            if (descriptive) {
+                row.level = String(value).toUpperCase();
+            } else {
+                const num = parseFloat(value);
+                if (isNaN(num) || num < 0 || num > 100) return;
+                row.score = num;
+            }
+            grades.push(row);
         });
 
         if (!grades.length) {
@@ -475,8 +538,6 @@ $(document).ready(function() {
                     toastr.success(response.message || 'Grades saved.');
                     const url = new URL('<?php echo e(route("teacher.grading.grade-entry")); ?>', window.location.origin);
                     url.searchParams.set('section_id', sectionId);
-                    url.searchParams.set('quarter', quarter);
-                    url.searchParams.set('academic_year_id', academicYearId);
                     url.searchParams.set('step', 'observed');
                     setTimeout(function() { window.location.href = url.toString(); }, 800);
                 } else {

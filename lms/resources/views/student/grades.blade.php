@@ -178,25 +178,34 @@
                                                     <td>
                                                         <strong>{{ $quarterlyGrade->subject->subject_name ?? 'N/A' }}</strong>
                                                     </td>
-                                                    @foreach(['quarter_1', 'quarter_2', 'quarter_3', 'quarter_4'] as $qField)
-                                                        <td class="text-center">
-                                                            @if($quarterlyGrade->{$qField} !== null)
-                                                                {{ number_format($quarterlyGrade->{$qField}, 0) }}
+                                                    @foreach([1, 2, 3, 4] as $quarter)
+                                                        <td class="text-center" title="{{ $quarterlyGrade->quarterCaption($quarter) }}">
+                                                            @php $meta = \App\Support\DescriptiveScale::get($quarterlyGrade->{'q'.$quarter.'_level'}); @endphp
+                                                            @if($meta)
+                                                                <strong>{{ strtoupper($quarterlyGrade->{'q'.$quarter.'_level'}) }}</strong>
+                                                                <div class="small">{{ $meta['english'] }}</div>
+                                                                <div class="small text-muted">{{ $meta['filipino'] }}</div>
                                                             @else
-                                                                <span class="text-muted">—</span>
+                                                                {{ $quarterlyGrade->presentQuarter($quarter) }}
                                                             @endif
                                                         </td>
                                                     @endforeach
                                                     <td class="text-center fw-bold">
-                                                        @if($quarterlyGrade->final_grade !== null)
+                                                        @if($quarterlyGrade->usesDescriptive())
+                                                            <span class="text-muted">—</span>
+                                                        @elseif($quarterlyGrade->final_grade !== null)
                                                             {{ number_format($quarterlyGrade->final_grade, 0) }}
                                                         @else
                                                             <span class="text-muted">—</span>
                                                         @endif
                                                     </td>
                                                     <td class="text-center">
-                                                        @php $fg = $quarterlyGrade->final_grade; @endphp
-                                                        {{ $quarterlyGrade->remarks ?: ($fg !== null ? \App\Services\ReportCardService::remarkForScore((float)$fg) : '—') }}
+                                                        @if($quarterlyGrade->usesDescriptive())
+                                                            Descriptive
+                                                        @else
+                                                            @php $fg = $quarterlyGrade->final_grade; @endphp
+                                                            {{ $quarterlyGrade->remarks ?: ($fg !== null ? \App\Services\ReportCardService::remarkForScore((float)$fg) : '—') }}
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @endforeach

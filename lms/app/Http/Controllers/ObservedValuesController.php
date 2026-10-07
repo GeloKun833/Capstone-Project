@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\StudentObservedValue;
 use App\Services\ReportCardService;
 use App\Services\TeacherClassAssignmentService;
+use App\Support\GradeEncoding;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -35,27 +36,33 @@ class ObservedValuesController extends Controller
      */
     public function store(Request $request)
     {
+        GradeEncoding::authorize($request);
         $teacher = Auth::user()->teacher;
         if (! $teacher) {
             abort(403, 'Teacher profile not found.');
         }
 
-        $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher, AcademicYear::active()?->id);
         $allowedSectionIds = $options['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         $validated = $request->validate([
-            'section_id' => ['required', Rule::in($allowedSectionIds)],
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'quarter' => 'required|integer|in:1,2,3,4',
+            'section_id' => ['required', Rule::in($allowedSectionIds ?: [0])],
             'ratings' => 'required|array',
             'ratings.*.student_id' => 'required|exists:students,id',
             'ratings.*.indicator_id' => 'required|exists:observed_value_indicators,id',
             'ratings.*.mark' => ['nullable', Rule::in(StudentObservedValue::RATINGS)],
         ]);
 
-        $quarterField = 'quarter_' . $validated['quarter'];
-        $sectionStudentIds = Student::whereHas('sections', function ($q) use ($validated) {
-            $q->where('sections.id', $validated['section_id']);
+        $year = AcademicYear::active();
+        $currentPeriod = \App\Support\SchoolQuarter::current($year);
+        if (! $year || ! $currentPeriod) {
+            return back()->with('error', 'Observed values can only be saved for the current quarter of the current academic year.');
+        }
+        $quarter = (int) $currentPeriod['number'];
+        $quarterField = 'quarter_' . $quarter;
+        $sectionStudentIds = Student::whereHas('sections', function ($q) use ($validated, $year) {
+            $q->where('sections.id', $validated['section_id'])
+                ->where('student_section_assignments.academic_year_id', $year->id);
         })->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         foreach ($validated['ratings'] as $row) {
@@ -65,7 +72,7 @@ class ObservedValuesController extends Controller
 
             $record = StudentObservedValue::firstOrNew([
                 'student_id' => $row['student_id'],
-                'academic_year_id' => $validated['academic_year_id'],
+                'academic_year_id' => $year->id,
                 'indicator_id' => $row['indicator_id'],
             ]);
             $record->teacher_id = $teacher->id;
@@ -75,8 +82,6 @@ class ObservedValuesController extends Controller
 
         return redirect()->route('teacher.grading.grade-entry', [
             'section_id' => $validated['section_id'],
-            'quarter' => $validated['quarter'],
-            'academic_year_id' => $validated['academic_year_id'],
             'step' => 'summary',
         ])->with('success', 'Observed values saved. Quarter summary is ready.');
     }

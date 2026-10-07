@@ -71,7 +71,10 @@
                         <select name="subject_id" class="form-control">
                             <option value="">All Subjects</option>
                             <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($subject->id); ?>" <?php echo e((int) request('subject_id') === (int) $subject->id ? 'selected' : ''); ?>>
+                                <?php
+                                    $onSections = $sections->filter(fn ($section) => $section->subjects->contains('id', $subject->id))->pluck('id')->implode(',');
+                                ?>
+                                <option value="<?php echo e($subject->id); ?>" data-sections="<?php echo e($onSections); ?>" <?php echo e((int) request('subject_id') === (int) $subject->id ? 'selected' : ''); ?>>
                                     <?php echo e($subject->subject_name); ?><?php if($subject->class): ?> (<?php echo e($subject->class); ?>)<?php endif; ?>
                                 </option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -297,6 +300,26 @@
 
 <?php $__env->startPush('scripts'); ?>
 <script>
+(function () {
+    const sectionFilter = document.querySelector('select[name="section_id"]');
+    const subjectFilter = document.querySelector('select[name="subject_id"]');
+    if (!sectionFilter || !subjectFilter) return;
+
+    function applySubjectFilter() {
+        const sectionId = sectionFilter.value;
+        Array.from(subjectFilter.options).forEach(function (opt, index) {
+            if (index === 0) return;
+            const ids = (opt.getAttribute('data-sections') || '').split(',').filter(Boolean);
+            const visible = !sectionId || ids.indexOf(sectionId) !== -1;
+            opt.hidden = !visible;
+            if (!visible && opt.selected) subjectFilter.value = '';
+        });
+    }
+
+    sectionFilter.addEventListener('change', applySubjectFilter);
+    applySubjectFilter();
+})();
+
 document.getElementById('scheduleDetailModal')?.addEventListener('show.bs.modal', function (event) {
     const button = event.relatedTarget;
     if (!button) return;

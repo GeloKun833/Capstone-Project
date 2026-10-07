@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\DescriptiveScale;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,9 +16,13 @@ class QuarterlyGrade extends Model
         'teacher_id',
         'academic_year_id',
         'quarter_1',
+        'q1_level',
         'quarter_2',
+        'q2_level',
         'quarter_3',
+        'q3_level',
         'quarter_4',
+        'q4_level',
         'final_grade',
         'remarks',
     ];
@@ -69,6 +74,51 @@ class QuarterlyGrade extends Model
         }
 
         return round(array_sum($quarters) / count($quarters), 2);
+    }
+
+    public function levelField(int $quarter): string
+    {
+        return 'q'.$quarter.'_level';
+    }
+
+    public function usesDescriptive(): bool
+    {
+        foreach ([1, 2, 3, 4] as $quarter) {
+            if (DescriptiveScale::get($this->{$this->levelField($quarter)})) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function presentQuarter(int $quarter, bool $withDescriptor = false): string
+    {
+        $meta = DescriptiveScale::get($this->{$this->levelField($quarter)});
+        if ($meta) {
+            $letter = strtoupper((string) $this->{$this->levelField($quarter)});
+
+            return $withDescriptor ? $letter.' — '.$meta['english'] : $letter;
+        }
+
+        $value = $this->{'quarter_'.$quarter};
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return number_format((float) $value, $withDescriptor ? 2 : 0);
+    }
+
+    public function quarterCaption(int $quarter): string
+    {
+        $meta = DescriptiveScale::get($this->{$this->levelField($quarter)});
+        if (! $meta) {
+            return '';
+        }
+
+        $letter = strtoupper((string) $this->{$this->levelField($quarter)});
+
+        return $letter.' — '.$meta['english'].' ('.$meta['filipino'].'). '.$meta['description'];
     }
 
     /**

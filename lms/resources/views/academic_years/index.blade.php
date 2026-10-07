@@ -84,6 +84,9 @@
                         data-end-label="{{ $year->end_date->format('M d, Y') }}"
                         data-status="{{ $status }}"
                         data-enrollment-open="{{ $year->enrollment_open ? '1' : '0' }}"
+                        data-enrollment-start="{{ optional($year->enrollment_starts_at)->format('Y-m-d') }}"
+                        data-enrollment-end="{{ optional($year->enrollment_ends_at)->format('Y-m-d') }}"
+                        data-enrollment-settings-url="{{ route('academic_years.enrollment-settings', $year) }}"
                         data-enrollment-url="{{ route('academic_years.enrollment', $year) }}"
                         data-semesters="{{ $year->semesters_count }}"
                         data-update-url="{{ route('academic_years.update', $year) }}"
@@ -145,7 +148,26 @@
                     <div class="ams-detail-item ams-detail-item--full">
                         <span class="ams-detail-label">Date Range</span>
                         <span class="ams-detail-value" id="yearDetailDates">—</span>
-                                        </div>
+                    </div>
+                    <div class="ams-detail-item ams-detail-item--full" id="yearEnrollmentDatesWrap">
+                        <span class="ams-detail-label">Enrollment Period</span>
+                        <form id="yearEnrollmentDatesForm" method="POST" class="mt-2">
+                            @csrf
+                            <input type="hidden" name="enrollment_open" id="yearEnrollmentDatesOpen" value="0">
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small mb-1" for="yearEnrollmentStart">Start Date</label>
+                                    <input type="date" class="form-control" name="enrollment_starts_at" id="yearEnrollmentStart" required>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small mb-1" for="yearEnrollmentEnd">End Date</label>
+                                    <input type="date" class="form-control" name="enrollment_ends_at" id="yearEnrollmentEnd" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm mt-2">Save Enrollment Dates</button>
+                            <small class="text-muted d-block mt-2">These dates must fall inside this academic year. Open Enrollment after the dates are saved.</small>
+                        </form>
+                    </div>
                     <div class="ams-detail-item ams-detail-item--full">
                         <span class="ams-detail-label">Kept records</span>
                         <span class="ams-detail-value">Classes, subjects, and curriculum stay in place for this year and for any new upcoming year.</span>
@@ -353,6 +375,9 @@
             endLabel: btn.getAttribute('data-end-label') || '',
             status: btn.getAttribute('data-status') || '',
             enrollmentOpen: btn.getAttribute('data-enrollment-open') || '0',
+            enrollmentStart: btn.getAttribute('data-enrollment-start') || '',
+            enrollmentEnd: btn.getAttribute('data-enrollment-end') || '',
+            enrollmentSettingsUrl: btn.getAttribute('data-enrollment-settings-url') || '',
             enrollmentUrl: btn.getAttribute('data-enrollment-url') || '',
             semesters: btn.getAttribute('data-semesters') || '0',
             updateUrl: btn.getAttribute('data-update-url') || '',
@@ -377,6 +402,16 @@
         }
         document.getElementById('yearDetailSemesters').textContent = active.semesters;
         document.getElementById('yearDetailDates').textContent = active.startLabel + ' → ' + active.endLabel;
+        const datesWrap = document.getElementById('yearEnrollmentDatesWrap');
+        const datesForm = document.getElementById('yearEnrollmentDatesForm');
+        if (datesWrap && datesForm) {
+            const isCurrent = active.status === 'current';
+            datesWrap.classList.toggle('d-none', !isCurrent);
+            datesForm.action = active.enrollmentSettingsUrl;
+            document.getElementById('yearEnrollmentDatesOpen').value = active.enrollmentOpen === '1' ? '1' : '0';
+            document.getElementById('yearEnrollmentStart').value = active.enrollmentStart;
+            document.getElementById('yearEnrollmentEnd').value = active.enrollmentEnd;
+        }
     });
 
     document.getElementById('btnAddYear')?.addEventListener('click', function () {

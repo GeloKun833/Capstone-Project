@@ -50,7 +50,9 @@ class ClassSubjectController extends Controller
         $semesters = $assignmentYearId
             ? Semester::query()->where('academic_year_id', $assignmentYearId)->orderBy('id')->get()
             : collect();
-        $sections = Section::orderBy('grade_level')->orderBy('name')->get();
+        $sections = $assignmentYearId
+            ? Section::query()->forAcademicYear($assignmentYearId)->orderBy('grade_level')->orderBy('name')->get()
+            : collect();
         $sectionsByGrade = $catalogService->sectionsGroupedByGrade($assignmentYearId);
         $catalogService->normalizeSectionGradeLabels();
         $sectionsByGrade = $catalogService->sectionsGroupedByGrade($assignmentYearId);

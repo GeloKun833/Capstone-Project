@@ -31,6 +31,10 @@ class AuthServiceProvider extends ServiceProvider
 
         $this->registerPolicies();
 
+        \Illuminate\Support\Facades\Gate::define('encode-grades', function (\App\Models\User $user) {
+            return $user->canEncodeGrades();
+        });
+
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return url(route('password.reset', [
                 'token' => $token,

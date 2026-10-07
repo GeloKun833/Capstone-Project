@@ -246,14 +246,14 @@
                             @forelse($quarterlyGrades as $qg)
                                 <tr>
                                     <td class="fw-semibold">{{ $qg->subject->subject_name ?? 'N/A' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_1 !== null ? number_format($qg->quarter_1, 0) : '—' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_2 !== null ? number_format($qg->quarter_2, 0) : '—' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_3 !== null ? number_format($qg->quarter_3, 0) : '—' }}</td>
-                                    <td class="text-center">{{ $qg->quarter_4 !== null ? number_format($qg->quarter_4, 0) : '—' }}</td>
-                                    <td class="text-center"><strong>{{ $qg->final_grade !== null ? number_format($qg->final_grade, 0) : '—' }}</strong></td>
+                                    <td class="text-center" title="{{ $qg->quarterCaption(1) }}">{{ $qg->presentQuarter(1, true) }}</td>
+                                    <td class="text-center" title="{{ $qg->quarterCaption(2) }}">{{ $qg->presentQuarter(2, true) }}</td>
+                                    <td class="text-center" title="{{ $qg->quarterCaption(3) }}">{{ $qg->presentQuarter(3, true) }}</td>
+                                    <td class="text-center" title="{{ $qg->quarterCaption(4) }}">{{ $qg->presentQuarter(4, true) }}</td>
+                                    <td class="text-center"><strong>{{ $qg->usesDescriptive() ? '—' : ($qg->final_grade !== null ? number_format($qg->final_grade, 0) : '—') }}</strong></td>
                                     <td class="text-center">
                                         <span class="hub-pill hub-pill--muted">
-                                            {{ $qg->remarks ?? \App\Services\ReportCardService::remarkForScore($qg->final_grade !== null ? (float) $qg->final_grade : null) }}
+                                            {{ $qg->usesDescriptive() ? 'Descriptive' : ($qg->remarks ?? \App\Services\ReportCardService::remarkForScore($qg->final_grade !== null ? (float) $qg->final_grade : null)) }}
                                         </span>
                                     </td>
                                 </tr>

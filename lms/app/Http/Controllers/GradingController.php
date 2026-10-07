@@ -17,6 +17,7 @@ use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\Section;
 use App\Models\QuarterlyGrade;
+use App\Support\GradeEncoding;
 use App\Exports\GradesExport;
 use App\Exports\GpaExport;
 use Maatwebsite\Excel\Facades\Excel;
@@ -32,25 +33,24 @@ class GradingController extends Controller
     // Grade Entry Form - by Section + Quarter (all subjects for that section)
     public function gradeEntryForm(Request $request)
     {
+        GradeEncoding::authorize($request);
         $teacher = Auth::user()->teacher;
 
         if (!$teacher) {
             abort(403, 'Teacher profile not found. Please contact the administrator.');
         }
 
-        $assignmentOptions = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $currentAcademicYear = AcademicYear::active();
+        $currentPeriod = \App\Support\SchoolQuarter::current($currentAcademicYear);
+        $selectedQuarter = (int) ($currentPeriod['number'] ?? 0);
+
+        $assignmentOptions = app(\App\Services\TeacherClassAssignmentService::class)
+            ->optionsFor($teacher, $currentAcademicYear?->id);
         $allSubjects = $assignmentOptions['subjects'];
         $sections = $assignmentOptions['sections'];
         $subjectsBySection = $assignmentOptions['subjectsBySection'];
 
         $selectedSectionId = $request->get('section_id');
-        $selectedQuarter = (int) $request->get('quarter', 0);
-        $selectedAcademicYearId = $request->get('academic_year_id');
-
-        $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-        $currentAcademicYear = $selectedAcademicYearId
-            ? AcademicYear::find($selectedAcademicYearId)
-            : AcademicYear::current();
 
         $sectionSubjects = collect();
         $students = collect();
@@ -68,29 +68,18 @@ class GradingController extends Controller
             $sectionSubjects = $allSubjects->whereIn('id', $validSubjectIds)->values();
 
             $students = Student::whereHas('sections', function ($query) use ($selectedSectionId, $currentAcademicYear) {
-                $query->where('sections.id', $selectedSectionId);
-                if ($currentAcademicYear) {
-                    $query->where(function ($q) use ($currentAcademicYear) {
-                        $q->where('student_section_assignments.academic_year_id', $currentAcademicYear->id)
-                            ->orWhereNull('student_section_assignments.academic_year_id');
-                    });
-                }
+                $query->where('sections.id', $selectedSectionId)
+                    ->where('student_section_assignments.academic_year_id', $currentAcademicYear->id);
             })
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get();
 
-            if ($students->isEmpty()) {
-                $students = Student::whereHas('sections', function ($query) use ($selectedSectionId) {
-                    $query->where('sections.id', $selectedSectionId);
-                })
-                    ->orderBy('last_name')
-                    ->orderBy('first_name')
-                    ->get();
-            }
+            $selectedSection = $sections->firstWhere('id', (int) $selectedSectionId);
+            $descriptive = \App\Support\DescriptiveScale::isDescriptiveGradeLevel($selectedSection?->grade_level);
 
             if ($students->isNotEmpty() && $sectionSubjects->isNotEmpty()) {
-                $quarterField = 'quarter_' . $selectedQuarter;
+                $quarterField = $descriptive ? 'q'.$selectedQuarter.'_level' : 'quarter_'.$selectedQuarter;
                 $rows = QuarterlyGrade::where('academic_year_id', $currentAcademicYear->id)
                     ->whereIn('subject_id', $sectionSubjects->pluck('id'))
                     ->whereIn('student_id', $students->pluck('id'))
@@ -100,6 +89,8 @@ class GradingController extends Controller
                     $gradeMap[$row->student_id . '_' . $row->subject_id] = $row->{$quarterField};
                 }
             }
+        } else {
+            $descriptive = false;
         }
 
         $step = $request->get('step', 'grades'); // grades | observed | summary
@@ -126,6 +117,23 @@ class GradingController extends Controller
             }
 
             foreach ($students as $student) {
+                if ($descriptive) {
+                    $filled = 0;
+                    foreach ($sectionSubjects as $subject) {
+                        $val = $gradeMap[$student->id . '_' . $subject->id] ?? null;
+                        if ($val !== null && $val !== '') {
+                            $filled++;
+                        }
+                    }
+                    $studentQuarterSummaries[$student->id] = [
+                        'average' => null,
+                        'remark' => null,
+                        'filled' => $filled,
+                        'missing' => $sectionSubjects->count() - $filled,
+                    ];
+                    continue;
+                }
+
                 $scores = [];
                 foreach ($sectionSubjects as $subject) {
                     $val = $gradeMap[$student->id . '_' . $subject->id] ?? null;
@@ -138,7 +146,21 @@ class GradingController extends Controller
                     'average' => $avg,
                     'remark' => \App\Services\ReportCardService::remarkForScore($avg),
                     'descriptor' => \App\Services\ReportCardService::descriptorForScore($avg),
+                    'filled' => count($scores),
+                    'missing' => $sectionSubjects->count() - count($scores),
                 ];
+            }
+        }
+
+        $expectedCount = $students->count() * $sectionSubjects->count();
+        $gradedCount = collect($gradeMap)->filter(fn ($value) => $value !== null && $value !== '')->count();
+        $levelCounts = array_fill_keys(\App\Support\DescriptiveScale::letters(), 0);
+        if ($descriptive) {
+            foreach ($gradeMap as $value) {
+                $letter = strtoupper((string) $value);
+                if (isset($levelCounts[$letter])) {
+                    $levelCounts[$letter]++;
+                }
             }
         }
 
@@ -157,7 +179,8 @@ class GradingController extends Controller
             'sections' => $sections,
             'subjectsBySection' => $subjectsBySection,
             'sectionSubjects' => $sectionSubjects,
-            'academicYears' => $academicYears,
+            'academicYears' => collect(),
+            'currentPeriod' => $currentPeriod,
             'currentAcademicYear' => $currentAcademicYear,
             'selectedSectionId' => $selectedSectionId,
             'selectedQuarter' => $selectedQuarter,
@@ -170,12 +193,18 @@ class GradingController extends Controller
             'hasQuarterGrades' => $hasQuarterGrades,
             'hasObservedForQuarter' => $hasObservedForQuarter,
             'studentQuarterSummaries' => $studentQuarterSummaries,
+            'descriptive' => $descriptive,
+            'levelCounts' => $levelCounts,
+            'gradedCount' => $gradedCount,
+            'expectedCount' => $expectedCount,
+            'descriptiveScale' => \App\Support\DescriptiveScale::LEVELS,
         ]);
     }
     
     // Load Students via AJAX (for loading existing grades)
     public function loadStudents(Request $request)
     {
+        GradeEncoding::authorize($request);
         $teacher = Auth::user()->teacher;
 
         if (!$teacher) {
@@ -396,15 +425,15 @@ class GradingController extends Controller
     // Store Quarterly Grades — one quarter across many subjects
     public function storeQuarterlyGrades(Request $request)
     {
+        GradeEncoding::authorize($request);
         try {
             $request->validate([
                 'section_id' => 'required|exists:sections,id',
-                'quarter' => 'required|integer|in:1,2,3,4',
-                'academic_year_id' => 'required|exists:academic_years,id',
                 'grades' => 'required|array|min:1',
                 'grades.*.student_id' => 'required|exists:students,id',
                 'grades.*.subject_id' => 'required|exists:subjects,id',
-                'grades.*.score' => 'nullable|numeric|min:0|max:100',
+                'grades.*.score' => 'nullable',
+                'grades.*.level' => 'nullable|string|max:1',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation error saving quarterly grades', [
@@ -431,23 +460,35 @@ class GradingController extends Controller
         }
 
         $sectionId = (int) $request->section_id;
-        $quarter = (int) $request->quarter;
+        $year = AcademicYear::active();
+        $currentPeriod = \App\Support\SchoolQuarter::current($year);
+        if (! $year || ! $currentPeriod) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Grades can only be saved for the current quarter of the current academic year.',
+            ], 422);
+        }
+        $quarter = (int) $currentPeriod['number'];
         $quarterField = 'quarter_' . $quarter;
-        $academicYearId = (int) $request->academic_year_id;
+        $academicYearId = (int) $year->id;
 
-        $allowed = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher);
+        $allowed = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher, $academicYearId);
         $allowedSectionIds = $allowed['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
         $validSubjectIds = array_map('intval', $allowed['subjectsBySection'][$sectionId] ?? []);
 
         if (! in_array($sectionId, $allowedSectionIds, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You are not assigned to this section.',
+                'message' => 'You are not assigned to this section for the selected academic year.',
             ], 403);
         }
 
-        $sectionStudentIds = \App\Models\Student::whereHas('sections', function ($q) use ($sectionId) {
-            $q->where('sections.id', $sectionId);
+        $section = Section::find($sectionId);
+        $descriptive = \App\Support\DescriptiveScale::isDescriptiveGradeLevel($section?->grade_level);
+
+        $sectionStudentIds = \App\Models\Student::whereHas('sections', function ($q) use ($sectionId, $academicYearId) {
+            $q->where('sections.id', $sectionId)
+                ->where('student_section_assignments.academic_year_id', $academicYearId);
         })->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         $semesterId = $request->semester_id
@@ -471,11 +512,46 @@ class GradingController extends Controller
                     continue;
                 }
 
-                if (! array_key_exists('score', $gradeData) || $gradeData['score'] === '' || $gradeData['score'] === null) {
-                    continue;
+                if ($descriptive) {
+                    if (array_key_exists('score', $gradeData) && $gradeData['score'] !== '' && $gradeData['score'] !== null) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Numerical grades are not accepted for Nursery through Grade 3.',
+                        ], 422);
+                    }
+                    $level = strtoupper(trim((string) ($gradeData['level'] ?? '')));
+                    if ($level === '') {
+                        continue;
+                    }
+                    if (! \App\Support\DescriptiveScale::get($level)) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Assessment must be A, B, C, D, or E.',
+                        ], 422);
+                    }
+                } else {
+                    $postedLevel = strtoupper(trim((string) ($gradeData['level'] ?? '')));
+                    if ($postedLevel !== '') {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Descriptive assessments are not accepted for Grade 4 through Grade 10.',
+                        ], 422);
+                    }
+                    if (! array_key_exists('score', $gradeData) || $gradeData['score'] === '' || $gradeData['score'] === null) {
+                        continue;
+                    }
+                    if (! is_numeric($gradeData['score']) || (float) $gradeData['score'] < 0 || (float) $gradeData['score'] > 100) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Grades must be numbers from 0 to 100.',
+                        ], 422);
+                    }
+                    $level = null;
                 }
-
-                $score = (float) $gradeData['score'];
 
                 $quarterlyGrade = QuarterlyGrade::firstOrNew([
                     'student_id' => $gradeData['student_id'],
@@ -487,21 +563,32 @@ class GradingController extends Controller
                     $quarterlyGrade->teacher_id = $teacher->id;
                 }
 
-                $quarterlyGrade->{$quarterField} = $score;
+                if ($descriptive) {
+                    $quarterlyGrade->{'q'.$quarter.'_level'} = $level;
+                    $quarterlyGrade->{$quarterField} = null;
+                } else {
+                    $quarterlyGrade->{$quarterField} = (float) $gradeData['score'];
+                    $quarterlyGrade->{'q'.$quarter.'_level'} = null;
+                }
                 $quarterlyGrade->teacher_id = $teacher->id;
                 $quarterlyGrade->final_grade = $quarterlyGrade->calculateFinalGrade();
 
-                if (empty($quarterlyGrade->remarks) && $quarterlyGrade->final_grade !== null) {
+                if (! $descriptive && empty($quarterlyGrade->remarks) && $quarterlyGrade->final_grade !== null) {
                     $quarterlyGrade->remarks = $quarterlyGrade->getRemarks();
+                }
+                if ($descriptive) {
+                    $quarterlyGrade->remarks = null;
                 }
 
                 $quarterlyGrade->save();
-                $savedQuarterlyGrades[] = $quarterlyGrade;
+                if (! $descriptive) {
+                    $savedQuarterlyGrades[] = $quarterlyGrade;
+                }
                 $touchedSubjectIds[$subjectId] = true;
                 $savedCount++;
             }
 
-            if ($savedCount > 0 && $semesterId) {
+            if ($savedQuarterlyGrades && $semesterId) {
                 $gradesForSync = $savedQuarterlyGrades;
                 $touched = array_keys($touchedSubjectIds);
                 $yearId = $academicYearId;
@@ -526,7 +613,9 @@ class GradingController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "Successfully saved {$savedCount} grade(s) for Quarter {$quarter}."
+                'message' => $descriptive
+                    ? "Successfully saved {$savedCount} assessment(s) for {$currentPeriod['label']}."
+                    : "Successfully saved {$savedCount} grade(s) for {$currentPeriod['label']}."
             ]);
         } catch (\Exception $e) {
             DB::rollback();
@@ -543,9 +632,76 @@ class GradingController extends Controller
         }
     }
 
+    public function progress(Request $request)
+    {
+        if (! auth()->user()->hasRole(\App\Models\User::ROLE_ADMIN)) {
+            abort(403);
+        }
+
+        $academicYear = AcademicYear::active();
+        $periods = \App\Support\SchoolQuarter::periods($academicYear);
+        $periodNumbers = array_column($periods, 'number');
+        $quarter = (int) $request->get('quarter', 0);
+        if (! in_array($quarter, $periodNumbers, true)) {
+            $quarter = (int) (\App\Support\SchoolQuarter::current($academicYear)['number'] ?? ($periodNumbers[0] ?? 0));
+        }
+
+        $rows = collect();
+        if ($academicYear) {
+            $schedules = \App\Models\ClassSchedule::with(['section', 'subject', 'teacher.user'])
+                ->where('academic_year_id', $academicYear->id)
+                ->where('is_active', true)
+                ->get()
+                ->unique(fn ($row) => $row->section_id.'-'.$row->subject_id);
+
+            $placements = DB::table('student_section_assignments')
+                ->where('academic_year_id', $academicYear->id)
+                ->get(['section_id', 'student_id']);
+            $studentsBySection = $placements->groupBy('section_id')->map(fn ($group) => $group->pluck('student_id')->map(fn ($id) => (int) $id)->unique());
+
+            $grades = QuarterlyGrade::where('academic_year_id', $academicYear->id)->get();
+            $levelField = 'q'.$quarter.'_level';
+            $scoreField = 'quarter_'.$quarter;
+
+            foreach ($schedules as $schedule) {
+                $section = $schedule->section;
+                $descriptive = \App\Support\DescriptiveScale::isDescriptiveGradeLevel($section?->grade_level);
+                $studentIds = $studentsBySection->get($schedule->section_id, collect());
+                $total = $studentIds->count();
+                $done = $grades->filter(function ($grade) use ($schedule, $descriptive, $levelField, $scoreField, $studentIds) {
+                    if ((int) $grade->subject_id !== (int) $schedule->subject_id || ! $studentIds->contains((int) $grade->student_id)) {
+                        return false;
+                    }
+                    $value = $descriptive ? $grade->{$levelField} : $grade->{$scoreField};
+
+                    return $value !== null && $value !== '';
+                })->count();
+                $rows->push([
+                    'grade' => $section->grade_level ?? '—',
+                    'section' => $section->name ?? '—',
+                    'subject' => $schedule->subject->subject_name ?? '—',
+                    'teacher' => $schedule->teacher->user->name ?? '—',
+                    'method' => $descriptive ? 'Descriptive' : 'Numerical',
+                    'done' => $done,
+                    'total' => $total,
+                    'status' => $total === 0 ? 'Not Started' : ($done === 0 ? 'Not Started' : ($done >= $total ? 'Complete' : 'In Progress')),
+                ]);
+            }
+        }
+
+        return view('grading.progress', [
+            'academicYear' => $academicYear,
+            'quarter' => $quarter,
+            'periods' => $periods,
+            'currentQuarter' => (int) (\App\Support\SchoolQuarter::current($academicYear)['number'] ?? 0),
+            'rows' => $rows->sortBy(['grade', 'section', 'subject'])->values(),
+        ]);
+    }
+
     // Store Grades (Legacy - for component-based grading)
     public function storeGrades(Request $request)
     {
+        GradeEncoding::authorize($request);
         try {
             $request->validate([
                 'subject_id' => 'required|exists:subjects,id',
@@ -620,6 +776,20 @@ class GradingController extends Controller
                 'success' => false,
                 'message' => 'The selected component does not belong to this subject.'
             ], 403);
+        }
+
+        $postedStudentIds = collect($request->grades)->pluck('student_id')->map(fn ($id) => (int) $id)->filter()->all();
+        $descriptiveStudent = DB::table('student_section_assignments')
+            ->join('sections', 'sections.id', '=', 'student_section_assignments.section_id')
+            ->where('student_section_assignments.academic_year_id', $request->academic_year_id)
+            ->whereIn('student_section_assignments.student_id', $postedStudentIds)
+            ->get(['student_section_assignments.student_id', 'sections.grade_level'])
+            ->first(fn ($row) => \App\Support\DescriptiveScale::isDescriptiveGradeLevel($row->grade_level));
+        if ($descriptiveStudent) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Numerical grades are not accepted for Nursery through Grade 3.',
+            ], 422);
         }
 
         $teacherId = $teacher->id;
@@ -842,6 +1012,7 @@ class GradingController extends Controller
     // Store Weight Settings
     public function storeWeightSettings(Request $request)
     {
+        GradeEncoding::authorize($request);
         $request->validate([
             'subject_id' => 'required|exists:subjects,id',
             'academic_year_id' => 'required|exists:academic_years,id',

@@ -86,9 +86,8 @@
     </div>
     <div class="ep-card-body">
         @if(!empty($enrollmentClosedMessage))
-            <div class="ep-alert ep-alert-warning mb-4">
+            <div class="ep-alert ep-alert-warning mb-0">
                 <strong>Academic Year:</strong> {{ $academicYear?->displayName() ?? 'None' }}<br>
-                <strong>Enrollment Status:</strong> CLOSED<br>
                 {{ $enrollmentClosedMessage }}
             </div>
         @else
@@ -96,7 +95,6 @@
                 <strong>Academic Year:</strong> {{ $academicYear?->displayName() ?? 'None' }}<br>
                 <strong>Enrollment Status:</strong> OPEN
             </div>
-        @endif
         <div class="ep-alert ep-alert-info mb-4">
             <i class="fas fa-info-circle me-2"></i>
             <strong>Choose your section</strong> to complete enrollment. Sections are assigned based on your grade level.
@@ -174,6 +172,7 @@
                 <i class="fas fa-exclamation-triangle me-2"></i>
                 No sections are currently available for {{ $student->year_level }}. Please contact the registrar.
             </div>
+        @endif
         @endif
     </div>
 </div>

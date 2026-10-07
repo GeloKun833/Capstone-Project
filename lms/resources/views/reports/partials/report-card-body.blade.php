@@ -139,11 +139,11 @@
                             <td class="left {{ $isChild ? 'indent' : '' }}">
                                 @if($isParent)<strong>{{ $subjName }}</strong>@else{{ $subjName }}@endif
                             </td>
-                            @foreach(['quarter_1','quarter_2','quarter_3','quarter_4'] as $qf)
-                                <td class="center">{{ $row->{$qf} !== null ? number_format((float)$row->{$qf}, 0) : '' }}</td>
+                            @foreach([1, 2, 3, 4] as $quarter)
+                                <td class="center" title="{{ $row->quarterCaption($quarter) }}">{{ $row->presentQuarter($quarter) === '—' ? '' : $row->presentQuarter($quarter) }}</td>
                             @endforeach
-                            <td class="center">{{ $row->final_grade !== null ? number_format((float)$row->final_grade, 0) : '' }}</td>
-                            <td class="center">{{ $row->final_grade !== null ? $remark : '' }}</td>
+                            <td class="center">{{ $row->usesDescriptive() ? '' : ($row->final_grade !== null ? number_format((float)$row->final_grade, 0) : '') }}</td>
+                            <td class="center">{{ $row->usesDescriptive() ? $row->presentQuarter(1, true) : ($row->final_grade !== null ? $remark : '') }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="7" class="center">No grades recorded.</td></tr>

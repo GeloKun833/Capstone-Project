@@ -34,13 +34,27 @@ class SectionScheduleReadiness
         $requiredIds = $section
             ? $section->subjects->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()
             : collect();
+        if ($requiredIds->isEmpty() && $section?->grade_level) {
+            $requiredIds = app(GradeSubjectCatalogService::class)
+                ->subjectsForGrade($section->grade_level)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+        }
+        $sectionLabel = $this->sectionLabel($section);
+        $base = [
+            'section_label' => $sectionLabel,
+            'required_subjects' => $requiredIds->count(),
+            'scheduled_subjects' => 0,
+        ];
 
         if ($requiredIds->isEmpty()) {
-            return $this->payload(self::SUBJECTS_MISSING, $yearName);
+            return $this->payload(self::SUBJECTS_MISSING, $yearName, $base);
         }
 
         if (! $yearId) {
-            return $this->payload(self::NOT_PLOTTED, $yearName);
+            return $this->payload(self::NOT_PLOTTED, $yearName, $base);
         }
 
         $schedules = ClassSchedule::query()
@@ -49,30 +63,28 @@ class SectionScheduleReadiness
             ->get();
 
         $active = $schedules->where('is_active', true)->values();
+        $coveredIds = $active->pluck('subject_id')->map(fn ($id) => (int) $id)->unique()->values();
+        $base['scheduled_subjects'] = $requiredIds->intersect($coveredIds)->count();
+
         if ($schedules->isEmpty() || $active->isEmpty()) {
-            return $this->payload(self::NOT_PLOTTED, $yearName);
+            return $this->payload(self::NOT_PLOTTED, $yearName, $base);
         }
 
         foreach ($active as $schedule) {
             if (! $this->rowIsComplete($schedule)) {
-                return $this->payload(self::INCOMPLETE, $yearName);
+                return $this->payload(self::INCOMPLETE, $yearName, $base);
             }
         }
 
-        $coveredIds = $active->pluck('subject_id')->map(fn ($id) => (int) $id)->unique()->values();
         if ($requiredIds->diff($coveredIds)->isNotEmpty()) {
-            return $this->payload(self::INCOMPLETE, $yearName);
+            return $this->payload(self::INCOMPLETE, $yearName, $base);
         }
 
         if ($this->hasConflicts($active, $yearId)) {
-            return $this->payload(self::CONFLICT, $yearName);
+            return $this->payload(self::CONFLICT, $yearName, $base);
         }
 
-        if ($active->contains(fn ($schedule) => ! $schedule->is_finalized)) {
-            return $this->payload(self::NOT_FINALIZED, $yearName);
-        }
-
-        return $this->payload(self::READY, $yearName);
+        return $this->payload(self::READY, $yearName, $base);
     }
 
     public function enrollmentAllowed(int $sectionId): bool
@@ -83,16 +95,7 @@ class SectionScheduleReadiness
 
     public function yearEnrollmentBlock(): ?string
     {
-        $year = AcademicYear::active();
-        if (! $year) {
-            return 'Enrollment is unavailable because there is no active Academic Year.';
-        }
-
-        if (! $year->enrollment_open) {
-            return 'Enrollment is currently closed for Academic Year '.$year->displayName().'.';
-        }
-
-        return null;
+        return app(EnrollmentReadiness::class)->studentMessage();
     }
 
     public function gradeHasEnrollableSection(string $gradeLevel): bool
@@ -125,11 +128,11 @@ class SectionScheduleReadiness
         }
 
         $sentence = match ($status['status']) {
-            self::INCOMPLETE => 'The schedule for this section is incomplete.',
+            self::INCOMPLETE => 'The class schedule for '.($status['section_label'] ?: 'this section').' is incomplete. '.(int) ($status['scheduled_subjects'] ?? 0).' of '.(int) ($status['required_subjects'] ?? 0).' required subjects have been scheduled.',
             self::NOT_FINALIZED => 'The schedule for this section has not been finalized.',
             self::CONFLICT => 'This section has unresolved schedule conflicts.',
             self::SUBJECTS_MISSING => 'This section does not have its subjects assigned yet.',
-            default => 'The schedule for this section has not been configured or finalized yet. Please wait until the class schedule has been finalized before proceeding with enrollment.',
+            default => 'Enrollment is not yet available because the class schedule has not been completed. Please complete and finalize the class schedule first.',
         };
 
         if ($childName) {
@@ -210,7 +213,26 @@ class SectionScheduleReadiness
         return false;
     }
 
-    private function payload(string $status, ?string $academicYear): array
+    private function sectionLabel(?Section $section): string
+    {
+        if (! $section) {
+            return 'this section';
+        }
+
+        $name = trim((string) $section->name);
+        $grade = trim((string) $section->grade_level);
+        if ($name === '') {
+            return $grade !== '' ? $grade : 'this section';
+        }
+
+        if ($grade !== '' && ! str_contains($name, $grade)) {
+            return $grade.' '.$name;
+        }
+
+        return $name;
+    }
+
+    private function payload(string $status, ?string $academicYear, array $extra = []): array
     {
         $labels = [
             self::NOT_PLOTTED => 'Not Plotted',
@@ -221,12 +243,16 @@ class SectionScheduleReadiness
             self::READY => 'Ready for Enrollment',
         ];
 
-        return [
+        return array_merge([
+            'section_label' => null,
+            'required_subjects' => 0,
+            'scheduled_subjects' => 0,
+        ], $extra, [
             'status' => $status,
             'label' => $labels[$status],
             'enrollment_allowed' => $status === self::READY,
             'academic_year' => $academicYear,
             'message' => $labels[$status],
-        ];
+        ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\Enrollment;
 use App\Models\Student;
@@ -38,29 +39,38 @@ class AttendanceController extends Controller
     public function index(Request $request)
     {
         $teacher = auth()->user()->teacher;
+        $isAdmin = auth()->user()->hasRole(User::ROLE_ADMIN);
         $classes = collect();
         $students = collect();
         $existing = [];
-        $summary = [];
+        $daySummary = [
+            'total' => 0, 'present' => 0, 'absent' => 0, 'unmarked' => 0, 'percentage' => 0,
+        ];
+
+        $academicYear = AcademicYear::active();
+        $yearId = $academicYear?->id;
+        $clock = now('Asia/Manila');
 
         $sectionId = (int) $request->input('section_id');
         $subjectId = (int) $request->input('subject_id');
-        $date = $request->input('date', now()->toDateString());
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
-            $date = now()->toDateString();
-        }
+        $gradeFilter = (string) $request->input('grade_level', '');
+        $teacherFilter = (int) $request->input('teacher_id');
+        $search = trim((string) $request->input('search', ''));
+        $date = $clock->toDateString();
+        $nowTime = $clock->format('H:i');
 
         if ($request->filled('class') && str_contains($request->input('class'), '_')) {
             [$sectionId, $subjectId] = array_map('intval', explode('_', $request->input('class'), 2));
         }
 
-        if ($teacher) {
-            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+        if ($teacher && $yearId) {
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher, $yearId);
             $subjectIds = collect($options['subjectsBySection'])->flatten()->unique()->filter()->values();
-            $sectionIds = collect(array_keys($options['subjectsBySection']));
+            $sectionIds = collect(array_keys($options['subjectsBySection']))->map(fn ($id) => (int) $id);
+            $allowedSectionIds = Section::forAcademicYear($yearId)->whereIn('id', $sectionIds)->pluck('id')->map(fn ($id) => (int) $id)->all();
 
             $subjectModels = Subject::whereIn('id', $subjectIds)->orderBy('subject_name')->get()->keyBy('id');
-            $sectionModels = Section::whereIn('id', $sectionIds)->orderBy('name')->get()->keyBy('id');
+            $sectionModels = Section::whereIn('id', $allowedSectionIds)->orderBy('name')->get()->keyBy('id');
 
             foreach ($options['subjectsBySection'] as $sid => $subjIds) {
                 $section = $sectionModels->get((int) $sid);
@@ -76,17 +86,22 @@ class AttendanceController extends Controller
                         'key' => $section->id . '_' . $subject->id,
                         'section_id' => $section->id,
                         'subject_id' => $subject->id,
-                        'label' => $section->name . ' · ' . $subject->subject_name,
+                        'grade' => (string) ($section->grade_level ?? ''),
+                        'section_name' => $section->name,
+                        'subject_name' => $subject->subject_name,
+                        'teacher_id' => $teacher->id,
+                        'teacher_name' => '',
+                        'label' => trim(($section->grade_level ? $section->grade_level . ' · ' : '') . $section->name . ' · ' . $subject->subject_name),
                     ]);
                 }
             }
             $classes = $classes->sortBy('label')->values();
-        } else {
-            $yearId = app(\App\Services\AcademicYearContext::class)->viewing()?->id;
-            $pairs = \App\Models\ClassSchedule::query()
-                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+        } elseif ($isAdmin && $yearId) {
+            $pairs = ClassSchedule::query()
+                ->with(['teacher.user:user_id,name'])
+                ->where('academic_year_id', $yearId)
                 ->where('is_active', true)
-                ->get(['section_id', 'subject_id'])
+                ->get()
                 ->unique(fn ($row) => $row->section_id.'-'.$row->subject_id);
             $sectionModels = Section::whereIn('id', $pairs->pluck('section_id')->filter()->unique())->orderBy('name')->get()->keyBy('id');
             $subjectModels = Subject::whereIn('id', $pairs->pluck('subject_id')->filter()->unique())->orderBy('subject_name')->get()->keyBy('id');
@@ -96,13 +111,33 @@ class AttendanceController extends Controller
                 if (! $section || ! $subject) {
                     continue;
                 }
+                $teacherName = trim((string) ($pair->teacher?->user?->name ?? ''));
                 $classes->push([
                     'key' => $section->id . '_' . $subject->id,
                     'section_id' => $section->id,
                     'subject_id' => $subject->id,
-                    'label' => $section->name . ' · ' . $subject->subject_name,
+                    'grade' => (string) ($section->grade_level ?? ''),
+                    'section_name' => $section->name,
+                    'subject_name' => $subject->subject_name,
+                    'teacher_id' => (int) $pair->teacher_id,
+                    'teacher_name' => $teacherName,
+                    'label' => trim(($section->grade_level ? $section->grade_level . ' · ' : '') . $section->name . ' · ' . $subject->subject_name . ($teacherName ? ' · ' . $teacherName : '')),
                 ]);
             }
+            $classes = $classes->sortBy('label')->values();
+        }
+
+        $grades = $classes->pluck('grade')->filter()->unique()->sort()->values();
+        $teacherOptions = $classes
+            ->filter(fn ($class) => $class['teacher_id'] && $class['teacher_name'] !== '')
+            ->unique('teacher_id')
+            ->sortBy('teacher_name')
+            ->values();
+        if ($gradeFilter !== '') {
+            $classes = $classes->filter(fn ($class) => $class['grade'] === $gradeFilter)->values();
+        }
+        if ($isAdmin && $teacherFilter) {
+            $classes = $classes->filter(fn ($class) => (int) $class['teacher_id'] === $teacherFilter)->values();
         }
 
         if ($classes->count() === 1 && ! $sectionId && ! $subjectId) {
@@ -110,47 +145,54 @@ class AttendanceController extends Controller
             $subjectId = (int) $classes->first()['subject_id'];
         }
 
+        $dateOutsideYear = false;
+        if ($academicYear?->start_date && $date < $academicYear->start_date->toDateString()) {
+            $dateOutsideYear = true;
+        }
+        if ($academicYear?->end_date && $date > $academicYear->end_date->toDateString()) {
+            $dateOutsideYear = true;
+        }
+
         $selectedKey = ($sectionId && $subjectId) ? $sectionId . '_' . $subjectId : '';
-        $ready = $sectionId > 0 && $subjectId > 0;
+        $classAllowed = $classes->contains(fn ($class) => $class['key'] === $selectedKey);
+        $ready = $sectionId > 0 && $subjectId > 0 && $classAllowed && $yearId;
 
         if ($ready) {
-            $yearId = app(\App\Services\AcademicYearContext::class)->viewing()?->id;
             $students = Student::whereHas('sections', function ($query) use ($sectionId, $yearId) {
-                $query->where('sections.id', $sectionId);
-                if ($yearId) {
-                    $query->where('student_section_assignments.academic_year_id', $yearId);
-                }
+                $query->where('sections.id', $sectionId)
+                    ->where('student_section_assignments.academic_year_id', $yearId);
             })->orderBy('last_name')->orderBy('first_name')->get();
 
-            $dayRecords = Attendance::query()
+            $dayRecords = $dateOutsideYear
+                ? collect()
+                : Attendance::query()
                 ->where('subject_id', $subjectId)
                 ->whereDate('date', $date)
-                ->when($teacher, fn ($q) => $q->where('teacher_id', $teacher->id))
                 ->whereIn('student_id', $students->pluck('id')->all() ?: [0])
                 ->get()
                 ->keyBy('student_id');
 
             foreach ($dayRecords as $studentId => $row) {
                 $existing[$studentId] = [
-                    'status' => $row->status,
+                    'status' => in_array($row->status, ['present', 'absent'], true) ? $row->status : '',
                     'remarks' => $row->remarks,
+                    'id' => $row->id,
+                    'time_in' => $row->time_in ? substr((string) $row->time_in, 0, 5) : '',
                 ];
             }
 
-            $monthStart = \Carbon\Carbon::parse($date)->startOfMonth()->toDateString();
-            $monthEnd = \Carbon\Carbon::parse($date)->endOfMonth()->toDateString();
-            $monthRows = Attendance::query()
-                ->where('subject_id', $subjectId)
-                ->whereBetween('date', [$monthStart, $monthEnd])
-                ->when($teacher, fn ($q) => $q->where('teacher_id', $teacher->id))
-                ->whereIn('student_id', $students->pluck('id')->all() ?: [0])
-                ->get()
-                ->groupBy('student_id');
-
             foreach ($students as $student) {
-                $rows = $monthRows->get($student->id, collect());
-                $summary[$student->id] = Attendance::summarize($rows);
+                $status = $existing[$student->id]['status'] ?? null;
+                $daySummary['total']++;
+                if ($status && isset($daySummary[$status])) {
+                    $daySummary[$status]++;
+                } else {
+                    $daySummary['unmarked']++;
+                }
             }
+            $daySummary['percentage'] = $daySummary['total'] > 0
+                ? round(($daySummary['present'] / $daySummary['total']) * 100, 1)
+                : 0;
         }
 
         $selectedSection = $sectionId ? (Section::find($sectionId)?->name) : null;
@@ -160,14 +202,23 @@ class AttendanceController extends Controller
             'classes',
             'students',
             'existing',
-            'summary',
+            'daySummary',
             'sectionId',
             'subjectId',
             'date',
             'selectedKey',
             'ready',
             'selectedSection',
-            'selectedSubject'
+            'selectedSubject',
+            'academicYear',
+            'nowTime',
+            'grades',
+            'gradeFilter',
+            'teacherOptions',
+            'teacherFilter',
+            'search',
+            'isAdmin',
+            'dateOutsideYear'
         ));
     }
 
@@ -179,6 +230,115 @@ class AttendanceController extends Controller
         return redirect()->route('attendance.index', $request->only(['section_id', 'subject_id', 'date', 'class']));
     }
 
+    public function report(Request $request)
+    {
+        $request->validate([
+            'section_id' => 'required|exists:sections,id',
+            'subject_id' => 'required|exists:subjects,id',
+            'period' => 'nullable|in:weekly,monthly',
+        ]);
+
+        $period = $request->input('period') === 'monthly' ? 'monthly' : 'weekly';
+        $academicYear = AcademicYear::active();
+        if (! $academicYear) {
+            return redirect()->route('attendance.index')->with('error', 'Set a current academic year before viewing attendance.');
+        }
+
+        $sectionId = (int) $request->section_id;
+        $subjectId = (int) $request->subject_id;
+        $user = auth()->user();
+        $teacher = $user->teacher;
+        $allowed = false;
+
+        if ($teacher) {
+            $pairs = app(TeacherClassAssignmentService::class)->optionsFor($teacher, $academicYear->id);
+            $allowedSubjects = $pairs['subjectsBySection'][$sectionId] ?? [];
+            $allowed = in_array($subjectId, array_map('intval', $allowedSubjects), true);
+        } elseif ($user->hasRole(User::ROLE_ADMIN)) {
+            $allowed = ClassSchedule::query()
+                ->where('section_id', $sectionId)
+                ->where('subject_id', $subjectId)
+                ->where('academic_year_id', $academicYear->id)
+                ->where('is_active', true)
+                ->exists();
+        }
+
+        if (! $allowed || ! Section::forAcademicYear($academicYear->id)->whereKey($sectionId)->exists()) {
+            abort(403, 'You can only view attendance reports for classes in the current academic year.');
+        }
+
+        $clock = now('Asia/Manila');
+        $rangeStart = $period === 'weekly'
+            ? $clock->copy()->startOfWeek(\Carbon\Carbon::MONDAY)
+            : $clock->copy()->startOfMonth();
+        $rangeEnd = $period === 'weekly'
+            ? $clock->copy()->endOfWeek(\Carbon\Carbon::SUNDAY)
+            : $clock->copy()->endOfMonth();
+
+        if ($academicYear->start_date && $rangeStart->lt($academicYear->start_date)) {
+            $rangeStart = $academicYear->start_date->copy()->startOfDay();
+        }
+        if ($academicYear->end_date && $rangeEnd->gt($academicYear->end_date)) {
+            $rangeEnd = $academicYear->end_date->copy()->endOfDay();
+        }
+
+        $days = [];
+        for ($day = $rangeStart->copy()->startOfDay(); $day->lte($rangeEnd->copy()->startOfDay()); $day->addDay()) {
+            $days[] = $day->copy();
+        }
+
+        $section = Section::find($sectionId);
+        $subject = Subject::find($subjectId);
+        $students = Student::whereHas('sections', function ($query) use ($sectionId, $academicYear) {
+            $query->where('sections.id', $sectionId)
+                ->where('student_section_assignments.academic_year_id', $academicYear->id);
+        })->orderBy('last_name')->orderBy('first_name')->get();
+
+        $records = Attendance::query()
+            ->where('subject_id', $subjectId)
+            ->whereBetween('date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+            ->whereIn('student_id', $students->pluck('id')->all() ?: [0])
+            ->get()
+            ->groupBy(fn ($row) => $row->student_id.'|'.$row->date->toDateString());
+
+        $rows = [];
+        foreach ($students as $student) {
+            $present = 0;
+            $absent = 0;
+            $cells = [];
+            foreach ($days as $day) {
+                $record = $records->get($student->id.'|'.$day->toDateString())?->first();
+                $cells[$day->toDateString()] = $record;
+                if ($record?->status === 'present') {
+                    $present++;
+                } elseif ($record?->status === 'absent') {
+                    $absent++;
+                }
+            }
+            $marked = $present + $absent;
+            $rows[] = [
+                'student' => $student,
+                'cells' => $cells,
+                'present' => $present,
+                'absent' => $absent,
+                'rate' => $marked > 0 ? round(($present / $marked) * 100, 1) : 0,
+            ];
+        }
+
+        return view('attendance.report', compact(
+            'period',
+            'academicYear',
+            'section',
+            'subject',
+            'days',
+            'rows',
+            'rangeStart',
+            'rangeEnd',
+            'sectionId',
+            'subjectId'
+        ));
+    }
+
     public function studentView(Request $request)
     {
         $student = auth()->user()->student;
@@ -186,8 +346,14 @@ class AttendanceController extends Controller
             abort(403, 'Only students can view their attendance.');
         }
 
-        $subjects = \App\Models\Enrollment::where('student_id', $student->id)
+        $academicYears = AcademicYear::query()->orderByDesc('start_date')->orderByDesc('id')->get();
+        $academicYear = $request->filled('academic_year_id')
+            ? $academicYears->firstWhere('id', (int) $request->input('academic_year_id'))
+            : AcademicYear::active();
+
+        $subjects = Enrollment::where('student_id', $student->id)
             ->where('status', 'active')
+            ->when($academicYear, fn ($query) => $query->where('academic_year_id', $academicYear->id))
             ->with('subject:id,subject_name,class')
             ->get()
             ->pluck('subject')
@@ -206,6 +372,25 @@ class AttendanceController extends Controller
         $query = Attendance::where('student_id', $student->id)
             ->whereYear('date', $year)
             ->whereMonth('date', $monthNum)
+            ->when($academicYear?->start_date, fn ($rows) => $rows->whereDate('date', '>=', $academicYear->start_date))
+            ->when($academicYear?->end_date, fn ($rows) => $rows->whereDate('date', '<=', $academicYear->end_date))
+            ->when($academicYear, function ($rows) use ($student, $academicYear) {
+                $sectionSubjects = \App\Models\ClassSchedule::query()
+                    ->where('academic_year_id', $academicYear->id)
+                    ->whereIn('section_id', \Illuminate\Support\Facades\DB::table('student_section_assignments')
+                        ->where('student_id', $student->id)
+                        ->where('academic_year_id', $academicYear->id)
+                        ->select('section_id'))
+                    ->select('subject_id');
+                $rows->where(function ($match) use ($student, $academicYear, $sectionSubjects) {
+                    $match->whereIn('subject_id', Enrollment::query()
+                        ->where('student_id', $student->id)
+                        ->where('academic_year_id', $academicYear->id)
+                        ->where('status', 'active')
+                        ->select('subject_id'))
+                        ->orWhereIn('subject_id', $sectionSubjects);
+                });
+            })
             ->with(['subject', 'teacher']);
 
         if ($subjectId = $request->input('subject_id')) {
@@ -215,7 +400,7 @@ class AttendanceController extends Controller
         $attendances = $query->orderBy('date', 'desc')->get();
         $summary = Attendance::summarize($attendances);
 
-        return view('attendance.student_view', compact('student', 'subjects', 'attendances', 'summary', 'month'));
+        return view('attendance.student_view', compact('student', 'subjects', 'attendances', 'summary', 'month', 'academicYear', 'academicYears'));
     }
 
     public function parentView(Request $request)
@@ -229,6 +414,11 @@ class AttendanceController extends Controller
             ->select('id', 'first_name', 'last_name', 'email')
             ->get();
 
+        $academicYears = AcademicYear::query()->orderByDesc('start_date')->orderByDesc('id')->get();
+        $academicYear = $request->filled('academic_year_id')
+            ? $academicYears->firstWhere('id', (int) $request->input('academic_year_id'))
+            : AcademicYear::active();
+
         $subjects = collect();
         $selectedStudent = null;
         $attendances = collect();
@@ -239,6 +429,7 @@ class AttendanceController extends Controller
             if ($selectedStudent) {
                 $enrolledSubjectIds = Enrollment::where('student_id', $selectedStudent->id)
                     ->where('status', 'active')
+                    ->when($academicYear, fn ($query) => $query->where('academic_year_id', $academicYear->id))
                     ->pluck('subject_id');
                 $subjects = $enrolledSubjectIds->isEmpty()
                     ? collect()
@@ -253,6 +444,25 @@ class AttendanceController extends Controller
                 $query = Attendance::where('student_id', $studentId)
                     ->whereYear('date', $year)
                     ->whereMonth('date', $monthNum)
+                    ->when($academicYear?->start_date, fn ($rows) => $rows->whereDate('date', '>=', $academicYear->start_date))
+                    ->when($academicYear?->end_date, fn ($rows) => $rows->whereDate('date', '<=', $academicYear->end_date))
+                    ->when($academicYear, function ($rows) use ($selectedStudent, $academicYear) {
+                        $sectionSubjects = \App\Models\ClassSchedule::query()
+                            ->where('academic_year_id', $academicYear->id)
+                            ->whereIn('section_id', \Illuminate\Support\Facades\DB::table('student_section_assignments')
+                                ->where('student_id', $selectedStudent->id)
+                                ->where('academic_year_id', $academicYear->id)
+                                ->select('section_id'))
+                            ->select('subject_id');
+                        $rows->where(function ($match) use ($selectedStudent, $academicYear, $sectionSubjects) {
+                            $match->whereIn('subject_id', Enrollment::query()
+                                ->where('student_id', $selectedStudent->id)
+                                ->where('academic_year_id', $academicYear->id)
+                                ->where('status', 'active')
+                                ->select('subject_id'))
+                                ->orWhereIn('subject_id', $sectionSubjects);
+                        });
+                    })
                     ->with(['subject', 'teacher']);
 
                 if ($subjectId = $request->input('subject_id')) {
@@ -264,7 +474,7 @@ class AttendanceController extends Controller
             }
         }
 
-        return view('attendance.parent_view', compact('children', 'subjects', 'selectedStudent', 'attendances', 'summary'));
+        return view('attendance.parent_view', compact('children', 'subjects', 'selectedStudent', 'attendances', 'summary', 'academicYear', 'academicYears'));
     }
 
     public function store(Request $request)
@@ -272,48 +482,87 @@ class AttendanceController extends Controller
         $request->validate([
             'section_id' => 'required|exists:sections,id',
             'subject_id' => 'required|exists:subjects,id',
-            'date' => 'required|date',
             'attendance' => 'required|array',
-            'attendance.*.status' => 'required|in:present,absent,late,excused',
+            'attendance.*.status' => 'required|in:present,absent',
+            'attendance.*.time_in' => 'nullable|date_format:H:i',
             'attendance.*.remarks' => 'nullable|string|max:255',
         ]);
 
         $teacher = auth()->user()->teacher;
-        if (!$teacher) {
-            return back()->with('error', 'Only teachers can mark attendance.');
+        $isAdmin = auth()->user()->hasRole(User::ROLE_ADMIN);
+        $year = AcademicYear::active();
+        $attendanceDate = now('Asia/Manila')->toDateString();
+        if (! $year) {
+            return back()->with('error', 'Set a current academic year before recording attendance.');
         }
 
-        $yearId = \App\Models\AcademicYear::active()?->id;
-        $hasAccess = ClassSchedule::where('teacher_id', $teacher->id)
-            ->where('subject_id', $request->subject_id)
-            ->where('section_id', $request->section_id)
-            ->where('is_active', true)
-            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
-            ->exists();
-
-        if (! $hasAccess) {
-            $pairs = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
-            $allowedSubjects = $pairs['subjectsBySection'][(int) $request->section_id] ?? [];
-            $hasAccess = in_array((int) $request->subject_id, array_map('intval', $allowedSubjects), true);
+        if ($year->start_date && $attendanceDate < $year->start_date->toDateString()) {
+            return back()->with('error', 'Today is outside ' . $year->name . '.');
+        }
+        if ($year->end_date && $attendanceDate > $year->end_date->toDateString()) {
+            return back()->with('error', 'Today is outside ' . $year->name . '.');
         }
 
-        if (! $hasAccess && ! auth()->user()->hasRole(User::ROLE_ADMIN)) {
+        $sectionAllowed = Section::forAcademicYear($year->id)->whereKey($request->section_id)->exists();
+        if (! $sectionAllowed) {
+            return back()->with('error', 'That section is not part of ' . $year->name . '.');
+        }
+
+        $recorderId = $teacher?->id;
+        $hasAccess = false;
+        if ($teacher) {
+            $hasAccess = ClassSchedule::where('teacher_id', $teacher->id)
+                ->where('subject_id', $request->subject_id)
+                ->where('section_id', $request->section_id)
+                ->where('is_active', true)
+                ->where('academic_year_id', $year->id)
+                ->exists();
+
+            if (! $hasAccess) {
+                $pairs = app(TeacherClassAssignmentService::class)->optionsFor($teacher, $year->id);
+                $allowedSubjects = $pairs['subjectsBySection'][(int) $request->section_id] ?? [];
+                $hasAccess = in_array((int) $request->subject_id, array_map('intval', $allowedSubjects), true);
+            }
+        } elseif ($isAdmin) {
+            $scheduleTeacherId = ClassSchedule::where('subject_id', $request->subject_id)
+                ->where('section_id', $request->section_id)
+                ->where('is_active', true)
+                ->where('academic_year_id', $year->id)
+                ->value('teacher_id');
+            $recorderId = $scheduleTeacherId ? (int) $scheduleTeacherId : null;
+            $hasAccess = $recorderId !== null;
+        }
+
+        if (! $hasAccess || ! $recorderId) {
             return back()->with('error', 'You do not have permission to mark attendance for this class.');
         }
 
-        // One permission check (2 queries max), then batch upsert — no per-student round-trips.
+        $enrolledIds = Student::whereHas('sections', function ($query) use ($request, $year) {
+            $query->where('sections.id', (int) $request->section_id)
+                ->where('student_section_assignments.academic_year_id', $year->id);
+        })->pluck('id')->map(fn ($id) => (int) $id)->all();
+
         $rows = [];
         $absentStudentIds = [];
         $now = now();
         foreach ($request->attendance as $studentId => $data) {
             $studentId = (int) $studentId;
+            if (! in_array($studentId, $enrolledIds, true)) {
+                return back()->with('error', 'Attendance can only be saved for students enrolled in this section for ' . $year->name . '.');
+            }
+            $timeIn = null;
+            if (($data['status'] ?? '') === 'present') {
+                $postedTime = $data['time_in'] ?? null;
+                $timeIn = $postedTime ? $postedTime . ':00' : now('Asia/Manila')->format('H:i:s');
+            }
             $rows[] = [
                 'student_id' => $studentId,
                 'subject_id' => (int) $request->subject_id,
-                'date' => $request->date,
+                'date' => $attendanceDate,
                 'status' => $data['status'],
+                'time_in' => $timeIn,
                 'remarks' => $data['remarks'] ?? null,
-                'teacher_id' => $teacher->id,
+                'teacher_id' => $recorderId,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -325,9 +574,9 @@ class AttendanceController extends Controller
         if (! empty($rows)) {
             $studentIds = array_column($rows, 'student_id');
             // 2 queries total (delete+insert) instead of N×updateOrCreate — no unique index required.
-            DB::transaction(function () use ($rows, $request, $studentIds) {
+            DB::transaction(function () use ($rows, $request, $studentIds, $attendanceDate) {
                 Attendance::where('subject_id', (int) $request->subject_id)
-                    ->whereDate('date', $request->date)
+                    ->whereDate('date', $attendanceDate)
                     ->whereIn('student_id', $studentIds)
                     ->delete();
                 Attendance::insert($rows);
@@ -337,8 +586,8 @@ class AttendanceController extends Controller
         // Notify after the response so save feels instant on remote MySQL.
         if (! empty($absentStudentIds)) {
             $subjectId = (int) $request->subject_id;
-            $date = $request->date;
-            $teacherId = $teacher->id;
+            $date = $attendanceDate;
+            $teacherId = $recorderId;
             dispatch(function () use ($absentStudentIds, $subjectId, $date, $teacherId) {
                 $subject = \App\Models\Subject::find($subjectId);
                 $students = \App\Models\Student::with('user')
@@ -393,7 +642,7 @@ class AttendanceController extends Controller
             'class' => $request->section_id . '_' . $request->subject_id,
             'section_id' => $request->section_id,
             'subject_id' => $request->subject_id,
-            'date' => $request->date,
+            'date' => $attendanceDate,
         ];
 
         return redirect()->route('attendance.index', $redirectParams)
@@ -411,26 +660,54 @@ class AttendanceController extends Controller
 
     public function edit(Attendance $attendance)
     {
+        $this->authorizeAttendanceRecord($attendance);
         $attendance->load(['student', 'subject']);
         return view('attendance.edit', compact('attendance'));
     }
 
     public function update(Request $request, Attendance $attendance)
     {
+        $this->authorizeAttendanceRecord($attendance);
+
         $request->validate([
-            'status' => 'required|in:present,absent,late,excused',
+            'status' => 'required|in:present,absent',
+            'time_in' => 'nullable|date_format:H:i',
             'remarks' => 'nullable|string|max:255',
         ]);
 
-        $attendance->update($request->only(['status', 'remarks']));
+        $timeIn = null;
+        if ($request->status === 'present') {
+            $timeIn = $request->filled('time_in')
+                ? $request->time_in . ':00'
+                : now('Asia/Manila')->format('H:i:s');
+        }
+
+        $attendance->update([
+            'status' => $request->status,
+            'time_in' => $timeIn,
+            'remarks' => $request->input('remarks'),
+        ]);
 
         return redirect()->route('attendance.index')->with('success', 'Attendance record updated.');
     }
 
     public function destroy(Attendance $attendance)
     {
+        $this->authorizeAttendanceRecord($attendance);
         $attendance->delete();
         return redirect()->route('attendance.index')->with('success', 'Attendance record deleted.');
+    }
+
+    private function authorizeAttendanceRecord(Attendance $attendance): void
+    {
+        $user = auth()->user();
+        if ($user->hasRole(User::ROLE_ADMIN)) {
+            return;
+        }
+        $teacherId = $user->teacher?->id;
+        if (! $teacherId || (int) $attendance->teacher_id !== (int) $teacherId) {
+            abort(403, 'You can only change attendance for your own classes.');
+        }
     }
 
     /**
@@ -445,7 +722,7 @@ class AttendanceController extends Controller
 
         $teacherSectionIds = [];
         if ($teacher) {
-            $subjectsBySection = app(TeacherClassAssignmentService::class)->optionsFor($teacher)['subjectsBySection'];
+            $subjectsBySection = app(TeacherClassAssignmentService::class)->optionsFor($teacher, AcademicYear::active()?->id)['subjectsBySection'];
             $teacherSectionIds = array_map('intval', array_keys($subjectsBySection));
             $assignedSubjectIds = collect($subjectsBySection)->flatten()->map(fn ($id) => (int) $id)->unique()->all();
 

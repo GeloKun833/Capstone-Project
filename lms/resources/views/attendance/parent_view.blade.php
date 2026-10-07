@@ -5,6 +5,16 @@
     
     <form method="GET" action="{{ route('attendance.parent') }}" class="row g-3 mb-4">
         <div class="col-md-3">
+            <label for="academic_year_id" class="form-label">Academic Year</label>
+            <select name="academic_year_id" id="academic_year_id" class="form-select">
+                @foreach($academicYears as $yearOption)
+                    <option value="{{ $yearOption->id }}" {{ ($academicYear->id ?? null) == $yearOption->id ? 'selected' : '' }}>
+                        {{ $yearOption->name }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-3">
             <label for="student_id" class="form-label">Child</label>
             <select name="student_id" id="student_id" class="form-select">
                 <option value="">Select Child</option>

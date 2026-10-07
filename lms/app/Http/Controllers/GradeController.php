@@ -10,8 +10,11 @@ use App\Models\Section;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\User;
+use App\Support\DescriptiveScale;
+use App\Support\GradeEncoding;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -87,6 +90,7 @@ class GradeController extends Controller
 
     public function create(Request $request)
     {
+        GradeEncoding::authorize($request);
         $teacher = auth()->user()->teacher;
         $yearId = AcademicYear::active()?->id;
         $subjects = $teacher
@@ -138,6 +142,7 @@ class GradeController extends Controller
 
     public function store(Request $request)
     {
+        GradeEncoding::authorize($request);
         $request->validate([
             'subject_id' => 'required|exists:subjects,id',
             'section_id' => 'required|exists:sections,id',
@@ -154,6 +159,11 @@ class GradeController extends Controller
         $teacher = auth()->user()->teacher;
         if (!$teacher) {
             return back()->with('error', 'Only teachers can enter grades.');
+        }
+
+        $section = Section::find($request->section_id);
+        if (DescriptiveScale::isDescriptiveGradeLevel($section?->grade_level)) {
+            return back()->with('error', 'Numerical grades are not accepted for Nursery through Grade 3.');
         }
 
         foreach ($request->grades as $gradeData) {
@@ -191,6 +201,7 @@ class GradeController extends Controller
 
     public function edit(Grade $grade)
     {
+        GradeEncoding::authorize(request());
         $teacher = auth()->user()->teacher;
         if ($teacher && $grade->teacher_id !== $teacher->id && !auth()->user()->hasRole(User::ROLE_ADMIN)) {
             abort(403, 'You can only edit your own grades.');
@@ -201,6 +212,7 @@ class GradeController extends Controller
 
     public function update(Request $request, Grade $grade)
     {
+        GradeEncoding::authorize($request);
         $request->validate([
             'score' => 'required|numeric|min:0',
             'max_score' => 'required|numeric|min:1',
@@ -212,6 +224,15 @@ class GradeController extends Controller
             abort(403, 'You can only edit your own grades.');
         }
 
+        $gradeLevel = DB::table('student_section_assignments')
+            ->join('sections', 'sections.id', '=', 'student_section_assignments.section_id')
+            ->where('student_section_assignments.student_id', $grade->student_id)
+            ->where('student_section_assignments.academic_year_id', $grade->academic_year_id)
+            ->value('sections.grade_level');
+        if (DescriptiveScale::isDescriptiveGradeLevel($gradeLevel)) {
+            return back()->with('error', 'Numerical grades are not accepted for Nursery through Grade 3.');
+        }
+
         $grade->update($request->only(['score', 'max_score', 'remarks']));
 
         return redirect()->route('grades.index')->with('success', 'Grade updated successfully.');
@@ -219,6 +240,7 @@ class GradeController extends Controller
 
     public function destroy(Grade $grade)
     {
+        GradeEncoding::authorize(request());
         $teacher = auth()->user()->teacher;
         if ($teacher && $grade->teacher_id !== $teacher->id && !auth()->user()->hasRole(User::ROLE_ADMIN)) {
             abort(403, 'You can only delete your own grades.');

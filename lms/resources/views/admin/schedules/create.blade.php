@@ -45,7 +45,7 @@
                     <div class="row" id="step-teacher">
                         <div class="col-12 mb-3">
                             <h5 class="dir-toolbar-title">Step 1 — Select Teacher</h5>
-                            <p class="dir-subtitle">Section and subject lists load from their current assignments.</p>
+                            <p class="dir-subtitle">Section and subject lists use the schedule’s academic year. Subjects come from the selected section.</p>
                         </div>
                         <div class="col-12 col-md-8 col-lg-6">
                             <div class="form-group mb-0">
@@ -69,7 +69,7 @@
                     <div class="row mt-4 d-none" id="step-class">
                         <div class="col-12 mb-3">
                             <h5 class="dir-toolbar-title">Step 2 — Class Information</h5>
-                            <p class="dir-subtitle">Only sections and subjects assigned to the selected teacher are shown.</p>
+                            <p class="dir-subtitle">Sections are the ones created for the current academic year. Subjects are the ones assigned to the selected section.</p>
                         </div>
 
                         <div class="col-12 col-sm-6">
@@ -224,6 +224,7 @@
 
     let allSubjects = [];
     let allSections = [];
+    let sectionSubjects = {};
 
     const teacherSelect = document.getElementById('teacher_id');
     const sectionSelect = document.getElementById('section_id');
@@ -251,6 +252,7 @@
         subjectSelect.disabled = true;
         allSubjects = [];
         allSections = [];
+        sectionSubjects = {};
         if (summary) summary.innerHTML = '<span class="text-muted">Class summary will appear after you choose section and subject.</span>';
         if (subjectHint) subjectHint.textContent = '';
     }
@@ -269,14 +271,11 @@
     }
 
     function subjectsForSection(sectionId) {
-        if (!sectionId) return allSubjects;
-        const sec = allSections.find(function (s) { return String(s.id) === String(sectionId); });
-        const grade = sec ? (sec.grade_level || '') : '';
-        if (!grade) return allSubjects;
-        const matched = allSubjects.filter(function (sub) {
-            return !sub.class || String(sub.class) === String(grade);
+        if (!sectionId) return [];
+        const ids = (sectionSubjects[sectionId] || sectionSubjects[String(sectionId)] || []).map(String);
+        return allSubjects.filter(function (sub) {
+            return ids.indexOf(String(sub.id)) !== -1;
         });
-        return matched.length ? matched : allSubjects;
     }
 
     function fillSubjects(sectionId, selectedId) {
@@ -289,11 +288,11 @@
             if (String(selectedId) === String(sub.id)) opt.selected = true;
             subjectSelect.appendChild(opt);
         });
-        subjectSelect.disabled = list.length === 0;
+        subjectSelect.disabled = !sectionId || list.length === 0;
         if (subjectHint) {
-            subjectHint.textContent = sectionId
-                ? (list.length + ' subject(s) for the selected section/grade')
-                : (allSubjects.length + ' assigned subject(s)');
+            subjectHint.textContent = !sectionId
+                ? 'Select a section to see its subjects.'
+                : (list.length ? list.length + ' subject(s) assigned to this section.' : 'No subjects have been assigned to this section.');
         }
     }
 
@@ -366,10 +365,13 @@
         .then(function (data) {
             allSections = data.sections || [];
             allSubjects = data.subjects || [];
-            hint.textContent = (allSections.length + ' section(s), ' + allSubjects.length + ' subject(s) assigned');
+            sectionSubjects = data.section_subjects || {};
+            hint.textContent = allSections.length
+                ? (allSections.length + ' section(s) for this academic year')
+                : '';
 
-            if (!allSections.length && !allSubjects.length) {
-                hint.innerHTML = '<span class="text-danger">No section/subject assignments found for this teacher. Assign them under Classes &amp; Subjects first.</span>';
+            if (!allSections.length) {
+                hint.innerHTML = '<span class="text-danger">No sections have been created for the current academic year.</span>';
                 return;
             }
 

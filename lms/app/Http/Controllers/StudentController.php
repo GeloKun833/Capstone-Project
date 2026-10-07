@@ -684,10 +684,17 @@ class StudentController extends Controller
             'final' => null,
         ];
         if ($quarterlyGrades->isNotEmpty()) {
-            foreach (['q1' => 'quarter_1', 'q2' => 'quarter_2', 'q3' => 'quarter_3', 'q4' => 'quarter_4', 'final' => 'final_grade'] as $key => $field) {
-                $values = $quarterlyGrades->pluck($field)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v) => (float) $v);
+            foreach ([1 => 'q1', 2 => 'q2', 3 => 'q3', 4 => 'q4'] as $quarter => $key) {
+                $values = $quarterlyGrades->filter(function ($grade) use ($quarter) {
+                    return ! \App\Support\DescriptiveScale::get($grade->{'q'.$quarter.'_level'})
+                        && $grade->{'quarter_'.$quarter} !== null
+                        && $grade->{'quarter_'.$quarter} !== '';
+                })->map(fn ($grade) => (float) $grade->{'quarter_'.$quarter});
                 $generalAverages[$key] = $values->isNotEmpty() ? round($values->avg(), 2) : null;
             }
+            $finals = $quarterlyGrades->filter(fn ($grade) => ! $grade->usesDescriptive() && $grade->final_grade !== null && $grade->final_grade !== '')
+                ->map(fn ($grade) => (float) $grade->final_grade);
+            $generalAverages['final'] = $finals->isNotEmpty() ? round($finals->avg(), 2) : null;
         }
 
         $observedIndicators = \App\Models\ObservedValueIndicator::active()->get()->groupBy('core_value');

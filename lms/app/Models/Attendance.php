@@ -16,6 +16,7 @@ class Attendance extends Model
         'subject_id',
         'date',
         'status',
+        'time_in',
         'teacher_id',
         'remarks',
     ];

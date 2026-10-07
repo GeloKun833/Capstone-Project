@@ -178,12 +178,12 @@
                             <tr>
                                 <td class="text-center">{{ $index + 1 }}</td>
                                 <td><strong>{{ $subjectData['subject']->subject_name }}</strong></td>
-                                <td class="text-center">{{ $q->quarter_1 !== null ? number_format($q->quarter_1, 2) : '—' }}</td>
-                                <td class="text-center">{{ $q->quarter_2 !== null ? number_format($q->quarter_2, 2) : '—' }}</td>
-                                <td class="text-center">{{ $q->quarter_3 !== null ? number_format($q->quarter_3, 2) : '—' }}</td>
-                                <td class="text-center">{{ $q->quarter_4 !== null ? number_format($q->quarter_4, 2) : '—' }}</td>
-                                <td class="text-center"><strong>{{ number_format($subjectData['average'], 2) }}</strong></td>
-                                <td class="text-center">{{ $subjectData['remarks'] ?: ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED') }}</td>
+                                <td class="text-center" title="{{ $q->quarterCaption(1) }}">{{ $q->presentQuarter(1, true) }}</td>
+                                <td class="text-center" title="{{ $q->quarterCaption(2) }}">{{ $q->presentQuarter(2, true) }}</td>
+                                <td class="text-center" title="{{ $q->quarterCaption(3) }}">{{ $q->presentQuarter(3, true) }}</td>
+                                <td class="text-center" title="{{ $q->quarterCaption(4) }}">{{ $q->presentQuarter(4, true) }}</td>
+                                <td class="text-center"><strong>{{ ($subjectData['descriptive'] ?? false) || $subjectData['average'] === null ? '—' : number_format($subjectData['average'], 2) }}</strong></td>
+                                <td class="text-center">{{ ($subjectData['descriptive'] ?? false) ? ($subjectData['remarks'] ?: '—') : ($subjectData['remarks'] ?: ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED')) }}</td>
                             </tr>
                         @endforeach
                     </tbody>

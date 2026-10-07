@@ -298,7 +298,10 @@ class ClassScheduleController extends Controller
             })
             ->values();
 
-        $sections = \App\Models\Section::with('subjects')->orderBy('grade_level')->orderBy('name')->get();
+        $sections = $viewYear
+            ? \App\Models\Section::with('subjects')->forAcademicYear($viewYear->id)->orderBy('grade_level')->orderBy('name')->get()
+            : collect();
+        $this->fillSectionSubjects($sections);
         $readiness = app(\App\Services\SectionScheduleReadiness::class);
         $sections->each(function ($section) use ($readiness, $viewYear, $yearSchedules, $conflictIds) {
             $section->schedule_readiness = $readiness->assess((int) $section->id, $viewYear?->id);
@@ -320,7 +323,7 @@ class ClassScheduleController extends Controller
         $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
             $query->where('role_name', 'Teacher');
         })->orderBy('full_name')->get();
-        $subjects = \App\Models\Subject::query()->orderBy('subject_name')->get(['id', 'subject_name', 'class']);
+        $subjects = $sections->flatMap->subjects->unique('id')->sortBy('subject_name')->values();
         $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         $selectedSection = $request->filled('section_id')
             ? $sections->firstWhere('id', (int) $request->section_id)
@@ -376,42 +379,42 @@ class ClassScheduleController extends Controller
     /**
      * JSON: sections + subjects assigned to a teacher (for cascading schedule form).
      */
-    public function teacherAssignments(\App\Models\Teacher $teacher)
+    public function teacherAssignments(Request $request, \App\Models\Teacher $teacher)
     {
-        $year = \App\Models\AcademicYear::active();
-        $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher, $year?->id);
+        $yearId = (int) ($request->input('academic_year_id') ?: \App\Models\AcademicYear::active()?->id);
+        $sections = $yearId
+            ? \App\Models\Section::with('subjects')->forAcademicYear($yearId)->orderBy('grade_level')->orderBy('name')->get()
+            : collect();
+        $this->fillSectionSubjects($sections);
 
-        $sections = $options['sections']
-            ->map(function ($section) {
-                return [
-                    'id' => $section->id,
-                    'name' => $section->name,
-                    'grade_level' => $section->grade_level,
-                    'label' => $section->name . ' (' . ($section->grade_level ?: 'N/A') . ')',
-                ];
-            });
-
-        $subjects = $options['subjects']
-            ->map(function ($subject) {
-                return [
-                    'id' => $subject->id,
-                    'subject_name' => $subject->subject_name,
-                    'class' => $subject->class,
-                    'label' => $subject->subject_name . ' (' . ($subject->class ?: 'N/A') . ')',
-                ];
-            });
+        $subjects = $sections->flatMap->subjects->unique('id')->sortBy(['class', 'subject_name'])->values();
+        $sectionSubjects = [];
+        foreach ($sections as $section) {
+            $sectionSubjects[(string) $section->id] = $section->subjects->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        }
 
         return response()->json([
             'teacher' => [
                 'id' => $teacher->id,
                 'name' => $teacher->full_name,
             ],
-            'sections' => $sections,
-            'subjects' => $subjects,
-            'grade_levels' => $teacher->gradeLevels()
-                ->when($year, fn ($query) => $query->where('academic_year_id', $year->id))
-                ->pluck('grade_level')
-                ->values(),
+            'sections' => $sections->map(function ($section) {
+                return [
+                    'id' => $section->id,
+                    'name' => $section->name,
+                    'grade_level' => $section->grade_level,
+                    'label' => trim($section->grade_level.' – '.$section->name),
+                ];
+            })->values(),
+            'subjects' => $subjects->map(function ($subject) {
+                return [
+                    'id' => $subject->id,
+                    'subject_name' => $subject->subject_name,
+                    'class' => $subject->class,
+                    'label' => $subject->subject_name.($subject->class ? ' ('.$subject->class.')' : ''),
+                ];
+            })->values(),
+            'section_subjects' => $sectionSubjects,
         ]);
     }
 
@@ -452,6 +455,11 @@ class ClassScheduleController extends Controller
             return redirect()->back()->withInput()->withErrors([
                 'section_id' => 'Set an academic year as Current before plotting a schedule.',
             ]);
+        }
+
+        $placementError = $this->sectionSubjectError((int) $validated['section_id'], (int) $validated['subject_id'], (int) $year->id);
+        if ($placementError) {
+            return redirect()->back()->withInput()->withErrors(['subject_id' => $placementError]);
         }
 
         $inactiveTeacher = app(\App\Services\TeacherDeactivationService::class)
@@ -541,6 +549,11 @@ class ClassScheduleController extends Controller
         ]);
 
         $assignmentYearId = (int) ($schedule->academic_year_id ?: \App\Models\AcademicYear::active()?->id);
+        $placementError = $this->sectionSubjectError((int) $validated['section_id'], (int) $validated['subject_id'], $assignmentYearId);
+        if ($placementError) {
+            return redirect()->back()->withInput()->withErrors(['subject_id' => $placementError]);
+        }
+
         $inactiveTeacher = app(\App\Services\TeacherDeactivationService::class)
             ->inactiveTeachersMessage([(int) $validated['teacher_id']]);
         if ($inactiveTeacher) {
@@ -647,6 +660,36 @@ class ClassScheduleController extends Controller
             : 'No available half-hour start times were found for this duration between 6:00 AM and 8:00 PM.';
 
         return $conflicts;
+    }
+
+    protected function sectionSubjectError(int $sectionId, int $subjectId, int $academicYearId): ?string
+    {
+        $section = \App\Models\Section::query()->forAcademicYear($academicYearId)->where('id', $sectionId)->first();
+        if (! $section) {
+            return 'Choose a section created for this academic year.';
+        }
+
+        $linkedIds = DB::table('section_subject')->where('section_id', $sectionId)->pluck('subject_id')->map(fn ($id) => (int) $id);
+        if ($linkedIds->isNotEmpty()) {
+            return $linkedIds->contains($subjectId) ? null : 'Choose a subject that is assigned to this section.';
+        }
+
+        $subject = \App\Models\Subject::query()->find($subjectId);
+        $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($section->grade_level);
+
+        return $subject && in_array($subject->class, $aliases, true)
+            ? null
+            : 'Choose a subject that is assigned to this section.';
+    }
+
+    protected function fillSectionSubjects($sections): void
+    {
+        $catalog = app(\App\Services\GradeSubjectCatalogService::class);
+        foreach ($sections as $section) {
+            if ($section->subjects->isEmpty()) {
+                $section->setRelation('subjects', $catalog->subjectsForGrade($section->grade_level));
+            }
+        }
     }
 
     /**
