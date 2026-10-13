@@ -41,8 +41,13 @@ class GradingController extends Controller
         }
 
         $currentAcademicYear = AcademicYear::active();
+        $gradingPeriods = \App\Support\SchoolQuarter::periods($currentAcademicYear);
         $currentPeriod = \App\Support\SchoolQuarter::current($currentAcademicYear);
-        $selectedQuarter = (int) ($currentPeriod['number'] ?? 0);
+        $requestedQuarter = (int) $request->get('quarter');
+        $selectedPeriod = \App\Support\SchoolQuarter::find($currentAcademicYear, $requestedQuarter)
+            ?? $currentPeriod
+            ?? ($gradingPeriods[0] ?? null);
+        $selectedQuarter = (int) ($selectedPeriod['number'] ?? 0);
 
         $assignmentOptions = app(\App\Services\TeacherClassAssignmentService::class)
             ->optionsFor($teacher, $currentAcademicYear?->id);
@@ -55,6 +60,8 @@ class GradingController extends Controller
         $sectionSubjects = collect();
         $students = collect();
         $gradeMap = [];
+        $commentMap = [];
+        $encodingOpen = true;
 
         $allowedSectionIds = $sections->pluck('id')->map(fn ($id) => (int) $id)->all();
         $validSubjectIds = array_map('intval', $subjectsBySection[(int) $selectedSectionId] ?? []);
@@ -76,6 +83,7 @@ class GradingController extends Controller
                 ->get();
 
             $selectedSection = $sections->firstWhere('id', (int) $selectedSectionId);
+            $encodingOpen = \App\Support\GradeEncoding::isLevelOpen($selectedSection?->grade_level);
             $descriptive = \App\Support\DescriptiveScale::isDescriptiveGradeLevel($selectedSection?->grade_level);
 
             if ($students->isNotEmpty() && $sectionSubjects->isNotEmpty()) {
@@ -87,6 +95,7 @@ class GradingController extends Controller
 
                 foreach ($rows as $row) {
                     $gradeMap[$row->student_id . '_' . $row->subject_id] = $row->{$quarterField};
+                    $commentMap[$row->student_id . '_' . $row->subject_id] = $row->{'q'.$selectedQuarter.'_comment'};
                 }
             }
         } else {
@@ -181,11 +190,13 @@ class GradingController extends Controller
             'sectionSubjects' => $sectionSubjects,
             'academicYears' => collect(),
             'currentPeriod' => $currentPeriod,
+            'gradingPeriods' => $gradingPeriods,
             'currentAcademicYear' => $currentAcademicYear,
             'selectedSectionId' => $selectedSectionId,
             'selectedQuarter' => $selectedQuarter,
             'students' => $students,
             'gradeMap' => $gradeMap,
+            'commentMap' => $commentMap,
             'step' => $step,
             'observedIndicators' => $observedIndicators,
             'observedFlat' => $observedFlat,
@@ -194,6 +205,7 @@ class GradingController extends Controller
             'hasObservedForQuarter' => $hasObservedForQuarter,
             'studentQuarterSummaries' => $studentQuarterSummaries,
             'descriptive' => $descriptive,
+            'encodingOpen' => $encodingOpen,
             'levelCounts' => $levelCounts,
             'gradedCount' => $gradedCount,
             'expectedCount' => $expectedCount,
@@ -434,6 +446,7 @@ class GradingController extends Controller
                 'grades.*.subject_id' => 'required|exists:subjects,id',
                 'grades.*.score' => 'nullable',
                 'grades.*.level' => 'nullable|string|max:1',
+                'grades.*.comment' => 'nullable|string|max:500',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation error saving quarterly grades', [
@@ -461,14 +474,14 @@ class GradingController extends Controller
 
         $sectionId = (int) $request->section_id;
         $year = AcademicYear::active();
-        $currentPeriod = \App\Support\SchoolQuarter::current($year);
-        if (! $year || ! $currentPeriod) {
+        $selectedPeriod = \App\Support\SchoolQuarter::find($year, (int) $request->input('quarter'));
+        if (! $year || ! $selectedPeriod) {
             return response()->json([
                 'success' => false,
-                'message' => 'Grades can only be saved for the current quarter of the current academic year.',
+                'message' => 'Choose a term from the current academic year.',
             ], 422);
         }
-        $quarter = (int) $currentPeriod['number'];
+        $quarter = (int) $selectedPeriod['number'];
         $quarterField = 'quarter_' . $quarter;
         $academicYearId = (int) $year->id;
 
@@ -485,15 +498,20 @@ class GradingController extends Controller
 
         $section = Section::find($sectionId);
         $descriptive = \App\Support\DescriptiveScale::isDescriptiveGradeLevel($section?->grade_level);
+        if (! \App\Support\GradeEncoding::isLevelOpen($section?->grade_level)) {
+            return response()->json([
+                'success' => false,
+                'message' => \App\Support\GradeEncoding::closedMessage($section?->grade_level),
+            ], 403);
+        }
 
         $sectionStudentIds = \App\Models\Student::whereHas('sections', function ($q) use ($sectionId, $academicYearId) {
             $q->where('sections.id', $sectionId)
                 ->where('student_section_assignments.academic_year_id', $academicYearId);
         })->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $semesterId = $request->semester_id
-            ?? Semester::where('academic_year_id', $academicYearId)->orderBy('id')->value('id')
-            ?? Semester::current()?->id;
+        $semesterId = $selectedPeriod['semester_id']
+            ?? Semester::where('academic_year_id', $academicYearId)->orderBy('id')->value('id');
 
         $savedQuarterlyGrades = [];
         $touchedSubjectIds = [];
@@ -512,6 +530,12 @@ class GradingController extends Controller
                     continue;
                 }
 
+                $comment = trim((string) ($gradeData['comment'] ?? ''));
+                if (mb_strlen($comment) > 500) {
+                    $comment = mb_substr($comment, 0, 500);
+                }
+                $commentField = 'q'.$quarter.'_comment';
+
                 if ($descriptive) {
                     if (array_key_exists('score', $gradeData) && $gradeData['score'] !== '' && $gradeData['score'] !== null) {
                         DB::rollBack();
@@ -521,10 +545,10 @@ class GradingController extends Controller
                         ], 422);
                     }
                     $level = strtoupper(trim((string) ($gradeData['level'] ?? '')));
-                    if ($level === '') {
+                    if ($level === '' && $comment === '') {
                         continue;
                     }
-                    if (! \App\Support\DescriptiveScale::get($level)) {
+                    if ($level !== '' && ! \App\Support\DescriptiveScale::get($level)) {
                         DB::rollBack();
                         return response()->json([
                             'success' => false,
@@ -540,10 +564,11 @@ class GradingController extends Controller
                             'message' => 'Descriptive assessments are not accepted for Grade 4 through Grade 10.',
                         ], 422);
                     }
-                    if (! array_key_exists('score', $gradeData) || $gradeData['score'] === '' || $gradeData['score'] === null) {
+                    $hasScore = array_key_exists('score', $gradeData) && $gradeData['score'] !== '' && $gradeData['score'] !== null;
+                    if (! $hasScore && $comment === '') {
                         continue;
                     }
-                    if (! is_numeric($gradeData['score']) || (float) $gradeData['score'] < 0 || (float) $gradeData['score'] > 100) {
+                    if ($hasScore && (! is_numeric($gradeData['score']) || (float) $gradeData['score'] < 0 || (float) $gradeData['score'] > 100)) {
                         DB::rollBack();
                         return response()->json([
                             'success' => false,
@@ -564,20 +589,21 @@ class GradingController extends Controller
                 }
 
                 if ($descriptive) {
-                    $quarterlyGrade->{'q'.$quarter.'_level'} = $level;
-                    $quarterlyGrade->{$quarterField} = null;
-                } else {
+                    if ($level !== '') {
+                        $quarterlyGrade->{'q'.$quarter.'_level'} = $level;
+                        $quarterlyGrade->{$quarterField} = null;
+                    }
+                    $quarterlyGrade->remarks = null;
+                } elseif ($hasScore) {
                     $quarterlyGrade->{$quarterField} = (float) $gradeData['score'];
                     $quarterlyGrade->{'q'.$quarter.'_level'} = null;
                 }
+                $quarterlyGrade->{$commentField} = $comment !== '' ? $comment : null;
                 $quarterlyGrade->teacher_id = $teacher->id;
                 $quarterlyGrade->final_grade = $quarterlyGrade->calculateFinalGrade();
 
                 if (! $descriptive && empty($quarterlyGrade->remarks) && $quarterlyGrade->final_grade !== null) {
                     $quarterlyGrade->remarks = $quarterlyGrade->getRemarks();
-                }
-                if ($descriptive) {
-                    $quarterlyGrade->remarks = null;
                 }
 
                 $quarterlyGrade->save();
@@ -614,8 +640,8 @@ class GradingController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $descriptive
-                    ? "Successfully saved {$savedCount} assessment(s) for {$currentPeriod['label']}."
-                    : "Successfully saved {$savedCount} grade(s) for {$currentPeriod['label']}."
+                    ? "Successfully saved {$savedCount} assessment(s) for {$selectedPeriod['label']}."
+                    : "Successfully saved {$savedCount} grade(s) for {$selectedPeriod['label']}."
             ]);
         } catch (\Exception $e) {
             DB::rollback();

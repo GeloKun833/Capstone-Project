@@ -249,14 +249,14 @@
                             <?php $__empty_1 = true; $__currentLoopData = $quarterlyGrades; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $qg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                 <tr>
                                     <td class="fw-semibold"><?php echo e($qg->subject->subject_name ?? 'N/A'); ?></td>
-                                    <td class="text-center"><?php echo e($qg->quarter_1 !== null ? number_format($qg->quarter_1, 0) : '—'); ?></td>
-                                    <td class="text-center"><?php echo e($qg->quarter_2 !== null ? number_format($qg->quarter_2, 0) : '—'); ?></td>
-                                    <td class="text-center"><?php echo e($qg->quarter_3 !== null ? number_format($qg->quarter_3, 0) : '—'); ?></td>
-                                    <td class="text-center"><?php echo e($qg->quarter_4 !== null ? number_format($qg->quarter_4, 0) : '—'); ?></td>
-                                    <td class="text-center"><strong><?php echo e($qg->final_grade !== null ? number_format($qg->final_grade, 0) : '—'); ?></strong></td>
+                                    <td class="text-center" title="<?php echo e($qg->quarterCaption(1)); ?>"><?php echo e($qg->presentQuarter(1, true)); ?></td>
+                                    <td class="text-center" title="<?php echo e($qg->quarterCaption(2)); ?>"><?php echo e($qg->presentQuarter(2, true)); ?></td>
+                                    <td class="text-center" title="<?php echo e($qg->quarterCaption(3)); ?>"><?php echo e($qg->presentQuarter(3, true)); ?></td>
+                                    <td class="text-center" title="<?php echo e($qg->quarterCaption(4)); ?>"><?php echo e($qg->presentQuarter(4, true)); ?></td>
+                                    <td class="text-center"><strong><?php echo e($qg->usesDescriptive() ? '—' : ($qg->final_grade !== null ? number_format($qg->final_grade, 0) : '—')); ?></strong></td>
                                     <td class="text-center">
                                         <span class="hub-pill hub-pill--muted">
-                                            <?php echo e($qg->remarks ?? \App\Services\ReportCardService::remarkForScore($qg->final_grade !== null ? (float) $qg->final_grade : null)); ?>
+                                            <?php echo e($qg->usesDescriptive() ? 'Descriptive' : ($qg->remarks ?? \App\Services\ReportCardService::remarkForScore($qg->final_grade !== null ? (float) $qg->final_grade : null))); ?>
 
                                         </span>
                                     </td>

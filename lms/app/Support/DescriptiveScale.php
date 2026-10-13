@@ -44,14 +44,25 @@ class DescriptiveScale
         return self::LEVELS[$letter] ?? null;
     }
 
-    public static function isDescriptiveGradeLevel(?string $gradeLevel): bool
+    public static function normalizeGradeLevel(?string $gradeLevel): string
     {
-        $normalized = strtolower(trim(preg_replace('/\s+/', ' ', (string) $gradeLevel)));
+        return strtolower(trim(preg_replace('/\s+/', ' ', (string) $gradeLevel)));
+    }
 
-        return in_array($normalized, [
+    public static function isNurseryOrKindergarten(?string $gradeLevel): bool
+    {
+        return in_array(self::normalizeGradeLevel($gradeLevel), [
             'nursery',
             'kindergarten',
             'kinder',
+        ], true);
+    }
+
+    public static function isDescriptiveGradeLevel(?string $gradeLevel): bool
+    {
+        $normalized = self::normalizeGradeLevel($gradeLevel);
+
+        return self::isNurseryOrKindergarten($gradeLevel) || in_array($normalized, [
             'grade 1',
             'grade1',
             'grade 2',

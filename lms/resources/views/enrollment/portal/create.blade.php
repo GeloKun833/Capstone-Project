@@ -940,7 +940,7 @@
                         <div id="noSectionsMessage" style="display: none;">
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
-                                <strong>No sections available yet.</strong> Please select your grade level in the previous step first, or contact the registrar if you continue to see this message.
+                                <strong>No block section is available for this grade yet.</strong> You cannot continue or submit this application until the school creates a block section.
                             </div>
                         </div>
                     </div>
@@ -974,7 +974,7 @@
                             <i class="fas fa-copy me-2"></i>
                             <strong>Optional for every child.</strong> Upload these files once for this application. If more than one child is enrolled, the same files are saved on each child. You can leave every file blank and still submit. The documents can be given to the registrar later.
                         </div>
-                        <p class="text-muted mb-4">Accepted formats: PDF, JPG, JPEG, PNG. Maximum size: 5MB per file.</p>
+                        <p class="text-muted mb-4">Accepted formats: PDF, JPG, JPEG, PNG. Maximum size: 5MB per file. A thumbnail appears after you choose a file.</p>
                         
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -1544,6 +1544,7 @@
     to { transform: translateY(0); opacity: 1; }
 }
 </style>
+@include('enrollment.partials.file-card-assets')
 
 <script>
 // Initialize currentStep based on whether type is set
@@ -2698,6 +2699,20 @@ function updateParentFields() {
     document.getElementById('parent_relationship_auto').value = parentRelationship;
 }
 
+function showUploadThumbnail(input) {
+    let box = input.parentElement.querySelector('.upload-thumb');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'upload-thumb';
+        box.style.cssText = 'margin-top:8px;';
+        input.insertAdjacentElement('afterend', box);
+    }
+    const file = input.files && input.files[0];
+    if (typeof window.paintEnrollmentFileCard === 'function') {
+        window.paintEnrollmentFileCard(box, file);
+    }
+}
+
 // Event listeners for birthdate calculation
 document.addEventListener('DOMContentLoaded', function() {
     const birthMonth = document.getElementById('birth_month');
@@ -2713,7 +2728,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const timeEnrolled = document.getElementById('time_enrolled');
     if (dateEnrolled) dateEnrolled.addEventListener('change', syncFirstAttendanceFromEnrollment);
     document.querySelectorAll('#step7 input[type="file"]').forEach(function (input) {
-        input.addEventListener('change', syncSubmittedDocumentChecks);
+        input.addEventListener('change', function () {
+            syncSubmittedDocumentChecks();
+            showUploadThumbnail(input);
+        });
     });
     if (timeEnrolled) {
         timeEnrolled.addEventListener('change', syncFirstAttendanceFromEnrollment);
@@ -3030,17 +3048,24 @@ function validateStep(step) {
         if (childGroups.length > 1) {
             const missing = [];
             const unscheduled = [];
+            const unavailable = [];
             childGroups.forEach(function (group) {
                 const input = group.querySelector('input[name^="child_sections["]');
                 const name = group.getAttribute('data-child-name') || 'a child';
                 const selectable = group.querySelector('.section-choice-card:not(.is-full):not(.is-unscheduled)');
                 const anyCard = group.querySelector('.section-choice-card');
-                if (anyCard && !selectable) {
+                if (!anyCard) {
+                    unavailable.push(name);
+                } else if (!selectable) {
                     unscheduled.push(name);
-                } else if (selectable && (!input || !input.value)) {
+                } else if (!input || !input.value) {
                     missing.push(name);
                 }
             });
+            if (unavailable.length) {
+                showAlert('No block section has been created yet for ' + unavailable.join(', ') + '. Enrollment cannot continue until a block section is added.', 'error');
+                return false;
+            }
             if (unscheduled.length) {
                 showAlert('Enrollment unavailable for ' + unscheduled.join(', ') + '. The schedule for the selected section has not been configured yet. Please wait until the class schedule has been finalized before proceeding with enrollment.', 'error');
                 return false;
@@ -3052,24 +3077,38 @@ function validateStep(step) {
             return true;
         }
 
-        const sectionsVisible = document.getElementById('sectionsContainer')
-            && document.getElementById('sectionsContainer').style.display !== 'none';
+        const loading = document.getElementById('sectionsLoading');
+        if (loading && loading.style.display !== 'none') {
+            showAlert('Wait until the block sections finish loading.', 'error');
+            return false;
+        }
+
         const noSections = document.getElementById('noSectionsMessage')
             && document.getElementById('noSectionsMessage').style.display !== 'none';
-        if (sectionsVisible && !noSections) {
-            const selectable = document.querySelector('#sectionsList .section-choice-card:not(.is-full):not(.is-unscheduled)');
-            const anyCard = document.querySelector('#sectionsList .section-choice-card');
-            if (anyCard && !selectable) {
-                showAlert('Enrollment unavailable. The schedule for this section has not been configured yet. Please wait until the class schedule has been finalized before proceeding with enrollment.', 'error');
-                updateSectionSelectionStatus(false);
-                return false;
-            }
-            const chosen = document.getElementById('selected_section_id');
-            if (!chosen || !chosen.value) {
-                showAlert('Please select a block section before continuing. Look for the blue “Your Choice” badge on the card you pick.', 'error');
-                updateSectionSelectionStatus(false);
-                return false;
-            }
+        if (noSections) {
+            showAlert('No block section has been created for this grade yet. You cannot continue until the school adds a block section.', 'error');
+            updateSectionSelectionStatus(false);
+            return false;
+        }
+
+        const sectionsVisible = document.getElementById('sectionsContainer')
+            && document.getElementById('sectionsContainer').style.display !== 'none';
+        if (!sectionsVisible) {
+            showAlert('No block section has been created for this grade yet. You cannot continue until the school adds a block section.', 'error');
+            return false;
+        }
+        const selectable = document.querySelector('#sectionsList .section-choice-card:not(.is-full):not(.is-unscheduled)');
+        const anyCard = document.querySelector('#sectionsList .section-choice-card');
+        if (anyCard && !selectable) {
+            showAlert('Enrollment unavailable. The schedule for this section has not been configured yet. Please wait until the class schedule has been finalized before proceeding with enrollment.', 'error');
+            updateSectionSelectionStatus(false);
+            return false;
+        }
+        const chosen = document.getElementById('selected_section_id');
+        if (!chosen || !chosen.value) {
+            showAlert('Please select a block section before continuing. Look for the blue “Your Choice” badge on the card you pick.', 'error');
+            updateSectionSelectionStatus(false);
+            return false;
         }
         return true;
     }

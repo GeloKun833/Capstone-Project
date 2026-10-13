@@ -47,8 +47,11 @@ class ActivityController extends Controller
         }
 
         $lesson->loadMissing(['subject', 'section']);
+        $gradeLevel = $lesson->section?->grade_level;
+        $activityKinds = \App\Models\Activity::kindsFor($gradeLevel);
+        $descriptiveLevel = \App\Support\DescriptiveScale::isDescriptiveGradeLevel($gradeLevel);
 
-        return view('activities.create', compact('lesson'));
+        return view('activities.create', compact('lesson', 'gradeLevel', 'activityKinds', 'descriptiveLevel'));
     }
 
     public function store(Request $request, Lesson $lesson)
@@ -61,8 +64,13 @@ class ActivityController extends Controller
             }
         }
 
+        $lesson->loadMissing(['subject', 'section']);
+        $gradeLevel = $lesson->section?->grade_level;
+        $kinds = array_keys(\App\Models\Activity::kindsFor($gradeLevel));
+
         $request->validate([
             'title' => 'required|string|max:255',
+            'activity_type' => 'required|in:'.implode(',', $kinds),
             'instructions' => 'required|string',
             'due_date' => 'required|date|after_or_equal:today',
             'allows_submission' => 'boolean',

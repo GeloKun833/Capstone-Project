@@ -792,6 +792,7 @@
                                     <table class="table table-hover">
                                         <thead class="table-light">
                                             <tr>
+                                                <th>Preview</th>
                                                 <th><i class="fas fa-file me-1"></i>Document Type</th>
                                                 <th><i class="fas fa-file-alt me-1"></i>File Name</th>
                                                 <th><i class="fas fa-info-circle me-1"></i>Status</th>
@@ -801,6 +802,7 @@
                                         <tbody>
                                             @foreach($enrollmentApplication->documents as $doc)
                                                 <tr>
+                                                    <td>@include('enrollment.partials.document-thumb', ['document' => $doc])</td>
                                                     <td class="fw-semibold">{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? ucfirst(str_replace('_', ' ', $doc->document_type)) }}</td>
                                                     <td>{{ $doc->file_name }}</td>
                                                     <td>

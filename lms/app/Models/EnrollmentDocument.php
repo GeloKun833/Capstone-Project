@@ -78,6 +78,26 @@ class EnrollmentDocument extends Model
         return round($bytes, 2) . ' ' . $units[$i];
     }
 
+    public function isImage(): bool
+    {
+        $mime = strtolower((string) $this->mime_type);
+        if (str_starts_with($mime, 'image/')) {
+            return true;
+        }
+
+        return in_array(strtolower(pathinfo((string) $this->file_name, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+    }
+
+    public function isPdf(): bool
+    {
+        $mime = strtolower((string) $this->mime_type);
+        if (str_contains($mime, 'pdf')) {
+            return true;
+        }
+
+        return strtolower(pathinfo((string) $this->file_name, PATHINFO_EXTENSION)) === 'pdf';
+    }
+
     // Methods
     public function verify($verifierId = null, $notes = null)
     {

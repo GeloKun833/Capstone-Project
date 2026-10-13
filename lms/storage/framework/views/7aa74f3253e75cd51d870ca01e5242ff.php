@@ -53,7 +53,7 @@
                                 <select class="form-control" name="teacher_id" id="teacher_id" required>
                                     <option value="">Select Teacher</option>
                                     <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($teacher->id); ?>" <?php echo e(old('teacher_id') == $teacher->id ? 'selected' : ''); ?>>
+                                        <option value="<?php echo e($teacher->id); ?>" <?php echo e((string) old('teacher_id', $prefillTeacherId) === (string) $teacher->id ? 'selected' : ''); ?>>
                                             <?php echo e($teacher->full_name); ?>
 
                                         </option>
@@ -256,7 +256,11 @@ unset($__errorArgs, $__bag); ?>
                             <button type="submit" class="btn btn-primary dir-btn">
                                 <i class="fas fa-save me-1"></i> Create Schedule
                             </button>
-                            <a href="<?php echo e(route('admin.schedules.index')); ?>" class="btn btn-outline-secondary dir-btn">
+                            <a href="<?php echo e(route('admin.schedules.index', array_filter([
+                                'teacher_id' => old('teacher_id', $prefillTeacherId),
+                                'section_id' => old('section_id', $prefillSectionId),
+                                'subject_id' => old('subject_id', $prefillSubjectId),
+                            ]))); ?>" class="btn btn-outline-secondary dir-btn">
                                 <i class="fas fa-times me-1"></i> Cancel
                             </a>
                         </div>
@@ -275,9 +279,9 @@ unset($__errorArgs, $__bag); ?>
 <script>
 (function () {
     const assignmentsUrl = <?php echo json_encode(url('/admin/schedules/teacher'), 15, 512) ?>;
-    const oldTeacher = <?php echo json_encode(old('teacher_id'), 15, 512) ?>;
-    const oldSection = <?php echo json_encode(old('section_id'), 15, 512) ?>;
-    const oldSubject = <?php echo json_encode(old('subject_id'), 15, 512) ?>;
+    const oldTeacher = <?php echo json_encode(old('teacher_id', $prefillTeacherId), 512) ?>;
+    const oldSection = <?php echo json_encode(old('section_id', $prefillSectionId), 512) ?>;
+    const oldSubject = <?php echo json_encode(old('subject_id', $prefillSubjectId), 512) ?>;
 
     let allSubjects = [];
     let allSections = [];
@@ -428,7 +432,7 @@ unset($__errorArgs, $__bag); ?>
                 : '';
 
             if (!allSections.length) {
-                hint.innerHTML = '<span class="text-danger">No sections have been created for the current academic year.</span>';
+                hint.innerHTML = '<span class="text-danger">No sections are assigned to this teacher for the current academic year.</span>';
                 return;
             }
 
@@ -445,9 +449,19 @@ unset($__errorArgs, $__bag); ?>
         });
     }
 
-    teacherSelect.addEventListener('change', function () {
-        loadTeacher(this.value);
-    });
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery(teacherSelect).select2({
+            width: '100%',
+            placeholder: 'Search teacher name',
+            allowClear: true
+        }).on('change', function () {
+            loadTeacher(this.value);
+        });
+    } else {
+        teacherSelect.addEventListener('change', function () {
+            loadTeacher(this.value);
+        });
+    }
 
     sectionSelect.addEventListener('change', function () {
         fillSubjects(this.value, '');

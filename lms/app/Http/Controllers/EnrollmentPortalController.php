@@ -1042,6 +1042,27 @@ class EnrollmentPortalController extends Controller
         return Storage::disk('public')->download($document->file_path, $document->file_name);
     }
 
+    public function previewDocument($id)
+    {
+        $document = EnrollmentDocument::findOrFail($id);
+        $application = $document->enrollmentApplication;
+        if (! $application || ! $this->viewerCanSeeDocument($document)) {
+            abort(404, 'File not found');
+        }
+
+        if (! $document->file_path || ! Storage::disk('public')->exists($document->file_path)) {
+            abort(404, 'File not found');
+        }
+
+        $mime = $document->mime_type ?: Storage::disk('public')->mimeType($document->file_path);
+        $safeName = str_replace(['"', "\r", "\n"], '', (string) $document->file_name);
+
+        return Storage::disk('public')->response($document->file_path, $safeName, [
+            'Content-Type' => $mime ?: 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="'.$safeName.'"',
+        ]);
+    }
+
     /**
      * Approve application and create student account with automatic section assignment
      */
@@ -1062,6 +1083,7 @@ class EnrollmentPortalController extends Controller
                 'email' => $application->email,
                 'password' => Hash::make(TemporaryPassword::make()),
                 'role_name' => 'Student',
+                'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                 'status' => 'active',
             ]);
 
@@ -1328,6 +1350,7 @@ class EnrollmentPortalController extends Controller
                     'email' => $application->parent_email,
                     'password' => Hash::make($parentPassword),
                     'role_name' => 'Parent',
+                    'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                     'status' => 'active',
                     'join_date' => now()->format('Y-m-d'),
                     'phone_number' => $application->parent_phone,
@@ -1351,6 +1374,7 @@ class EnrollmentPortalController extends Controller
                 'email' => $application->email,
                 'password' => Hash::make($studentPassword),
                 'role_name' => 'Student',
+                'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                 'status' => 'active',
                 'join_date' => now()->format('Y-m-d'),
                 'phone_number' => $application->phone_number,
@@ -1606,10 +1630,15 @@ class EnrollmentPortalController extends Controller
                 $chosen = $request->input('selected_section_id');
             }
             if ($chosen === null || $chosen === '') {
-                if (! $saveAsDraft && ! $readiness->gradeHasEnrollableSection((string) $draft->grade_level_applying_for)) {
-                    return $readiness->gradeBlockMessage((string) $draft->grade_level_applying_for, $draft->full_name);
+                if ($saveAsDraft) {
+                    continue;
                 }
-                continue;
+                $grade = (string) $draft->grade_level_applying_for;
+                if (! $readiness->gradeHasEnrollableSection($grade)) {
+                    return $readiness->gradeBlockMessage($grade, $draft->full_name);
+                }
+
+                return 'Choose a block section for '.$draft->full_name.' before submitting the application.';
             }
             if (! $this->sectionMatchesGrade((int) $chosen, (string) $draft->grade_level_applying_for)) {
                 return 'The section chosen for '.$draft->full_name.' does not match '.$draft->grade_level_applying_for.'.';
@@ -1638,7 +1667,9 @@ class EnrollmentPortalController extends Controller
             return $readiness->gradeBlockMessage($grade, $childName);
         }
 
-        return null;
+        $who = $childName ? ' for '.$childName : '';
+
+        return 'Choose a block section'.$who.' before submitting the application.';
     }
 
     private function sectionMatchesGrade(int $sectionId, string $gradeLevel): bool
@@ -1746,6 +1777,7 @@ class EnrollmentPortalController extends Controller
                 'email' => $email,
                 'password' => Hash::make($plainPassword),
                 'role_name' => User::ROLE_PARENT,
+                'account_academic_year_id' => \App\Models\AcademicYear::active()?->id,
                 'status' => 'active',
                 'join_date' => now()->format('Y-m-d'),
                 'phone_number' => $phone,
@@ -2526,5 +2558,43 @@ class EnrollmentPortalController extends Controller
         }
 
         abort(404);
+    }
+
+    protected function viewerCanSeeDocument(EnrollmentDocument $document): bool
+    {
+        $application = $document->enrollmentApplication;
+        if (! $application) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if ($user && in_array($user->role_name, [User::ROLE_ADMIN, User::ROLE_REGISTRAR], true)) {
+            return true;
+        }
+
+        if (session('enrollment_access.'.$application->id)) {
+            return true;
+        }
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->role_name === User::ROLE_PARENT) {
+            if ($user->email && strcasecmp((string) $user->email, (string) $application->parent_email) === 0) {
+                return true;
+            }
+
+            return Student::query()
+                ->forParent($user)
+                ->where('enrollment_application_id', $application->id)
+                ->exists();
+        }
+
+        if ($user->role_name === User::ROLE_STUDENT && $user->student) {
+            return (int) $user->student->enrollment_application_id === (int) $application->id;
+        }
+
+        return false;
     }
 }

@@ -41,4 +41,47 @@ class GradeEncoding
 
         abort(403, $message);
     }
+
+    /**
+     * Null means every grade level is open. An array is the admin's explicit list.
+     *
+     * @return array<int, string>|null
+     */
+    public static function openLevels(): ?array
+    {
+        $stored = \App\Models\SchoolSetting::getSettings()->encoding_open_grades;
+        if (! is_array($stored)) {
+            return null;
+        }
+
+        return array_values($stored);
+    }
+
+    public static function isLevelOpen(?string $gradeLevel): bool
+    {
+        $open = self::openLevels();
+        if ($open === null) {
+            return true;
+        }
+
+        $aliases = \App\Services\GradeSubjectCatalogService::gradeAliases($gradeLevel);
+        if ($aliases === []) {
+            return false;
+        }
+
+        foreach ($open as $level) {
+            if (array_intersect($aliases, \App\Services\GradeSubjectCatalogService::gradeAliases($level))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function closedMessage(?string $gradeLevel): string
+    {
+        $label = trim((string) $gradeLevel) !== '' ? $gradeLevel : 'this grade level';
+
+        return 'The administrator has closed grade encoding for '.$label.'.';
+    }
 }

@@ -333,9 +333,19 @@
         });
     }
 
-    teacherSelect.addEventListener('change', function () {
-        loadTeacher(this.value);
-    });
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery(teacherSelect).select2({
+            width: '100%',
+            placeholder: 'Search teacher name',
+            allowClear: true
+        }).on('change', function () {
+            loadTeacher(this.value);
+        });
+    } else {
+        teacherSelect.addEventListener('change', function () {
+            loadTeacher(this.value);
+        });
+    }
     sectionSelect.addEventListener('change', function () {
         fillSubjects(this.value, '');
         updateSummary();

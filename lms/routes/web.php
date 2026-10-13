@@ -303,6 +303,7 @@ Route::group(['middleware' => ['role:Admin']], function () {
     });
 
     Route::get('grade-encoding', [App\Http\Controllers\GradeEncodingAccessController::class, 'index'])->name('admin.grade-encoding.index');
+    Route::post('grade-encoding/levels', [App\Http\Controllers\GradeEncodingAccessController::class, 'updateLevels'])->name('admin.grade-encoding.levels');
     Route::post('grade-encoding/{user}', [App\Http\Controllers\GradeEncodingAccessController::class, 'update'])->name('admin.grade-encoding.update');
 });
 
@@ -462,6 +463,7 @@ Route::post('/enrollment-portal/check-status', [App\Http\Controllers\EnrollmentP
 Route::get('/enrollment-portal/application/{id}', [App\Http\Controllers\EnrollmentPortalController::class, 'show'])->name('enrollment.portal.show');
 Route::get('/enrollment-portal/success/{id}', [App\Http\Controllers\EnrollmentPortalController::class, 'success'])->name('enrollment.portal.success');
 Route::get('/enrollment-portal/document/{id}/download', [App\Http\Controllers\EnrollmentPortalController::class, 'downloadDocument'])->name('enrollment.portal.download-document');
+Route::get('/enrollment-portal/document/{id}/preview', [App\Http\Controllers\EnrollmentPortalController::class, 'previewDocument'])->name('enrollment.portal.preview-document');
 Route::post('/enrollment-portal/verify-old-student', [App\Http\Controllers\EnrollmentPortalController::class, 'verifyOldStudent'])->name('enrollment.verify-old-student');
 
 // Old Student Enrollment Routes

@@ -8,7 +8,7 @@
             <div class="row align-items-start">
                 <div class="col">
                     <h3 class="page-title mb-1">Create Activity</h3>
-                    <p class="dir-subtitle">Add a student task for {{ $lesson->title }}.</p>
+                    <p class="dir-subtitle">Add a {{ $descriptiveLevel ? 'classroom task' : 'scored task' }} for {{ $lesson->title }}@if($gradeLevel) · {{ $gradeLevel }}@endif.</p>
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-2">
@@ -41,7 +41,24 @@
                     <div class="dir-card">
                         <div class="p-3 p-md-4">
                             <h5 class="mb-1">Activity details</h5>
-                            <p class="text-muted small mb-3">Students will see this title and the instructions you write here.</p>
+                            <p class="text-muted small mb-3">
+                                @if($descriptiveLevel)
+                                    {{ $gradeLevel ?: 'This level' }} uses hands-on work, oral responses, and teacher observation. A numerical quiz is not the usual task for this level.
+                                @else
+                                    {{ $gradeLevel ?: 'This level' }} uses worksheets, quizzes, and projects that can be scored from 0 to 100.
+                                @endif
+                            </p>
+
+                            <div class="form-group mb-3">
+                                <label class="form-label" for="activity_type">Activity type <span class="text-danger">*</span></label>
+                                <select class="form-control @error('activity_type') is-invalid @enderror" id="activity_type" name="activity_type" required>
+                                    <option value="">Select a type for this grade level</option>
+                                    @foreach($activityKinds as $value => $label)
+                                        <option value="{{ $value }}" {{ old('activity_type') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                @error('activity_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
 
                             <div class="form-group mb-3">
                                 <label class="form-label" for="title">Title <span class="text-danger">*</span></label>
@@ -69,7 +86,7 @@
                                        {{ old('allows_submission') ? 'checked' : '' }}>
                                 <span>
                                     <strong>Allow file submissions</strong>
-                                    <small>Students can upload PDF, DOCX, PPTX, or images. You can grade them with a rubric.</small>
+                                    <small>{{ $descriptiveLevel ? 'Optional. Families can upload a photo or scan of the learner’s work.' : 'Students can upload PDF, DOCX, PPTX, or images. You can grade them with a rubric.' }}</small>
                                 </span>
                             </label>
                         </div>

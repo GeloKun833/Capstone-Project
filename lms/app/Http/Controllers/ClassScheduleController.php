@@ -273,11 +273,8 @@ class ClassScheduleController extends Controller
      */
     public function adminIndex(Request $request)
     {
-        $years = \App\Models\AcademicYear::query()->orderByDesc('start_date')->get();
-        $activeYear = \App\Models\AcademicYear::active();
-        $viewYear = $years->firstWhere('id', (int) $request->input('academic_year_id'))
-            ?: $activeYear
-            ?: $years->first();
+        $viewYear = \App\Models\AcademicYear::active();
+        $activeYear = $viewYear;
 
         $yearSchedules = ClassSchedule::with(['subject', 'section', 'teacher', 'room', 'academicYear'])
             ->when($viewYear, fn ($query) => $query->where('academic_year_id', $viewYear->id))
@@ -286,10 +283,6 @@ class ClassScheduleController extends Controller
         $conflictIds = $this->conflictingScheduleIds($yearSchedules);
 
         $schedules = $yearSchedules
-            ->when($request->filled('section_id'), fn ($items) => $items->where('section_id', (int) $request->section_id))
-            ->when($request->filled('teacher_id'), fn ($items) => $items->where('teacher_id', (int) $request->teacher_id))
-            ->when($request->filled('subject_id'), fn ($items) => $items->where('subject_id', (int) $request->subject_id))
-            ->when($request->filled('day_of_week'), fn ($items) => $items->where('day_of_week', $request->day_of_week))
             ->sortBy(function ($schedule) {
                 $days = ['monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6, 'sunday' => 7];
                 $day = $days[$schedule->day_of_week] ?? 9;
@@ -323,23 +316,66 @@ class ClassScheduleController extends Controller
         $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
             $query->where('role_name', 'Teacher');
         })->orderBy('full_name')->get();
-        $subjects = $sections->flatMap->subjects->unique('id')->sortBy('subject_name')->values();
+
+        $selectedTeacherId = $request->filled('teacher_id') ? (int) $request->teacher_id : null;
+        $selectedSectionId = $request->filled('section_id') ? (int) $request->section_id : null;
+        $selectedSubjectId = $request->filled('subject_id') ? (int) $request->subject_id : null;
+        $filterSections = collect();
+        $filterSubjects = collect();
+        if ($selectedTeacherId && $viewYear) {
+            $teacher = \App\Models\Teacher::find($selectedTeacherId);
+            if ($teacher) {
+                $options = app(\App\Services\TeacherClassAssignmentService::class)
+                    ->optionsFor($teacher, $viewYear->id);
+                $filterSections = $options['sections'];
+                if ($selectedSectionId && ! $filterSections->contains(fn ($section) => (int) $section->id === $selectedSectionId)) {
+                    $selectedSectionId = null;
+                }
+                if ($selectedSectionId) {
+                    $subjectIds = collect($options['subjectsBySection'][$selectedSectionId] ?? [])->map(fn ($id) => (int) $id);
+                    $filterSubjects = $options['subjects']->filter(fn ($subject) => $subjectIds->contains((int) $subject->id))->values();
+                } else {
+                    $filterSubjects = $options['subjects'];
+                }
+                if ($selectedSubjectId && ! $filterSubjects->contains(fn ($subject) => (int) $subject->id === $selectedSubjectId)) {
+                    $selectedSubjectId = null;
+                }
+            } else {
+                $selectedTeacherId = null;
+                $selectedSectionId = null;
+                $selectedSubjectId = null;
+            }
+        } else {
+            $selectedSectionId = null;
+            $selectedSubjectId = null;
+        }
+
+        $schedules = $schedules
+            ->when($selectedSectionId, fn ($items) => $items->where('section_id', $selectedSectionId))
+            ->when($selectedTeacherId, fn ($items) => $items->where('teacher_id', $selectedTeacherId))
+            ->when($selectedSubjectId, fn ($items) => $items->where('subject_id', $selectedSubjectId))
+            ->when($request->filled('day_of_week'), fn ($items) => $items->where('day_of_week', $request->day_of_week));
+
+        $subjects = $filterSubjects;
         $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        $selectedSection = $request->filled('section_id')
-            ? $sections->firstWhere('id', (int) $request->section_id)
+        $selectedSection = $selectedSectionId
+            ? $sections->firstWhere('id', $selectedSectionId)
             : null;
 
         return view('admin.schedules.index', compact(
             'schedules',
             'sections',
+            'filterSections',
             'teachers',
             'subjects',
             'days',
             'activeYear',
             'viewYear',
-            'years',
             'conflictIds',
-            'selectedSection'
+            'selectedSection',
+            'selectedTeacherId',
+            'selectedSectionId',
+            'selectedSubjectId'
         ));
     }
 
@@ -381,16 +417,13 @@ class ClassScheduleController extends Controller
      */
     public function teacherAssignments(Request $request, \App\Models\Teacher $teacher)
     {
-        $yearId = (int) ($request->input('academic_year_id') ?: \App\Models\AcademicYear::active()?->id);
-        $sections = $yearId
-            ? \App\Models\Section::with('subjects')->forAcademicYear($yearId)->orderBy('grade_level')->orderBy('name')->get()
-            : collect();
-        $this->fillSectionSubjects($sections);
-
-        $subjects = $sections->flatMap->subjects->unique('id')->sortBy(['class', 'subject_name'])->values();
+        $yearId = \App\Models\AcademicYear::active()?->id;
+        $options = app(\App\Services\TeacherClassAssignmentService::class)->optionsFor($teacher, $yearId);
+        $sections = $options['sections'];
+        $subjects = $options['subjects'];
         $sectionSubjects = [];
-        foreach ($sections as $section) {
-            $sectionSubjects[(string) $section->id] = $section->subjects->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        foreach ($options['subjectsBySection'] as $sectionId => $subjectIds) {
+            $sectionSubjects[(string) $sectionId] = array_values(array_map('intval', $subjectIds));
         }
 
         return response()->json([
@@ -421,7 +454,7 @@ class ClassScheduleController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
         $teachers = \App\Models\Teacher::whereHas('user', function ($query) {
             $query->where('role_name', 'Teacher')
@@ -429,7 +462,35 @@ class ClassScheduleController extends Controller
         })->orderBy('full_name')->get();
         $rooms = \App\Models\Room::orderBy('room_name')->get();
 
-        return view('admin.schedules.create', compact('teachers', 'rooms'));
+        $prefillTeacherId = null;
+        $prefillSectionId = null;
+        $prefillSubjectId = null;
+        $year = \App\Models\AcademicYear::active();
+        $teacherId = (int) $request->query('teacher_id');
+
+        if ($year && $teacherId && $teachers->contains('id', $teacherId)) {
+            $options = app(\App\Services\TeacherClassAssignmentService::class)
+                ->optionsFor(\App\Models\Teacher::find($teacherId), $year->id);
+            $sectionIds = $options['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $prefillTeacherId = $teacherId;
+            $sectionId = (int) $request->query('section_id');
+            if ($sectionId && in_array($sectionId, $sectionIds, true)) {
+                $prefillSectionId = $sectionId;
+                $subjectId = (int) $request->query('subject_id');
+                $allowedSubjects = array_map('intval', $options['subjectsBySection'][$sectionId] ?? []);
+                if ($subjectId && in_array($subjectId, $allowedSubjects, true)) {
+                    $prefillSubjectId = $subjectId;
+                }
+            }
+        }
+
+        return view('admin.schedules.create', compact(
+            'teachers',
+            'rooms',
+            'prefillTeacherId',
+            'prefillSectionId',
+            'prefillSubjectId'
+        ));
     }
 
     /**

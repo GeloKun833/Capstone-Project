@@ -334,6 +334,7 @@
                     <table class="sis-table">
                         <thead>
                             <tr>
+                                <th>Preview</th>
                                 <th>Document type</th>
                                 <th>File name</th>
                                 <th>Status</th>
@@ -352,6 +353,7 @@
                                     };
                                 @endphp
                                 <tr>
+                                    <td>@include('enrollment.partials.document-thumb', ['document' => $doc])</td>
                                     <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$item['type']] ?? $item['type'] }}</td>
                                     <td>{{ $doc?->file_name ?? '—' }}</td>
                                     <td>
@@ -373,6 +375,7 @@
                                     };
                                 @endphp
                                 <tr>
+                                    <td>@include('enrollment.partials.document-thumb', ['document' => $doc])</td>
                                     <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type }}</td>
                                     <td>{{ $doc->file_name }}</td>
                                     <td>

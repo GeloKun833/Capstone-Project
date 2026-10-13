@@ -151,6 +151,7 @@ class EnrollmentRegistrarController extends Controller
                         'email' => $application->parent_email,
                         'password' => Hash::make($parentPassword),
                         'role_name' => 'Parent',
+                        'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                         'status' => 'active',
                         'join_date' => now()->format('Y-m-d'),
                         'phone_number' => $application->parent_phone,
@@ -176,6 +177,7 @@ class EnrollmentRegistrarController extends Controller
                     'email' => $application->email,
                     'password' => Hash::make($studentPassword),
                     'role_name' => 'Student',
+                    'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                     'status' => 'active',
                     'join_date' => now()->format('Y-m-d'),
                     'phone_number' => $application->phone_number,
@@ -575,6 +577,7 @@ class EnrollmentRegistrarController extends Controller
                 'email' => $application->email,
                 'password' => Hash::make(TemporaryPassword::make()),
                 'role_name' => 'Student',
+                'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                 'status' => 'active',
                 'join_date' => now()->format('Y-m-d'),
                 'phone_number' => $application->phone_number,
@@ -887,6 +890,7 @@ class EnrollmentRegistrarController extends Controller
                 'email' => $request->username, // Use custom username from form
                 'password' => Hash::make($request->password), // Use custom password from form
                 'role_name' => 'Student',
+                'account_academic_year_id' => $application->academic_year_id ?: \App\Models\AcademicYear::active()?->id,
                 'status' => 'active',
                 'join_date' => now()->format('Y-m-d'),
                 'phone_number' => $application->phone_number,

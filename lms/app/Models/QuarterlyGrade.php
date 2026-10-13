@@ -23,6 +23,10 @@ class QuarterlyGrade extends Model
         'q3_level',
         'quarter_4',
         'q4_level',
+        'q1_comment',
+        'q2_comment',
+        'q3_comment',
+        'q4_comment',
         'final_grade',
         'remarks',
     ];
@@ -90,6 +94,18 @@ class QuarterlyGrade extends Model
         }
 
         return false;
+    }
+
+    public function latestLevel(): ?string
+    {
+        for ($quarter = 4; $quarter >= 1; $quarter--) {
+            $letter = strtoupper(trim((string) $this->{$this->levelField($quarter)}));
+            if (DescriptiveScale::get($letter)) {
+                return $letter;
+            }
+        }
+
+        return null;
     }
 
     public function presentQuarter(int $quarter, bool $withDescriptor = false): string

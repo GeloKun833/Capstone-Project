@@ -76,6 +76,15 @@ class LoginController extends Controller
                     return redirect()->route('login')->with('error', 'Your account is inactive. Please contact the school administrator.');
                 }
 
+                $yearMessage = app(\App\Services\AccountYearAccess::class)->denies($user);
+                if ($yearMessage) {
+                    Auth::logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+                    Toastr::error($yearMessage, 'Academic Year');
+                    return redirect()->route('login')->with('error', $yearMessage);
+                }
+
                 // Fast path: admins never need the access-limit settings lookup.
                 if (! in_array($user->role_name, ['Admin', 'Registrar'], true)) {
                     $accessLimits = app(SystemAccessLimitService::class);

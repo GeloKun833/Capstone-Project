@@ -9,7 +9,10 @@
         'absent' => [],
     ];
     $fullName = trim(($student->last_name ?? '').', '.($student->first_name ?? '').' '.($student->middle_name ?? ''));
-    $sectionName = optional($student->sections->first())->name;
+    $reportSection = $reportSection ?? $student->sections->first();
+    $sectionName = optional($reportSection)->name;
+    $gradeLevel = $gradeLevel ?? optional($reportSection)->grade_level;
+    $descriptive = $descriptive ?? \App\Support\DescriptiveScale::isNurseryOrKindergarten($gradeLevel);
 @endphp
 
 <div class="report-sheet">
@@ -21,6 +24,9 @@
     <div class="learner-meta">
         <div><strong>Name:</strong> {{ $fullName }}</div>
         <div><strong>School Year:</strong> {{ $academicYear->name ?? '—' }}</div>
+        @if($gradeLevel)
+            <div><strong>Grade:</strong> {{ $gradeLevel }}</div>
+        @endif
         @if($sectionName)
             <div><strong>Section:</strong> {{ $sectionName }}</div>
         @endif
@@ -134,22 +140,45 @@
                             $remark = $row->remarks ?: ReportCardService::remarkForScore(
                                 $row->final_grade !== null ? (float) $row->final_grade : null
                             );
+                            $latestLetter = $descriptive ? $row->latestLevel() : null;
+                            $latestMeta = $latestLetter ? \App\Support\DescriptiveScale::get($latestLetter) : null;
                         @endphp
                         <tr>
                             <td class="left {{ $isChild ? 'indent' : '' }}">
                                 @if($isParent)<strong>{{ $subjName }}</strong>@else{{ $subjName }}@endif
                             </td>
                             @foreach([1, 2, 3, 4] as $quarter)
-                                <td class="center" title="{{ $row->quarterCaption($quarter) }}">{{ $row->presentQuarter($quarter) === '—' ? '' : $row->presentQuarter($quarter) }}</td>
+                                @php
+                                    if ($descriptive) {
+                                        $cell = $row->presentQuarter($quarter);
+                                        $cell = $cell === '—' ? '' : $cell;
+                                    } else {
+                                        $value = $row->{'quarter_'.$quarter};
+                                        $cell = ($value === null || $value === '') ? '' : number_format((float) $value, 0);
+                                    }
+                                @endphp
+                                <td class="center" title="{{ $descriptive ? $row->quarterCaption($quarter) : '' }}">{{ $cell }}</td>
                             @endforeach
-                            <td class="center">{{ $row->usesDescriptive() ? '' : ($row->final_grade !== null ? number_format((float)$row->final_grade, 0) : '') }}</td>
-                            <td class="center">{{ $row->usesDescriptive() ? $row->presentQuarter(1, true) : ($row->final_grade !== null ? $remark : '') }}</td>
+                            <td class="center">
+                                @if($descriptive)
+                                    {{ $latestLetter ?? '' }}
+                                @else
+                                    {{ $row->final_grade !== null ? number_format((float) $row->final_grade, 0) : '' }}
+                                @endif
+                            </td>
+                            <td class="center">
+                                @if($descriptive)
+                                    {{ $latestMeta ? $latestMeta['english'].' ('.$latestMeta['filipino'].')' : '' }}
+                                @else
+                                    {{ $row->final_grade !== null ? $remark : '' }}
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="7" class="center">No grades recorded.</td></tr>
                     @endforelse
 
-                    @if($learningRows->isNotEmpty())
+                    @if($learningRows->isNotEmpty() && ! $descriptive)
                         <tr>
                             <td class="ga-label">General Average</td>
                             @foreach(['q1','q2','q3','q4','final'] as $k)
@@ -165,23 +194,45 @@
                 </tbody>
             </table>
 
-            <h3 style="margin-top:14px;">Report on Learning Progress and Achievement</h3>
-            <table class="rc scale">
-                <thead>
-                    <tr>
-                        <th>Descriptors</th>
-                        <th style="width:28%">Grading Scale</th>
-                        <th style="width:22%">Remarks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>Outstanding</td><td class="center">90 – 100</td><td class="center">Passed</td></tr>
-                    <tr><td>Very Satisfactory</td><td class="center">85 – 89</td><td class="center">Passed</td></tr>
-                    <tr><td>Satisfactory</td><td class="center">80 – 84</td><td class="center">Passed</td></tr>
-                    <tr><td>Fairly Satisfactory</td><td class="center">75 – 79</td><td class="center">Passed</td></tr>
-                    <tr><td>Did Not Meet Expectations</td><td class="center">Below 75</td><td class="center">Failed</td></tr>
-                </tbody>
-            </table>
+            @if($descriptive)
+                <h3 style="margin-top:14px;">Descriptive Scale</h3>
+                <table class="rc scale">
+                    <thead>
+                        <tr>
+                            <th style="width:12%">Letter</th>
+                            <th style="width:34%">Descriptor</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(\App\Support\DescriptiveScale::LEVELS as $letter => $meta)
+                            <tr>
+                                <td class="center"><strong>{{ $letter }}</strong></td>
+                                <td>{{ $meta['english'] }} ({{ $meta['filipino'] }})</td>
+                                <td class="left">{{ $meta['description'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <h3 style="margin-top:14px;">Report on Learning Progress and Achievement</h3>
+                <table class="rc scale">
+                    <thead>
+                        <tr>
+                            <th>Descriptors</th>
+                            <th style="width:28%">Grading Scale</th>
+                            <th style="width:22%">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Outstanding</td><td class="center">90 – 100</td><td class="center">Passed</td></tr>
+                        <tr><td>Very Satisfactory</td><td class="center">85 – 89</td><td class="center">Passed</td></tr>
+                        <tr><td>Satisfactory</td><td class="center">80 – 84</td><td class="center">Passed</td></tr>
+                        <tr><td>Fairly Satisfactory</td><td class="center">75 – 79</td><td class="center">Passed</td></tr>
+                        <tr><td>Did Not Meet Expectations</td><td class="center">Below 75</td><td class="center">Failed</td></tr>
+                    </tbody>
+                </table>
+            @endif
         </div>
     </div>
 </div>

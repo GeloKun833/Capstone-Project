@@ -37,6 +37,7 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\RejectEmojiInput::class,
+            \App\Http\Middleware\RestrictAccountToCreationYear::class,
             \App\Http\Middleware\EnforceSystemAccessLimits::class,
             \App\Http\Middleware\LogRequestTiming::class,
             \App\Http\Middleware\DisablePageCache::class,

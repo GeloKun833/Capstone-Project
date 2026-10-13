@@ -6,8 +6,39 @@
             <div class="row align-items-center">
                 <div class="col">
                     <h3 class="page-title mb-1">Grade Encoding Access</h3>
-                    <p class="dir-subtitle">Choose who may encode and update grades. This does not change the user's role.</p>
+                    <p class="dir-subtitle">Choose who may encode grades, and which grade levels are open for encoding.</p>
                 </div>
+            </div>
+        </div>
+
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
+        <div class="dir-card mb-4">
+            <div class="p-3 p-md-4">
+                <h5 class="mb-1">Open grade levels</h5>
+                <p class="text-muted small">Teachers can encode grades only for the levels you leave checked. Nursery and Kindergarten use descriptive letters. Grade 1 through Grade 3 also use letters. Grade 4 through Grade 10 use scores from 0 to 100.</p>
+                <form method="POST" action="{{ route('admin.grade-encoding.levels') }}">
+                    @csrf
+                    <div class="row g-2">
+                        @foreach($gradeLevels as $grade)
+                            @php
+                                $checked = $openLevels === null || in_array($grade, $openLevels, true);
+                            @endphp
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <label class="d-flex align-items-center gap-2 mb-0">
+                                    <input type="checkbox" name="grade_levels[]" value="{{ $grade }}" {{ $checked ? 'checked' : '' }}>
+                                    <span>{{ $grade }}</span>
+                                </label>
+                            </div>
+                        @endforeach
+                    </div>
+                    <button type="submit" class="btn btn-primary dir-btn mt-3">Save grade levels</button>
+                </form>
             </div>
         </div>
 

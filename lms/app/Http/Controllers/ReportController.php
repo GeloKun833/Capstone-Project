@@ -114,6 +114,15 @@ class ReportController extends Controller
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
         $semesters = Semester::orderBy('name')->get();
 
+        $earlyLevels = array_values(array_filter(
+            \App\Services\GradeSubjectCatalogService::gradeLevels(),
+            fn ($grade) => \App\Support\DescriptiveScale::isNurseryOrKindergarten($grade)
+        ));
+        $descriptiveLevels = array_values(array_filter(
+            \App\Services\GradeSubjectCatalogService::gradeLevels(),
+            fn ($grade) => \App\Support\DescriptiveScale::isDescriptiveGradeLevel($grade)
+        ));
+
         return view('reports.index', compact(
             'students',
             'sections',
@@ -121,7 +130,9 @@ class ReportController extends Controller
             'sectionsPayload',
             'gradeLevels',
             'academicYears',
-            'semesters'
+            'semesters',
+            'earlyLevels',
+            'descriptiveLevels'
         ));
     }
 

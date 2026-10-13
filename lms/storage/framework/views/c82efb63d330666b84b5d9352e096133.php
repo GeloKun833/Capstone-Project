@@ -804,6 +804,7 @@
                                     <table class="table table-hover">
                                         <thead class="table-light">
                                             <tr>
+                                                <th>Preview</th>
                                                 <th><i class="fas fa-file me-1"></i>Document Type</th>
                                                 <th><i class="fas fa-file-alt me-1"></i>File Name</th>
                                                 <th><i class="fas fa-info-circle me-1"></i>Status</th>
@@ -813,6 +814,7 @@
                                         <tbody>
                                             <?php $__currentLoopData = $enrollmentApplication->documents; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $doc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <tr>
+                                                    <td><?php echo $__env->make('enrollment.partials.document-thumb', ['document' => $doc], \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?></td>
                                                     <td class="fw-semibold"><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? ucfirst(str_replace('_', ' ', $doc->document_type))); ?></td>
                                                     <td><?php echo e($doc->file_name); ?></td>
                                                     <td>

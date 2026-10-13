@@ -53,7 +53,7 @@
                                 <select class="form-control" name="teacher_id" id="teacher_id" required>
                                     <option value="">Select Teacher</option>
                                     @foreach($teachers as $teacher)
-                                        <option value="{{ $teacher->id }}" {{ old('teacher_id') == $teacher->id ? 'selected' : '' }}>
+                                        <option value="{{ $teacher->id }}" {{ (string) old('teacher_id', $prefillTeacherId) === (string) $teacher->id ? 'selected' : '' }}>
                                             {{ $teacher->full_name }}
                                         </option>
                                     @endforeach
@@ -199,7 +199,11 @@
                             <button type="submit" class="btn btn-primary dir-btn">
                                 <i class="fas fa-save me-1"></i> Create Schedule
                             </button>
-                            <a href="{{ route('admin.schedules.index') }}" class="btn btn-outline-secondary dir-btn">
+                            <a href="{{ route('admin.schedules.index', array_filter([
+                                'teacher_id' => old('teacher_id', $prefillTeacherId),
+                                'section_id' => old('section_id', $prefillSectionId),
+                                'subject_id' => old('subject_id', $prefillSubjectId),
+                            ])) }}" class="btn btn-outline-secondary dir-btn">
                                 <i class="fas fa-times me-1"></i> Cancel
                             </a>
                         </div>
@@ -218,9 +222,9 @@
 <script>
 (function () {
     const assignmentsUrl = @json(url('/admin/schedules/teacher'));
-    const oldTeacher = @json(old('teacher_id'));
-    const oldSection = @json(old('section_id'));
-    const oldSubject = @json(old('subject_id'));
+    const oldTeacher = @json(old('teacher_id', $prefillTeacherId));
+    const oldSection = @json(old('section_id', $prefillSectionId));
+    const oldSubject = @json(old('subject_id', $prefillSubjectId));
 
     let allSubjects = [];
     let allSections = [];
@@ -371,7 +375,7 @@
                 : '';
 
             if (!allSections.length) {
-                hint.innerHTML = '<span class="text-danger">No sections have been created for the current academic year.</span>';
+                hint.innerHTML = '<span class="text-danger">No sections are assigned to this teacher for the current academic year.</span>';
                 return;
             }
 
@@ -388,9 +392,19 @@
         });
     }
 
-    teacherSelect.addEventListener('change', function () {
-        loadTeacher(this.value);
-    });
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery(teacherSelect).select2({
+            width: '100%',
+            placeholder: 'Search teacher name',
+            allowClear: true
+        }).on('change', function () {
+            loadTeacher(this.value);
+        });
+    } else {
+        teacherSelect.addEventListener('change', function () {
+            loadTeacher(this.value);
+        });
+    }
 
     sectionSelect.addEventListener('change', function () {
         fillSubjects(this.value, '');

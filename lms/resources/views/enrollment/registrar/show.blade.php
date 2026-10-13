@@ -621,6 +621,7 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
+                                            <th>Preview</th>
                                             <th>Document Type</th>
                                             <th>File Name</th>
                                             <th>File Size</th>
@@ -631,6 +632,7 @@
                                     <tbody>
                                         @foreach($application->documents as $document)
                                             <tr>
+                                                <td>@include('enrollment.partials.document-thumb', ['document' => $document])</td>
                                                 <td>
                                                     <strong>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$document->document_type] ?? $document->document_type }}</strong>
                                                 </td>
@@ -687,7 +689,7 @@
                                             </tr>
                                             @if($document->verification_notes)
                                                 <tr>
-                                                    <td colspan="5">
+                                                    <td colspan="6">
                                                         <small class="text-muted">
                                                             <strong>Verification Notes:</strong> {{ $document->verification_notes }}
                                                         </small>

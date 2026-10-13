@@ -5,8 +5,39 @@
             <div class="row align-items-center">
                 <div class="col">
                     <h3 class="page-title mb-1">Grade Encoding Access</h3>
-                    <p class="dir-subtitle">Choose who may encode and update grades. This does not change the user's role.</p>
+                    <p class="dir-subtitle">Choose who may encode grades, and which grade levels are open for encoding.</p>
                 </div>
+            </div>
+        </div>
+
+        <?php if(session('success')): ?>
+            <div class="alert alert-success"><?php echo e(session('success')); ?></div>
+        <?php endif; ?>
+        <?php if(session('error')): ?>
+            <div class="alert alert-danger"><?php echo e(session('error')); ?></div>
+        <?php endif; ?>
+
+        <div class="dir-card mb-4">
+            <div class="p-3 p-md-4">
+                <h5 class="mb-1">Open grade levels</h5>
+                <p class="text-muted small">Teachers can encode grades only for the levels you leave checked. Nursery and Kindergarten use descriptive letters. Grade 1 through Grade 3 also use letters. Grade 4 through Grade 10 use scores from 0 to 100.</p>
+                <form method="POST" action="<?php echo e(route('admin.grade-encoding.levels')); ?>">
+                    <?php echo csrf_field(); ?>
+                    <div class="row g-2">
+                        <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
+                                $checked = $openLevels === null || in_array($grade, $openLevels, true);
+                            ?>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <label class="d-flex align-items-center gap-2 mb-0">
+                                    <input type="checkbox" name="grade_levels[]" value="<?php echo e($grade); ?>" <?php echo e($checked ? 'checked' : ''); ?>>
+                                    <span><?php echo e($grade); ?></span>
+                                </label>
+                            </div>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </div>
+                    <button type="submit" class="btn btn-primary dir-btn mt-3">Save grade levels</button>
+                </form>
             </div>
         </div>
 

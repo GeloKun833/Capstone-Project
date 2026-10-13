@@ -25,6 +25,7 @@
         <div class="dir-tip mb-4">
             <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
             Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
+            The report follows the grade you select: Nursery and Kindergarten use descriptive letters, and Grade 4 through Grade 10 use numerical scores.
                         </div>
 
         <div class="row g-3">
@@ -101,6 +102,7 @@
                                     <option value="{{ $grade }}">{{ $grade }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                             <label class="form-label">Section</label>
@@ -131,6 +133,7 @@
                                 <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                             <label class="form-label">Semester</label>
@@ -140,6 +143,7 @@
                                 <option value="{{ $semester->id }}">{{ $semester->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
@@ -178,6 +182,7 @@
                                     <option value="{{ $grade }}">{{ $grade }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-6">
                             <label class="form-label">Scope</label>
@@ -200,6 +205,7 @@
                                 <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                             <label class="form-label">Semester</label>
@@ -209,6 +215,7 @@
                                 <option value="{{ $semester->id }}">{{ $semester->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
@@ -247,6 +254,7 @@
                                     <option value="{{ $grade }}">{{ $grade }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                             <label class="form-label">Section</label>
@@ -277,6 +285,7 @@
                                 <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Semester</label>
@@ -286,6 +295,7 @@
                                 <option value="{{ $semester->id }}">{{ $semester->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
@@ -324,6 +334,7 @@
                                     <option value="{{ $grade }}">{{ $grade }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                             <label class="form-label">Section</label>
@@ -354,6 +365,7 @@
                                 <option value="{{ $year->id }}" @selected((string) request('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id)>{{ $year->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Semester</label>
@@ -363,6 +375,7 @@
                                 <option value="{{ $semester->id }}">{{ $semester->name }}</option>
                             @endforeach
                         </select>
+                        <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
                         <label class="form-label">Format</label>
@@ -391,6 +404,19 @@
 (function () {
     const students = @json($studentsPayload);
     const sections = @json($sectionsPayload);
+    const earlyLevels = @json($earlyLevels ?? []);
+    const descriptiveLevels = @json($descriptiveLevels ?? []);
+
+    function gradeReportNote(grade) {
+        if (!grade) return '';
+        if (earlyLevels.indexOf(grade) !== -1) {
+            return 'This level uses descriptive letters A–E on the progress report. Numerical averages are not used.';
+        }
+        if (descriptiveLevels.indexOf(grade) !== -1) {
+            return 'This level is encoded with descriptive letters A–E (Advancing through Emerging).';
+        }
+        return 'This level uses numerical scores from 0 to 100, with Passed or Failed.';
+    }
 
     function fillSections(form, grade) {
         const select = form.querySelector('.section-select');
@@ -520,6 +546,8 @@
             fillSections(form, this.value);
             fillStudents(form);
             syncScopeUI(form);
+            const note = form.querySelector('.grade-method-note');
+            if (note) note.textContent = gradeReportNote(this.value);
         });
         form.querySelector('.section-select')?.addEventListener('change', function () {
             fillStudents(form);

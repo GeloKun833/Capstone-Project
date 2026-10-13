@@ -11,6 +11,7 @@ class Activity extends Model
 
     protected $fillable = [
         'title',
+        'activity_type',
         'instructions',
         'lesson_id',
         'due_date',
@@ -38,6 +39,33 @@ class Activity extends Model
     public function rubrics()
     {
         return $this->hasMany(ActivityRubric::class);
+    }
+
+    public static function kindsFor(?string $gradeLevel): array
+    {
+        if (\App\Support\DescriptiveScale::isDescriptiveGradeLevel($gradeLevel)) {
+            return [
+                'hands_on' => 'Hands-on task',
+                'oral' => 'Oral response',
+                'portfolio' => 'Work sample or portfolio',
+                'observation' => 'Teacher observation',
+            ];
+        }
+
+        return [
+            'worksheet' => 'Worksheet',
+            'quiz' => 'Quiz',
+            'project' => 'Project',
+            'performance' => 'Performance task',
+        ];
+    }
+
+    public function typeLabel(): string
+    {
+        $kinds = self::kindsFor(null);
+        $early = self::kindsFor('Nursery');
+
+        return $early[$this->activity_type] ?? $kinds[$this->activity_type] ?? 'Activity';
     }
 
     // Scopes

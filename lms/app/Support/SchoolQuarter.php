@@ -73,4 +73,15 @@ class SchoolQuarter
 
         return null;
     }
+
+    public static function find(?AcademicYear $year, int $number): ?array
+    {
+        foreach (self::periods($year) as $period) {
+            if ((int) $period['number'] === $number) {
+                return $period;
+            }
+        }
+
+        return null;
+    }
 }

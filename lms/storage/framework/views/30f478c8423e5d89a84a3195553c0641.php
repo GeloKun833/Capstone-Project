@@ -70,7 +70,7 @@ unset($__errorArgs, $__bag); ?>
                     <div class="row mt-4" id="step-class">
                         <div class="col-12 mb-3">
                             <h5 class="dir-toolbar-title">Step 2 — Class Information</h5>
-                            <p class="dir-subtitle">Updated from the teacher’s current section/subject assignments.</p>
+                            <p class="dir-subtitle">Subjects listed are the ones assigned to the selected section.</p>
                                 </div>
                                 
                                 <div class="col-12 col-sm-6">
@@ -249,6 +249,7 @@ unset($__errorArgs, $__bag); ?>
 
     let allSubjects = [];
     let allSections = [];
+    let sectionSubjects = {};
 
     const teacherSelect = document.getElementById('teacher_id');
     const sectionSelect = document.getElementById('section_id');
@@ -279,14 +280,11 @@ unset($__errorArgs, $__bag); ?>
     }
 
     function subjectsForSection(sectionId) {
-        if (!sectionId) return allSubjects;
-        const sec = allSections.find(function (s) { return String(s.id) === String(sectionId); });
-        const grade = sec ? (sec.grade_level || '') : '';
-        if (!grade) return allSubjects;
-        const matched = allSubjects.filter(function (sub) {
-            return !sub.class || String(sub.class) === String(grade);
+        if (!sectionId) return [];
+        const ids = (sectionSubjects[sectionId] || sectionSubjects[String(sectionId)] || []).map(String);
+        return allSubjects.filter(function (sub) {
+            return ids.indexOf(String(sub.id)) !== -1;
         });
-        return matched.length ? matched : allSubjects;
     }
 
     function fillSubjects(sectionId, selectedId) {
@@ -307,7 +305,9 @@ unset($__errorArgs, $__bag); ?>
             subjectSelect.appendChild(opt);
         }
         if (subjectHint) {
-            subjectHint.textContent = list.length + ' subject(s) available for this teacher/section';
+            subjectHint.textContent = !sectionId
+                ? 'Select a section to see its subjects.'
+                : (list.length ? list.length + ' subject(s) assigned to this section.' : 'No subjects have been assigned to this section.');
         }
     }
 
@@ -350,13 +350,14 @@ unset($__errorArgs, $__bag); ?>
     function loadTeacher(teacherId, preselectSection, preselectSubject) {
         if (!teacherId) return;
         hint.textContent = 'Loading assignments…';
-        fetch(assignmentsUrl + '/' + teacherId + '/assignments', {
+        fetch(assignmentsUrl + '/' + teacherId + '/assignments?academic_year_id=' + encodeURIComponent(String(<?php echo json_encode($schedule->academic_year_id, 15, 512) ?>)), {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
             allSections = data.sections || [];
             allSubjects = data.subjects || [];
+            sectionSubjects = data.section_subjects || {};
             hint.textContent = (allSections.length + ' section(s), ' + allSubjects.length + ' subject(s) assigned');
             fillSections(preselectSection || '');
             fillSubjects(preselectSection || '', preselectSubject || '');
@@ -367,9 +368,19 @@ unset($__errorArgs, $__bag); ?>
         });
     }
 
-    teacherSelect.addEventListener('change', function () {
-        loadTeacher(this.value);
-    });
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery(teacherSelect).select2({
+            width: '100%',
+            placeholder: 'Search teacher name',
+            allowClear: true
+        }).on('change', function () {
+            loadTeacher(this.value);
+        });
+    } else {
+        teacherSelect.addEventListener('change', function () {
+            loadTeacher(this.value);
+        });
+    }
     sectionSelect.addEventListener('change', function () {
         fillSubjects(this.value, '');
         updateSummary();

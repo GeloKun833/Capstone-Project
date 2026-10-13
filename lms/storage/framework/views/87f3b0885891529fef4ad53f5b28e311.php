@@ -42,7 +42,7 @@
 <div class="ep-stat-grid mb-5">
     <div class="ep-stat-card">
         <div class="ep-stat-icon blue"><i class="fas fa-user-plus"></i></div>
-        <div class="ep-stat-value">3</div>
+        <div class="ep-stat-value">2</div>
         <div class="ep-stat-label">Enrollment Types</div>
     </div>
     <div class="ep-stat-card">
@@ -113,28 +113,6 @@
         </div>
     </div>
 
-    <div class="ep-type-card">
-        <div class="ep-type-card-header transfer">
-            <div class="ep-type-icon"><i class="fas fa-right-left"></i></div>
-            <h3 style="color:#fff!important;margin:0;font-weight:800;">Transferee</h3>
-        </div>
-        <div class="ep-type-card-body">
-            <p class="text-muted mb-3">Transferring from another school.</p>
-            <ul class="ep-type-features">
-                <li><i class="fas fa-check-circle"></i> Complete application form</li>
-                <li><i class="fas fa-check-circle"></i> SF9 from previous school <strong class="text-danger">required</strong></li>
-                <li><i class="fas fa-check-circle"></i> Document verification</li>
-                <li><i class="fas fa-check-circle"></i> Section assignment</li>
-            </ul>
-            <?php if(empty($enrollmentClosedMessage)): ?>
-                <a href="<?php echo e(route('enrollment.portal.create', ['type' => 'transferee'])); ?>" class="ep-btn ep-btn-warning ep-btn-block ep-btn-lg">
-                    Start Transferee Enrollment <i class="fas fa-arrow-right"></i>
-                </a>
-            <?php else: ?>
-                <button type="button" class="ep-btn ep-btn-warning ep-btn-block ep-btn-lg" disabled>Enrollment Unavailable</button>
-            <?php endif; ?>
-        </div>
-    </div>
 </div>
 
 
@@ -188,7 +166,7 @@
             <div class="col-md-6">
                 <h5 class="fw-bold mb-3">Required Documents</h5>
                 <ul class="list-unstyled">
-                    <?php $__currentLoopData = ['Birth Certificate','SF10 (Report Card)','Certificate of Good Moral Character','ID Photo (2×2)','Parent/Guardian ID','SF9 (Transferees only)']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $doc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php $__currentLoopData = ['Birth Certificate','SF10 (Report Card)','Certificate of Good Moral Character','ID Photo (2×2)','Parent/Guardian ID']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $doc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i><?php echo e($doc); ?></li>
                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </ul>

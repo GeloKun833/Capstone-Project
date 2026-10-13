@@ -55,6 +55,12 @@ class ReportCardService
         $attendanceRows = $this->emptyAttendanceRows();
 
         $student->loadMissing('sections');
+        $reportSection = $academicYear
+            ? $student->sections->first(fn ($section) => (int) $section->pivot->academic_year_id === (int) $academicYear->id)
+            : null;
+        $reportSection = $reportSection ?? $student->sections->first();
+        $gradeLevel = $reportSection?->grade_level;
+        $descriptive = \App\Support\DescriptiveScale::isNurseryOrKindergarten($gradeLevel);
 
         if (! $academicYear) {
             return compact(
@@ -66,7 +72,10 @@ class ReportCardService
                 'quarterAverages',
                 'generalAverages',
                 'attendanceMonths',
-                'attendanceRows'
+                'attendanceRows',
+                'reportSection',
+                'gradeLevel',
+                'descriptive'
             ) + ['focusQuarter' => $focusQuarter];
         }
 
@@ -110,6 +119,9 @@ class ReportCardService
             'attendanceMonths' => $attendanceMonths,
             'attendanceRows' => $attendanceRows,
             'focusQuarter' => $focusQuarter,
+            'reportSection' => $reportSection,
+            'gradeLevel' => $gradeLevel,
+            'descriptive' => $descriptive,
         ];
     }
 

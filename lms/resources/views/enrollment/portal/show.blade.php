@@ -533,6 +533,7 @@
                         <table class="table table-hover">
                             <thead>
                                 <tr>
+                                    <th>Preview</th>
                                     <th>Document Type</th>
                                     <th>File Name</th>
                                     <th>File Size</th>
@@ -543,6 +544,7 @@
                             <tbody>
                                 @foreach($application->documents as $document)
                                     <tr>
+                                        <td>@include('enrollment.partials.document-thumb', ['document' => $document])</td>
                                         <td>
                                             <strong>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$document->document_type] ?? $document->document_type }}</strong>
                                         </td>

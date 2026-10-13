@@ -14,7 +14,11 @@
                         <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">Dashboard</a></li>
                         <li class="breadcrumb-item active">Class Schedules</li>
                     </ul>
-                    <a href="<?php echo e(route('admin.schedules.create')); ?>" class="btn btn-primary dir-btn">
+                    <a href="<?php echo e(route('admin.schedules.create', array_filter([
+                        'teacher_id' => $selectedTeacherId,
+                        'section_id' => $selectedSectionId,
+                        'subject_id' => $selectedSubjectId,
+                    ]))); ?>" class="btn btn-primary dir-btn">
                         <i class="fas fa-plus me-1"></i> Create Schedule
                     </a>
                 </div>
@@ -29,37 +33,20 @@
         <?php endif; ?>
 
         <div class="dir-card dir-filters">
-            <form method="GET" action="<?php echo e(route('admin.schedules.index')); ?>">
+            <form method="GET" id="scheduleFilterForm" action="<?php echo e(route('admin.schedules.index')); ?>">
                 <div class="row g-2 align-items-end">
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Academic Year</label>
-                        <select name="academic_year_id" class="form-control">
-                            <?php $__currentLoopData = $years; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $year): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($year->id); ?>" <?php echo e((int) ($viewYear?->id) === (int) $year->id ? 'selected' : ''); ?>>
-                                    <?php echo e($year->displayName()); ?><?php echo e($year->isCurrent() ? ' (Current)' : ''); ?>
-
-                                </option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <label class="form-label">Section</label>
-                        <select name="section_id" class="form-control">
-                            <option value="">All Sections</option>
-                            <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($section->id); ?>" <?php echo e((int) request('section_id') === (int) $section->id ? 'selected' : ''); ?>>
-                                    <?php echo e($section->grade_level); ?> – <?php echo e($section->name); ?>
-
-                                </option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        <select id="filter_academic_year" class="form-control" disabled>
+                            <option selected><?php echo e($viewYear?->displayName() ?? 'No current academic year'); ?></option>
                         </select>
                     </div>
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Teacher</label>
-                        <select name="teacher_id" class="form-control">
-                            <option value="">All Teachers</option>
+                        <select name="teacher_id" id="filter_teacher_id" class="form-control">
+                            <option value="">Select a teacher</option>
                             <?php $__currentLoopData = $teachers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($teacher->id); ?>" <?php echo e((int) request('teacher_id') === (int) $teacher->id ? 'selected' : ''); ?>>
+                                <option value="<?php echo e($teacher->id); ?>" <?php echo e((int) ($selectedTeacherId ?? 0) === (int) $teacher->id ? 'selected' : ''); ?>>
                                     <?php echo e($teacher->full_name); ?>
 
                                 </option>
@@ -67,14 +54,23 @@
                         </select>
                     </div>
                     <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Section</label>
+                        <select name="section_id" id="filter_section_id" class="form-control" <?php echo e(empty($selectedTeacherId) ? 'disabled' : ''); ?>>
+                            <option value=""><?php echo e(empty($selectedTeacherId) ? 'Select a teacher first' : 'All Sections'); ?></option>
+                            <?php $__currentLoopData = $filterSections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($section->id); ?>" <?php echo e((int) ($selectedSectionId ?? 0) === (int) $section->id ? 'selected' : ''); ?>>
+                                    <?php echo e($section->grade_level); ?> – <?php echo e($section->name); ?>
+
+                                </option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
                         <label class="form-label">Subject</label>
-                        <select name="subject_id" class="form-control">
-                            <option value="">All Subjects</option>
+                        <select name="subject_id" id="filter_subject_id" class="form-control" <?php echo e(empty($selectedTeacherId) ? 'disabled' : ''); ?>>
+                            <option value=""><?php echo e(empty($selectedSectionId) ? 'All Subjects' : 'All Subjects on this section'); ?></option>
                             <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <?php
-                                    $onSections = $sections->filter(fn ($section) => $section->subjects->contains('id', $subject->id))->pluck('id')->implode(',');
-                                ?>
-                                <option value="<?php echo e($subject->id); ?>" data-sections="<?php echo e($onSections); ?>" <?php echo e((int) request('subject_id') === (int) $subject->id ? 'selected' : ''); ?>>
+                                <option value="<?php echo e($subject->id); ?>" <?php echo e((int) ($selectedSubjectId ?? 0) === (int) $subject->id ? 'selected' : ''); ?>>
                                     <?php echo e($subject->subject_name); ?><?php if($subject->class): ?> (<?php echo e($subject->class); ?>)<?php endif; ?>
                                 </option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -82,7 +78,7 @@
                     </div>
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Day of Week</label>
-                        <select name="day_of_week" class="form-control">
+                        <select name="day_of_week" id="filter_day_id" class="form-control">
                             <option value="">All Days</option>
                             <?php $__currentLoopData = $days; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <option value="<?php echo e($day); ?>" <?php echo e(request('day_of_week') == $day ? 'selected' : ''); ?>>
@@ -93,12 +89,7 @@
                         </select>
                     </div>
                     <div class="col-lg-3 col-md-6 pb-3">
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary dir-btn flex-fill">
-                                <i class="fas fa-filter me-1"></i> View
-                            </button>
-                            <a href="<?php echo e(route('admin.schedules.index')); ?>" class="btn btn-outline-secondary dir-btn">Clear</a>
-                        </div>
+                        <a href="<?php echo e(route('admin.schedules.index')); ?>" class="btn btn-outline-secondary dir-btn">Clear</a>
                     </div>
                 </div>
             </form>
@@ -298,26 +289,107 @@
 </style>
 <?php $__env->stopPush(); ?>
 
+<?php $__env->startPush('styles'); ?>
+<style>
+#scheduleFilterForm .form-control,
+#scheduleFilterForm .select2-container--default .select2-selection--single {
+    height: 45px;
+    min-height: 45px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 15px;
+    color: #333;
+}
+#scheduleFilterForm .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 43px;
+    padding-left: 12px;
+    padding-right: 46px;
+    color: #333;
+}
+#scheduleFilterForm .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 43px;
+    right: 6px;
+}
+#scheduleFilterForm .select2-container--default .select2-selection--single .select2-selection__clear {
+    height: 43px;
+    margin-right: 2px;
+    line-height: 43px;
+    font-size: 16px;
+}
+#scheduleFilterForm .select2-container--default.select2-container--disabled .select2-selection--single {
+    background: #fff;
+    cursor: default;
+}
+#scheduleFilterForm .select2-container {
+    display: block;
+}
+</style>
+<?php $__env->stopPush(); ?>
+
 <?php $__env->startPush('scripts'); ?>
 <script>
-(function () {
-    const sectionFilter = document.querySelector('select[name="section_id"]');
-    const subjectFilter = document.querySelector('select[name="subject_id"]');
-    if (!sectionFilter || !subjectFilter) return;
+function scheduleFilterPlaceholder(id, fallback) {
+    if (!window.jQuery) return fallback;
+    var text = jQuery('#' + id + ' option[value=""]').first().text();
+    return text || fallback;
+}
 
-    function applySubjectFilter() {
-        const sectionId = sectionFilter.value;
-        Array.from(subjectFilter.options).forEach(function (opt, index) {
-            if (index === 0) return;
-            const ids = (opt.getAttribute('data-sections') || '').split(',').filter(Boolean);
-            const visible = !sectionId || ids.indexOf(sectionId) !== -1;
-            opt.hidden = !visible;
-            if (!visible && opt.selected) subjectFilter.value = '';
-        });
+if (window.jQuery && jQuery.fn.select2) {
+    jQuery('#filter_academic_year').select2({ width: '100%' });
+    jQuery('#filter_teacher_id').select2({
+        width: '100%',
+        placeholder: scheduleFilterPlaceholder('filter_teacher_id', 'Select a teacher'),
+        allowClear: true
+    });
+    jQuery('#filter_section_id').select2({
+        width: '100%',
+        placeholder: scheduleFilterPlaceholder('filter_section_id', 'All Sections'),
+        allowClear: true
+    });
+    jQuery('#filter_subject_id').select2({
+        width: '100%',
+        placeholder: scheduleFilterPlaceholder('filter_subject_id', 'All Subjects'),
+        allowClear: true
+    });
+    jQuery('#filter_day_id').select2({
+        width: '100%',
+        placeholder: scheduleFilterPlaceholder('filter_day_id', 'All Days'),
+        allowClear: true
+    });
+}
+
+(function () {
+    const form = document.getElementById('scheduleFilterForm');
+    const subjectFilter = document.getElementById('filter_subject_id');
+    if (!form || !subjectFilter) return;
+
+    function showSchedules() {
+        form.submit();
     }
 
-    sectionFilter.addEventListener('change', applySubjectFilter);
-    applySubjectFilter();
+    const sectionFilter = document.getElementById('filter_section_id');
+
+    function showAllSubjects() {
+        subjectFilter.value = '';
+        if (window.jQuery && jQuery.fn.select2) {
+            jQuery(subjectFilter).val('').trigger('change.select2');
+        }
+    }
+
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery('#filter_teacher_id').on('change', function () {
+            if (sectionFilter) jQuery(sectionFilter).val('').trigger('change.select2');
+            showAllSubjects();
+            showSchedules();
+        });
+        jQuery('#filter_section_id').on('change', function () {
+            showAllSubjects();
+            showSchedules();
+        });
+        jQuery('#filter_subject_id').on('change', showSchedules);
+        jQuery('#filter_day_id').on('change', showSchedules);
+    }
 })();
 
 document.getElementById('scheduleDetailModal')?.addEventListener('show.bs.modal', function (event) {

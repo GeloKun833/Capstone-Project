@@ -54,12 +54,26 @@ class ObservedValuesController extends Controller
         ]);
 
         $year = AcademicYear::active();
-        $currentPeriod = \App\Support\SchoolQuarter::current($year);
-        if (! $year || ! $currentPeriod) {
-            return back()->with('error', 'Observed values can only be saved for the current quarter of the current academic year.');
+        $selectedPeriod = \App\Support\SchoolQuarter::find($year, (int) $request->input('quarter'));
+        if (! $year || ! $selectedPeriod) {
+            $message = 'Choose a term from the current academic year.';
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return back()->with('error', $message);
         }
-        $quarter = (int) $currentPeriod['number'];
+        $quarter = (int) $selectedPeriod['number'];
         $quarterField = 'quarter_' . $quarter;
+        $section = \App\Models\Section::find($validated['section_id']);
+        if (! \App\Support\GradeEncoding::isLevelOpen($section?->grade_level)) {
+            $message = \App\Support\GradeEncoding::closedMessage($section?->grade_level);
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message], 403);
+            }
+
+            return back()->with('error', $message);
+        }
         $sectionStudentIds = Student::whereHas('sections', function ($q) use ($validated, $year) {
             $q->where('sections.id', $validated['section_id'])
                 ->where('student_section_assignments.academic_year_id', $year->id);
@@ -80,9 +94,20 @@ class ObservedValuesController extends Controller
             $record->save();
         }
 
-        return redirect()->route('teacher.grading.grade-entry', [
+        $redirect = route('teacher.grading.grade-entry', [
             'section_id' => $validated['section_id'],
+            'quarter' => $quarter,
             'step' => 'summary',
-        ])->with('success', 'Observed values saved. Quarter summary is ready.');
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Observed values saved. Quarter summary is ready.',
+                'redirect' => $redirect,
+            ]);
+        }
+
+        return redirect()->to($redirect)->with('success', 'Observed values saved. Quarter summary is ready.');
     }
 }

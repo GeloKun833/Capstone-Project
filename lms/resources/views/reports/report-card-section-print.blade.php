@@ -22,6 +22,9 @@
             $attendanceMonths = $card['attendanceMonths'] ?? \App\Services\ReportCardService::ATTENDANCE_MONTHS;
             $attendanceRows = $card['attendanceRows'] ?? null;
             $focusQuarter = $card['focusQuarter'] ?? ($quarter ?? null);
+            $reportSection = $card['reportSection'] ?? null;
+            $gradeLevel = $card['gradeLevel'] ?? null;
+            $descriptive = $card['descriptive'] ?? false;
         @endphp
         <div class="page-break">
             @include('reports.partials.report-card-body')

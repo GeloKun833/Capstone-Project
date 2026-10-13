@@ -100,9 +100,6 @@
                     <label class="form-label" for="search">Search</label>
                     <input type="search" class="form-control" id="search" value="" placeholder="Name or student number" autocomplete="off">
                 </div>
-                <div class="col-md-4 col-lg-2">
-                    <button type="submit" class="btn btn-primary dir-btn w-100">Show class</button>
-                </div>
             </div>
         </form>
 
@@ -119,7 +116,7 @@
         @elseif(!$ready)
             <div class="att-empty">
                 <h5>Select a section and subject</h5>
-                <p>Choose the class for {{ $academicYear->name }}, then mark attendance for {{ \Carbon\Carbon::parse($date)->format('M j, Y') }}.</p>
+                <p>The class list for {{ $academicYear->name }} opens as soon as both are selected. Attendance is for {{ \Carbon\Carbon::parse($date)->format('M j, Y') }}.</p>
             </div>
         @else
             @if($dateOutsideYear)
@@ -148,6 +145,7 @@
                     </div>
                     <div class="d-flex gap-2 flex-wrap">
                         <button type="button" class="btn btn-outline-secondary dir-btn" id="markAllPresent" @disabled($students->isEmpty() || $dateOutsideYear)>Mark all present</button>
+                        <button type="button" class="btn btn-outline-secondary dir-btn" id="unmarkAll" @disabled($students->isEmpty() || $dateOutsideYear)>Unmark all</button>
                         @if($students->isNotEmpty())
                             <a href="{{ route('attendance.report', ['section_id' => $sectionId, 'subject_id' => $subjectId, 'period' => 'weekly']) }}" class="btn btn-outline-secondary dir-btn">View Attendance Report</a>
                         @endif
@@ -234,6 +232,7 @@
 <link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914m">
 <style>
 .att-page .page-header { margin-bottom: 0.75rem; }
+.page-wrapper:has(.att-page) { min-height: 0 !important; }
 .att-filters {
     background: #fff;
     border: 1px solid #e7e5e4;
@@ -276,7 +275,7 @@
 }
 .att-toolbar h5 { margin: 0; font-size: 1rem; font-weight: 700; color: #1c1917; }
 .att-toolbar p { margin: 0.15rem 0 0; color: #78716c; font-size: 0.84rem; }
-.att-table-wrap { max-height: 68vh; border: 1px solid #e7e5e4; border-radius: 12px; background: #fff; }
+.att-table-wrap { border: 1px solid #e7e5e4; border-radius: 12px; background: #fff; }
 .att-table { margin: 0; }
 .att-table thead th {
     position: sticky;
@@ -381,16 +380,17 @@ $(document).ready(function () {
         });
         $('#attSearchEmpty').toggleClass('d-none', !(needle !== '' && $rows.length > 0 && shown === 0));
     });
+    $('#grade_level, #teacher_id').on('change', function () {
         $('#section_id, #subject_id').val('');
-        $('#attFilterForm').submit();
+        $('#attFilterForm').trigger('submit');
     });
     $('#section_id').on('change', function () {
         $('#subject_id').val('');
-        $('#attFilterForm').submit();
+        $('#attFilterForm').trigger('submit');
     });
     $('#subject_id').on('change', function () {
         if ($(this).val()) {
-            $('#attFilterForm').submit();
+            $('#attFilterForm').trigger('submit');
         }
     });
     $('#attendanceForm').on('change', 'input[name$="[status]"]', function () {
@@ -409,6 +409,12 @@ $(document).ready(function () {
             if (!alreadyPresent) {
                 stampPresent($(this).closest('tr'));
             }
+        });
+    });
+    $('#unmarkAll').on('click', function () {
+        $('#attendanceForm tbody tr').each(function () {
+            $(this).find('input[name$="[status]"]').prop('checked', false);
+            clearTime($(this));
         });
     });
     $('#attendanceForm').on('submit', function (e) {

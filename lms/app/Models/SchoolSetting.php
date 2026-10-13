@@ -38,12 +38,14 @@ class SchoolSetting extends Model
         'max_parents_per_grade',
         'access_allowed_grades',
         'access_limits_message',
+        'encoding_open_grades',
     ];
 
     protected $casts = [
         'rtl_enabled' => 'boolean',
         'access_limits_enabled' => 'boolean',
         'access_allowed_grades' => 'array',
+        'encoding_open_grades' => 'array',
         'max_teachers' => 'integer',
         'max_students_per_grade' => 'integer',
         'max_parents_per_grade' => 'integer',

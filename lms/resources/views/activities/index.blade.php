@@ -34,7 +34,7 @@
                             · {{ $lesson->subject->subject_name }}
                         @endif
                         @if($lesson->section)
-                            · {{ $lesson->section->name }}
+                            · {{ $lesson->section->grade_level ? $lesson->section->grade_level.' · ' : '' }}{{ $lesson->section->name }}
                         @endif
                     </p>
                 </div>
@@ -114,6 +114,9 @@
                 <article class="act-row">
                     <div class="act-row-main">
                         <a class="act-title" href="{{ route('lessons.activities.show', [$lesson, $activity]) }}">{{ $activity->title }}</a>
+                        @if($activity->activity_type)
+                            <div class="text-muted small">{{ $activity->typeLabel() }}</div>
+                        @endif
                         <p class="act-copy">{{ Str::limit(strip_tags((string) $activity->instructions), 140) }}</p>
                         <div class="act-meta">
                             <span class="act-chip act-chip-{{ $dueState }}"><i class="far fa-calendar"></i> {{ $dueLabel }}@if($dueHint) · {{ $dueHint }}@endif</span>

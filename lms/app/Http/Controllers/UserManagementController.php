@@ -293,6 +293,11 @@ class UserManagementController extends Controller
             $summary[] = [
                 'label' => trim($row['grade'].' '.$row['section'].' '.$row['subject'].' '.$row['schedule']),
                 'teacher' => $names[$replacementId] ?? 'Teacher',
+                'type' => $row['type'] ?? '',
+                'grade' => $row['grade'] ?? '',
+                'section' => $row['section'] ?? '',
+                'subject' => $row['subject'] ?? '',
+                'schedule' => $row['schedule'] ?? '',
             ];
         }
 

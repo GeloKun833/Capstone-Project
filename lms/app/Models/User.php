@@ -33,6 +33,7 @@ class User extends Authenticatable implements MustVerifyEmail, CanResetPasswordC
         'phone_number',
         'status',
         'role_name',
+        'account_academic_year_id',
         'avatar',
         'position',
         'department',

@@ -482,6 +482,7 @@
                         <table class="table table-bordered mb-0">
                             <thead class="table-light">
                                 <tr>
+                                    <th>Preview</th>
                                     <th>Document Type</th>
                                     <th>File Name</th>
                                     <th>Status</th>
@@ -491,6 +492,7 @@
                             <tbody>
                                 @foreach($enrollmentDocuments as $doc)
                                     <tr>
+                                        <td>@include('enrollment.partials.document-thumb', ['document' => $doc])</td>
                                         <td>{{ \App\Models\EnrollmentDocument::DOCUMENT_TYPES[$doc->document_type] ?? $doc->document_type }}</td>
                                         <td>{{ $doc->file_name }}</td>
                                         <td>
