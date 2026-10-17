@@ -13,6 +13,15 @@
     $sectionName = optional($reportSection)->name;
     $gradeLevel = $gradeLevel ?? optional($reportSection)->grade_level;
     $descriptive = $descriptive ?? \App\Support\DescriptiveScale::isNurseryOrKindergarten($gradeLevel);
+    $termColumns = \App\Support\SchoolQuarter::periods($academicYear ?? null);
+    if ($termColumns === []) {
+        $termColumns = [
+            ['number' => 1, 'label' => 'Term 1'],
+            ['number' => 2, 'label' => 'Term 2'],
+            ['number' => 3, 'label' => 'Term 3'],
+            ['number' => 4, 'label' => 'Term 4'],
+        ];
+    }
 @endphp
 
 <div class="report-sheet">
@@ -33,6 +42,7 @@
         @if(!empty($student->admission_id))
             <div><strong>Student ID:</strong> {{ $student->admission_id }}</div>
         @endif
+        <div><strong>Report status:</strong> {{ $reportStatus ?? 'Not started' }}@if(!empty($focusQuarter)) (Term {{ $focusQuarter }})@endif</div>
     </div>
 
     <div class="two-col">
@@ -44,13 +54,12 @@
                     <tr>
                         <th rowspan="2" style="width:16%">Core Values</th>
                         <th rowspan="2">Behavior Statements</th>
-                        <th colspan="4">Quarter</th>
+                        <th colspan="{{ count($termColumns) }}">Term</th>
                     </tr>
                     <tr>
-                        <th style="width:7%">1</th>
-                        <th style="width:7%">2</th>
-                        <th style="width:7%">3</th>
-                        <th style="width:7%">4</th>
+                        @foreach($termColumns as $term)
+                            <th style="width:7%">{{ $term['number'] }}</th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody>
@@ -62,7 +71,8 @@
                                     <td class="core" rowspan="{{ $items->count() }}">{{ $loop->parent->iteration }}. {{ $core }}</td>
                                 @endif
                                 <td class="left">{{ $indicator->statement }}</td>
-                                @foreach(['quarter_1','quarter_2','quarter_3','quarter_4'] as $qf)
+                                @foreach($termColumns as $term)
+                                    @php $qf = 'quarter_'.$term['number']; @endphp
                                     <td class="center">{{ optional($rating)->{$qf} ?: '' }}</td>
                                 @endforeach
                             </tr>
@@ -120,15 +130,14 @@
                 <thead>
                     <tr>
                         <th rowspan="2" style="width:34%">Learning Areas</th>
-                        <th colspan="4">Quarter</th>
+                        <th colspan="{{ count($termColumns) }}">Term</th>
                         <th rowspan="2" style="width:11%">Final Grade</th>
                         <th rowspan="2" style="width:12%">Remarks</th>
                     </tr>
                     <tr>
-                        <th style="width:8%">1</th>
-                        <th style="width:8%">2</th>
-                        <th style="width:8%">3</th>
-                        <th style="width:8%">4</th>
+                        @foreach($termColumns as $term)
+                            <th style="width:8%">{{ $term['number'] }}</th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody>
@@ -140,14 +149,15 @@
                             $remark = $row->remarks ?: ReportCardService::remarkForScore(
                                 $row->final_grade !== null ? (float) $row->final_grade : null
                             );
-                            $latestLetter = $descriptive ? $row->latestLevel() : null;
+                            $latestLetter = $descriptive ? $row->finalLevel() : null;
                             $latestMeta = $latestLetter ? \App\Support\DescriptiveScale::get($latestLetter) : null;
                         @endphp
                         <tr>
                             <td class="left {{ $isChild ? 'indent' : '' }}">
                                 @if($isParent)<strong>{{ $subjName }}</strong>@else{{ $subjName }}@endif
                             </td>
-                            @foreach([1, 2, 3, 4] as $quarter)
+                            @foreach($termColumns as $term)
+                                @php $quarter = $term['number']; @endphp
                                 @php
                                     if ($descriptive) {
                                         $cell = $row->presentQuarter($quarter);

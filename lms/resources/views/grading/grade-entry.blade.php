@@ -36,6 +36,10 @@
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
+        <div class="alert {{ \App\Support\GradeEncoding::isWindowOpen() ? 'alert-info' : 'alert-warning' }}">
+            {{ \App\Support\GradeEncoding::windowNote() }}
+        </div>
+
         <div class="ge-card ge-filters">
             <div class="ge-card-head">
                 <h5>Grade sheet</h5>
@@ -86,7 +90,7 @@
             </form>
         </div>
 
-        @if($hasFilters && ! $encodingOpen)
+        @if($hasFilters && ! $encodingOpen && \App\Support\GradeEncoding::isWindowOpen())
             <div class="alert alert-warning">
                 {{ \App\Support\GradeEncoding::closedMessage(optional($sections->firstWhere('id', (int) $selectedSectionId))->grade_level) }}
             </div>
@@ -109,6 +113,7 @@
                         <p>
                             {{ $sectionName }} uses the {{ $descriptive ? 'Descriptive' : 'Numerical' }} Method
                             · {{ $currentAcademicYear->name }}
+                            · Report status: {{ \App\Services\ReportCardService::reportStatus($gradedCount, $expectedCount) }}
                             · {{ $gradedCount }} / {{ $expectedCount }} {{ $descriptive ? 'assessed' : 'graded' }}
                             @if($expectedCount > $gradedCount)
                                 · {{ $expectedCount - $gradedCount }} missing
@@ -376,7 +381,7 @@
                 <div class="ge-card-head ge-card-head-row">
                     <div>
                         <h5>Step 3 — {{ $quarterLabels[(int) $selectedQuarter] }} {{ $descriptive ? 'assessments' : 'average & remarks' }}</h5>
-                        <p>{{ $sectionName }} · {{ $currentAcademicYear->name }}</p>
+                        <p>{{ $sectionName }} · {{ $currentAcademicYear->name }} · Report status: {{ \App\Services\ReportCardService::reportStatus($gradedCount, $expectedCount) }}</p>
                     </div>
                     <a class="btn btn-primary dir-btn"
                        href="{{ route('teacher.grading.quarter-report', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id]) }}"
@@ -391,6 +396,7 @@
                                 <th style="width:48px">#</th>
                                 <th>Student</th>
                                 <th class="text-center">{{ $descriptive ? 'Assessed' : 'Quarter average' }}</th>
+                                <th class="text-center">Report status</th>
                                 <th class="text-center">{{ $descriptive ? 'Missing' : 'Remarks' }}</th>
                                 <th class="text-end">Print</th>
                             </tr>
@@ -406,6 +412,16 @@
                                             {{ $sum['filled'] ?? 0 }} / {{ $sectionSubjects->count() }}
                                         @else
                                             {{ $sum['average'] !== null ? number_format($sum['average'], 2) : '—' }}
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        @php $studentStatus = \App\Services\ReportCardService::reportStatus((int) ($sum['filled'] ?? 0), $sectionSubjects->count()); @endphp
+                                        @if($studentStatus === 'Complete')
+                                            <span class="dir-badge dir-badge--active">Complete</span>
+                                        @elseif($studentStatus === 'Incomplete')
+                                            <span class="dir-badge dir-badge--disabled">Incomplete</span>
+                                        @else
+                                            <span class="dir-muted">Not started</span>
                                         @endif
                                     </td>
                                     <td class="text-center">

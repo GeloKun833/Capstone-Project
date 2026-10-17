@@ -6,6 +6,7 @@ use App\Models\Lesson;
 use App\Models\Activity;
 use App\Models\Subject;
 use App\Models\Section;
+use App\Models\CurriculumCourseOutline;
 use App\Models\CurriculumObjective;
 use App\Models\AcademicYear;
 use App\Models\Semester;
@@ -28,21 +29,48 @@ class LessonController extends Controller
         $query = Lesson::with(['teacher', 'subject', 'section', 'academicYear', 'semester'])
             ->active();
 
-        // Filter by teacher (if teacher role)
+        $subjects = collect();
+        $assignment = null;
         if (Auth::user()->role_name === 'Teacher') {
             $teacher = Auth::user()->teacher;
             if ($teacher) {
                 $query->where('teacher_id', $teacher->id);
+                $assignment = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
+                $subjects = $assignment['subjects'];
+                $assignedIds = $subjects->pluck('id')->map(fn ($id) => (int) $id)->all();
+                $query->whereIn('subject_id', $assignedIds ?: [0]);
             }
         }
 
-        // Apply filters
-        if ($request->filled('subject_id')) {
-            $query->where('subject_id', $request->subject_id);
+        $presentGrades = $subjects->pluck('class')->filter()->unique();
+        $gradeLevels = collect(GradeSubjectCatalogService::gradeLevels())
+            ->filter(fn ($grade) => $presentGrades->contains($grade))
+            ->values();
+        foreach ($presentGrades as $grade) {
+            if (! $gradeLevels->contains($grade)) {
+                $gradeLevels->push($grade);
+            }
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        $selectedGrade = $request->string('grade')->toString();
+        if ($selectedGrade !== '' && $gradeLevels->contains($selectedGrade)) {
+            $gradeSubjectIds = $subjects
+                ->filter(fn ($subject) => $subject->class === $selectedGrade)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $query->whereIn('subject_id', $gradeSubjectIds ?: [0]);
+        } else {
+            $selectedGrade = '';
+        }
+
+        if ($request->filled('subject_id')) {
+            $subjectId = (int) $request->subject_id;
+            $subject = $subjects->firstWhere('id', $subjectId);
+            $subjectMatchesGrade = $subject && ($selectedGrade === '' || $subject->class === $selectedGrade);
+            if ($subjects->isEmpty() || $subjectMatchesGrade) {
+                $query->where('subject_id', $subjectId);
+            }
         }
 
         if ($request->filled('search')) {
@@ -60,7 +88,17 @@ class LessonController extends Controller
             $query->where('academic_year_id', $viewingYearId);
         }
 
-        $lessons = $query->orderBy('lesson_date', 'desc')->paginate(15);
+        $statusCounts = [
+            'published' => (clone $query)->where('status', 'published')->count(),
+            'draft' => (clone $query)->where('status', 'draft')->count(),
+            'completed' => (clone $query)->where('status', 'completed')->count(),
+        ];
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $lessons = $query->orderBy('lesson_date', 'desc')->paginate(15)->withQueryString();
 
         // Debug: Log the lessons query
         Log::info('Lessons index loaded', [
@@ -70,13 +108,15 @@ class LessonController extends Controller
             'teacher_id' => Auth::user()->teacher ? Auth::user()->teacher->id : null
         ]);
 
-        if (Auth::user()->role_name === 'Teacher' && Auth::user()->teacher) {
-            $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor(Auth::user()->teacher);
-            $subjects = $assignmentOptions['subjects'];
-            $sections = $assignmentOptions['sections'];
+        if ($assignment) {
+            $sections = $assignment['sections'];
         } else {
             $subjects = Subject::orderBy('class')->orderBy('subject_name')->get();
             $sections = Section::orderBy('grade_level')->orderBy('name')->get();
+            $presentGrades = $subjects->pluck('class')->filter()->unique();
+            $gradeLevels = collect(GradeSubjectCatalogService::gradeLevels())
+                ->filter(fn ($grade) => $presentGrades->contains($grade))
+                ->values();
         }
         $academicYears = AcademicYear::all();
         $semesters = Semester::all();
@@ -86,7 +126,10 @@ class LessonController extends Controller
             'subjects',
             'sections',
             'academicYears',
-            'semesters'
+            'semesters',
+            'statusCounts',
+            'gradeLevels',
+            'selectedGrade'
         ));
     }
 
@@ -99,12 +142,57 @@ class LessonController extends Controller
         }
 
         $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
-        $academicYears = AcademicYear::orderByDesc('id')->get();
-        $semesters = Semester::orderBy('name')->get();
+        $activeYear = AcademicYear::active();
+        $currentSemester = Semester::current();
+        $semesters = $activeYear
+            ? $activeYear->semesters()->orderBy('id')->get()
+            : collect();
+        if ($currentSemester && $activeYear && (int) $currentSemester->academic_year_id !== (int) $activeYear->id) {
+            $currentSemester = null;
+        }
+
+        $subjectIds = $assignmentOptions['subjects']->pluck('id');
+        $courseOutlines = CurriculumCourseOutline::query()
+            ->with(['optlbRecord', 'materials', 'academicYear'])
+            ->where('status', 'published')
+            ->whereIn('subject_id', $subjectIds)
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy(fn ($outline) => (string) $outline->subject_id)
+            ->map(function ($rows) {
+                return $rows->map(function ($outline) {
+                    return [
+                        'title' => $outline->title,
+                        'year' => $outline->academicYear->name ?? '',
+                        'demo' => str_contains((string) $outline->document_type, 'DEMO'),
+                        'description' => $outline->description,
+                        'objectives' => $outline->learning_objectives,
+                        'topics' => collect($outline->topics ?? [])->map(fn ($topic) => [
+                            'unit' => $topic['unit'] ?? '',
+                            'title' => $topic['title'] ?? '',
+                        ])->values(),
+                        'assessment' => $outline->assessment_methods,
+                        'optlb' => $outline->optlbRecord ? [
+                            'title' => $outline->optlbRecord->title,
+                            'objectives' => $outline->optlbRecord->learning_objectives,
+                            'sequence' => $outline->optlbRecord->topic_sequence,
+                            'activities' => $outline->optlbRecord->suggested_activities,
+                            'assessment' => $outline->optlbRecord->assessment,
+                            'references' => $outline->optlbRecord->references,
+                        ] : null,
+                        'files' => $outline->materials->map(fn ($material) => [
+                            'name' => $material->file_name,
+                            'url' => route('teacher.course-outlines.material', $material),
+                        ])->values(),
+                    ];
+                })->values();
+            });
 
         return view('lessons.create', array_merge($assignmentOptions, [
-            'academicYears' => $academicYears,
+            'activeYear' => $activeYear,
+            'currentSemester' => $currentSemester,
             'semesters' => $semesters,
+            'courseOutlines' => $courseOutlines,
         ]));
     }
 
@@ -122,19 +210,25 @@ class LessonController extends Controller
             $allowedSectionIds = $allowed['sections']->pluck('id')->all();
             $subjectsBySection = $allowed['subjectsBySection'];
 
+            $activeYear = AcademicYear::active();
+            if (! $activeYear) {
+                return redirect()->back()->withInput()->with('error', 'The admin has not set a current academic year. A lesson cannot be saved yet.');
+            }
+
             $request->validate([
                 'section_id' => ['required', Rule::in($allowedSectionIds)],
                 'subject_id' => ['required', Rule::in($allowedSubjectIds)],
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
-                'academic_year_id' => 'required|exists:academic_years,id',
                 'semester_id' => [
                     'required',
-                    Rule::exists('semesters', 'id')->where('academic_year_id', $request->input('academic_year_id')),
+                    Rule::exists('semesters', 'id')->where('academic_year_id', $activeYear->id),
                 ],
                 'lesson_date' => 'required|date',
                 'file' => 'nullable|file|max:10240|mimes:pdf,docx,ppt,pptx',
             ], [
+                'semester_id.required' => 'Select a semester.',
+                'semester_id.exists' => 'Select a semester from the current academic year.',
                 'subject_id.in' => 'Select a subject assigned to you by Admin.',
                 'section_id.in' => 'Select a section assigned to you by Admin.',
                 'file.mimes' => 'Please upload a PDF, Word (DOCX), PPT, or PPTX file.',
@@ -154,10 +248,10 @@ class LessonController extends Controller
                 'description',
                 'subject_id',
                 'section_id',
-                'academic_year_id',
-                'semester_id',
                 'lesson_date',
             ]);
+            $data['academic_year_id'] = $activeYear->id;
+            $data['semester_id'] = (int) $request->semester_id;
             $data['teacher_id'] = $teacher->id;
             $data['is_active'] = true;
             $data['status'] = 'published';

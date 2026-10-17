@@ -518,7 +518,7 @@ unset($__errorArgs, $__bag); ?>
                                 </option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
-                            <small class="text-muted" id="sectionHelpText">Required when assigning or unassigning a section.</small>
+                            <small class="text-muted" id="sectionHelpText">Grades and sections already assigned to this teacher stay off this list.</small>
                     </div>
                         <div class="col-md-6" id="sectionAdviserWrap">
                             <div class="form-check mt-4 pt-1">
@@ -1088,6 +1088,13 @@ unset($__errorArgs, $__bag); ?>
             if (sectionTeacherIds.indexOf(id) !== -1) {
                 teacher.sections = teacher.sections.concat(sectionNames);
             }
+            const sectionIds = (res.sections || []).map(function (s) { return String(s.id); });
+            teacher.section_ids = (teacher.section_ids || []).map(String).filter(function (sectionId) {
+                return sectionIds.indexOf(sectionId) === -1;
+            });
+            if (sectionTeacherIds.indexOf(id) !== -1) {
+                teacher.section_ids = teacher.section_ids.concat(sectionIds);
+            }
         });
     }
 
@@ -1415,7 +1422,44 @@ unset($__errorArgs, $__bag); ?>
         return text || '—';
     }
 
+    let currentTeacher = null;
+    let assignmentListMode = 'assign';
+
+    function assignedGradeSet() {
+        return new Set((currentTeacher && currentTeacher.grades) || []);
+    }
+
+    function sectionOptionAssigned(opt) {
+        if (!currentTeacher || !opt) return false;
+        const ids = (currentTeacher.section_ids || []).map(String);
+        if (ids.indexOf(String(opt.value)) !== -1) return true;
+        const label = (opt.textContent || '').trim();
+        return (currentTeacher.sections || []).indexOf(label) !== -1;
+    }
+
+    function applyAssignmentFilters() {
+        const help = document.getElementById('sectionHelpText');
+        if (help) {
+            help.textContent = assignmentListMode === 'unassign'
+                ? 'Choose a grade or section already assigned to this teacher, then click the unassign button again.'
+                : 'Grades and sections already assigned to this teacher stay off this list.';
+        }
+        if (gradeSelect) {
+            const taken = assignedGradeSet();
+            Array.from(gradeSelect.options).forEach(function (opt, idx) {
+                if (idx === 0) return;
+                const show = assignmentListMode === 'unassign' ? taken.has(opt.value) : !taken.has(opt.value);
+                opt.hidden = !show;
+                opt.disabled = !show;
+                if (!show && opt.selected) gradeSelect.value = '';
+            });
+        }
+        filterSections(gradeSelect ? gradeSelect.value : '');
+    }
+
     function fillTeacherDetails(teacher) {
+        currentTeacher = teacher;
+        assignmentListMode = 'assign';
         currentTeacherName = teacher.name || 'this teacher';
         const photo = document.getElementById('tdPhoto');
         const name = document.getElementById('tdName');
@@ -1445,6 +1489,7 @@ unset($__errorArgs, $__bag); ?>
         if (sections) sections.textContent = (teacher.sections && teacher.sections.length) ? teacher.sections.join(', ') : 'None yet';
         const idInput = document.getElementById('modalTeacherId');
         if (idInput) idInput.value = teacher.id;
+        applyAssignmentFilters();
     }
 
     function openTeacherDetails(teacherId, fromAll) {
@@ -1522,9 +1567,12 @@ unset($__errorArgs, $__bag); ?>
         Array.from(sectionSelect.options).forEach(function (opt, idx) {
             if (idx === 0) return;
             const g = opt.getAttribute('data-grade') || '';
-            const match = !grade || g === grade;
-            opt.hidden = !match;
-            if (!match && opt.selected) {
+            const gradeMatch = !grade || g === grade;
+            const assigned = sectionOptionAssigned(opt);
+            const show = gradeMatch && (assignmentListMode === 'unassign' ? assigned : !assigned);
+            opt.hidden = !show;
+            opt.disabled = !show;
+            if (!show && opt.selected) {
                 opt.selected = false;
                 sectionSelect.value = '';
             }
@@ -1540,10 +1588,17 @@ unset($__errorArgs, $__bag); ?>
     }
 
     document.querySelectorAll('.js-teacher-action').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            pendingTeacherOp = this.getAttribute('data-op') || 'teacher_grade';
+        btn.addEventListener('click', function (event) {
+            const nextOp = this.getAttribute('data-op') || 'teacher_grade';
+            const nextMode = nextOp.indexOf('unassign') !== -1 ? 'unassign' : 'assign';
+            pendingTeacherOp = nextOp;
             const op = document.getElementById('teacherGradeOperation');
-            if (op) op.value = pendingTeacherOp;
+            if (op) op.value = nextOp;
+            if (assignmentListMode !== nextMode) {
+                event.preventDefault();
+                assignmentListMode = nextMode;
+                applyAssignmentFilters();
+            }
         });
     });
 
@@ -1573,6 +1628,10 @@ unset($__errorArgs, $__bag); ?>
         
         const grade = $('#grade_level').val();
         const subjects = subjectsByGrade[grade] || [];
+        if (isUnassign && !isSection && !grade) {
+            showDeleteResultModal(false, 'Choose a grade', 'Choose one of the grades already assigned to this teacher.');
+            return false;
+        }
         if (!isSection && !subjects.length) {
             showDeleteResultModal(false, 'No subjects', 'This grade has no subjects yet. Add subjects in the catalog first.');
             return false;

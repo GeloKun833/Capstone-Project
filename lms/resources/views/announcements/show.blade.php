@@ -58,7 +58,7 @@
                 <div class="dir-card">
                     <div class="dir-toolbar">
                         <div class="d-flex align-items-start gap-3">
-                            <span class="dir-title-icon"><i class="{{ $announcement->type_icon }}"></i></span>
+                            <img src="{{ $announcement->creator?->photoUrl() ?? asset('assets/img/profiles/avatar-01.jpg') }}" alt="" class="rounded-circle" width="40" height="40" style="object-fit:cover;">
                             <div>
                                 <h5 class="dir-toolbar-title mb-1">
                                     @if($announcement->is_pinned)
@@ -67,9 +67,8 @@
                                     {{ $announcement->title }}
                                 </h5>
                                 <div class="d-flex flex-wrap gap-1 mt-1">
-                                    <span class="dir-chip">{{ ucfirst($announcement->type) }}</span>
                                     <span class="dir-badge {{ $priorityClass }}">{{ ucfirst($announcement->priority) }} priority</span>
-                                    <span class="dir-chip dir-chip--soft">{{ ucfirst($announcement->target_audience) }}</span>
+                                    <span class="dir-chip dir-chip--soft">{{ $announcement->audienceText() }}</span>
                                     <span class="dir-badge {{ $statusClass }}">{{ $statusLabel }}</span>
                                 </div>
                             </div>
@@ -154,7 +153,7 @@
                     <div class="p-4">
                         <div class="mb-3">
                             <div class="dir-person-meta">Audience</div>
-                            <span class="dir-chip dir-chip--soft">{{ ucfirst($announcement->target_audience) }}</span>
+                            <span class="dir-chip dir-chip--soft">{{ $announcement->audienceText() }}</span>
                         </div>
                         @if($announcement->target_roles)
                             <div class="mb-3">

@@ -48,39 +48,52 @@
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
                     <span class="dir-stat-label">Published</span>
-                    <div class="dir-stat-value" id="publishedLessons">{{ $lessons->where('status', 'published')->count() }}</div>
+                    <div class="dir-stat-value" id="publishedLessons">{{ $statusCounts['published'] }}</div>
                 </div>
             </div>
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
                     <span class="dir-stat-label">Draft</span>
-                    <div class="dir-stat-value" id="draftLessons">{{ $lessons->where('status', 'draft')->count() }}</div>
+                    <div class="dir-stat-value" id="draftLessons">{{ $statusCounts['draft'] }}</div>
                 </div>
             </div>
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
                     <span class="dir-stat-label">Completed</span>
-                    <div class="dir-stat-value" id="completedLessons">{{ $lessons->where('status', 'completed')->count() }}</div>
+                    <div class="dir-stat-value" id="completedLessons">{{ $statusCounts['completed'] }}</div>
                 </div>
             </div>
         </div>
 
         <div class="dir-card dir-filters">
             <div class="row g-2 align-items-end">
-                <div class="col-lg-4 col-md-6">
-                    <label class="form-label" for="searchLesson">Search</label>
-                    <input type="text" class="form-control" id="searchLesson" value="{{ request('search') }}" placeholder="Title or description">
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label" for="grade_filter">Grade level</label>
+                    <select class="form-control" id="grade_filter">
+                        <option value="">All grade levels</option>
+                        @foreach($gradeLevels as $grade)
+                            <option value="{{ $grade }}" {{ $selectedGrade === $grade ? 'selected' : '' }}>{{ $grade }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <label class="form-label" for="subject_filter">Subject</label>
-                    <select class="form-control" id="subject_filter">
-                        <option value="">All Subjects</option>
-                        @foreach($subjects as $subject)
-                            <option value="{{ $subject->id }}" {{ (string) request('subject_id') === (string) $subject->id ? 'selected' : '' }}>
-                                {{ $subject->subject_name }}{{ $subject->class ? ' (' . $subject->class . ')' : '' }}
-                            </option>
-                        @endforeach
+                    <select class="form-control" id="subject_filter" @if($selectedGrade === '') disabled @endif>
+                        @if($selectedGrade === '')
+                            <option value="">Select a grade first</option>
+                        @else
+                            <option value="">All subjects</option>
+                            @foreach($subjects->where('class', $selectedGrade)->sortBy('subject_name') as $subject)
+                                <option value="{{ $subject->id }}" {{ (string) request('subject_id') === (string) $subject->id ? 'selected' : '' }}>
+                                    {{ $subject->subject_name }}
+                                </option>
+                            @endforeach
+                        @endif
                     </select>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label" for="searchLesson">Search</label>
+                    <input type="text" class="form-control" id="searchLesson" value="{{ request('search') }}" placeholder="Title or description">
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <label class="form-label" for="status_filter">Status</label>
@@ -90,11 +103,6 @@
                         <option value="published" {{ request('status') == 'published' ? 'selected' : '' }}>Published</option>
                         <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
                     </select>
-                </div>
-                <div class="col-lg-2 col-md-6 pb-3">
-                    <button type="button" class="btn btn-primary dir-btn w-100" id="filterLessons">
-                        <i class="fas fa-filter me-1"></i> Filter
-                    </button>
                 </div>
             </div>
         </div>
@@ -113,6 +121,7 @@
                         <thead>
                             <tr>
                                 <th>Lesson</th>
+                                <th>Grade</th>
                                 <th>Subject</th>
                                 <th>Section</th>
                                 <th>Date</th>
@@ -134,7 +143,14 @@
                                         <a href="{{ route('lessons.show', $lesson) }}" class="dir-person-name">{{ $lesson->title }}</a>
                                         <span class="dir-person-meta">{{ Str::limit($lesson->description, 90) }}</span>
                                     </td>
-                                    <td><span class="dir-chip">{{ $lesson->subject->subject_name }}</span></td>
+                                    <td>{{ $lesson->subject->class ?: '—' }}</td>
+                                    <td>
+                                        <button type="button" class="dir-chip subject-chip border-0"
+                                            data-subject-id="{{ $lesson->subject_id }}"
+                                            data-grade="{{ $lesson->subject->class }}">
+                                            {{ $lesson->subject->subject_name }}
+                                        </button>
+                                    </td>
                                     <td>{{ $lesson->section->name }}</td>
                                     <td>{{ $lesson->lesson_date?->format('M d, Y') }}</td>
                                     <td><span class="dir-badge {{ $statusClass }}">{{ ucfirst($lesson->status) }}</span></td>
@@ -252,36 +268,75 @@
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914e">
+<style>
+    button.dir-chip { cursor: pointer; }
+    button.dir-chip:hover { background: #e0e7ff; }
+</style>
 @endpush
 
 @push('scripts')
+@php
+    $subjectsByGrade = $subjects->groupBy('class')->map(function ($rows) {
+        return $rows->sortBy('subject_name')->map(function ($subject) {
+            return [
+                'id' => $subject->id,
+                'name' => $subject->subject_name,
+            ];
+        })->values();
+    });
+@endphp
 <script>
 $(document).ready(function() {
-    $('#filterLessons').on('click', function() {
+    const subjectsByGrade = @json($subjectsByGrade);
+
+    function fillSubjects(grade, selectedId) {
+        const select = $('#subject_filter');
+        select.empty();
+        if (!grade) {
+            select.append('<option value="">Select a grade first</option>');
+            select.prop('disabled', true);
+            return;
+        }
+        select.prop('disabled', false);
+        select.append('<option value="">All subjects</option>');
+        (subjectsByGrade[grade] || []).forEach(function (subject) {
+            const selected = String(selectedId || '') === String(subject.id) ? ' selected' : '';
+            select.append('<option value="' + subject.id + '"' + selected + '>' + subject.name + '</option>');
+        });
+    }
+
+    function applyLessonFilters() {
         const searchTerm = $('#searchLesson').val();
+        const grade = $('#grade_filter').val();
         const subjectId = $('#subject_filter').val();
         const status = $('#status_filter').val();
-
-        $(this).html('<i class="fas fa-spinner fa-spin me-1"></i> Filtering...').prop('disabled', true);
-
-        let url = '{{ route("lessons.index") }}?';
-        if (searchTerm) url += 'search=' + encodeURIComponent(searchTerm) + '&';
-        if (subjectId) url += 'subject_id=' + subjectId + '&';
-        if (status) url += 'status=' + status;
-
-        window.location.href = url;
-    });
+        const params = new URLSearchParams();
+        if (grade) params.set('grade', grade);
+        if (grade && subjectId) params.set('subject_id', subjectId);
+        if (searchTerm) params.set('search', searchTerm);
+        if (status) params.set('status', status);
+        const query = params.toString();
+        window.location.href = '{{ route("lessons.index") }}' + (query ? '?' + query : '');
+    }
 
     let searchTimeout;
-    $('#searchLesson').on('keyup', function() {
+    $('#searchLesson').on('input', function() {
         clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(function() {
-            $('#filterLessons').click();
-        }, 500);
+        searchTimeout = setTimeout(applyLessonFilters, 400);
     });
 
-    $('#subject_filter, #status_filter').on('change', function() {
-        $('#filterLessons').click();
+    $('#grade_filter').on('change', function () {
+        fillSubjects($(this).val(), '');
+        applyLessonFilters();
+    });
+
+    $('#subject_filter, #status_filter').on('change', applyLessonFilters);
+
+    $('.subject-chip').on('click', function() {
+        const grade = $(this).data('grade') || '';
+        $('#grade_filter').val(String(grade));
+        fillSubjects(String(grade), $(this).data('subject-id'));
+        applyLessonFilters();
     });
 
     $('.delete-btn').on('click', function() {

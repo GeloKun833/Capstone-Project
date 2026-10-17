@@ -6,7 +6,13 @@
             <div class="row align-items-start">
                 <div class="col">
                     <h3 class="page-title mb-1">Reports &amp; Documents</h3>
-                    <p class="dir-subtitle">Generate transcripts, class lists, grade slips, and progress reports.</p>
+                    <p class="dir-subtitle">
+                        <?php if(in_array(auth()->user()->role_name, ['Admin', 'Teacher'], true)): ?>
+                            View a report, or generate and download a document.
+                        <?php else: ?>
+                            View school reports for the current academic year. You can download each report.
+                        <?php endif; ?>
+                    </p>
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-0">
@@ -21,56 +27,115 @@
             <div class="alert alert-danger"><?php echo e(session('error')); ?></div>
         <?php endif; ?>
 
-        <div class="dir-tip mb-4">
-            <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
-            Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
-            The report follows the grade you select: Nursery and Kindergarten use descriptive letters, and Grade 4 through Grade 10 use numerical scores.
+        <label class="dir-report-finder">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <input type="search" id="reportFinder" placeholder="Find a report by name" autocomplete="off">
+        </label>
+
+        <?php if(in_array(auth()->user()->role_name, ['Admin', 'Teacher'], true)): ?>
+        <section class="dir-report-group" data-report-group>
+            <div class="dir-report-group-head">
+                <h4>Documents</h4>
+                <span class="dir-report-pill">Generate/Download</span>
+            </div>
+            <div class="dir-tip mb-3">
+                <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
+                Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
+                The report follows the grade you select: Nursery and Kindergarten use descriptive letters, and Grade 4 through Grade 10 use numerical scores.
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Student Transcript Academic history">
+                        <span class="dir-report-icon is-blue"><i class="fas fa-file-alt"></i></span>
+                        <h5>Student Transcript</h5>
+                        <p class="dir-subtitle mb-3">Academic history — one student or all enrolled students in a section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Class List Section roster">
+                        <span class="dir-report-icon is-green"><i class="fas fa-users"></i></span>
+                        <h5>Class List</h5>
+                        <p class="dir-subtitle mb-3">Section roster — filter by grade, then section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#classListModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Grade Slip Period grades">
+                        <span class="dir-report-icon is-amber"><i class="fas fa-clipboard-list"></i></span>
+                        <h5>Grade Slip</h5>
+                        <p class="dir-subtitle mb-3">Period grades — one student or all enrolled students in a section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Progress Report Performance summary">
+                        <span class="dir-report-icon is-sky"><i class="fas fa-chart-line"></i></span>
+                        <h5>Progress Report</h5>
+                        <p class="dir-subtitle mb-3">Performance summary — one student or all enrolled students in a section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <?php endif; ?>
+
+        <?php
+            $reportIcons = [
+                'Enrollment and Student Reports' => ['fas fa-user-graduate', 'is-blue'],
+                'Academic and Grading Reports' => ['fas fa-clipboard-list', 'is-amber'],
+                'Attendance Reports' => ['fas fa-user-check', 'is-green'],
+                'Teacher, Subject, and Scheduling Reports' => ['fas fa-chalkboard-teacher', 'is-sky'],
+                'Lessons, Activities, and Learning Reports' => ['fas fa-book-open', 'is-blue'],
+                'Communication and Notification Reports' => ['fas fa-bullhorn', 'is-amber'],
+                'Student Documents and Records' => ['fas fa-folder-open', 'is-green'],
+                'Principal and Administrative Reports' => ['fas fa-chart-bar', 'is-sky'],
+                'System and User Activity Reports' => ['fas fa-user-shield', 'is-blue'],
+            ];
+        ?>
+
+        <?php $__currentLoopData = $schoolReports; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category => $items): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <section class="dir-report-group" data-report-group>
+                <div class="dir-report-group-head">
+                    <h4><?php echo e($category); ?></h4>
+                    <span class="dir-report-pill"><?php echo e($items->count()); ?> <?php echo e($items->count() === 1 ? 'report' : 'reports'); ?></span>
+                </div>
+                <div class="row g-3">
+                    <?php $__currentLoopData = $items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
+                            $icon = $reportIcons[$category] ?? ['fas fa-file-alt', 'is-blue'];
+                        ?>
+                        <div class="col-md-6 col-xl-3">
+                            <div class="dir-report-card" data-report-card="<?php echo e($item['title']); ?> <?php echo e($item['description']); ?>">
+                                <span class="dir-report-icon <?php echo e($icon[1]); ?>"><i class="<?php echo e($icon[0]); ?>"></i></span>
+                                <h5><?php echo e($item['title']); ?></h5>
+                                <p class="dir-subtitle mb-3"><?php echo e($item['description']); ?></p>
+                                <div class="dir-report-actions">
+                                    <a href="<?php echo e(route('reports.school.show', $item['key'])); ?>" class="btn btn-primary dir-btn">
+                                        <i class="fas fa-eye me-1"></i> View Report
+                                    </a>
+                                    <a href="<?php echo e(route('reports.school.download', $item['key'])); ?>" class="btn btn-outline-primary dir-btn">
+                                        <i class="fas fa-download me-1"></i> Download
+                                    </a>
+                                </div>
+                            </div>
                         </div>
-
-        <div class="row g-3">
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-blue"><i class="fas fa-file-alt"></i></span>
-                    <h5>Student Transcript</h5>
-                    <p class="dir-subtitle mb-3">Academic history — one student or all enrolled students in a section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
-            </div>
+            </section>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-green"><i class="fas fa-users"></i></span>
-                    <h5>Class List</h5>
-                    <p class="dir-subtitle mb-3">Section roster — filter by grade, then section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#classListModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-amber"><i class="fas fa-clipboard-list"></i></span>
-                    <h5>Grade Slip</h5>
-                    <p class="dir-subtitle mb-3">Period grades — one student or all enrolled students in a section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-sky"><i class="fas fa-chart-line"></i></span>
-                    <h5>Progress Report</h5>
-                    <p class="dir-subtitle mb-3">Performance summary — one student or all enrolled students in a section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                </div>
-            </div>
+        <div id="reportFinderEmpty" class="dir-empty" hidden>
+            <i class="fas fa-search d-block"></i>
+            <p class="mb-0">No report matches that name.</p>
         </div>
     </div>
 </div>
@@ -135,11 +200,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                            <label class="form-label">Semester</label>
+                            <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
-                                <option value="">All semesters</option>
+                                <option value="">All terms</option>
                                 <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?><?php if($semester->academicYear): ?> — <?php echo e($semester->academicYear->name); ?><?php endif; ?></option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -207,11 +272,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                            <label class="form-label">Semester</label>
+                            <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?><?php if($semester->academicYear): ?> — <?php echo e($semester->academicYear->name); ?><?php endif; ?></option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -287,11 +352,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                        <label class="form-label">Semester</label>
+                        <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?><?php if($semester->academicYear): ?> — <?php echo e($semester->academicYear->name); ?><?php endif; ?></option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -367,11 +432,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                        <label class="form-label">Semester</label>
+                        <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 <?php $__currentLoopData = $semOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $semester): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?></option>
+                                <option value="<?php echo e($semester->id); ?>"><?php echo e($semester->name); ?><?php if($semester->academicYear): ?> — <?php echo e($semester->academicYear->name); ?><?php endif; ?></option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -395,7 +460,7 @@
 </div>
 
 <?php $__env->startPush('styles'); ?>
-<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914c">
+<link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20261018a">
 <?php $__env->stopPush(); ?>
 
 <?php $__env->startPush('scripts'); ?>
@@ -601,6 +666,28 @@
         });
 
         syncScopeUI(form);
+    });
+})();
+
+(function () {
+    var finder = document.getElementById('reportFinder');
+    var empty = document.getElementById('reportFinderEmpty');
+    if (!finder) return;
+    finder.addEventListener('input', function () {
+        var query = finder.value.trim().toLowerCase();
+        var any = false;
+        document.querySelectorAll('[data-report-group]').forEach(function (group) {
+            var visible = false;
+            group.querySelectorAll('[data-report-card]').forEach(function (card) {
+                var haystack = (card.getAttribute('data-report-card') || '').toLowerCase();
+                var show = query === '' || haystack.indexOf(query) !== -1;
+                card.parentElement.style.display = show ? '' : 'none';
+                if (show) visible = true;
+            });
+            group.style.display = visible ? '' : 'none';
+            if (visible) any = true;
+        });
+        if (empty) empty.hidden = any;
     });
 })();
 </script>

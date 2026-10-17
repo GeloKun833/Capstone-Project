@@ -9,4 +9,10 @@ namespace App\Support;
 class AcademicThresholds
 {
     public const PASSING_PERCENTAGE = 75.0;
+
+    /** Attendance below this percentage is flagged in the Performance Hub. */
+    public const ATTENDANCE_CONCERN_PERCENTAGE = 80.0;
+
+    /** This many absences in the academic year is treated as recurring. */
+    public const RECURRING_ABSENCE_COUNT = 5;
 }

@@ -67,7 +67,13 @@
 
         <div class="row g-3" id="yearsGrid">
             @forelse($academicYears as $year)
-                @php $status = $year->statusLabel(); @endphp
+                @php
+                    $status = $year->statusLabel();
+                    $classStartLabel = $year->class_starts_at ? $year->class_starts_at->format('M d, Y') : '';
+                    $classEndLabel = $year->class_ends_at ? $year->class_ends_at->format('M d, Y') : '';
+                    $suggestedClassStart = $year->suggestedClassStart();
+                    $suggestedClassEnd = $year->suggestedClassEnd();
+                @endphp
                 <div class="col-6 col-md-4 col-xl-3 year-grid-item"
                     data-status="{{ $status }}"
                     data-search="{{ strtolower($year->name) }}"
@@ -82,6 +88,16 @@
                         data-end="{{ $year->end_date->format('Y-m-d') }}"
                         data-start-label="{{ $year->start_date->format('M d, Y') }}"
                         data-end-label="{{ $year->end_date->format('M d, Y') }}"
+                        data-class-start="{{ optional($year->class_starts_at)->format('Y-m-d') }}"
+                        data-class-end="{{ optional($year->class_ends_at)->format('Y-m-d') }}"
+                        data-class-start-label="{{ $classStartLabel }}"
+                        data-class-end-label="{{ $classEndLabel }}"
+                        data-class-suggest="{{ optional($suggestedClassStart)->format('Y-m-d') }}"
+                        data-class-suggest-label="{{ optional($suggestedClassStart)->format('M d, Y') }}"
+                        data-class-suggest-note="{{ $year->suggestedClassStartNote() }}"
+                        data-class-end-suggest="{{ optional($suggestedClassEnd)->format('Y-m-d') }}"
+                        data-class-end-suggest-label="{{ optional($suggestedClassEnd)->format('M d, Y') }}"
+                        data-class-start-url="{{ route('academic_years.class-start', $year) }}"
                         data-status="{{ $status }}"
                         data-enrollment-open="{{ $year->enrollment_open ? '1' : '0' }}"
                         data-enrollment-start="{{ optional($year->enrollment_starts_at)->format('Y-m-d') }}"
@@ -91,14 +107,17 @@
                         data-semesters="{{ $year->semesters_count }}"
                         data-update-url="{{ route('academic_years.update', $year) }}"
                         data-destroy-url="{{ route('academic_years.destroy', $year) }}"
+                        data-force-delete-url="{{ route('academic_years.force-delete', $year) }}"
                         data-unarchive-url="{{ route('academic_years.unarchive', $year) }}">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <span class="ams-year-title">{{ $year->name }}</span>
                             <span class="ams-status-pill ams-status-pill--{{ $status }}">{{ ucfirst($status) }}</span>
                         </div>
-                        <div class="ams-year-dates mt-2">
-                            {{ $year->start_date->format('M d, Y') }} → {{ $year->end_date->format('M d, Y') }}
-                        </div>
+                        @if($classStartLabel && $classEndLabel)
+                            <div class="ams-year-dates mt-2">
+                                Class {{ $classStartLabel }} → {{ $classEndLabel }}
+                            </div>
+                        @endif
                         <div class="ams-year-meta mt-2">
                             <i class="fas fa-door-open me-1"></i>Enrollment: {{ $year->enrollment_open ? 'Open' : 'Closed' }}
                         </div>
@@ -145,9 +164,13 @@
                         <span class="ams-detail-label">Semesters</span>
                         <span class="ams-detail-value" id="yearDetailSemesters">—</span>
                                             </div>
-                    <div class="ams-detail-item ams-detail-item--full">
-                        <span class="ams-detail-label">Date Range</span>
-                        <span class="ams-detail-value" id="yearDetailDates">—</span>
+                    <div class="ams-detail-item">
+                        <span class="ams-detail-label">School year starts</span>
+                        <span class="ams-detail-value" id="yearDetailSchoolStart">—</span>
+                    </div>
+                    <div class="ams-detail-item">
+                        <span class="ams-detail-label">School year ends</span>
+                        <span class="ams-detail-value" id="yearDetailSchoolEnd">—</span>
                     </div>
                     <div class="ams-detail-item ams-detail-item--full" id="yearEnrollmentDatesWrap">
                         <span class="ams-detail-label">Enrollment Period</span>
@@ -165,7 +188,28 @@
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary btn-sm mt-2">Save Enrollment Dates</button>
-                            <small class="text-muted d-block mt-2">These dates must fall inside this academic year. Open Enrollment after the dates are saved.</small>
+                            <small class="text-muted d-block mt-2" id="yearEnrollmentBounds">Enrollment dates must fall inside the school year shown above.</small>
+                            <small class="text-muted d-block mt-1 d-none" id="yearClassStartLater">After this enrollment period is saved, Start of class and End of class appear, with a suggested date for each.</small>
+                        </form>
+                    </div>
+                    <div class="ams-detail-item ams-detail-item--full d-none" id="yearClassStartWrap">
+                        <span class="ams-detail-label">Start of class and end of class</span>
+                        <p class="mb-2 fw-semibold" id="yearDetailDates">Not set yet</p>
+                        <p class="mb-2" id="yearClassStartAsk">Enrollment is saved. When do classes start and end?</p>
+                        <form id="yearClassStartForm" method="POST">
+                            @csrf
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small mb-1" for="yearClassStart">Start of class</label>
+                                    <input type="date" class="form-control" name="class_starts_at" id="yearClassStart" required>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small mb-1" for="yearClassEnd">End of class</label>
+                                    <input type="date" class="form-control" name="class_ends_at" id="yearClassEnd" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm mt-2">Save class dates</button>
+                            <small class="text-muted d-block mt-2" id="yearClassStartHint"></small>
                         </form>
                     </div>
                     <div class="ams-detail-item ams-detail-item--full">
@@ -183,6 +227,8 @@
                 </form>
                 <button type="button" class="btn btn-outline-secondary" id="yearDeleteBtn"
                     data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-box-archive me-1"></i> Archive</button>
+                <button type="button" class="btn btn-danger" id="yearForceDeleteBtn"
+                    data-bs-toggle="modal" data-bs-target="#yearForceDeleteModal"><i class="fas fa-trash me-1"></i> Delete</button>
                 <button type="button" class="btn btn-outline-primary d-none" id="yearUnarchiveBtn"
                     data-bs-toggle="modal" data-bs-target="#yearDeleteModal"><i class="fas fa-box-open me-1"></i> Unarchive</button>
                 <a href="{{ route('semesters.index') }}" class="btn btn-outline-primary">Manage Semesters</a>
@@ -221,17 +267,21 @@
                                     </div>
                         <input type="hidden" id="yearName" name="name" data-mdp-year-name required value="">
                         <div class="mdp-year-preview" data-mdp-year-preview>Academic Year: —</div>
-                        <small class="text-muted">Type the start and end years (example: 2026–2027). Start/end dates are set automatically.</small>
+                        <small class="text-muted">Type the two years, for example 2028–2029.</small>
                                 </div>
-                    <div class="row g-2 d-none" id="yearDateRow">
+                    <div class="mb-3" id="yearDateRow">
+                        <label class="form-label fw-semibold mb-1">School year dates</label>
+                        <p class="text-muted small mb-2">These are the first day and the last day of this school year. Enrollment, Start of class, and End of class are set later, after the year is saved.</p>
+                        <div class="row g-2">
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold" for="yearStart">Start Date</label>
-                            <input type="date" class="form-control" id="yearStart" name="start_date">
+                            <label class="form-label fw-semibold" for="yearStart">School year starts</label>
+                            <input type="date" class="form-control" id="yearStart" name="start_date" required>
                                                 </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold" for="yearEnd">End Date</label>
-                            <input type="date" class="form-control" id="yearEnd" name="end_date">
+                            <label class="form-label fw-semibold" for="yearEnd">School year ends</label>
+                            <input type="date" class="form-control" id="yearEnd" name="end_date" required>
                                                 </div>
+                        </div>
                                             </div>
                     <div class="mb-0" id="yearStatusRow">
                         <label class="form-label fw-semibold" for="yearStatus">Status</label>
@@ -276,9 +326,33 @@
     </div>
 </div>
 
+<div class="modal custom-modal fade" id="yearForceDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="form-header">
+                    <h3>Delete Academic Year</h3>
+                    <p class="mb-0" id="yearForceDeleteText">Delete this academic year? It is removed. This is not Archive.</p>
+                </div>
+                <div class="modal-btn delete-action">
+                    <div class="row">
+                        <div class="col-6">
+                            <button type="button" class="btn btn-danger w-100" id="yearForceDeleteConfirm">Delete</button>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary paid-cancel-btn w-100" data-bs-dismiss="modal">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="yearsPageConfig" class="d-none"
     data-store-url="{{ route('academic_years.store') }}"
     data-csrf="{{ csrf_token() }}"
+    data-ask-class-start="{{ session('ask_class_start') }}"
     aria-hidden="true"></div>
 @endsection
 
@@ -373,6 +447,16 @@
             end: btn.getAttribute('data-end') || '',
             startLabel: btn.getAttribute('data-start-label') || '',
             endLabel: btn.getAttribute('data-end-label') || '',
+            classStart: btn.getAttribute('data-class-start') || '',
+            classEnd: btn.getAttribute('data-class-end') || '',
+            classStartLabel: btn.getAttribute('data-class-start-label') || '',
+            classEndLabel: btn.getAttribute('data-class-end-label') || '',
+            classSuggest: btn.getAttribute('data-class-suggest') || '',
+            classSuggestLabel: btn.getAttribute('data-class-suggest-label') || '',
+            classSuggestNote: btn.getAttribute('data-class-suggest-note') || '',
+            classEndSuggest: btn.getAttribute('data-class-end-suggest') || '',
+            classEndSuggestLabel: btn.getAttribute('data-class-end-suggest-label') || '',
+            classStartUrl: btn.getAttribute('data-class-start-url') || '',
             status: btn.getAttribute('data-status') || '',
             enrollmentOpen: btn.getAttribute('data-enrollment-open') || '0',
             enrollmentStart: btn.getAttribute('data-enrollment-start') || '',
@@ -382,6 +466,7 @@
             semesters: btn.getAttribute('data-semesters') || '0',
             updateUrl: btn.getAttribute('data-update-url') || '',
             destroyUrl: btn.getAttribute('data-destroy-url') || '',
+            forceDeleteUrl: btn.getAttribute('data-force-delete-url') || '',
             unarchiveUrl: btn.getAttribute('data-unarchive-url') || '',
             cardBtn: btn
         };
@@ -401,7 +486,50 @@
             enrollmentBtn.title = enrollmentBtn.disabled ? 'Set this year as Current before opening enrollment.' : '';
         }
         document.getElementById('yearDetailSemesters').textContent = active.semesters;
-        document.getElementById('yearDetailDates').textContent = active.startLabel + ' → ' + active.endLabel;
+        document.getElementById('yearDetailSchoolStart').textContent = active.startLabel || '—';
+        document.getElementById('yearDetailSchoolEnd').textContent = active.endLabel || '—';
+        const bounds = document.getElementById('yearEnrollmentBounds');
+        if (bounds) {
+            bounds.textContent = (active.startLabel && active.endLabel)
+                ? 'Enrollment dates must fall inside ' + active.startLabel + ' to ' + active.endLabel + '. Open Enrollment after the dates are saved.'
+                : 'Enrollment dates must fall inside the school year shown above.';
+        }
+        const classRange = document.getElementById('yearDetailDates');
+        if (classRange) {
+            classRange.textContent = (active.classStartLabel && active.classEndLabel)
+                ? active.classStartLabel + ' → ' + active.classEndLabel
+                : 'Not set yet';
+        }
+        const hasEnrollment = !!(active.enrollmentStart && active.enrollmentEnd);
+        const showClassStart = active.status === 'current' && hasEnrollment;
+        document.getElementById('yearClassStartWrap')?.classList.toggle('d-none', !showClassStart);
+        document.getElementById('yearClassStartLater')?.classList.toggle('d-none', !(active.status === 'current' && !hasEnrollment));
+        const classForm = document.getElementById('yearClassStartForm');
+        const classInput = document.getElementById('yearClassStart');
+        const classEndInput = document.getElementById('yearClassEnd');
+        const classHint = document.getElementById('yearClassStartHint');
+        const classAsk = document.getElementById('yearClassStartAsk');
+        if (classForm && classInput && classEndInput) {
+            classForm.action = active.classStartUrl;
+            classInput.value = active.classStart || active.classSuggest;
+            classEndInput.value = active.classEnd || active.classEndSuggest;
+            classInput.min = active.classSuggest || active.enrollmentEnd || active.start || '';
+            classInput.max = active.end || '';
+            classEndInput.min = classInput.value || active.classSuggest || '';
+            classEndInput.max = active.end || '';
+        }
+        if (classAsk) {
+            classAsk.textContent = (active.classStart && active.classEnd)
+                ? 'These are the class dates. You can change them.'
+                : 'Enrollment is saved. When do classes start and end?';
+        }
+        if (classHint) {
+            const startNote = active.classSuggestNote || '';
+            const endNote = active.classEndSuggestLabel
+                ? 'Suggested end of class: ' + active.classEndSuggestLabel + '. This is the last day of the school year.'
+                : '';
+            classHint.textContent = [startNote, endNote].filter(Boolean).join(' ');
+        }
         const datesWrap = document.getElementById('yearEnrollmentDatesWrap');
         const datesForm = document.getElementById('yearEnrollmentDatesForm');
         if (datesWrap && datesForm) {
@@ -441,6 +569,7 @@
         document.getElementById('yearName').value = active.name;
         document.getElementById('yearStart').value = active.start;
         document.getElementById('yearEnd').value = active.end;
+        if (active.start) document.getElementById('yearEnd').min = active.start;
         document.getElementById('yearFormMsg').innerHTML = '';
         detailModal?.hide();
         setTimeout(function () {
@@ -449,12 +578,18 @@
         }, 200);
     });
 
+    document.getElementById('yearStart')?.addEventListener('change', function () {
+        const end = document.getElementById('yearEnd');
+        if (end && this.value) end.min = this.value;
+    });
+
     document.getElementById('yearForm')?.addEventListener('submit', function (e) {
         e.preventDefault();
+
         const payload = {
             name: document.getElementById('yearName').value.trim(),
-            start_date: '',
-            end_date: '',
+            start_date: document.getElementById('yearStart').value,
+            end_date: document.getElementById('yearEnd').value,
             status: mode === 'edit' ? document.getElementById('yearStatus').value : 'upcoming',
             _token: csrf
         };
@@ -462,6 +597,11 @@
         if (!yearRange || Number(yearRange[2]) <= Number(yearRange[1])) {
             document.getElementById('yearFormMsg').innerHTML =
                 '<div class="alert alert-danger py-2 mb-0">Enter a valid range with the end year later than the start year.</div>';
+            return;
+        }
+        if (!payload.start_date || !payload.end_date || payload.end_date <= payload.start_date) {
+            document.getElementById('yearFormMsg').innerHTML =
+                '<div class="alert alert-danger py-2 mb-0">Enter the day the school year starts and a later day for when it ends.</div>';
             return;
         }
         const url = mode === 'edit' && active ? active.updateUrl : storeUrl;
@@ -525,6 +665,43 @@
         .then(function () { window.location.reload(); })
         .catch(function (err) { window.alert(err?.message || (restoring ? 'Unable to unarchive this academic year.' : 'Unable to archive this academic year.')); });
     });
+
+    const forceDeleteEl = document.getElementById('yearForceDeleteModal');
+    forceDeleteEl?.addEventListener('show.bs.modal', function () {
+        if (!active) return;
+        const text = document.getElementById('yearForceDeleteText');
+        if (text) {
+            text.innerHTML = 'Delete <strong>' + active.name + '</strong>? The academic year is removed. This is not Archive.';
+        }
+    });
+
+    document.getElementById('yearForceDeleteConfirm')?.addEventListener('click', function () {
+        if (!active || !active.forceDeleteUrl) return;
+        fetch(active.forceDeleteUrl, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ _token: csrf })
+        })
+        .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw d; return d; }); })
+        .then(function () { window.location.reload(); })
+        .catch(function (err) { window.alert(err?.message || 'Unable to delete this academic year.'); });
+    });
+
+    const askClassStart = cfg?.dataset.askClassStart || '';
+    if (askClassStart && detailEl) {
+        const opener = document.querySelector('.ams-year-card[data-id="' + askClassStart + '"]');
+        if (opener) {
+            const event = new Event('show.bs.modal');
+            Object.defineProperty(event, 'relatedTarget', { value: opener });
+            detailEl.dispatchEvent(event);
+            detailModal?.show();
+        }
+    }
 })();
 </script>
 @endpush

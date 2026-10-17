@@ -143,10 +143,10 @@
                 <td class="label">Section:</td>
                 <td>{{ $student->sections->first() ? $student->sections->first()->name : 'N/A' }}</td>
             </tr>
-            @if($academicYear && $semester)
+            @if($academicYear)
             <tr>
-                <td class="label">Academic Period:</td>
-                <td><strong>{{ $academicYear->name }} - {{ $semester->name }}</strong></td>
+                <td class="label">Academic Year:</td>
+                <td><strong>{{ $academicYear->name }}</strong></td>
                 <td class="label">Generated Date:</td>
                 <td>{{ \Carbon\Carbon::now()->format('F d, Y') }}</td>
             </tr>
@@ -166,7 +166,7 @@
                         <th style="width: 15%;">Average</th>
                         <th style="width: 15%;">Highest</th>
                         <th style="width: 15%;">Lowest</th>
-                        <th style="width: 15%;">Quarters</th>
+                        <th style="width: 15%;">Terms</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -174,9 +174,9 @@
                         <tr>
                             <td class="text-center">{{ $index + 1 }}</td>
                             <td><strong>{{ $perf['subject']->subject_name }}</strong></td>
-                            <td class="text-center">{{ number_format($perf['average'], 2) }}%</td>
-                            <td class="text-center">{{ number_format($perf['max'], 2) }}%</td>
-                            <td class="text-center">{{ number_format($perf['min'], 2) }}%</td>
+                            <td class="text-center">{{ ($perf['descriptive'] ?? false) ? ($perf['final'] ?? '—') : ($perf['average'] === null ? '—' : number_format($perf['average'], 2).'%') }}</td>
+                            <td class="text-center">{{ ($perf['descriptive'] ?? false) || $perf['max'] === null ? '—' : number_format($perf['max'], 2).'%' }}</td>
+                            <td class="text-center">{{ ($perf['descriptive'] ?? false) || $perf['min'] === null ? '—' : number_format($perf['min'], 2).'%' }}</td>
                             <td class="text-center">{{ $perf['count'] }}</td>
                         </tr>
                     @endforeach
@@ -208,7 +208,7 @@
                 <thead>
                     <tr>
                         <th style="width: 30%;">Academic Year</th>
-                        <th style="width: 20%;">Semester</th>
+                        <th style="width: 20%;">Term</th>
                         <th style="width: 15%;">GPA</th>
                         <th style="width: 15%;">Rank</th>
                         <th style="width: 20%;">Date</th>

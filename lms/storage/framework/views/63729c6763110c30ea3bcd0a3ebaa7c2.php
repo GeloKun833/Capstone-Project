@@ -142,25 +142,27 @@
         </table>
     </div>
 
-    <?php if($academicYear && $semester): ?>
+    <?php if($academicYear): ?>
         <div class="period-info">
-            Academic Period: <?php echo e($academicYear->name); ?> - <?php echo e($semester->name); ?>
+            Academic Year: <?php echo e($academicYear->name); ?>
 
         </div>
     <?php endif; ?>
 
     <?php if(count($subjectGrades) > 0): ?>
+        <?php
+            $termColumns = $termColumns ?? [];
+        ?>
         <table>
             <thead>
                 <tr>
                     <th style="width: 5%;">No.</th>
-                    <th style="width: 28%;">Subject</th>
-                    <th style="width: 9%;">Q1</th>
-                    <th style="width: 9%;">Q2</th>
-                    <th style="width: 9%;">Q3</th>
-                    <th style="width: 9%;">Q4</th>
-                    <th style="width: 11%;">Final</th>
-                    <th style="width: 20%;">Remarks</th>
+                    <th>Subject</th>
+                    <?php $__currentLoopData = $termColumns; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $term): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <th style="width: 12%;"><?php echo e($term['label']); ?></th>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    <th style="width: 12%;">Final</th>
+                    <th style="width: 18%;">Remarks</th>
                 </tr>
             </thead>
             <tbody>
@@ -169,12 +171,11 @@
                     <tr>
                         <td class="text-center"><?php echo e($index + 1); ?></td>
                         <td><strong><?php echo e($subjectData['subject']->subject_name); ?></strong></td>
-                        <td class="text-center" title="<?php echo e($q->quarterCaption(1)); ?>"><?php echo e($q->presentQuarter(1, true)); ?></td>
-                        <td class="text-center" title="<?php echo e($q->quarterCaption(2)); ?>"><?php echo e($q->presentQuarter(2, true)); ?></td>
-                        <td class="text-center" title="<?php echo e($q->quarterCaption(3)); ?>"><?php echo e($q->presentQuarter(3, true)); ?></td>
-                        <td class="text-center" title="<?php echo e($q->quarterCaption(4)); ?>"><?php echo e($q->presentQuarter(4, true)); ?></td>
-                        <td class="text-center"><strong><?php echo e(($subjectData['descriptive'] ?? false) || $subjectData['average'] === null ? '—' : number_format($subjectData['average'], 2)); ?></strong></td>
-                        <td class="text-center"><?php echo e(($subjectData['descriptive'] ?? false) ? ($subjectData['remarks'] ?: '—') : ($subjectData['remarks'] ?: ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED'))); ?></td>
+                        <?php $__currentLoopData = $termColumns; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $term): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <td class="text-center" title="<?php echo e($q->quarterCaption($term['number'])); ?>"><?php echo e($q->presentQuarter($term['number'], true)); ?></td>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        <td class="text-center"><strong><?php echo e($subjectData['final'] ?? '—'); ?></strong></td>
+                        <td class="text-center"><?php echo e($subjectData['remarks'] ?: (($subjectData['average'] ?? null) === null ? '—' : ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED'))); ?></td>
                     </tr>
                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </tbody>

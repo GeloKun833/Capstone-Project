@@ -36,8 +36,15 @@
                         <li class="breadcrumb-item active">{{ $activity->title }}</li>
                     </ul>
                     <p class="text-muted mb-0">
-                        Lesson: {{ $lesson->title }}
-                        | Due: {{ $activity->due_date ? \Carbon\Carbon::parse($activity->due_date)->format('M d, Y') : 'N/A' }}
+                        {{ $lesson->section?->grade_level }}
+                        {{ $lesson->section?->name }}
+                        · {{ $lesson->subject->subject_name ?? $lesson->title }}
+                        · Due {{ $activity->formattedDue() }}
+                        @if($activity->points)
+                            · {{ $activity->points }} points
+                        @elseif(\App\Support\DescriptiveScale::isDescriptiveGradeLevel($lesson->section?->grade_level))
+                            · Descriptive, no point score
+                        @endif
                     </p>
                 </div>
                 <div class="col-auto">
@@ -54,10 +61,96 @@
             <div class="card-body">
                 <h5>Instructions</h5>
                 <p>{!! nl2br(e($activity->instructions)) !!}</p>
+                @if($activity->activity_type)
+                    <p class="text-muted mb-0">{{ $activity->typeLabel() }}</p>
+                @endif
             </div>
         </div>
 
-        @if($activity->allows_submission)
+        @if($activity->attachments)
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5>Materials</h5>
+                    <div class="d-grid gap-3">
+                        @foreach($activity->attachments as $file)
+                            <div>
+                                <a href="{{ asset('storage/'.$file['path']) }}" target="_blank" rel="noopener">{{ $file['name'] ?? 'Open file' }}</a>
+                                @if(\Illuminate\Support\Str::startsWith($file['mime'] ?? '', 'image/'))
+                                    <img src="{{ asset('storage/'.$file['path']) }}" alt="{{ $file['name'] ?? 'Attachment' }}" class="d-block mt-2 rounded" style="max-width: 100%; max-height: 240px;">
+                                @elseif(($file['mime'] ?? '') === 'application/pdf')
+                                    <iframe src="{{ asset('storage/'.$file['path']) }}" title="{{ $file['name'] ?? 'PDF' }}" class="d-block mt-2 w-100 rounded" style="height: 240px; border: 1px solid #e5e7eb;"></iframe>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if($activity->isQuiz())
+            @if($existingSubmission)
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="alert alert-success mb-3">
+                            Your quiz was graded automatically
+                            {{ $existingSubmission->submitted_at?->format('M d, Y H:i') ?? $existingSubmission->created_at->format('M d, Y H:i') }}.
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <div class="border rounded p-3 h-100 text-center">
+                                    <small class="text-muted d-block">Score</small>
+                                    <strong class="fs-4">{{ $existingSubmission->total_score }} / {{ $existingSubmission->max_possible_score }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="border rounded p-3 h-100 text-center">
+                                    <small class="text-muted d-block">Percentage</small>
+                                    <strong class="fs-4">{{ number_format((float) ($existingSubmission->percentage ?? 0), 1) }}%</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="border rounded p-3 h-100 text-center">
+                                    <small class="text-muted d-block">Letter Grade</small>
+                                    <span class="badge bg-{{ $existingSubmission->letter_grade_color }} fs-6">{{ $existingSubmission->letter_grade ?? '-' }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        @foreach($activity->quiz_questions ?? [] as $index => $question)
+                            @php $result = $existingSubmission->quiz_answers[$index] ?? null; @endphp
+                            <div class="border rounded p-3 mb-2">
+                                <strong>{{ $index + 1 }}. {{ $question['prompt'] ?? '' }}</strong>
+                                <p class="mb-1 {{ ! empty($result['correct']) ? 'text-success' : 'text-danger' }}">
+                                    {{ ! empty($result['correct']) ? 'Correct' : 'Incorrect' }}
+                                    · {{ $result['points'] ?? 0 }} / {{ $question['points'] ?? 0 }}
+                                </p>
+                                <p class="mb-0 text-muted">Answer key: {{ $question['choices'][$question['answer']] ?? '—' }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @else
+                <div class="card">
+                    <div class="card-body">
+                        <form action="{{ route('student.activities.submit', [$lesson, $activity]) }}" method="POST">
+                            @csrf
+                            @foreach($activity->quiz_questions ?? [] as $index => $question)
+                                <fieldset class="border rounded p-3 mb-3">
+                                    <legend class="float-none w-auto px-2 fs-6">{{ $index + 1 }}. {{ $question['prompt'] ?? '' }} <span class="text-muted">({{ $question['points'] ?? 0 }} pts)</span></legend>
+                                    @foreach($question['choices'] ?? [] as $choiceIndex => $choice)
+                                        <label class="d-flex gap-2 align-items-start mb-2">
+                                            <input type="radio" name="answers[{{ $index }}]" value="{{ $choiceIndex }}" @checked((string) old('answers.'.$index) === (string) $choiceIndex)>
+                                            <span>{{ $choice }}</span>
+                                        </label>
+                                    @endforeach
+                                    @error('answers.'.$index)<div class="text-danger small">{{ $message }}</div>@enderror
+                                </fieldset>
+                            @endforeach
+                            <button type="submit" class="btn btn-primary">Submit quiz</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
+        @elseif($activity->allows_submission)
             @if($existingSubmission)
                 <div class="card mb-4">
                     <div class="card-body">
@@ -115,6 +208,7 @@
             @else
                 <div class="card">
                     <div class="card-body">
+                        <h5 class="mb-3">File submission</h5>
                         <form action="{{ route('student.activities.submit', [$lesson, $activity]) }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="mb-3">

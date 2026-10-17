@@ -16,6 +16,7 @@ use App\Notifications\LowGradeAlertNotification;
 use App\Support\AcademicThresholds;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class StudentPerformanceService
@@ -58,7 +59,7 @@ class StudentPerformanceService
     /**
      * Subject percentage for a student in a period (from quarterly grades, fallback to Grade rows).
      */
-    public function subjectPercentage(QuarterlyGrade $row, array $quarterFields): ?float
+    public function subjectPercentage(object $row, array $quarterFields): ?float
     {
         $values = [];
         foreach ($quarterFields as $field) {
@@ -206,6 +207,78 @@ class StudentPerformanceService
                 $record->update(['rank' => $rank]);
             }
         }
+    }
+
+    /**
+     * General averages for many students from one grade read.
+     * Uses the same subject-percentage and GPA rules as recalculateStudentGpa().
+     *
+     * @param  list<int>  $studentIds
+     * @return array{students: array<int, array{average: float, gpa: float}>, grades: Collection, fields: list<string>}
+     */
+    public function periodScores(int $academicYearId, int $semesterId, array $studentIds): array
+    {
+        $fields = $this->quarterFieldsForSemester($academicYearId, $semesterId);
+        if ($studentIds === []) {
+            return ['students' => [], 'grades' => collect(), 'fields' => $fields];
+        }
+
+        $grades = DB::table('quarterly_grades')
+            ->leftJoin('subjects', 'subjects.id', '=', 'quarterly_grades.subject_id')
+            ->where('quarterly_grades.academic_year_id', $academicYearId)
+            ->whereIn('quarterly_grades.student_id', $studentIds)
+            ->get([
+                'quarterly_grades.student_id',
+                'quarterly_grades.subject_id',
+                'quarterly_grades.quarter_1',
+                'quarterly_grades.quarter_2',
+                'quarterly_grades.quarter_3',
+                'quarterly_grades.quarter_4',
+                'quarterly_grades.final_grade',
+                'quarterly_grades.updated_at',
+                'subjects.subject_name',
+            ]);
+
+        $scores = [];
+        foreach ($grades as $row) {
+            $percentage = $this->subjectPercentage($row, $fields);
+            if ($percentage === null) {
+                continue;
+            }
+            $scores[(int) $row->student_id][(int) $row->subject_id] = $percentage;
+        }
+
+        $missing = array_values(array_filter($studentIds, fn (int $id) => ! isset($scores[$id])));
+        if ($missing !== []) {
+            $fallback = Grade::query()
+                ->where('academic_year_id', $academicYearId)
+                ->where('semester_id', $semesterId)
+                ->whereIn('student_id', $missing)
+                ->whereNotNull('percentage')
+                ->selectRaw('student_id, subject_id, AVG(percentage) as percentage')
+                ->groupBy('student_id', 'subject_id')
+                ->get();
+
+            foreach ($fallback as $row) {
+                $scores[(int) $row->student_id][(int) $row->subject_id] = round((float) $row->percentage, 2);
+            }
+        }
+
+        $students = [];
+        foreach ($scores as $studentId => $subjects) {
+            $values = array_values($subjects);
+            $count = count($values);
+            $points = 0.0;
+            foreach ($values as $percentage) {
+                $points += $this->percentageToGradePoints($percentage);
+            }
+            $students[(int) $studentId] = [
+                'average' => round(array_sum($values) / $count, 2),
+                'gpa' => round($points / $count, 2),
+            ];
+        }
+
+        return ['students' => $students, 'grades' => $grades, 'fields' => $fields];
     }
 
     /**
@@ -419,7 +492,7 @@ class StudentPerformanceService
      * Build missing Grade Alerts from current failing averages so the hub
      * matches Passed/Failed counts even when grades were imported or seeded.
      */
-    public function syncAlertsForScope(int $academicYearId, int $semesterId, ?int $sectionId = null, ?array $allowedStudentIds = null): void
+    public function syncAlertsForScope(int $academicYearId, int $semesterId, ?int $sectionId = null, ?array $allowedStudentIds = null): Collection
     {
         $studentQuery = Student::query();
         if ($allowedStudentIds !== null) {
@@ -431,7 +504,7 @@ class StudentPerformanceService
 
         $studentIds = $studentQuery->pluck('id');
         if ($studentIds->isEmpty()) {
-            return;
+            return collect();
         }
 
         $subjectIds = QuarterlyGrade::query()
@@ -450,13 +523,14 @@ class StudentPerformanceService
         }
 
         $this->checkAlertsForSubjects($subjectIds, $academicYearId, $semesterId, false);
-        $this->syncOverallFailingAlerts($academicYearId, $semesterId, $sectionId, $allowedStudentIds);
+
+        return $this->syncOverallFailingAlerts($academicYearId, $semesterId, $sectionId, $allowedStudentIds);
     }
 
     /**
      * Ensure each student below the passing average has a visible open alert.
      */
-    protected function syncOverallFailingAlerts(int $academicYearId, int $semesterId, ?int $sectionId, ?array $allowedStudentIds): void
+    protected function syncOverallFailingAlerts(int $academicYearId, int $semesterId, ?int $sectionId, ?array $allowedStudentIds): Collection
     {
         $rows = $this->rankingRows($academicYearId, $semesterId, $sectionId, $allowedStudentIds);
         $failing = $rows->filter(fn ($r) => $r->general_average !== null && $r->general_average < self::LOW_GRADE_THRESHOLD);
@@ -489,6 +563,8 @@ class StudentPerformanceService
                 ]
             );
         }
+
+        return $rows;
     }
 
     public function resolveAlert(GradeAlert $alert, User $resolver): GradeAlert
@@ -507,7 +583,7 @@ class StudentPerformanceService
      *
      * @return list<int>|null null = no restriction (admin)
      */
-    public function allowedStudentIdsForUser(?User $user): ?array
+    public function allowedStudentIdsForUser(?User $user, ?int $academicYearId = null): ?array
     {
         if (! $user || $user->role_name === 'Admin') {
             return null;
@@ -517,22 +593,29 @@ class StudentPerformanceService
             return [];
         }
 
-        return $this->studentIdsForTeacher($user->teacher);
+        return $this->studentIdsForTeacher($user->teacher, $academicYearId);
     }
 
     /**
      * @return list<int>
      */
-    public function studentIdsForTeacher(Teacher $teacher): array
+    public function studentIdsForTeacher(Teacher $teacher, ?int $academicYearId = null, $sections = null): array
     {
-        $options = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
-        $sectionIds = $options['sections']->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($sections === null) {
+            $sections = app(TeacherClassAssignmentService::class)->optionsFor($teacher, $academicYearId)['sections'];
+        }
+        $sectionIds = collect($sections)->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         if ($sectionIds === []) {
             return [];
         }
 
-        return Student::whereHas('sections', fn ($q) => $q->whereIn('sections.id', $sectionIds))
+        return Student::whereHas('sections', function ($query) use ($sectionIds, $academicYearId) {
+            $query->whereIn('sections.id', $sectionIds);
+            if ($academicYearId) {
+                $query->where('student_section_assignments.academic_year_id', $academicYearId);
+            }
+        })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->unique()
@@ -540,18 +623,23 @@ class StudentPerformanceService
             ->all();
     }
 
-    public function sectionsForUser(?User $user): Collection
+    public function sectionsForUser(?User $user, ?int $academicYearId = null): Collection
     {
         if (! $user) {
             return collect();
         }
 
         if ($user->role_name === 'Admin') {
-            return \App\Models\Section::orderBy('grade_level')->orderBy('name')->get();
+            $query = \App\Models\Section::query()->orderBy('grade_level')->orderBy('name');
+            if ($academicYearId) {
+                $query->forAcademicYear($academicYearId);
+            }
+
+            return $query->get();
         }
 
         if ($user->role_name === 'Teacher' && $user->teacher) {
-            return app(TeacherClassAssignmentService::class)->optionsFor($user->teacher)['sections'];
+            return app(TeacherClassAssignmentService::class)->optionsFor($user->teacher, $academicYearId)['sections'];
         }
 
         return collect();

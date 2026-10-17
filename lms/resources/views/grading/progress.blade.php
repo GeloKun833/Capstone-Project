@@ -37,7 +37,7 @@
                         <th>Teacher</th>
                         <th>Period</th>
                         <th>Method</th>
-                        <th>Status</th>
+                        <th>Report status</th>
                     </tr>
                 </thead>
                 <tbody>

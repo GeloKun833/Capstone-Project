@@ -11,6 +11,8 @@ use App\Models\StudentObservedValue;
 use App\Support\AcademicThresholds;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ReportCardService
 {
@@ -63,6 +65,8 @@ class ReportCardService
         $descriptive = \App\Support\DescriptiveScale::isNurseryOrKindergarten($gradeLevel);
 
         if (! $academicYear) {
+            $reportStatus = 'Not started';
+
             return compact(
                 'student',
                 'academicYear',
@@ -75,7 +79,8 @@ class ReportCardService
                 'attendanceRows',
                 'reportSection',
                 'gradeLevel',
-                'descriptive'
+                'descriptive',
+                'reportStatus'
             ) + ['focusQuarter' => $focusQuarter];
         }
 
@@ -107,6 +112,13 @@ class ReportCardService
         $quarterAverages['final'] = $generalAverages['final'];
 
         $attendanceRows = $this->buildAttendanceRows($student, $academicYear);
+        $reportStatus = $this->statusForStudent(
+            $grades,
+            $reportSection?->id,
+            (int) $academicYear->id,
+            $focusQuarter,
+            \App\Support\DescriptiveScale::isDescriptiveGradeLevel($gradeLevel)
+        );
 
         return [
             'student' => $student,
@@ -122,7 +134,17 @@ class ReportCardService
             'reportSection' => $reportSection,
             'gradeLevel' => $gradeLevel,
             'descriptive' => $descriptive,
+            'reportStatus' => $reportStatus,
         ];
+    }
+
+    public static function reportStatus(int $filled, int $expected): string
+    {
+        if ($expected < 1 || $filled < 1) {
+            return 'Not started';
+        }
+
+        return $filled >= $expected ? 'Complete' : 'Incomplete';
     }
 
     public static function remarkForScore(?float $score): string
@@ -153,6 +175,61 @@ class ReportCardService
         }
 
         return 'Did Not Meet Expectations';
+    }
+
+    private function statusForStudent(Collection $grades, ?int $sectionId, int $yearId, ?int $focusQuarter, bool $descriptive): string
+    {
+        $expectedIds = $this->expectedSubjectIds($sectionId, $yearId);
+        if ($expectedIds->isEmpty()) {
+            $expectedIds = $grades->pluck('subject_id')->map(fn ($id) => (int) $id)->unique()->values();
+        }
+
+        $quarters = $focusQuarter ? [$focusQuarter] : [1, 2, 3, 4];
+        $filled = 0;
+        foreach ($expectedIds as $subjectId) {
+            $grade = $grades->first(fn ($row) => (int) $row->subject_id === (int) $subjectId);
+            foreach ($quarters as $quarter) {
+                if ($this->quarterFilled($grade, $quarter, $descriptive)) {
+                    $filled++;
+                }
+            }
+        }
+
+        return self::reportStatus($filled, $expectedIds->count() * count($quarters));
+    }
+
+    private function expectedSubjectIds(?int $sectionId, int $yearId): Collection
+    {
+        if (! $sectionId) {
+            return collect();
+        }
+
+        $fromSchedule = DB::table('class_schedules')
+            ->where('academic_year_id', $yearId)
+            ->where('section_id', $sectionId)
+            ->where('is_active', true)
+            ->whereNotNull('subject_id')
+            ->pluck('subject_id');
+        $fromPivot = Schema::hasTable('section_subject')
+            ? DB::table('section_subject')->where('section_id', $sectionId)->pluck('subject_id')
+            : collect();
+
+        return $fromSchedule->merge($fromPivot)->map(fn ($id) => (int) $id)->unique()->values();
+    }
+
+    private function quarterFilled($grade, int $quarter, bool $descriptive): bool
+    {
+        if (! $grade) {
+            return false;
+        }
+
+        if ($descriptive) {
+            return \App\Support\DescriptiveScale::get($grade->{'q'.$quarter.'_level'}) !== null;
+        }
+
+        $value = $grade->{'quarter_'.$quarter};
+
+        return $value !== null && $value !== '';
     }
 
     /**

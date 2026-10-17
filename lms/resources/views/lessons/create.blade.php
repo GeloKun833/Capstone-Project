@@ -18,7 +18,7 @@
                         </ul>
                         <div class="d-flex gap-2 justify-content-end">
                             <a href="{{ route('lessons.index') }}" class="btn btn-outline-secondary dir-btn">Back</a>
-                            <button type="submit" form="lessonForm" class="btn btn-primary dir-btn" id="submitBtn" @if($subjects->isEmpty() || $sections->isEmpty()) disabled @endif>
+                            <button type="submit" form="lessonForm" class="btn btn-primary dir-btn" id="submitBtn" @if($subjects->isEmpty() || $sections->isEmpty() || ! $activeYear || $semesters->isEmpty()) disabled @endif>
                                 <i class="fas fa-save me-1"></i> <span id="submitText">Create Lesson</span>
                                 <span id="submitSpinner" class="spinner-border spinner-border-sm ms-2" style="display: none;"></span>
                             </button>
@@ -57,6 +57,11 @@
                                     You have no subject/section assignment yet. Ask Admin to assign you under
                                     <strong>Classes &amp; Subjects</strong> before creating a lesson.
                                     <a href="{{ route('teacher.classes') }}" class="alert-link">View My Classes &amp; Subjects</a>
+                                </div>
+                            @endif
+                            @if(! $activeYear || $semesters->isEmpty())
+                                <div class="alert alert-warning">
+                                    The admin has not set a current academic year with semesters. A lesson cannot be created until that is set.
                                 </div>
                             @endif
 
@@ -101,6 +106,9 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="mt-3" id="lessonOutline">
+                                        <p class="text-muted mb-0">Select a section and subject to see the course outline and OPTLB.</p>
+                                    </div>
                                 </div>
 
                                 {{-- Step 2: Lesson Information --}}
@@ -143,18 +151,12 @@
                                     <div class="row mt-3">
                                         <div class="col-lg-6 col-md-6">
                                             <div class="form-group">
-                                                <label class="form-label">
-                                                    Academic Year <span class="text-danger">*</span>
-                                                </label>
-                                                <select class="form-control @error('academic_year_id') is-invalid @enderror" id="academic_year_id" name="academic_year_id" required>
-                                                    <option value="">Select Academic Year</option>
-                                                    @foreach($academicYears as $year)
-                                                        <option value="{{ $year->id }}" {{ (string) old('academic_year_id', $currentSchoolYear->id ?? '') === (string) $year->id ? 'selected' : '' }}>
-                                                            {{ $year->name }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                                @error('academic_year_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                <label class="form-label">Academic Year</label>
+                                                <input type="text" class="form-control" value="{{ $activeYear->name ?? 'No current academic year' }}" readonly>
+                                                @if($activeYear)
+                                                    <input type="hidden" name="academic_year_id" id="academic_year_id" value="{{ $activeYear->id }}">
+                                                @endif
+                                                <div class="form-text">This follows the academic year the admin set as current.</div>
                                             </div>
                                         </div>
                                         <div class="col-lg-6 col-md-6">
@@ -162,16 +164,16 @@
                                                 <label class="form-label">
                                                     Semester <span class="text-danger">*</span>
                                                 </label>
-                                                <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required disabled>
+                                                <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required @if($semesters->isEmpty()) disabled @endif>
                                                     <option value="">Select Semester</option>
                                                     @foreach($semesters as $semester)
-                                                        <option value="{{ $semester->id }}" data-academic-year="{{ $semester->academic_year_id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
+                                                        <option value="{{ $semester->id }}" {{ (string) old('semester_id', $currentSemester->id ?? '') === (string) $semester->id ? 'selected' : '' }}>
                                                             {{ $semester->name }}
                                                         </option>
                                                     @endforeach
                                                 </select>
                                                 @error('semester_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                                <div class="form-text">Choose an academic year to see its semesters.</div>
+                                                <div class="form-text">Semesters for the current academic year.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -179,18 +181,8 @@
                                         <div class="col-12">
                                             <div class="form-group">
                                                 <label class="form-label">Lesson Materials (Optional)</label>
-                                                <div class="file-upload-wrapper">
-                                                    <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file" accept=".pdf,.docx,.ppt,.pptx">
-                                                    <div class="file-upload-info mt-2" id="fileInfo" style="display: none;">
-                                                        <div class="alert alert-info mb-0">
-                                                            <i class="fas fa-file me-2"></i>
-                                                            <span id="fileName"></span>
-                                                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="removeFile">
-                                                                <i class="fas fa-times"></i> Remove
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file" accept=".pdf,.docx,.ppt,.pptx">
+                                                <div class="upload-thumb mt-2" id="filePreview"></div>
                                                 @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                 <small class="form-text text-muted">Supported formats: PDF, Word (DOCX), PPT, PPTX (Max: 10MB)</small>
                                             </div>
@@ -296,6 +288,8 @@
 </style>
 @endpush
 
+@include('enrollment.partials.file-card-assets')
+
 @push('scripts')
 @php
     $subjectsForJs = $subjects->map(function ($s) {
@@ -310,39 +304,10 @@
 $(document).ready(function() {
     const subjectsBySection = @json($subjectsBySection ?? []);
     const allSubjects = @json($subjectsForJs);
+    const courseOutlines = @json($courseOutlines ?? []);
     const oldSectionId = @json(old('section_id'));
     const oldSubjectId = @json(old('subject_id'));
-    const oldSemesterId = @json(old('semester_id'));
-    const semesterOptions = $('#semester_id option[data-academic-year]').map(function() {
-        return {
-            id: String(this.value),
-            yearId: String(this.dataset.academicYear),
-            label: this.textContent.trim(),
-        };
-    }).get();
-
-    function filterSemesters(preferredId) {
-        const academicYearId = String($('#academic_year_id').val() || '');
-        const currentSemesterId = String(preferredId || $('#semester_id').val() || oldSemesterId || '');
-        const $semester = $('#semester_id').empty();
-        const matchingSemesters = semesterOptions.filter(function(semester) {
-            return semester.yearId === academicYearId;
-        });
-
-        if (!academicYearId) {
-            $semester.append(new Option('Select academic year first', ''));
-            $semester.prop('disabled', true);
-            updatePreview();
-            return;
-        }
-
-        $semester.append(new Option(matchingSemesters.length ? 'Select Semester' : 'No semesters for this academic year', ''));
-        matchingSemesters.forEach(function(semester) {
-            $semester.append(new Option(semester.label, semester.id, false, semester.id === currentSemesterId));
-        });
-        $semester.prop('disabled', matchingSemesters.length === 0);
-        updatePreview();
-    }
+    const lockedYearName = @json($activeYear->name ?? '');
 
     function filterSubjects() {
         const sectionId = $('#section_id').val();
@@ -355,6 +320,7 @@ $(document).ready(function() {
             $subject.append('<option value="">Select section first</option>');
             $subject.prop('disabled', true);
             updatePreview();
+            showCourseOutline();
             return;
         }
 
@@ -378,19 +344,68 @@ $(document).ready(function() {
         }
 
         updatePreview();
+        showCourseOutline();
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function showCourseOutline() {
+        const box = document.getElementById('lessonOutline');
+        if (!box) return;
+        const subjectId = $('#subject_id').val();
+        if (!subjectId) {
+            box.innerHTML = '<p class="text-muted mb-0">Select a section and subject to see the course outline and OPTLB.</p>';
+            return;
+        }
+        const rows = courseOutlines[subjectId] || courseOutlines[String(subjectId)] || [];
+        if (!rows.length) {
+            box.innerHTML = '<p class="text-muted mb-0">No course outline has been published for this subject yet.</p>';
+            return;
+        }
+        box.innerHTML = rows.map(function (row) {
+            const topics = (row.topics || []).map(function (topic) {
+                return '<li>Unit ' + escapeHtml(topic.unit) + ': ' + escapeHtml(topic.title) + '</li>';
+            }).join('');
+            const optlb = row.optlb
+                ? '<div class="mt-3"><div class="fw-semibold">OPTLB</div><div>' + escapeHtml(row.optlb.title) + '</div>'
+                    + '<p class="mb-1 mt-2"><strong>Objectives.</strong> ' + escapeHtml(row.optlb.objectives) + '</p>'
+                    + '<p class="mb-1" style="white-space:pre-line;"><strong>Sequence.</strong> ' + escapeHtml(row.optlb.sequence) + '</p>'
+                    + '<p class="mb-1"><strong>Activities.</strong> ' + escapeHtml(row.optlb.activities) + '</p>'
+                    + '<p class="mb-1"><strong>Assessment.</strong> ' + escapeHtml(row.optlb.assessment) + '</p>'
+                    + '<p class="mb-0"><strong>References.</strong> ' + escapeHtml(row.optlb.references) + '</p></div>'
+                : '';
+            const files = (row.files || []).map(function (file) {
+                return '<div class="mt-3"><div class="small fw-semibold mb-1">' + escapeHtml(file.name) + '</div>'
+                    + '<iframe src="' + escapeHtml(file.url) + '" title="' + escapeHtml(file.name) + '" style="width:100%;height:280px;border:1px solid #e5e7eb;border-radius:8px;"></iframe></div>';
+            }).join('');
+            const badge = row.demo ? '<span class="badge bg-warning text-dark ms-2">DEMO</span>' : '';
+            return '<div class="border rounded p-3 mb-3 bg-light">'
+                + '<div class="fw-semibold">Course outline ' + badge + '</div>'
+                + '<div>' + escapeHtml(row.title) + '</div>'
+                + '<div class="small text-muted mb-2">' + escapeHtml(row.year) + '</div>'
+                + '<p class="mb-1">' + escapeHtml(row.description) + '</p>'
+                + '<p class="mb-1"><strong>Objectives.</strong> ' + escapeHtml(row.objectives) + '</p>'
+                + '<ul class="mb-1">' + topics + '</ul>'
+                + '<p class="mb-0"><strong>Assessment.</strong> ' + escapeHtml(row.assessment) + '</p>'
+                + optlb + files + '</div>';
+        }).join('');
     }
 
     function updatePreview() {
         const subjectSelect = $('#subject_id option:selected');
         const sectionSelect = $('#section_id option:selected');
-        const academicYearSelect = $('#academic_year_id option:selected');
         const semesterSelect = $('#semester_id option:selected');
-
         $('#previewSubject').text(subjectSelect.val() ? subjectSelect.text() : '-');
         $('#previewSection').text(sectionSelect.val() ? sectionSelect.text() : '-');
         $('#previewPeriod').text(
-            (academicYearSelect.val() && semesterSelect.val())
-                ? `${academicYearSelect.text()} - ${semesterSelect.text()}`
+            (lockedYearName && semesterSelect.val())
+                ? lockedYearName + ' - ' + semesterSelect.text()
                 : '-'
         );
         $('#previewTitle').text($('#title').val().trim() || '-');
@@ -399,16 +414,16 @@ $(document).ready(function() {
     $('#section_id').on('change', function() {
         filterSubjects();
     });
-    $('#academic_year_id').on('change', function() {
-        filterSemesters('');
+    $('#subject_id').on('change', function () {
+        updatePreview();
+        showCourseOutline();
     });
-    $('#subject_id, #semester_id').on('change', updatePreview);
+    $('#semester_id').on('change', updatePreview);
     $('#title').on('input', updatePreview);
 
     if (oldSectionId) {
         $('#section_id').val(String(oldSectionId));
     }
-    filterSemesters(oldSemesterId);
     filterSubjects();
 
     $('#lessonForm').on('submit', function(e) {
@@ -418,7 +433,6 @@ $(document).ready(function() {
             { id: '#title', label: 'Lesson title' },
             { id: '#description', label: 'Lesson description' },
             { id: '#lesson_date', label: 'Lesson date' },
-            { id: '#academic_year_id', label: 'Academic year' },
             { id: '#semester_id', label: 'Semester' },
         ];
 
@@ -450,31 +464,26 @@ $(document).ready(function() {
 
     $('#file').on('change', function() {
         const file = this.files[0];
+        const preview = document.getElementById('filePreview');
         const maxSize = 10 * 1024 * 1024;
         if (!file) {
-            $('#fileInfo').hide();
+            window.paintEnrollmentFileCard(preview, null);
             return;
         }
         if (file.size > maxSize) {
             alert('File size must be less than 10MB.');
             this.value = '';
-            $('#fileInfo').hide();
+            window.paintEnrollmentFileCard(preview, null);
             return;
         }
         const ext = (file.name.split('.').pop() || '').toLowerCase();
         if (!['pdf', 'docx', 'ppt', 'pptx'].includes(ext)) {
             alert('Please select a valid file type (PDF, Word DOCX, PPT, PPTX).');
             this.value = '';
-            $('#fileInfo').hide();
+            window.paintEnrollmentFileCard(preview, null);
             return;
         }
-        $('#fileName').text(file.name + ' (' + (file.size / 1024 / 1024).toFixed(2) + ' MB)');
-        $('#fileInfo').show();
-    });
-
-    $('#removeFile').on('click', function() {
-        $('#file').val('');
-        $('#fileInfo').hide();
+        window.paintEnrollmentFileCard(preview, file);
     });
 });
 </script>

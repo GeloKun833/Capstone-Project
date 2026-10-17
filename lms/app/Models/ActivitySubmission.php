@@ -15,6 +15,7 @@ class ActivitySubmission extends Model
         'file_path',
         'file_name',
         'comments',
+        'quiz_answers',
         'status',
         'submitted_at',
         'is_active',
@@ -29,6 +30,7 @@ class ActivitySubmission extends Model
 
     protected $casts = [
         'submitted_at' => 'datetime',
+        'quiz_answers' => 'array',
         'graded_at' => 'datetime',
         'is_active' => 'boolean',
         'total_score' => 'float',

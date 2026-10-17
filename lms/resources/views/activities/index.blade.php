@@ -3,9 +3,6 @@
 
 @php
     $total = $activities->count();
-    $withSubmissions = $activities->where('allows_submission', true)->count();
-    $overdue = $activities->filter(fn ($a) => $a->is_overdue)->count();
-    $upcoming = $activities->filter(fn ($a) => $a->due_date && $a->due_date->isFuture())->count();
 @endphp
 
 <div class="page-wrapper">
@@ -55,45 +52,27 @@
             </div>
         </div>
 
-        <div class="row g-3 mb-3">
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">Total</span>
-                    <div class="dir-stat-value">{{ $total }}</div>
-                </div>
-            </div>
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">With submissions</span>
-                    <div class="dir-stat-value">{{ $withSubmissions }}</div>
-                </div>
-            </div>
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">Overdue</span>
-                    <div class="dir-stat-value">{{ $overdue }}</div>
-                </div>
-            </div>
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">Upcoming</span>
-                    <div class="dir-stat-value">{{ $upcoming }}</div>
-                </div>
-            </div>
-        </div>
-
         <div class="dir-card">
             <div class="dir-toolbar">
                 <div>
                     <h5 class="dir-toolbar-title">Activities</h5>
-                    <span class="dir-count mt-1">{{ $total }} activit{{ $total === 1 ? 'y' : 'ies' }} for this lesson</span>
+                    <span class="dir-count mt-1">{{ $total }} activit{{ $total === 1 ? 'y' : 'ies' }}</span>
                 </div>
+                <form method="GET" class="d-flex flex-wrap gap-2">
+                    <input type="search" name="q" value="{{ $search }}" class="form-control" placeholder="Search title" style="min-width: 180px;">
+                    <select name="status" class="form-control" style="min-width: 140px;">
+                        <option value="">Draft and posted</option>
+                        <option value="draft" @selected($status === 'draft')>Draft</option>
+                        <option value="published" @selected($status === 'published')>Posted</option>
+                    </select>
+                    <button class="btn btn-outline-secondary dir-btn" type="submit">Filter</button>
+                </form>
             </div>
 
             @forelse($activities as $activity)
                 @php
                     $due = $activity->due_date;
-                    $dueLabel = $due ? $due->format('M j, Y') : 'No due date';
+                    $dueLabel = $activity->formattedDue();
                     $dueState = 'muted';
                     $dueHint = '';
                     if ($due) {
@@ -120,30 +99,52 @@
                         <p class="act-copy">{{ Str::limit(strip_tags((string) $activity->instructions), 140) }}</p>
                         <div class="act-meta">
                             <span class="act-chip act-chip-{{ $dueState }}"><i class="far fa-calendar"></i> {{ $dueLabel }}@if($dueHint) · {{ $dueHint }}@endif</span>
-                            @if($activity->allows_submission)
+                            @if($activity->isQuiz())
+                                <span class="act-chip">Quiz · {{ $activity->points ?: 0 }} points</span>
+                            @elseif($activity->allows_submission)
                                 <span class="act-chip">{{ $submitted }} submitted · {{ $graded }} graded</span>
                                 <span class="act-chip act-chip-ok">Submissions on</span>
                             @else
                                 <span class="act-chip">No file upload</span>
                             @endif
-                            @if($activity->is_active)
-                                <span class="act-chip act-chip-ok">Active</span>
+                            @if($activity->isPublished())
+                                <span class="act-chip act-chip-ok">Posted</span>
                             @else
-                                <span class="act-chip act-chip-danger">Inactive</span>
+                                <span class="act-chip act-chip-warn">Draft</span>
+                            @endif
+                            @if($activity->points)
+                                <span class="act-chip">{{ $activity->points }} points</span>
                             @endif
                         </div>
                     </div>
                     <div class="act-row-actions">
-                        @if($activity->allows_submission)
+                        @if($activity->isQuiz() && $activity->isPublished())
+                            <a href="{{ route('lessons.activities.quiz-results', [$lesson, $activity]) }}" class="dir-icon-btn" title="Quiz results"><i class="fas fa-check-square"></i></a>
+                        @elseif($activity->allows_submission && $activity->isPublished())
                             <a href="{{ route('lessons.activities.submissions', [$lesson, $activity]) }}" class="dir-icon-btn" title="Submissions"><i class="fas fa-upload"></i></a>
                         @endif
+                        @if($activity->isPublished())
+                            <form action="{{ route('lessons.activities.unpublish', [$lesson, $activity]) }}" method="POST" @if($activity->isQuiz()) onsubmit="return confirm('Unpublish this quiz? Students cannot start a new attempt. Existing results stay.')" @endif>
+                                @csrf
+                                <button type="submit" class="dir-icon-btn" title="Move to draft">Draft</button>
+                            </form>
+                        @else
+                            <form action="{{ route('lessons.activities.publish', [$lesson, $activity]) }}" method="POST">
+                                @csrf
+                                <button type="submit" class="dir-icon-btn" title="Post">Post</button>
+                            </form>
+                        @endif
+                        <form action="{{ route('lessons.activities.duplicate', [$lesson, $activity]) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="dir-icon-btn" title="Duplicate"><i class="far fa-copy"></i></button>
+                        </form>
                         <a href="{{ route('lessons.activities.show', [$lesson, $activity]) }}" class="dir-icon-btn" title="View"><i class="far fa-eye"></i></a>
                         <a href="{{ route('lessons.activities.edit', [$lesson, $activity]) }}" class="dir-icon-btn" title="Edit"><i class="far fa-edit"></i></a>
-                        <form action="{{ route('lessons.activities.destroy', [$lesson, $activity]) }}" method="POST" onsubmit="return confirm('Delete this activity?');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="dir-icon-btn is-danger" title="Delete"><i class="far fa-trash-alt"></i></button>
-                        </form>
+                        <button type="button" class="dir-icon-btn is-danger delete-activity-btn" title="Delete"
+                                data-title="{{ $activity->title }}"
+                                data-action="{{ route('lessons.activities.destroy', [$lesson, $activity]) }}">
+                            <i class="far fa-trash-alt"></i>
+                        </button>
                     </div>
                 </article>
             @empty
@@ -160,11 +161,35 @@
     </div>
 </div>
 
+<div class="modal fade dir-modal" id="deleteActivityModal" tabindex="-1" aria-labelledby="deleteActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteActivityModalLabel">Delete activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">Delete “<strong id="deleteActivityTitle"></strong>”?</p>
+                <p class="dir-muted mb-0">The activity and its student submissions will be removed. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary dir-btn" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteActivityForm" method="POST" class="d-inline">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger dir-btn">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260915b">
 <style>
 .act-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem 1.15rem;
@@ -196,12 +221,24 @@
 .act-chip-ok { background: #ecfdf5; border-color: #d1fae5; color: #047857; }
 .act-chip-warn { background: #fff7ed; border-color: #ffedd5; color: #c2410c; }
 .act-chip-danger { background: #fef2f2; border-color: #fee2e2; color: #b91c1c; }
-.act-row-actions { display: flex; align-items: flex-start; gap: 0.25rem; }
+.act-row-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem; }
 .act-row-actions form { margin: 0; }
 @media (max-width: 700px) {
     .act-row { flex-direction: column; }
 }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+document.querySelectorAll('.delete-activity-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+        document.getElementById('deleteActivityTitle').textContent = button.dataset.title || 'this activity';
+        document.getElementById('deleteActivityForm').action = button.dataset.action;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteActivityModal')).show();
+    });
+});
+</script>
 @endpush
 
 @endsection

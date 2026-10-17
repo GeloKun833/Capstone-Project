@@ -84,25 +84,30 @@
 
 
 
-                            <!-- Lesson Materials -->
                             @if($lesson->file_path)
+                                @php
+                                    $materialName = $lesson->file_name ?: 'Lesson material';
+                                    $materialExt = strtoupper(pathinfo($materialName, PATHINFO_EXTENSION));
+                                    if ($materialExt === 'JPEG') {
+                                        $materialExt = 'JPG';
+                                    }
+                                    $materialKind = $materialExt === 'PDF' ? 'pdf' : (in_array($materialExt, ['JPG', 'PNG', 'GIF', 'WEBP'], true) ? 'image' : 'file');
+                                    if ($materialKind === 'pdf') {
+                                        $materialExt = 'PDF';
+                                    }
+                                @endphp
                                 <div class="row mb-4">
                                     <div class="col-12">
                                         <h5><i class="fas fa-file me-2"></i>Lesson Materials</h5>
-                                        <div class="card bg-light">
-                                            <div class="card-body">
-                                                <div class="d-flex align-items-center">
-                                                    <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
-                                                    <div class="flex-grow-1">
-                                                        <h6 class="mb-1">{{ $lesson->file_name }}</h6>
-                                                        <small class="text-muted">Uploaded on {{ $lesson->created_at->format('M d, Y') }}</small>
-                                                    </div>
-                                                    <a href="{{ $lesson->file_url }}" target="_blank" class="btn btn-outline-primary">
-                                                        <i class="fas fa-download"></i> Download
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <a class="enr-file-card" href="{{ $lesson->file_url }}" target="_blank" rel="noopener"
+                                           data-enr-file data-kind="{{ $materialKind }}" data-src="{{ $lesson->file_url }}" title="{{ $materialName }}">
+                                            <span class="enr-file-card__meta">
+                                                <span class="enr-file-card__name">{{ $materialName }}</span>
+                                                <span class="enr-file-card__type">{{ $materialExt ?: 'FILE' }}</span>
+                                            </span>
+                                            <span class="enr-file-card__preview"></span>
+                                        </a>
+                                        <small class="text-muted d-block mt-2">Uploaded on {{ $lesson->created_at->format('M d, Y') }}</small>
                                     </div>
                                 </div>
                             @endif
@@ -264,7 +269,7 @@
                                                         <small class="text-muted">{{ Str::limit($activity->instructions, 100) }}</small>
                                                     </td>
                                                     <td>
-                                                        <strong>{{ $activity->due_date->format('M d, Y') }}</strong>
+                                                        <strong>{{ $activity->formattedDue() }}</strong>
                                                         @if($activity->is_overdue)
                                                             <br><span class="badge bg-danger">Overdue</span>
                                                         @endif
@@ -276,10 +281,12 @@
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        @if($activity->allows_submission)
-                                                            <span class="badge bg-primary">Submission Allowed</span>
+                                                        @if(($activity->status ?? 'published') === 'draft')
+                                                            <span class="badge bg-secondary">Draft</span>
+                                                        @elseif($activity->allows_submission)
+                                                            <span class="badge bg-primary">Posted</span>
                                                         @else
-                                                            <span class="badge bg-secondary">No Submission</span>
+                                                            <span class="badge bg-success">Posted</span>
                                                         @endif
                                                     </td>
                                                     <td class="text-end">
@@ -614,5 +621,7 @@
 }
 </style>
 @endpush
+
+@include('enrollment.partials.file-card-assets')
 
 @endsection 

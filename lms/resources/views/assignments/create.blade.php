@@ -45,6 +45,9 @@
                         <small class="text-muted">Section first, then subject, then assignment details</small>
                     </div>
                     <div class="card-body">
+                        @if(session('error'))
+                            <div class="alert alert-danger">{{ session('error') }}</div>
+                        @endif
                         {{-- Error Display --}}
                         @if($errors->any())
                             <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -129,27 +132,27 @@
                                         </div>
                                     </div>
 
+                                    @if(! $activeYear || $semesters->isEmpty())
+                                        <div class="alert alert-warning">
+                                            The admin has not set a current academic year with semesters. An assignment cannot be created until that is set.
+                                        </div>
+                                    @endif
+
                                     <div class="row mb-4">
                                         <div class="col-md-6">
-                                            <label for="academic_year_id" class="form-label">Academic Year <span class="text-danger">*</span></label>
-                                            <select class="form-control @error('academic_year_id') is-invalid @enderror" id="academic_year_id" name="academic_year_id" required>
-                                                <option value="">Select Academic Year</option>
-                                                @foreach($academicYears as $academicYear)
-                                                    <option value="{{ $academicYear->id }}" {{ (string) old('academic_year_id', $currentSchoolYear->id ?? '') === (string) $academicYear->id ? 'selected' : '' }}>
-                                                        {{ $academicYear->name }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            @error('academic_year_id')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
+                                            <label class="form-label">Academic Year</label>
+                                            <input type="text" class="form-control" value="{{ $activeYear->name ?? 'No current academic year' }}" readonly>
+                                            @if($activeYear)
+                                                <input type="hidden" name="academic_year_id" value="{{ $activeYear->id }}">
+                                            @endif
+                                            <small class="text-muted">This follows the academic year the admin set as current.</small>
                                         </div>
                                         <div class="col-md-6">
-                                            <label for="semester_id" class="form-label">Quarter <span class="text-danger">*</span></label>
-                                            <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required>
-                                                <option value="">Select Quarter</option>
+                                            <label for="semester_id" class="form-label">Semester <span class="text-danger">*</span></label>
+                                            <select class="form-control @error('semester_id') is-invalid @enderror" id="semester_id" name="semester_id" required @if($semesters->isEmpty()) disabled @endif>
+                                                <option value="">Select Semester</option>
                                                 @foreach($semesters as $semester)
-                                                    <option value="{{ $semester->id }}" {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
+                                                    <option value="{{ $semester->id }}" {{ (string) old('semester_id', $currentSemester->id ?? '') === (string) $semester->id ? 'selected' : '' }}>
                                                         {{ $semester->name }}
                                                     </option>
                                                 @endforeach
@@ -157,6 +160,7 @@
                                             @error('semester_id')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
+                                            <small class="text-muted">Semesters for the current academic year.</small>
                                         </div>
                                     </div>
 

@@ -492,7 +492,7 @@ class StudentController extends Controller
         if ($lessonIds->isNotEmpty()) {
             $quizzes = \App\Models\Activity::with(['lesson.teacher', 'lesson.subject', 'lesson.section'])
                 ->whereIn('lesson_id', $lessonIds)
-                ->where('is_active', true)
+                ->published()
                 ->orderBy('due_date', 'asc')
                 ->get();
         }
@@ -574,6 +574,11 @@ class StudentController extends Controller
                 ->route('student.class.detail', ['enrollmentId' => $enrollmentId, 'tab' => 'lessons'])
                 ->with('error', 'Lesson not found or not available for this class.');
         }
+
+        $lesson->setRelation(
+            'activities',
+            $lesson->activities->filter(fn ($activity) => $activity->isPublished())->values()
+        );
 
         $activityIds = $lesson->activities->pluck('id');
         $mySubmissions = collect();

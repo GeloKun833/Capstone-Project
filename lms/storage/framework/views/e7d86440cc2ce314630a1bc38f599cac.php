@@ -49,40 +49,53 @@
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
                     <span class="dir-stat-label">Published</span>
-                    <div class="dir-stat-value" id="publishedLessons"><?php echo e($lessons->where('status', 'published')->count()); ?></div>
+                    <div class="dir-stat-value" id="publishedLessons"><?php echo e($statusCounts['published']); ?></div>
                 </div>
             </div>
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
                     <span class="dir-stat-label">Draft</span>
-                    <div class="dir-stat-value" id="draftLessons"><?php echo e($lessons->where('status', 'draft')->count()); ?></div>
+                    <div class="dir-stat-value" id="draftLessons"><?php echo e($statusCounts['draft']); ?></div>
                 </div>
             </div>
             <div class="col-xl-3 col-sm-6">
                 <div class="dir-card dir-stat">
                     <span class="dir-stat-label">Completed</span>
-                    <div class="dir-stat-value" id="completedLessons"><?php echo e($lessons->where('status', 'completed')->count()); ?></div>
+                    <div class="dir-stat-value" id="completedLessons"><?php echo e($statusCounts['completed']); ?></div>
                 </div>
             </div>
         </div>
 
         <div class="dir-card dir-filters">
             <div class="row g-2 align-items-end">
-                <div class="col-lg-4 col-md-6">
-                    <label class="form-label" for="searchLesson">Search</label>
-                    <input type="text" class="form-control" id="searchLesson" value="<?php echo e(request('search')); ?>" placeholder="Title or description">
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label" for="grade_filter">Grade level</label>
+                    <select class="form-control" id="grade_filter">
+                        <option value="">All grade levels</option>
+                        <?php $__currentLoopData = $gradeLevels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grade): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($grade); ?>" <?php echo e($selectedGrade === $grade ? 'selected' : ''); ?>><?php echo e($grade); ?></option>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </select>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <label class="form-label" for="subject_filter">Subject</label>
-                    <select class="form-control" id="subject_filter">
-                        <option value="">All Subjects</option>
-                        <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                            <option value="<?php echo e($subject->id); ?>" <?php echo e((string) request('subject_id') === (string) $subject->id ? 'selected' : ''); ?>>
-                                <?php echo e($subject->subject_name); ?><?php echo e($subject->class ? ' (' . $subject->class . ')' : ''); ?>
+                    <select class="form-control" id="subject_filter" <?php if($selectedGrade === ''): ?> disabled <?php endif; ?>>
+                        <?php if($selectedGrade === ''): ?>
+                            <option value="">Select a grade first</option>
+                        <?php else: ?>
+                            <option value="">All subjects</option>
+                            <?php $__currentLoopData = $subjects->where('class', $selectedGrade)->sortBy('subject_name'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($subject->id); ?>" <?php echo e((string) request('subject_id') === (string) $subject->id ? 'selected' : ''); ?>>
+                                    <?php echo e($subject->subject_name); ?>
 
-                            </option>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                </option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        <?php endif; ?>
                     </select>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label" for="searchLesson">Search</label>
+                    <input type="text" class="form-control" id="searchLesson" value="<?php echo e(request('search')); ?>" placeholder="Title or description">
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <label class="form-label" for="status_filter">Status</label>
@@ -92,11 +105,6 @@
                         <option value="published" <?php echo e(request('status') == 'published' ? 'selected' : ''); ?>>Published</option>
                         <option value="completed" <?php echo e(request('status') == 'completed' ? 'selected' : ''); ?>>Completed</option>
                     </select>
-                </div>
-                <div class="col-lg-2 col-md-6 pb-3">
-                    <button type="button" class="btn btn-primary dir-btn w-100" id="filterLessons">
-                        <i class="fas fa-filter me-1"></i> Filter
-                    </button>
                 </div>
             </div>
         </div>
@@ -115,6 +123,7 @@
                         <thead>
                             <tr>
                                 <th>Lesson</th>
+                                <th>Grade</th>
                                 <th>Subject</th>
                                 <th>Section</th>
                                 <th>Date</th>
@@ -136,7 +145,15 @@
                                         <a href="<?php echo e(route('lessons.show', $lesson)); ?>" class="dir-person-name"><?php echo e($lesson->title); ?></a>
                                         <span class="dir-person-meta"><?php echo e(Str::limit($lesson->description, 90)); ?></span>
                                     </td>
-                                    <td><span class="dir-chip"><?php echo e($lesson->subject->subject_name); ?></span></td>
+                                    <td><?php echo e($lesson->subject->class ?: '—'); ?></td>
+                                    <td>
+                                        <button type="button" class="dir-chip subject-chip border-0"
+                                            data-subject-id="<?php echo e($lesson->subject_id); ?>"
+                                            data-grade="<?php echo e($lesson->subject->class); ?>">
+                                            <?php echo e($lesson->subject->subject_name); ?>
+
+                                        </button>
+                                    </td>
                                     <td><?php echo e($lesson->section->name); ?></td>
                                     <td><?php echo e($lesson->lesson_date?->format('M d, Y')); ?></td>
                                     <td><span class="dir-badge <?php echo e($statusClass); ?>"><?php echo e(ucfirst($lesson->status)); ?></span></td>
@@ -255,36 +272,75 @@
 
 <?php $__env->startPush('styles'); ?>
 <link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260914e">
+<style>
+    button.dir-chip { cursor: pointer; }
+    button.dir-chip:hover { background: #e0e7ff; }
+</style>
 <?php $__env->stopPush(); ?>
 
 <?php $__env->startPush('scripts'); ?>
+<?php
+    $subjectsByGrade = $subjects->groupBy('class')->map(function ($rows) {
+        return $rows->sortBy('subject_name')->map(function ($subject) {
+            return [
+                'id' => $subject->id,
+                'name' => $subject->subject_name,
+            ];
+        })->values();
+    });
+?>
 <script>
 $(document).ready(function() {
-    $('#filterLessons').on('click', function() {
+    const subjectsByGrade = <?php echo json_encode($subjectsByGrade, 15, 512) ?>;
+
+    function fillSubjects(grade, selectedId) {
+        const select = $('#subject_filter');
+        select.empty();
+        if (!grade) {
+            select.append('<option value="">Select a grade first</option>');
+            select.prop('disabled', true);
+            return;
+        }
+        select.prop('disabled', false);
+        select.append('<option value="">All subjects</option>');
+        (subjectsByGrade[grade] || []).forEach(function (subject) {
+            const selected = String(selectedId || '') === String(subject.id) ? ' selected' : '';
+            select.append('<option value="' + subject.id + '"' + selected + '>' + subject.name + '</option>');
+        });
+    }
+
+    function applyLessonFilters() {
         const searchTerm = $('#searchLesson').val();
+        const grade = $('#grade_filter').val();
         const subjectId = $('#subject_filter').val();
         const status = $('#status_filter').val();
-
-        $(this).html('<i class="fas fa-spinner fa-spin me-1"></i> Filtering...').prop('disabled', true);
-
-        let url = '<?php echo e(route("lessons.index")); ?>?';
-        if (searchTerm) url += 'search=' + encodeURIComponent(searchTerm) + '&';
-        if (subjectId) url += 'subject_id=' + subjectId + '&';
-        if (status) url += 'status=' + status;
-
-        window.location.href = url;
-    });
+        const params = new URLSearchParams();
+        if (grade) params.set('grade', grade);
+        if (grade && subjectId) params.set('subject_id', subjectId);
+        if (searchTerm) params.set('search', searchTerm);
+        if (status) params.set('status', status);
+        const query = params.toString();
+        window.location.href = '<?php echo e(route("lessons.index")); ?>' + (query ? '?' + query : '');
+    }
 
     let searchTimeout;
-    $('#searchLesson').on('keyup', function() {
+    $('#searchLesson').on('input', function() {
         clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(function() {
-            $('#filterLessons').click();
-        }, 500);
+        searchTimeout = setTimeout(applyLessonFilters, 400);
     });
 
-    $('#subject_filter, #status_filter').on('change', function() {
-        $('#filterLessons').click();
+    $('#grade_filter').on('change', function () {
+        fillSubjects($(this).val(), '');
+        applyLessonFilters();
+    });
+
+    $('#subject_filter, #status_filter').on('change', applyLessonFilters);
+
+    $('.subject-chip').on('click', function() {
+        const grade = $(this).data('grade') || '';
+        $('#grade_filter').val(String(grade));
+        fillSubjects(String(grade), $(this).data('subject-id'));
+        applyLessonFilters();
     });
 
     $('.delete-btn').on('click', function() {

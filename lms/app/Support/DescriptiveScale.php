@@ -76,4 +76,48 @@ class DescriptiveScale
     {
         return self::isDescriptiveGradeLevel($gradeLevel) ? 'descriptive' : 'numerical';
     }
+
+    public static function rank(?string $letter): ?int
+    {
+        return [
+            'A' => 5,
+            'B' => 4,
+            'C' => 3,
+            'D' => 2,
+            'E' => 1,
+        ][strtoupper(trim((string) $letter))] ?? null;
+    }
+
+    public static function letterFromAverage(float $average): string
+    {
+        $rank = (int) round(max(1, min(5, $average)));
+
+        return [5 => 'A', 4 => 'B', 3 => 'C', 2 => 'D', 1 => 'E'][$rank];
+    }
+
+    public static function averageLetter(array $letters): ?string
+    {
+        $ranks = array_values(array_filter(array_map(
+            fn ($letter) => self::rank($letter),
+            $letters
+        ), fn ($rank) => $rank !== null));
+
+        if ($ranks === []) {
+            return null;
+        }
+
+        return self::letterFromAverage(array_sum($ranks) / count($ranks));
+    }
+
+    public static function present(?string $letter, bool $withDescriptor = false): string
+    {
+        $meta = self::get($letter);
+        if (! $meta) {
+            return '—';
+        }
+
+        $letter = strtoupper(trim((string) $letter));
+
+        return $withDescriptor ? $letter.' — '.$meta['english'] : $letter;
+    }
 }

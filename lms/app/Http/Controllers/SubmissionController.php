@@ -46,10 +46,22 @@ class SubmissionController extends Controller
             return redirect()->back()->with('error', 'Student profile not found.');
         }
 
+        if ((int) $activity->lesson_id !== (int) $lesson->id || ! $activity->isPublished()) {
+            return redirect()->back()->with('error', 'This activity is not open for submission.');
+        }
+
+        if ($activity->isQuiz()) {
+            return redirect()->route('student.quizzes.show', [$lesson, $activity]);
+        }
+
+        if (! $activity->allows_submission) {
+            return redirect()->back()->with('error', 'This activity does not accept a file submission.');
+        }
+
         // Check if student is enrolled in the lesson's section
         $isEnrolled = $student->sections()->where('section_id', $lesson->section_id)->exists();
         if (!$isEnrolled) {
-            return redirect()->back()->with('error', 'You are not enrolled in this lesson.');
+            return redirect()->back()->with('error', 'You are not enrolled in this section.');
         }
 
         // Check if submission already exists

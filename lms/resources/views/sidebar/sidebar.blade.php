@@ -63,7 +63,7 @@
                         </ul>
                     </li>
 
-                    <li class="{{ $aReports ? 'active' : '' }}">
+                    <li class="{{ $aReports || request()->routeIs('reports.school*') ? 'active' : '' }}">
                         <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
                 @endif
@@ -95,6 +95,9 @@
 
                     <li class="{{ $rChat ? 'active' : '' }}">
                         <a href="{{ route('chat.index') }}"><i class="fas fa-comments"></i> <span>Chat</span></a>
+                    </li>
+                    <li class="{{ request()->routeIs('reports.*') ? 'active' : '' }}">
+                        <a href="{{ route('reports.index') }}"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
                 @endif
 
@@ -151,7 +154,7 @@
                         <a href="{{ route('announcements.index') }}"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a>
                     </li>
 
-                    <li class="{{ $tReports ? 'active' : '' }}">
+                    <li class="{{ $tReports || request()->routeIs('reports.school*') ? 'active' : '' }}">
                         <a href="{{ route('reports.index') }}"><i class="far fa-file-alt"></i> <span>Reports & Documents</span></a>
                     </li>
                 @endif

@@ -25,6 +25,7 @@
             $reportSection = $card['reportSection'] ?? null;
             $gradeLevel = $card['gradeLevel'] ?? null;
             $descriptive = $card['descriptive'] ?? false;
+            $reportStatus = $card['reportStatus'] ?? 'Not started';
         @endphp
         <div class="page-break">
             @include('reports.partials.report-card-body')

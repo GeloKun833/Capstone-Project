@@ -47,21 +47,44 @@ class ClassPostController extends Controller
         $user = Auth::user();
         $query = ClassPost::with(['teacher', 'subject', 'section', 'academicYear', 'semester']);
 
-        // Filter by teacher if not admin
-        if ($user->role_name === 'Teacher') {
-            $teacher = $user->teacher;
-            if ($teacher) {
-                $query->where('teacher_id', $teacher->id);
+        $subjects = collect();
+        $sections = collect();
+        $subjectsBySection = [];
+
+        if ($user->role_name === 'Teacher' && $user->teacher) {
+            $query->where('teacher_id', $user->teacher->id);
+            $options = app(TeacherClassAssignmentService::class)->optionsFor($user->teacher);
+            $subjects = $options['subjects'];
+            $sections = $options['sections'];
+            $subjectsBySection = $options['subjectsBySection'] ?? [];
+            $query->whereIn('section_id', $sections->pluck('id')->all() ?: [0]);
+            $query->whereIn('subject_id', $subjects->pluck('id')->all() ?: [0]);
+        } elseif ($user->role_name !== 'Teacher') {
+            $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
+            $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('grade_level')->orderBy('name')->get());
+            foreach ($sections as $section) {
+                $subjectsBySection[$section->id] = $subjects
+                    ->filter(fn ($subject) => strcasecmp((string) $subject->class, (string) $section->grade_level) === 0)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
             }
         }
 
-        // Apply filters
-        if ($request->filled('subject_id')) {
-            $query->where('subject_id', $request->subject_id);
+        $selectedSection = (int) $request->input('section_id');
+        $sectionAllowed = $selectedSection && $sections->contains('id', $selectedSection);
+        if ($sectionAllowed) {
+            $query->where('section_id', $selectedSection);
+        } else {
+            $selectedSection = 0;
         }
 
-        if ($request->filled('section_id')) {
-            $query->where('section_id', $request->section_id);
+        $sectionSubjectIds = collect($subjectsBySection[$selectedSection] ?? [])->map(fn ($id) => (int) $id);
+        $selectedSubject = (int) $request->input('subject_id');
+        if ($sectionAllowed && $selectedSubject && $sectionSubjectIds->contains($selectedSubject)) {
+            $query->where('subject_id', $selectedSubject);
+        } else {
+            $selectedSubject = 0;
         }
 
         if ($request->filled('type')) {
@@ -89,25 +112,17 @@ class ClassPostController extends Controller
 
         $posts = $query->orderBy('is_pinned', 'desc')
                       ->orderBy('created_at', 'desc')
-                      ->paginate(15);
-        
-        // Filter subjects and sections by teacher's assignments
-        if ($user->role_name === 'Teacher') {
-            $teacher = $user->teacher;
-            if ($teacher) {
-                $yearId = $viewingYearId ?: \App\Models\AcademicYear::active()?->id;
-                $subjects = $teacher->subjects()->when($yearId, fn ($query) => $query->where('subject_teacher.academic_year_id', $yearId))->get();
-                $sections = $teacher->sections()->when($yearId, fn ($query) => $query->where('section_teacher.academic_year_id', $yearId))->get();
-            } else {
-                $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
-                $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
-            }
-        } else {
-            $subjects = Cache::remember('lookup.subjects.all', 300, fn () => Subject::query()->orderBy('subject_name')->get());
-            $sections = Cache::remember('lookup.sections.all', 300, fn () => Section::query()->orderBy('name')->get());
-        }
+                      ->paginate(15)
+                      ->withQueryString();
 
-        return view('class-posts.index', compact('posts', 'subjects', 'sections'));
+        return view('class-posts.index', compact(
+            'posts',
+            'subjects',
+            'sections',
+            'subjectsBySection',
+            'selectedSection',
+            'selectedSubject'
+        ));
     }
 
     /**

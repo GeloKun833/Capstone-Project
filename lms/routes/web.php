@@ -231,6 +231,8 @@ Route::group(['namespace' => 'App\Http\Controllers'],function()
 Route::post('academic_years/{academic_year}/unarchive', [AcademicYearController::class, 'unarchive'])->middleware('auth')->name('academic_years.unarchive');
 Route::post('academic_years/{academic_year}/enrollment', [AcademicYearController::class, 'setEnrollment'])->middleware('auth')->name('academic_years.enrollment');
 Route::post('academic_years/{academic_year}/enrollment-settings', [AcademicYearController::class, 'updateEnrollmentSettings'])->middleware('auth')->name('academic_years.enrollment-settings');
+Route::post('academic_years/{academic_year}/class-start', [AcademicYearController::class, 'updateClassStart'])->middleware('auth')->name('academic_years.class-start');
+Route::post('academic_years/{academic_year}/delete', [AcademicYearController::class, 'forceDelete'])->middleware('auth')->name('academic_years.force-delete');
 Route::resource('academic_years', AcademicYearController::class)->middleware('auth');
 Route::resource('semesters', SemesterController::class)->middleware('auth');
 Route::resource('sections', SectionController::class)->middleware('auth');
@@ -256,8 +258,15 @@ Route::get('attendance/student', [App\Http\Controllers\AttendanceController::cla
 Route::get('attendance/parent', [App\Http\Controllers\AttendanceController::class, 'parentView'])->name('attendance.parent');
 
 // Reports Routes (Admin and Teacher)
-Route::group(['prefix' => 'reports', 'as' => 'reports.', 'middleware' => ['auth', 'role:Admin|Teacher']], function () {
+Route::group(['prefix' => 'reports', 'as' => 'reports.', 'middleware' => ['auth', 'role:Admin|Teacher|Registrar|Principal']], function () {
     Route::get('/', [App\Http\Controllers\ReportController::class, 'index'])->name('index');
+    Route::get('/school', function () {
+        return redirect()->route('reports.index');
+    })->name('school');
+    Route::get('/school/{report}/download', [App\Http\Controllers\SchoolReportController::class, 'download'])->name('school.download');
+    Route::get('/school/{report}', [App\Http\Controllers\SchoolReportController::class, 'show'])->name('school.show');
+});
+Route::group(['prefix' => 'reports', 'as' => 'reports.', 'middleware' => ['auth', 'role:Admin|Teacher']], function () {
     Route::get('/transcript/{studentId}', [App\Http\Controllers\ReportController::class, 'generateTranscript'])->name('transcript');
     Route::get('/class-list/{sectionId}', [App\Http\Controllers\ReportController::class, 'generateClassList'])->name('class-list');
     Route::get('/grade-slip/{studentId}', [App\Http\Controllers\ReportController::class, 'generateGradeSlip'])->name('grade-slip');
@@ -283,6 +292,13 @@ Route::group(['middleware' => ['role:Admin']], function () {
     
     // Curriculum Management (Admin Only) — connected to subject catalog by grade
     Route::post('curriculum/sync-all', [App\Http\Controllers\CurriculumController::class, 'syncAllFromCatalog'])->name('curriculum.syncAll');
+    Route::get('curriculum-demo', [App\Http\Controllers\DemoCurriculumController::class, 'adminIndex'])->name('curriculum.demo.index');
+    Route::get('curriculum-demo/materials/{material}', [App\Http\Controllers\DemoCurriculumController::class, 'material'])->name('curriculum.demo.material');
+    Route::get('curriculum-demo/create/{curriculum}', [App\Http\Controllers\DemoCurriculumController::class, 'createOutline'])->name('curriculum.demo.create');
+    Route::post('curriculum-demo/create/{curriculum}', [App\Http\Controllers\DemoCurriculumController::class, 'storeOutline'])->name('curriculum.demo.store');
+    Route::get('curriculum-demo/create-optlb/{curriculum}', [App\Http\Controllers\DemoCurriculumController::class, 'createOptlb'])->name('curriculum.demo.create-optlb');
+    Route::post('curriculum-demo/create-optlb/{curriculum}', [App\Http\Controllers\DemoCurriculumController::class, 'storeOptlb'])->name('curriculum.demo.store-optlb');
+    Route::get('curriculum-demo/{outline}', [App\Http\Controllers\DemoCurriculumController::class, 'show'])->name('curriculum.demo.show');
     Route::resource('curriculum', App\Http\Controllers\CurriculumController::class);
     Route::get('curriculum/{curriculum}/assign-subjects', [App\Http\Controllers\CurriculumController::class, 'assignSubjectsForm'])->name('curriculum.assignSubjectsForm');
     Route::post('curriculum/{curriculum}/assign-subjects', [App\Http\Controllers\CurriculumController::class, 'assignSubjects'])->name('curriculum.assignSubjects');
@@ -303,12 +319,13 @@ Route::group(['middleware' => ['role:Admin']], function () {
     });
 
     Route::get('grade-encoding', [App\Http\Controllers\GradeEncodingAccessController::class, 'index'])->name('admin.grade-encoding.index');
+    Route::post('grade-encoding/window', [App\Http\Controllers\GradeEncodingAccessController::class, 'updateWindow'])->name('admin.grade-encoding.window');
+    Route::post('grade-encoding/allow-all', [App\Http\Controllers\GradeEncodingAccessController::class, 'allowAll'])->name('admin.grade-encoding.allow-all');
     Route::post('grade-encoding/levels', [App\Http\Controllers\GradeEncodingAccessController::class, 'updateLevels'])->name('admin.grade-encoding.levels');
     Route::post('grade-encoding/{user}', [App\Http\Controllers\GradeEncodingAccessController::class, 'update'])->name('admin.grade-encoding.update');
 });
 
-// Grade encoding is open to Teacher, Registrar, and Admin accounts.
-// The controller still requires the admin-granted "encode grades" permission.
+// Grade entry still checks the admin-granted "encode grades" permission, and only a teacher account can use it.
 Route::group(['middleware' => ['auth', 'role:Teacher|Registrar|Admin'], 'prefix' => 'grading'], function () {
     Route::get('grade-entry', [App\Http\Controllers\GradingController::class, 'gradeEntryForm'])->name('teacher.grading.grade-entry');
     Route::post('load-students', [App\Http\Controllers\GradingController::class, 'loadStudents'])->name('teacher.grading.load-students');
@@ -323,6 +340,7 @@ Route::group(['middleware' => ['auth', 'role:Teacher|Registrar|Admin'], 'prefix'
 Route::group(['middleware' => ['role:Teacher']], function () {
     // Teacher Schedule
     Route::get('teacher/my-schedule', [App\Http\Controllers\ClassScheduleController::class, 'teacherSchedule'])->name('teacher.my-schedule');
+    Route::get('teacher/course-materials/{material}', [App\Http\Controllers\DemoCurriculumController::class, 'material'])->name('teacher.course-outlines.material');
     Route::get('teacher/consultations', [App\Http\Controllers\ConsultationController::class, 'teacherIndex'])
         ->middleware('auth')->name('teacher.consultations.index');
     Route::put('teacher/consultations/{consultation}', [App\Http\Controllers\ConsultationController::class, 'respond'])
@@ -372,6 +390,9 @@ Route::group(['middleware' => ['role:Teacher']], function () {
         Route::get('/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'show'])->name('lessons.activities.show');
         Route::get('/{lesson}/activities/{activity}/edit', [App\Http\Controllers\ActivityController::class, 'edit'])->name('lessons.activities.edit');
         Route::put('/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'update'])->name('lessons.activities.update');
+        Route::post('/{lesson}/activities/{activity}/duplicate', [App\Http\Controllers\ActivityController::class, 'duplicate'])->name('lessons.activities.duplicate');
+        Route::post('/{lesson}/activities/{activity}/publish', [App\Http\Controllers\ActivityController::class, 'publish'])->name('lessons.activities.publish');
+        Route::post('/{lesson}/activities/{activity}/unpublish', [App\Http\Controllers\ActivityController::class, 'unpublish'])->name('lessons.activities.unpublish');
         Route::delete('/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'destroy'])->name('lessons.activities.destroy');
         
                         // Activity Rubric Management
@@ -396,6 +417,11 @@ Route::group(['middleware' => ['role:Teacher']], function () {
                 
                 // Export
                 Route::get('/{lesson}/activities/{activity}/submissions/export', [App\Http\Controllers\SubmissionController::class, 'exportSubmissions'])->name('lessons.activities.export-submissions');
+
+                Route::get('/{lesson}/activities/{activity}/quiz/preview', [App\Http\Controllers\QuizController::class, 'preview'])->name('lessons.activities.quiz-preview');
+                Route::get('/{lesson}/activities/{activity}/quiz/results', [App\Http\Controllers\QuizController::class, 'results'])->name('lessons.activities.quiz-results');
+                Route::get('/{lesson}/activities/{activity}/quiz/attempts/{attempt}', [App\Http\Controllers\QuizController::class, 'grade'])->name('lessons.activities.quiz-grade');
+                Route::put('/{lesson}/activities/{activity}/quiz/attempts/{attempt}', [App\Http\Controllers\QuizController::class, 'saveGrade'])->name('lessons.activities.quiz-grade.save');
                 
                 // Lesson Recommendations
                 Route::get('/recommendations/student-analysis', [App\Http\Controllers\LessonRecommendationController::class, 'studentAnalysis'])->name('lessons.recommendations.student-analysis');
@@ -427,6 +453,10 @@ Route::group(['middleware' => ['role:Student']], function () {
     // Lesson activity submission routes (student-prefixed to avoid clashing with teacher lesson routes)
     Route::get('/student/lessons/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'studentShow'])->name('student.activities.show');
     Route::post('/student/lessons/{lesson}/activities/{activity}/submit', [App\Http\Controllers\SubmissionController::class, 'store'])->name('student.activities.submit');
+    Route::get('/student/lessons/{lesson}/activities/{activity}/quiz', [App\Http\Controllers\QuizController::class, 'show'])->name('student.quizzes.show');
+    Route::post('/student/lessons/{lesson}/activities/{activity}/quiz/start', [App\Http\Controllers\QuizController::class, 'start'])->name('student.quizzes.start');
+    Route::post('/student/lessons/{lesson}/activities/{activity}/quiz/save', [App\Http\Controllers\QuizController::class, 'save'])->name('student.quizzes.save');
+    Route::post('/student/lessons/{lesson}/activities/{activity}/quiz/submit', [App\Http\Controllers\QuizController::class, 'submit'])->name('student.quizzes.submit');
     Route::get('/student/lessons/{lesson}/activities/{activity}/submissions/{submission}', [App\Http\Controllers\SubmissionController::class, 'show'])->name('student.activities.view-submission');
     Route::get('/student/lessons/{lesson}/activities/{activity}/submissions/{submission}/grade', [App\Http\Controllers\SubmissionController::class, 'viewGrade'])->name('student.activities.view-grade');
     // Study recommendations

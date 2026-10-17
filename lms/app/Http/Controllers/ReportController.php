@@ -33,8 +33,11 @@ class ReportController extends Controller
                 abort(403, 'Unauthorized action.');
             }
             
-            // Only admins and teachers can access reports
-            if (!in_array($user->role_name, ['Admin', 'Teacher'])) {
+            $allowed = ['Admin', 'Teacher'];
+            if ($request->route()?->getActionMethod() === 'index') {
+                $allowed = ['Admin', 'Teacher', 'Registrar', 'Principal'];
+            }
+            if (! in_array($user->role_name, $allowed, true)) {
                 abort(403, 'Unauthorized action.');
             }
             
@@ -112,7 +115,7 @@ class ReportController extends Controller
         })->values();
 
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-        $semesters = Semester::orderBy('name')->get();
+        $semesters = Semester::with('academicYear')->orderBy('academic_year_id')->orderBy('id')->get();
 
         $earlyLevels = array_values(array_filter(
             \App\Services\GradeSubjectCatalogService::gradeLevels(),
@@ -123,6 +126,10 @@ class ReportController extends Controller
             fn ($grade) => \App\Support\DescriptiveScale::isDescriptiveGradeLevel($grade)
         ));
 
+        $schoolReports = collect(app(\App\Services\SchoolReportService::class)->available($user))
+            ->reject(fn (array $report) => ! empty($report['href']))
+            ->groupBy('category');
+
         return view('reports.index', compact(
             'students',
             'sections',
@@ -132,7 +139,8 @@ class ReportController extends Controller
             'academicYears',
             'semesters',
             'earlyLevels',
-            'descriptiveLevels'
+            'descriptiveLevels',
+            'schoolReports'
         ));
     }
 
@@ -162,6 +170,7 @@ class ReportController extends Controller
         $viewData = $this->transcriptViewData($student, $request);
 
         if ($format === 'pdf') {
+            $this->raisePdfMemory();
             $pdf = Pdf::loadView('reports.transcript', $viewData);
             $filename = 'transcript_' . $this->safeName($student->last_name . '_' . $student->first_name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
@@ -263,6 +272,7 @@ class ReportController extends Controller
         $viewData = $this->classListViewData($section, $request);
 
         if ($format === 'pdf') {
+            $this->raisePdfMemory();
             $pdf = Pdf::loadView('reports.class_list', $viewData);
             $filename = 'class_list_' . $this->safeName($section->name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
@@ -322,6 +332,7 @@ class ReportController extends Controller
         $viewData = $this->gradeSlipViewData($student, $request);
 
         if ($format === 'pdf') {
+            $this->raisePdfMemory();
             $pdf = Pdf::loadView('reports.grade_slip', $viewData);
             $filename = 'grade_slip_' . $this->safeName($student->last_name . '_' . $student->first_name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
@@ -332,21 +343,21 @@ class ReportController extends Controller
 
         foreach ($viewData['subjectGrades'] as $sg) {
             $q = $sg['quarterly'];
-            $exportData[] = [
+            $row = [
                 $studentName,
                 $student->id,
                 $student->year_level ?? '',
                 $student->sections->first()->name ?? 'N/A',
                 $viewData['academicYear']->name ?? 'N/A',
-                $viewData['semester']->name ?? 'N/A',
+                '',
                 $sg['subject']->subject_name ?? 'N/A',
-                $q->quarter_1 ?? '',
-                $q->quarter_2 ?? '',
-                $q->quarter_3 ?? '',
-                $q->quarter_4 ?? '',
-                $sg['average'] ?? '',
-                $sg['remarks'] ?? '',
             ];
+            foreach ($viewData['termColumns'] as $term) {
+                $row[] = $q->presentQuarter($term['number'], true);
+            }
+            $row[] = $sg['final'] ?? '';
+            $row[] = $sg['remarks'] ?? '';
+            $exportData[] = $row;
         }
 
         $filename = 'grade_slip_' . $this->safeName($student->last_name) . '_' . date('Y-m-d') . '.xlsx';
@@ -385,6 +396,7 @@ class ReportController extends Controller
         $viewData = $this->progressSummaryViewData($student, $request);
 
         if ($format === 'pdf') {
+            $this->raisePdfMemory();
             $pdf = Pdf::loadView('reports.progress_summary', $viewData);
             $filename = 'progress_report_' . $this->safeName($student->last_name . '_' . $student->first_name) . '_' . date('Y-m-d') . '.pdf';
             return $pdf->download($filename);
@@ -468,8 +480,7 @@ class ReportController extends Controller
                 ->with('error', 'Please select a grade level or section.');
         }
 
-        @set_time_limit(300);
-        @ini_set('memory_limit', '512M');
+        $this->raisePdfMemory();
 
         $documents = [];
 
@@ -530,6 +541,26 @@ class ReportController extends Controller
         return $this->downloadCombinedPdf($documents, $title, $filename);
     }
 
+    protected function raisePdfMemory(): void
+    {
+        @set_time_limit(300);
+        $limit = trim((string) ini_get('memory_limit'));
+        if ($limit === '-1') {
+            return;
+        }
+        $number = (int) $limit;
+        $unit = strtolower(substr($limit, -1));
+        $bytes = match ($unit) {
+            'g' => $number * 1024 * 1024 * 1024,
+            'm' => $number * 1024 * 1024,
+            'k' => $number * 1024,
+            default => $number,
+        };
+        if ($bytes > 0 && $bytes < 512 * 1024 * 1024) {
+            @ini_set('memory_limit', '512M');
+        }
+    }
+
     protected function downloadCombinedPdf(array $htmlDocuments, string $title, string $filename)
     {
         $styles = '';
@@ -565,6 +596,20 @@ class ReportController extends Controller
         return [(int) $academicYearId ?: null, (int) $semesterId ?: null];
     }
 
+    protected function termColumns($academicYear): array
+    {
+        if (! $academicYear) {
+            return [];
+        }
+
+        return array_map(function (array $period) {
+            return [
+                'number' => (int) $period['number'],
+                'label' => $period['label'],
+            ];
+        }, \App\Support\SchoolQuarter::periods($academicYear));
+    }
+
     protected function transcriptViewData(Student $student, Request $request): array
     {
         $academicYearId = $request->get('academic_year_id');
@@ -573,9 +618,10 @@ class ReportController extends Controller
         $transcriptData = [];
 
         foreach ($quarterly->groupBy('academic_year_id') as $yearId => $yearGrades) {
+            $year = $yearGrades->first()->academicYear;
             $transcriptData[] = [
-                'academic_year' => $yearGrades->first()->academicYear,
-                'semester' => $semesterId ? Semester::find($semesterId) : null,
+                'academic_year' => $year,
+                'terms' => $this->termColumns($year),
                 'subjects' => $this->subjectRowsFromQuarterly($yearGrades),
                 'gpa' => StudentGpa::where('student_id', $student->id)
                     ->where('academic_year_id', $yearId)
@@ -606,17 +652,17 @@ class ReportController extends Controller
         if ($academicYearId) {
             $gpaQuery->where('academic_year_id', $academicYearId);
         }
-        if ($semesterId) {
-            $gpaQuery->where('semester_id', $semesterId);
-        }
+
+        $academicYear = $academicYearId ? AcademicYear::find($academicYearId) : null;
 
         return [
             'student' => $student,
             'subjectGrades' => $subjectGrades,
-            'gpa' => $gpaQuery->first(),
-            'attendanceSummary' => $this->getAttendanceSummary($student->id, $academicYearId, $semesterId),
-            'academicYear' => $academicYearId ? AcademicYear::find($academicYearId) : null,
-            'semester' => $semesterId ? Semester::find($semesterId) : null,
+            'termColumns' => $this->termColumns($academicYear),
+            'gpa' => $gpaQuery->orderByDesc('id')->first(),
+            'attendanceSummary' => $this->getAttendanceSummary($student->id, $academicYearId, null),
+            'academicYear' => $academicYear,
+            'semester' => null,
         ];
     }
 
@@ -649,14 +695,23 @@ class ReportController extends Controller
 
         $narratives = [];
         foreach ($subjectPerformance as $perf) {
+            if ($perf['descriptive'] ?? false) {
+                $narratives[] = ($perf['subject']->subject_name ?? 'Subject').' final is '.($perf['final'] ?? '—').'.';
+                continue;
+            }
+            if ($perf['average'] === null) {
+                continue;
+            }
             $narratives[] = GradeNarrativeHelper::subjectNarrative(
-                $perf['average'],
+                (float) $perf['average'],
                 $perf['subject']->subject_name ?? 'Subject'
             );
         }
         $overallGpaValue = $gpaRecords->first()->gpa ?? 0;
-        $narratives[] = GradeNarrativeHelper::overallNarrative($overallGpaValue);
+        $narratives[] = GradeNarrativeHelper::overallNarrative((float) $overallGpaValue);
         $narratives[] = GradeNarrativeHelper::attendanceNarrative($attendanceSummary['percentage']);
+
+        $academicYear = $academicYearId ? AcademicYear::find($academicYearId) : null;
 
         return [
             'student' => $student,
@@ -666,8 +721,9 @@ class ReportController extends Controller
             'recentActivities' => $recentActivities,
             'gradeAlerts' => $gradeAlerts,
             'narratives' => $narratives,
-            'academicYear' => $academicYearId ? AcademicYear::find($academicYearId) : null,
-            'semester' => $semesterId ? Semester::find($semesterId) : null,
+            'academicYear' => $academicYear,
+            'termColumns' => $this->termColumns($academicYear),
+            'semester' => null,
         ];
     }
 
@@ -690,22 +746,19 @@ class ReportController extends Controller
                 continue;
             }
             if ($row->usesDescriptive()) {
-                $parts = [];
-                foreach ([1, 2, 3, 4] as $quarter) {
-                    $text = $row->presentQuarter($quarter, true);
-                    if ($text !== '—') {
-                        $parts[] = 'Q'.$quarter.' '.$text;
-                    }
-                }
+                $finalLetter = $row->finalLevel();
+                $meta = \App\Support\DescriptiveScale::get($finalLetter);
                 $rows[] = [
                     'subject' => $row->subject,
                     'quarterly' => $row,
                     'average' => null,
                     'descriptive' => true,
+                    'final' => \App\Support\DescriptiveScale::present($finalLetter, true),
+                    'finalLetter' => $finalLetter,
                     'max' => null,
                     'min' => null,
-                    'count' => count($parts),
-                    'remarks' => implode('; ', $parts),
+                    'count' => count(array_filter([$row->q1_level, $row->q2_level, $row->q3_level, $row->q4_level])),
+                    'remarks' => $row->remarks ?: ($meta ? $meta['english'].' ('.$meta['filipino'].')' : '—'),
                 ];
                 continue;
             }
@@ -714,13 +767,18 @@ class ReportController extends Controller
                 [$row->quarter_1, $row->quarter_2, $row->quarter_3, $row->quarter_4],
                 fn ($v) => $v !== null && $v !== ''
             ));
-            $final = $row->final_grade ?? $row->calculateFinalGrade();
+            $final = $row->final_grade !== null && $row->final_grade !== ''
+                ? (float) $row->final_grade
+                : $row->calculateFinalGrade();
             $rows[] = [
                 'subject' => $row->subject,
                 'quarterly' => $row,
-                'average' => $final !== null ? round((float) $final, 2) : 0,
-                'max' => $quarters ? round((float) max($quarters), 2) : 0,
-                'min' => $quarters ? round((float) min($quarters), 2) : 0,
+                'average' => $final !== null ? round((float) $final, 2) : null,
+                'descriptive' => false,
+                'final' => $final !== null ? number_format((float) $final, 2) : '—',
+                'finalLetter' => null,
+                'max' => $quarters ? round((float) max($quarters), 2) : null,
+                'min' => $quarters ? round((float) min($quarters), 2) : null,
                 'count' => count($quarters),
                 'remarks' => $row->remarks ?: $row->getRemarks(),
             ];

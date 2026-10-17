@@ -39,6 +39,8 @@ class SchoolSetting extends Model
         'access_allowed_grades',
         'access_limits_message',
         'encoding_open_grades',
+        'encoding_starts_on',
+        'encoding_due_on',
     ];
 
     protected $casts = [
@@ -46,6 +48,8 @@ class SchoolSetting extends Model
         'access_limits_enabled' => 'boolean',
         'access_allowed_grades' => 'array',
         'encoding_open_grades' => 'array',
+        'encoding_starts_on' => 'date',
+        'encoding_due_on' => 'date',
         'max_teachers' => 'integer',
         'max_students_per_grade' => 'integer',
         'max_parents_per_grade' => 'integer',

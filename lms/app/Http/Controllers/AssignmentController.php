@@ -135,11 +135,18 @@ class AssignmentController extends Controller
         }
 
         $assignmentOptions = app(TeacherClassAssignmentService::class)->optionsFor($teacher);
-        $academicYears = AcademicYear::orderByDesc('id')->get();
-        $semesters = Semester::orderBy('name')->get();
+        $activeYear = AcademicYear::active();
+        $currentSemester = Semester::current();
+        $semesters = $activeYear
+            ? $activeYear->semesters()->orderBy('id')->get()
+            : collect();
+        if ($currentSemester && $activeYear && (int) $currentSemester->academic_year_id !== (int) $activeYear->id) {
+            $currentSemester = null;
+        }
 
         return view('assignments.create', array_merge($assignmentOptions, [
-            'academicYears' => $academicYears,
+            'activeYear' => $activeYear,
+            'currentSemester' => $currentSemester,
             'semesters' => $semesters,
         ]));
     }
@@ -163,13 +170,20 @@ class AssignmentController extends Controller
         $allowedSectionIds = $allowed['sections']->pluck('id')->all();
         $subjectsBySection = $allowed['subjectsBySection'];
 
+        $activeYear = AcademicYear::active();
+        if (! $activeYear) {
+            return redirect()->back()->withInput()->with('error', 'The admin has not set a current academic year. An assignment cannot be saved yet.');
+        }
+
         $validator = Validator::make($request->all(), [
             'section_id' => ['required', Rule::in($allowedSectionIds)],
             'subject_id' => ['required', Rule::in($allowedSubjectIds)],
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'semester_id' => 'required|exists:semesters,id',
+            'semester_id' => [
+                'required',
+                Rule::exists('semesters', 'id')->where('academic_year_id', $activeYear->id),
+            ],
             'due_date' => 'required|date|after_or_equal:today',
             'due_time' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'max_score' => 'required|numeric|min:0|max:1000',
@@ -179,6 +193,8 @@ class AssignmentController extends Controller
         ], [
             'subject_id.in' => 'Select a subject assigned to you by Admin.',
             'section_id.in' => 'Select a section assigned to you by Admin.',
+            'semester_id.required' => 'Select a semester.',
+            'semester_id.exists' => 'Select a semester from the current academic year.',
         ]);
 
         if ($validator->fails()) {
@@ -199,7 +215,6 @@ class AssignmentController extends Controller
             'description',
             'subject_id',
             'section_id',
-            'academic_year_id',
             'semester_id',
             'due_date',
             'due_time',
@@ -208,6 +223,7 @@ class AssignmentController extends Controller
             'allowed_file_types',
             'max_file_size',
         ]);
+        $data['academic_year_id'] = $activeYear->id;
         $data['teacher_id'] = $teacher->id;
         $data['allows_late_submission'] = false;
         $data['late_submission_penalty'] = 0;

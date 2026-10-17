@@ -7,7 +7,13 @@
             <div class="row align-items-start">
                 <div class="col">
                     <h3 class="page-title mb-1">Reports &amp; Documents</h3>
-                    <p class="dir-subtitle">Generate transcripts, class lists, grade slips, and progress reports.</p>
+                    <p class="dir-subtitle">
+                        @if(in_array(auth()->user()->role_name, ['Admin', 'Teacher'], true))
+                            View a report, or generate and download a document.
+                        @else
+                            View school reports for the current academic year. You can download each report.
+                        @endif
+                    </p>
                 </div>
                 <div class="col-auto text-end">
                     <ul class="breadcrumb justify-content-end mb-0">
@@ -22,56 +28,115 @@
             <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
 
-        <div class="dir-tip mb-4">
-            <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
-            Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
-            The report follows the grade you select: Nursery and Kindergarten use descriptive letters, and Grade 4 through Grade 10 use numerical scores.
+        <label class="dir-report-finder">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <input type="search" id="reportFinder" placeholder="Find a report by name" autocomplete="off">
+        </label>
+
+        @if(in_array(auth()->user()->role_name, ['Admin', 'Teacher'], true))
+        <section class="dir-report-group" data-report-group>
+            <div class="dir-report-group-head">
+                <h4>Documents</h4>
+                <span class="dir-report-pill">Generate/Download</span>
+            </div>
+            <div class="dir-tip mb-3">
+                <strong>Tip:</strong> Pick a <em>Grade Level</em> first (then Section / Student).
+                Use <strong>Entire section</strong> to download one PDF of every student enrolled in that section.
+                The report follows the grade you select: Nursery and Kindergarten use descriptive letters, and Grade 4 through Grade 10 use numerical scores.
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Student Transcript Academic history">
+                        <span class="dir-report-icon is-blue"><i class="fas fa-file-alt"></i></span>
+                        <h5>Student Transcript</h5>
+                        <p class="dir-subtitle mb-3">Academic history — one student or all enrolled students in a section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Class List Section roster">
+                        <span class="dir-report-icon is-green"><i class="fas fa-users"></i></span>
+                        <h5>Class List</h5>
+                        <p class="dir-subtitle mb-3">Section roster — filter by grade, then section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#classListModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Grade Slip Period grades">
+                        <span class="dir-report-icon is-amber"><i class="fas fa-clipboard-list"></i></span>
+                        <h5>Grade Slip</h5>
+                        <p class="dir-subtitle mb-3">Period grades — one student or all enrolled students in a section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <div class="dir-report-card" data-report-card="Progress Report Performance summary">
+                        <span class="dir-report-icon is-sky"><i class="fas fa-chart-line"></i></span>
+                        <h5>Progress Report</h5>
+                        <p class="dir-subtitle mb-3">Performance summary — one student or all enrolled students in a section</p>
+                        <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
+                            <i class="fas fa-download me-1"></i> Generate/Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        @endif
+
+        @php
+            $reportIcons = [
+                'Enrollment and Student Reports' => ['fas fa-user-graduate', 'is-blue'],
+                'Academic and Grading Reports' => ['fas fa-clipboard-list', 'is-amber'],
+                'Attendance Reports' => ['fas fa-user-check', 'is-green'],
+                'Teacher, Subject, and Scheduling Reports' => ['fas fa-chalkboard-teacher', 'is-sky'],
+                'Lessons, Activities, and Learning Reports' => ['fas fa-book-open', 'is-blue'],
+                'Communication and Notification Reports' => ['fas fa-bullhorn', 'is-amber'],
+                'Student Documents and Records' => ['fas fa-folder-open', 'is-green'],
+                'Principal and Administrative Reports' => ['fas fa-chart-bar', 'is-sky'],
+                'System and User Activity Reports' => ['fas fa-user-shield', 'is-blue'],
+            ];
+        @endphp
+
+        @foreach($schoolReports as $category => $items)
+            <section class="dir-report-group" data-report-group>
+                <div class="dir-report-group-head">
+                    <h4>{{ $category }}</h4>
+                    <span class="dir-report-pill">{{ $items->count() }} {{ $items->count() === 1 ? 'report' : 'reports' }}</span>
+                </div>
+                <div class="row g-3">
+                    @foreach($items as $item)
+                        @php
+                            $icon = $reportIcons[$category] ?? ['fas fa-file-alt', 'is-blue'];
+                        @endphp
+                        <div class="col-md-6 col-xl-3">
+                            <div class="dir-report-card" data-report-card="{{ $item['title'] }} {{ $item['description'] }}">
+                                <span class="dir-report-icon {{ $icon[1] }}"><i class="{{ $icon[0] }}"></i></span>
+                                <h5>{{ $item['title'] }}</h5>
+                                <p class="dir-subtitle mb-3">{{ $item['description'] }}</p>
+                                <div class="dir-report-actions">
+                                    <a href="{{ route('reports.school.show', $item['key']) }}" class="btn btn-primary dir-btn">
+                                        <i class="fas fa-eye me-1"></i> View Report
+                                    </a>
+                                    <a href="{{ route('reports.school.download', $item['key']) }}" class="btn btn-outline-primary dir-btn">
+                                        <i class="fas fa-download me-1"></i> Download
+                                    </a>
+                                </div>
+                            </div>
                         </div>
-
-        <div class="row g-3">
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-blue"><i class="fas fa-file-alt"></i></span>
-                    <h5>Student Transcript</h5>
-                    <p class="dir-subtitle mb-3">Academic history — one student or all enrolled students in a section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#transcriptModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
+                    @endforeach
                 </div>
-            </div>
+            </section>
+        @endforeach
 
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-green"><i class="fas fa-users"></i></span>
-                    <h5>Class List</h5>
-                    <p class="dir-subtitle mb-3">Section roster — filter by grade, then section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#classListModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-amber"><i class="fas fa-clipboard-list"></i></span>
-                    <h5>Grade Slip</h5>
-                    <p class="dir-subtitle mb-3">Period grades — one student or all enrolled students in a section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#gradeSlipModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-xl-3">
-                <div class="dir-report-card">
-                    <span class="dir-report-icon is-sky"><i class="fas fa-chart-line"></i></span>
-                    <h5>Progress Report</h5>
-                    <p class="dir-subtitle mb-3">Performance summary — one student or all enrolled students in a section</p>
-                    <button type="button" class="btn btn-primary dir-btn" data-bs-toggle="modal" data-bs-target="#progressSummaryModal">
-                        <i class="fas fa-download me-1"></i> Generate / Download
-                        </button>
-                </div>
-            </div>
+        <div id="reportFinderEmpty" class="dir-empty" hidden>
+            <i class="fas fa-search d-block"></i>
+            <p class="mb-0">No report matches that name.</p>
         </div>
     </div>
 </div>
@@ -136,11 +201,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                            <label class="form-label">Semester</label>
+                            <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
-                                <option value="">All semesters</option>
+                                <option value="">All terms</option>
                                 @foreach($semOptions as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}@if($semester->academicYear) — {{ $semester->academicYear->name }}@endif</option>
                             @endforeach
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -208,11 +273,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                            <label class="form-label">Semester</label>
+                            <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 @foreach($semOptions as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}@if($semester->academicYear) — {{ $semester->academicYear->name }}@endif</option>
                             @endforeach
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -288,11 +353,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                        <label class="form-label">Semester</label>
+                        <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 @foreach($semOptions as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}@if($semester->academicYear) — {{ $semester->academicYear->name }}@endif</option>
                             @endforeach
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -368,11 +433,11 @@
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
                     </div>
                         <div class="col-md-4">
-                        <label class="form-label">Semester</label>
+                        <label class="form-label">Term</label>
                             <select class="form-select" name="semester_id">
                                 <option value="">Current</option>
                                 @foreach($semOptions as $semester)
-                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                <option value="{{ $semester->id }}">{{ $semester->name }}@if($semester->academicYear) — {{ $semester->academicYear->name }}@endif</option>
                             @endforeach
                         </select>
                         <p class="grade-method-note text-muted small mb-0 mt-2"></p>
@@ -396,7 +461,7 @@
 </div>
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20260914c">
+<link rel="stylesheet" href="{{ asset('assets/css/directory-modern.css') }}?v=20261018a">
 @endpush
 
 @push('scripts')
@@ -602,6 +667,28 @@
         });
 
         syncScopeUI(form);
+    });
+})();
+
+(function () {
+    var finder = document.getElementById('reportFinder');
+    var empty = document.getElementById('reportFinderEmpty');
+    if (!finder) return;
+    finder.addEventListener('input', function () {
+        var query = finder.value.trim().toLowerCase();
+        var any = false;
+        document.querySelectorAll('[data-report-group]').forEach(function (group) {
+            var visible = false;
+            group.querySelectorAll('[data-report-card]').forEach(function (card) {
+                var haystack = (card.getAttribute('data-report-card') || '').toLowerCase();
+                var show = query === '' || haystack.indexOf(query) !== -1;
+                card.parentElement.style.display = show ? '' : 'none';
+                if (show) visible = true;
+            });
+            group.style.display = visible ? '' : 'none';
+            if (visible) any = true;
+        });
+        if (empty) empty.hidden = any;
     });
 })();
 </script>

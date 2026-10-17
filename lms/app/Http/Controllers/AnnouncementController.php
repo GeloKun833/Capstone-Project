@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicYear;
 use App\Models\Announcement;
+use App\Models\Section;
+use App\Models\Student;
 use App\Models\User;
+use App\Services\GradeSubjectCatalogService;
+use App\Services\TeacherClassAssignmentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -27,19 +33,16 @@ class AnnouncementController extends Controller
         // Admin manages everything; others only see visible/active for their role
         if ($user->role_name === 'Admin') {
             $query = Announcement::with('creator');
-        } elseif ($user->role_name === 'Teacher') {
-            $query = Announcement::active()
-                ->where(function ($audience) use ($user) {
-                    $audience->forRole($user->role_name)
-                        ->orWhere('created_by', $user->id);
-                })
-                ->with('creator');
         } else {
-            $query = Announcement::active()->forRole($user->role_name)->with('creator');
+            $query = Announcement::active()->visibleToUser($user)->with('creator');
         }
 
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('content', 'like', "%{$search}%");
+            });
         }
         if ($request->filled('priority')) {
             $query->where('priority', $request->priority);
@@ -61,26 +64,19 @@ class AnnouncementController extends Controller
 
     public function create()
     {
-        $isTeacher = Auth::user()->role_name === 'Teacher';
-        $audiences = $isTeacher
-            ? ['all' => 'All Users', 'students' => 'Students Only', 'parents' => 'Parents Only']
-            : ['all' => 'All Users', 'students' => 'Students Only', 'teachers' => 'Teachers Only', 'parents' => 'Parents Only', 'admins' => 'Admins Only'];
-
-        return view('announcements.create', compact('audiences'));
+        return view('announcements.create', [
+            'sections' => $this->audienceSections(Auth::user()),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $isTeacher = Auth::user()->role_name === 'Teacher';
-        $audienceRule = $isTeacher
-            ? 'required|in:all,students,parents'
-            : 'required|in:all,students,teachers,parents,admins';
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'type' => 'required|in:general,academic,event,reminder,emergency',
             'priority' => 'required|in:low,normal,high,urgent',
-            'target_audience' => $audienceRule,
+            'section_ids' => 'required|array|min:1',
+            'section_ids.*' => 'integer',
             'is_pinned' => 'nullable|boolean',
             'is_scheduled' => 'nullable|boolean',
             'scheduled_at' => 'nullable|date',
@@ -99,14 +95,19 @@ class AnnouncementController extends Controller
             return redirect()->back()->withErrors(['expires_at' => 'Expiration must be set to a future date and time.'])->withInput();
         }
 
+        $sectionIds = $this->selectedSections($request);
+        if ($sectionIds === []) {
+            return redirect()->back()->withErrors(['section_ids' => 'Choose a grade and section assigned to you.'])->withInput();
+        }
+
         $announcement = Announcement::create([
             'title' => $request->title,
             'content' => $request->content,
-            'type' => $request->type,
+            'type' => 'general',
             'priority' => $request->priority,
-            'target_audience' => $request->target_audience,
+            'target_audience' => 'sections',
             'target_roles' => null,
-            'target_sections' => null,
+            'target_sections' => $sectionIds,
             'is_pinned' => $request->boolean('is_pinned'),
             'is_scheduled' => $request->boolean('is_scheduled') || $request->filled('scheduled_at'),
             'scheduled_at' => $this->toUtcDateTime($request->input('scheduled_at')),
@@ -142,28 +143,22 @@ class AnnouncementController extends Controller
     {
         $this->authorizeManage($announcement);
 
-        $isTeacher = Auth::user()->role_name === 'Teacher';
-        $audiences = $isTeacher
-            ? ['all' => 'All Users', 'students' => 'Students Only', 'parents' => 'Parents Only']
-            : ['all' => 'All Users', 'students' => 'Students Only', 'teachers' => 'Teachers Only', 'parents' => 'Parents Only', 'admins' => 'Admins Only'];
-
-        return view('announcements.edit', compact('announcement', 'audiences'));
+        return view('announcements.edit', [
+            'announcement' => $announcement,
+            'sections' => $this->audienceSections(Auth::user()),
+        ]);
     }
 
     public function update(Request $request, Announcement $announcement)
     {
         $this->authorizeManage($announcement);
 
-        $isTeacher = Auth::user()->role_name === 'Teacher';
-        $audienceRule = $isTeacher
-            ? 'required|in:all,students,parents'
-            : 'required|in:all,students,teachers,parents,admins';
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'type' => 'required|in:general,academic,event,reminder,emergency',
             'priority' => 'required|in:low,normal,high,urgent',
-            'target_audience' => $audienceRule,
+            'section_ids' => 'required|array|min:1',
+            'section_ids.*' => 'integer',
             'is_pinned' => 'nullable|boolean',
             'is_scheduled' => 'nullable|boolean',
             'scheduled_at' => 'nullable|date',
@@ -178,6 +173,11 @@ class AnnouncementController extends Controller
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        $sectionIds = $this->selectedSections($request);
+        if ($sectionIds === []) {
+            return redirect()->back()->withErrors(['section_ids' => 'Choose a grade and section assigned to you.'])->withInput();
         }
 
         $files = collect($announcement->attachments ?? []);
@@ -201,11 +201,10 @@ class AnnouncementController extends Controller
         $announcement->update([
             'title' => $request->title,
             'content' => $request->content,
-            'type' => $request->type,
             'priority' => $request->priority,
-            'target_audience' => $request->target_audience,
+            'target_audience' => 'sections',
             'target_roles' => null,
-            'target_sections' => null,
+            'target_sections' => $sectionIds,
             'is_pinned' => $request->boolean('is_pinned'),
             'is_scheduled' => $request->boolean('is_scheduled') || $request->filled('scheduled_at'),
             'scheduled_at' => $this->toUtcDateTime($request->input('scheduled_at')),
@@ -257,7 +256,7 @@ class AnnouncementController extends Controller
         $user = Auth::user();
 
         $announcements = Announcement::active()
-            ->forRole($user->role_name)
+            ->visibleToUser($user)
             ->with('creator')
             ->orderBy('is_pinned', 'desc')
             ->orderBy('created_at', 'desc')
@@ -307,12 +306,10 @@ class AnnouncementController extends Controller
     {
         try {
             $announcement->loadMissing('creator');
-            $roleNames = $announcement->recipientRoleNames();
-            if (empty($roleNames)) {
+            $users = $this->recipientUsers($announcement);
+            if ($users->isEmpty()) {
                 return;
             }
-
-            $users = User::query()->whereIn('role_name', $roleNames)->get(['id', 'role_name']);
 
             // After response — announcement create/update stays fast on Render+Aiven.
             $announcementId = $announcement->id;
@@ -329,12 +326,104 @@ class AnnouncementController extends Controller
 
             Log::info('Announcement notifications queued after response', [
                 'announcement_id' => $announcement->id,
-                'roles' => $roleNames,
                 'recipients' => $users->count(),
             ]);
         } catch (\Throwable $e) {
             Log::error('Failed sending announcement notifications: ' . $e->getMessage());
         }
+    }
+
+    private function audienceSections(User $user)
+    {
+        $year = AcademicYear::active();
+        $gradeOrder = array_flip(GradeSubjectCatalogService::gradeLevels());
+
+        if ($user->role_name === 'Teacher') {
+            $ids = Announcement::sectionIdsFor($user);
+            $sections = Section::query()->whereIn('id', $ids ?: [0])->get();
+        } else {
+            $sections = Section::query()
+                ->when($year, fn ($query) => $query->forAcademicYear($year->id))
+                ->get();
+        }
+
+        return $sections
+            ->sortBy(fn (Section $section) => sprintf('%03d-%s', $gradeOrder[$section->grade_level] ?? 999, $section->name))
+            ->values();
+    }
+
+    private function selectedSections(Request $request): array
+    {
+        $allowed = $this->audienceSections(Auth::user())->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $picked = array_values(array_unique(array_map('intval', (array) $request->input('section_ids', []))));
+
+        return array_values(array_intersect($picked, $allowed));
+    }
+
+    private function recipientUsers(Announcement $announcement)
+    {
+        $sectionIds = array_values(array_filter(array_map('intval', $announcement->target_sections ?? [])));
+        if ($sectionIds === []) {
+            $roles = $announcement->recipientRoleNames();
+
+            return User::query()->whereIn('role_name', $roles ?: ['__none__'])->get();
+        }
+
+        $yearId = AcademicYear::active()?->id;
+        $studentIds = DB::table('student_section_assignments')
+            ->whereIn('section_id', $sectionIds)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+            ->pluck('student_id');
+
+        $students = Student::query()
+            ->whereIn('id', $studentIds->isEmpty() ? [0] : $studentIds)
+            ->get(['user_id', 'parent_user_id']);
+
+        $userIds = $students->pluck('parent_user_id')->filter()->map(fn ($id) => (int) $id)->all();
+        $studentUserIds = $students->pluck('user_id')->filter()->unique();
+        if ($studentUserIds->isNotEmpty()) {
+            $userIds = array_merge($userIds, User::query()->whereIn('user_id', $studentUserIds)->pluck('id')->all());
+        }
+
+        $teacherIds = DB::table('section_teacher')
+            ->whereIn('section_id', $sectionIds)
+            ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+            ->pluck('teacher_id');
+
+        $grades = Section::query()->whereIn('id', $sectionIds)->pluck('grade_level')->filter()->unique();
+        $aliases = [];
+        foreach ($grades as $grade) {
+            foreach (GradeSubjectCatalogService::gradeAliases((string) $grade) as $alias) {
+                $aliases[] = $alias;
+            }
+        }
+        if ($aliases !== []) {
+            $teacherIds = $teacherIds->merge(
+                DB::table('teacher_grade_level')
+                    ->whereIn('grade_level', array_values(array_unique($aliases)))
+                    ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+                    ->pluck('teacher_id')
+            );
+        }
+
+        $teacherIds = $teacherIds->merge(
+            DB::table('class_schedules')
+                ->whereIn('section_id', $sectionIds)
+                ->where('is_active', true)
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+                ->pluck('teacher_id')
+        )->filter()->unique();
+
+        if ($teacherIds->isNotEmpty()) {
+            $teacherUserIds = DB::table('teachers')->whereIn('id', $teacherIds)->pluck('user_id');
+            if ($teacherUserIds->isNotEmpty()) {
+                $userIds = array_merge($userIds, User::query()->whereIn('user_id', $teacherUserIds)->pluck('id')->all());
+            }
+        }
+
+        $userIds = array_values(array_unique(array_filter($userIds, fn ($id) => (int) $id !== (int) $announcement->created_by)));
+
+        return User::query()->whereIn('id', $userIds ?: [0])->get();
     }
 
     private function schoolTimezone(): string

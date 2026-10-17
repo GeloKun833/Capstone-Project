@@ -676,6 +676,9 @@
 
 .dir-report-card {
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     border: 1px solid var(--dir-line);
     border-radius: 16px;
     background: #fff;
@@ -712,6 +715,27 @@
     font-weight: 750;
     color: var(--dir-ink);
     margin-bottom: 0.35rem;
+}
+
+.dir-report-card .dir-subtitle {
+    flex: 1 1 auto;
+}
+
+.dir-report-card .dir-btn {
+    margin-top: auto;
+    min-width: 11.75rem;
+}
+
+.dir-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+}
+
+.dir-report-card .dir-report-actions .dir-btn {
+    margin-top: 0;
+    min-width: 0;
 }
 
 .dir-modal {
@@ -892,4 +916,205 @@
 .dir-today-item strong {
     font-size: 0.86rem;
     color: var(--dir-ink);
+}
+
+.dir-report-finder {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 0.25rem;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border: 1px solid var(--dir-line);
+    border-radius: 14px;
+    box-shadow: var(--dir-shadow);
+}
+
+.dir-report-finder i {
+    color: #94a3b8;
+}
+
+.dir-report-finder input {
+    width: 100%;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--dir-ink);
+    font-size: 0.95rem;
+}
+
+.dir-report-group {
+    margin-top: 1.6rem;
+}
+
+.dir-report-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.dir-report-group-head h4 {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    color: var(--dir-ink);
+}
+
+.dir-report-pill {
+    flex-shrink: 0;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--dir-line);
+    background: #fff;
+    color: var(--dir-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.dir-report-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    color: var(--dir-blue);
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dir-report-back:hover {
+    color: var(--dir-blue-dark);
+}
+
+.dir-report-year {
+    margin-top: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    min-width: 180px;
+    text-align: right;
+    background: #fff;
+    border: 1px solid var(--dir-line);
+    border-radius: 14px;
+    box-shadow: var(--dir-shadow);
+}
+
+.dir-report-year span {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--dir-muted);
+}
+
+.dir-report-year strong {
+    color: var(--dir-ink);
+}
+
+.dir-report-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.dir-report-kpi {
+    padding: 0.95rem 1rem;
+    background: #fff;
+    border: 1px solid var(--dir-line);
+    border-radius: 16px;
+    box-shadow: var(--dir-shadow);
+}
+
+.dir-report-kpi span {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--dir-muted);
+}
+
+.dir-report-kpi strong {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    color: var(--dir-ink);
+}
+
+.dir-report-toolbar {
+    padding: 1rem 1.15rem 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.dir-report-toolbar .form-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--dir-muted);
+}
+
+.dir-report-toolbar .form-control,
+.dir-report-toolbar .form-select {
+    min-height: 44px;
+    border-radius: 10px;
+    border-color: var(--dir-line);
+}
+
+.dir-report-toolbar .form-control:focus,
+.dir-report-toolbar .form-select:focus {
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(61, 94, 225, 0.15);
+}
+
+.dir-report-meta {
+    margin: 0.85rem 0 0;
+    color: var(--dir-muted);
+    font-size: 0.88rem;
+}
+
+.dir-report-view .dir-table td {
+    white-space: normal;
+}
+
+.dir-report-pager {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.9rem 1rem 1rem;
+    border-top: 1px solid var(--dir-line);
+}
+
+.dir-report-pager .pagination {
+    gap: 0.25rem;
+    margin: 0;
+    flex-wrap: wrap;
+}
+
+.dir-report-pager .page-link {
+    border-radius: 9px;
+    border-color: var(--dir-line);
+    color: var(--dir-ink);
+    min-width: 2.25rem;
+    text-align: center;
+}
+
+.dir-report-pager .page-item.active .page-link {
+    background: var(--dir-blue);
+    border-color: var(--dir-blue);
+    color: #fff;
+}
+
+@media (max-width: 767.98px) {
+    .dir-report-year {
+        text-align: left;
+        margin-top: 0.85rem;
+    }
+
+    .dir-report-pager {
+        justify-content: center;
+    }
 }

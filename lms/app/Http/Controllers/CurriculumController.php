@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Curriculum;
+use App\Models\CurriculumCourseOutline;
 use App\Services\GradeSubjectCatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -40,10 +41,17 @@ class CurriculumController extends Controller
             }
         }
 
+        $outlinesByCurriculum = CurriculumCourseOutline::query()
+            ->with(['subject', 'optlbRecord'])
+            ->orderBy('title')
+            ->get()
+            ->groupBy('curriculum_id');
+
         return view('curriculum.index', [
             'curricula' => $ordered,
             'subjectsByGrade' => $subjectsByGrade,
             'gradeLevels' => $gradeLevels,
+            'outlinesByCurriculum' => $outlinesByCurriculum,
         ]);
     }
 

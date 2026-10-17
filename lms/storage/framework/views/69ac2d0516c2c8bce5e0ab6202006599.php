@@ -29,55 +29,40 @@
         </div>
 
         <div class="asg-card asg-filters">
-            <form method="GET" action="<?php echo e(route('class-posts.index')); ?>">
-                <div class="row g-2 align-items-end">
-                    <div class="col-lg-3 col-md-6">
-                        <label class="form-label">Search</label>
-                        <input type="text" name="search" class="form-control" placeholder="Title or content" value="<?php echo e(request('search')); ?>">
-                    </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label">Subject</label>
-                        <select name="subject_id" class="form-control">
-                            <option value="">All Subjects</option>
-                            <?php $__currentLoopData = $subjects; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($subject->id); ?>" <?php echo e((string) request('subject_id') === (string) $subject->id ? 'selected' : ''); ?>>
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label" for="searchPost">Search</label>
+                    <input type="text" id="searchPost" class="form-control" placeholder="Title or content" value="<?php echo e(request('search')); ?>">
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label" for="section_filter">Section</label>
+                    <select id="section_filter" class="form-control">
+                        <option value="">All sections</option>
+                        <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($section->id); ?>" <?php echo e((int) $selectedSection === (int) $section->id ? 'selected' : ''); ?>>
+                                <?php echo e($section->name); ?><?php echo e($section->grade_level ? ' ('.$section->grade_level.')' : ''); ?>
+
+                            </option>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </select>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label" for="subject_filter">Subject</label>
+                    <select id="subject_filter" class="form-control" <?php if(! $selectedSection): ?> disabled <?php endif; ?>>
+                        <?php if(! $selectedSection): ?>
+                            <option value="">Select a section first</option>
+                        <?php else: ?>
+                            <option value="">All subjects</option>
+                            <?php $__currentLoopData = $subjects->whereIn('id', $subjectsBySection[$selectedSection] ?? [])->sortBy('subject_name'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $subject): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($subject->id); ?>" <?php echo e((int) $selectedSubject === (int) $subject->id ? 'selected' : ''); ?>>
                                     <?php echo e($subject->subject_name); ?>
 
                                 </option>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label">Section</label>
-                        <select name="section_id" class="form-control">
-                            <option value="">All Sections</option>
-                            <?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($section->id); ?>" <?php echo e((string) request('section_id') === (string) $section->id ? 'selected' : ''); ?>>
-                                    <?php echo e($section->name); ?>
-
-                                </option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label">Type</label>
-                        <select name="type" class="form-control">
-                            <option value="">All Types</option>
-                            <?php $__currentLoopData = ['announcement','resource','discussion','reminder']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($type); ?>" <?php echo e(request('type') == $type ? 'selected' : ''); ?>><?php echo e(ucfirst($type)); ?></option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                        </select>
-                    </div>
-                    <div class="col-lg-3 col-md-6 pb-1">
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary dir-btn flex-fill">
-                                <i class="fas fa-filter me-1"></i> Filter
-                            </button>
-                            <a href="<?php echo e(route('class-posts.index')); ?>" class="btn btn-outline-secondary dir-btn">Clear</a>
-                        </div>
-                    </div>
+                        <?php endif; ?>
+                    </select>
                 </div>
-            </form>
+            </div>
         </div>
 
         <div class="asg-card">
@@ -132,7 +117,7 @@
                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
                 <?php if($posts->hasPages()): ?>
-                    <div class="p-3 d-flex justify-content-center"><?php echo e($posts->links()); ?></div>
+                    <div class="p-3 d-flex justify-content-center"><?php echo e($posts->withQueryString()->links()); ?></div>
                 <?php endif; ?>
             <?php else: ?>
                 <div class="dir-empty">
@@ -236,6 +221,68 @@
     .asg-due { text-align: left; }
 }
 </style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<?php
+    $subjectsForFilter = $subjects->keyBy('id');
+    $subjectsBySectionJson = collect($subjectsBySection)->map(function ($ids) use ($subjectsForFilter) {
+        return collect($ids)->map(function ($id) use ($subjectsForFilter) {
+            $subject = $subjectsForFilter->get($id);
+            if (! $subject) {
+                return null;
+            }
+
+            return ['id' => $subject->id, 'name' => $subject->subject_name];
+        })->filter()->sortBy('name')->values();
+    });
+?>
+<script>
+$(document).ready(function () {
+    const subjectsBySection = <?php echo json_encode($subjectsBySectionJson, 15, 512) ?>;
+
+    function fillSubjects(sectionId, selectedId) {
+        const select = $('#subject_filter');
+        select.empty();
+        if (!sectionId) {
+            select.append('<option value="">Select a section first</option>');
+            select.prop('disabled', true);
+            return;
+        }
+        select.prop('disabled', false);
+        select.append('<option value="">All subjects</option>');
+        (subjectsBySection[sectionId] || subjectsBySection[String(sectionId)] || []).forEach(function (subject) {
+            const selected = String(selectedId || '') === String(subject.id) ? ' selected' : '';
+            select.append('<option value="' + subject.id + '"' + selected + '>' + subject.name + '</option>');
+        });
+    }
+
+    function applyPostFilters() {
+        const params = new URLSearchParams();
+        const search = $('#searchPost').val();
+        const sectionId = $('#section_filter').val();
+        const subjectId = $('#subject_filter').val();
+        if (search) params.set('search', search);
+        if (sectionId) params.set('section_id', sectionId);
+        if (sectionId && subjectId) params.set('subject_id', subjectId);
+        const query = params.toString();
+        window.location.href = '<?php echo e(route('class-posts.index')); ?>' + (query ? '?' + query : '');
+    }
+
+    let searchTimeout;
+    $('#searchPost').on('input', function () {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyPostFilters, 400);
+    });
+
+    $('#section_filter').on('change', function () {
+        fillSubjects($(this).val(), '');
+        applyPostFilters();
+    });
+
+    $('#subject_filter').on('change', applyPostFilters);
+});
+</script>
 <?php $__env->stopPush(); ?>
 
 <?php echo $__env->make('layouts.master', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\Laravel\Capstone-Project\lms\resources\views/class-posts/index.blade.php ENDPATH**/ ?>

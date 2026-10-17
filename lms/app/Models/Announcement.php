@@ -89,6 +89,105 @@ class Announcement extends Model
             });
     }
 
+    public function scopeVisibleToUser(Builder $query, User $user): Builder
+    {
+        if ($user->role_name === 'Admin') {
+            return $query;
+        }
+
+        $sectionIds = self::sectionIdsFor($user);
+        $keys = self::audienceKeysForRole($user->role_name);
+
+        return $query->where(function ($outer) use ($user, $sectionIds, $keys) {
+            $outer->where('created_by', $user->id);
+
+            if ($sectionIds !== []) {
+                $outer->orWhere(function ($sections) use ($sectionIds) {
+                    foreach ($sectionIds as $id) {
+                        $sections->orWhereJsonContains('target_sections', $id);
+                    }
+                });
+            }
+
+            $outer->orWhere(function ($legacy) use ($keys, $user) {
+                $legacy->where(function ($empty) {
+                    $empty->whereNull('target_sections')
+                        ->orWhere('target_sections', '[]')
+                        ->orWhere('target_sections', 'null');
+                })->where(function ($role) use ($keys, $user) {
+                    $role->whereIn('target_audience', $keys);
+                    if ($user->role_name) {
+                        $role->orWhere('target_audience', $user->role_name);
+                    }
+                });
+            });
+        });
+    }
+
+    public static function sectionIdsFor(User $user): array
+    {
+        $yearId = AcademicYear::active()?->id;
+
+        if ($user->role_name === 'Teacher' && $user->teacher) {
+            $assigned = app(\App\Services\TeacherClassAssignmentService::class)
+                ->optionsFor($user->teacher, $yearId)['sections']
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id);
+
+            $scheduled = ClassSchedule::query()
+                ->where('teacher_id', $user->teacher->id)
+                ->where('is_active', true)
+                ->when($yearId, fn ($query) => $query->where('academic_year_id', $yearId))
+                ->pluck('section_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id);
+
+            return $assigned->merge($scheduled)->unique()->values()->all();
+        }
+
+        if ($user->role_name === 'Student' && $user->student) {
+            $sections = $user->student->sections();
+            if ($yearId) {
+                $sections->wherePivot('academic_year_id', $yearId);
+            }
+
+            return $sections->pluck('sections.id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        if ($user->role_name === 'Parent') {
+            $ids = [];
+            foreach ($user->children() as $child) {
+                $sections = $child->sections();
+                if ($yearId) {
+                    $sections->wherePivot('academic_year_id', $yearId);
+                }
+                foreach ($sections->pluck('sections.id') as $id) {
+                    $ids[] = (int) $id;
+                }
+            }
+
+            return array_values(array_unique($ids));
+        }
+
+        return [];
+    }
+
+    public function audienceText(): string
+    {
+        $ids = array_values(array_filter(array_map('intval', $this->target_sections ?? [])));
+        if ($ids === []) {
+            return ucfirst((string) $this->target_audience);
+        }
+
+        return Section::query()
+            ->whereIn('id', $ids)
+            ->orderBy('grade_level')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Section $section) => trim(($section->grade_level ? $section->grade_level.' · ' : '').$section->name))
+            ->join(', ');
+    }
+
     public function scopeForRole(Builder $query, $role)
     {
         $keys = self::audienceKeysForRole($role);
@@ -123,6 +222,11 @@ class Announcement extends Model
         }
 
         $keys = self::audienceKeysForRole($user->role_name);
+
+        $targets = array_values(array_filter(array_map('intval', $this->target_sections ?? [])));
+        if ($targets !== []) {
+            return array_intersect($targets, self::sectionIdsFor($user)) !== [];
+        }
 
         if (in_array($this->target_audience, $keys, true)) {
             return true;

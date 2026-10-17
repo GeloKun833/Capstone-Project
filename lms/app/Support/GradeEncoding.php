@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\SchoolSetting;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
@@ -13,7 +15,7 @@ class GradeEncoding
 
     public static function allows(?User $user): bool
     {
-        if (! $user) {
+        if (! $user || $user->role_name !== User::ROLE_TEACHER) {
             return false;
         }
 
@@ -42,6 +44,53 @@ class GradeEncoding
         abort(403, $message);
     }
 
+    public static function startsOn(): ?string
+    {
+        return self::settings()->encoding_starts_on?->toDateString();
+    }
+
+    public static function dueOn(): ?string
+    {
+        return self::settings()->encoding_due_on?->toDateString();
+    }
+
+    public static function hasWindow(): bool
+    {
+        return self::startsOn() !== null && self::dueOn() !== null;
+    }
+
+    public static function isWindowOpen(): bool
+    {
+        if (! self::hasWindow()) {
+            return false;
+        }
+
+        $today = now('Asia/Manila')->toDateString();
+
+        return $today >= self::startsOn() && $today <= self::dueOn();
+    }
+
+    public static function windowNote(): string
+    {
+        if (! self::hasWindow()) {
+            return 'The administrator has not opened grade entry yet.';
+        }
+
+        $opens = Carbon::parse(self::startsOn())->format('M j, Y');
+        $due = Carbon::parse(self::dueOn())->format('M j, Y');
+        $today = now('Asia/Manila')->toDateString();
+
+        if ($today < self::startsOn()) {
+            return 'Grade entry opens on '.$opens.' and is due '.$due.'.';
+        }
+
+        if ($today > self::dueOn()) {
+            return 'The due date for grade entry has passed. It was due '.$due.'.';
+        }
+
+        return 'Grade entry is open from '.$opens.' through '.$due.'.';
+    }
+
     /**
      * Null means every grade level is open. An array is the admin's explicit list.
      *
@@ -49,7 +98,7 @@ class GradeEncoding
      */
     public static function openLevels(): ?array
     {
-        $stored = \App\Models\SchoolSetting::getSettings()->encoding_open_grades;
+        $stored = self::settings()->encoding_open_grades;
         if (! is_array($stored)) {
             return null;
         }
@@ -59,6 +108,10 @@ class GradeEncoding
 
     public static function isLevelOpen(?string $gradeLevel): bool
     {
+        if (! self::isWindowOpen()) {
+            return false;
+        }
+
         $open = self::openLevels();
         if ($open === null) {
             return true;
@@ -80,8 +133,17 @@ class GradeEncoding
 
     public static function closedMessage(?string $gradeLevel): string
     {
+        if (! self::isWindowOpen()) {
+            return self::windowNote();
+        }
+
         $label = trim((string) $gradeLevel) !== '' ? $gradeLevel : 'this grade level';
 
         return 'The administrator has closed grade encoding for '.$label.'.';
+    }
+
+    private static function settings(): SchoolSetting
+    {
+        return SchoolSetting::getSettings();
     }
 }

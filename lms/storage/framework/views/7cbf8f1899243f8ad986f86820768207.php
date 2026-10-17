@@ -64,10 +64,7 @@
                         data-description="<?php echo e($curriculum->description ?: ''); ?>"
                         data-linked="<?php echo e($linkedCount); ?>"
                         data-catalog="<?php echo e($catalogCount); ?>"
-                        data-assign-url="<?php echo e(route('curriculum.assignSubjectsForm', $curriculum)); ?>"
-                        data-sync-url="<?php echo e(route('curriculum.syncFromCatalog', $curriculum)); ?>"
-                        data-update-url="<?php echo e(route('curriculum.update', $curriculum)); ?>"
-                        data-destroy-url="<?php echo e(route('curriculum.destroy', $curriculum)); ?>">
+                        data-create-url="<?php echo e(route('curriculum.demo.create', $curriculum)); ?>">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <span class="ams-curr-title"><?php echo e($curriculum->grade_level); ?></span>
                             <span class="ams-curr-count <?php echo e($linkedCount ? '' : 'is-empty'); ?>"><?php echo e($linkedCount); ?></span>
@@ -103,7 +100,7 @@
 
 
 <div class="modal fade" id="curriculumModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <div class="modal-content ams-curr-modal">
             <div class="modal-header border-0 pb-0">
                 <div>
@@ -115,34 +112,19 @@
             <div class="modal-body pt-3">
                 <p class="text-muted mb-3" id="currModalDesc"></p>
 
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                    <span class="ams-stat-badge ams-stat-badge--linked" id="currModalLinked">0 linked</span>
-                    <span class="ams-stat-badge ams-stat-badge--catalog" id="currModalCatalog">0 in catalog</span>
-        </div>
-
                 <div class="ams-curr-subjects mb-3" id="currModalSubjects"></div>
-                <div id="currModalEmpty" class="alert alert-warning d-none mb-0">
-                    No subjects linked yet. Click <strong>Sync from Catalog</strong> to pull subjects for this grade.
+
+                <p class="ams-modal-eyebrow mb-2">Course outlines and OPTLB</p>
+                <p class="small text-muted">Rows marked DEMO are samples. Course outlines you create are listed here with their OPTLB.</p>
+                <div id="currModalRecords"></div>
+                <div id="currModalEmpty" class="alert alert-light border d-none mb-0">
+                    No course outline or OPTLB has been created for this grade yet.
                 </div>
-                                </div>
+            </div>
             <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
-                <form id="currSyncForm" method="POST" action="" class="d-inline">
-                                    <?php echo csrf_field(); ?>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-sync-alt me-1"></i> Sync from Catalog
-                    </button>
-                                </form>
-                <a href="#" id="currAssignBtn" class="btn btn-outline-primary">
-                    <i class="fas fa-check-square me-1"></i> Choose Subjects
+                <a href="#" id="currCreateBtn" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i> Create Course Outline and OPTLB
                 </a>
-                <button type="button" class="btn btn-outline-secondary" id="currEditBtn">
-                    <i class="fas fa-edit me-1"></i> Edit
-                </button>
-                <button type="button" class="btn btn-outline-danger" id="currDeleteBtn"
-                    data-bs-toggle="modal" data-bs-target="#curriculumDeleteModal">
-                    <i class="fas fa-trash me-1"></i> Delete
-                </button>
-                <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
             </div>
@@ -296,6 +278,13 @@
         padding: .35rem .75rem; font-size: .85rem; font-weight: 600;
         margin: 0 .35rem .5rem 0;
     }
+    .ams-record {
+        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+        border: 1px solid var(--ams-line); border-radius: 12px; padding: .7rem .85rem; margin-bottom: .55rem;
+        background: #fff;
+    }
+    .ams-record-kind { font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #c2410c; }
+    .ams-record-title { font-weight: 600; color: var(--ams-ink); }
     #curriculumModal.modal.fade .modal-dialog,
     #curriculumEditModal.modal.fade .modal-dialog {
         transform: translateY(18px) scale(.97); opacity: 0;
@@ -320,11 +309,25 @@
             })->values(),
         ];
     });
+    $recordsByCurriculumJson = $curricula->mapWithKeys(function ($c) use ($outlinesByCurriculum) {
+        $rows = ($outlinesByCurriculum->get($c->id) ?? collect())->map(function ($outline) {
+            return [
+                'subject' => $outline->subject->subject_name ?? 'Subject',
+                'title' => $outline->title,
+                'viewUrl' => route('curriculum.demo.show', $outline),
+                'optlbTitle' => $outline->optlbRecord->title ?? null,
+                'optlbUrl' => $outline->optlbRecord ? route('curriculum.demo.show', $outline).'#optlb' : null,
+            ];
+        })->values();
+
+        return [(string) $c->id => $rows];
+    });
 ?>
 <script>
 (function () {
     const csrfToken = <?php echo json_encode(csrf_token(), 15, 512) ?>;
     const subjectsById = <?php echo json_encode($subjectsByCurriculumJson, 15, 512) ?>;
+    const recordsById = <?php echo json_encode($recordsByCurriculumJson, 15, 512) ?>;
 
     let active = null;
     const searchInput = document.getElementById('curriculumSearch');
@@ -367,27 +370,50 @@
 
     function renderSubjects(subjects) {
         const box = document.getElementById('currModalSubjects');
-        const empty = document.getElementById('currModalEmpty');
         if (!subjects || !subjects.length) {
+            box.innerHTML = '<span class="text-muted small">No subjects linked for this grade.</span>';
+            return;
+        }
+        box.innerHTML = subjects.map(function (s) {
+            return '<span class="ams-subject-chip"><i class="fas fa-book"></i> ' + escapeHtml(s.name || '') + '</span>';
+        }).join('');
+    }
+
+    function renderRecords(records) {
+        const box = document.getElementById('currModalRecords');
+        const empty = document.getElementById('currModalEmpty');
+        if (!records || !records.length) {
             box.innerHTML = '';
             empty.classList.remove('d-none');
             return;
         }
         empty.classList.add('d-none');
-        box.innerHTML = subjects.map(function (s) {
-            return '<span class="ams-subject-chip"><i class="fas fa-book"></i> ' + escapeHtml(s.name || '') + '</span>';
+        box.innerHTML = records.map(function (row) {
+            let html = '<div class="ams-record">'
+                + '<div><div class="ams-record-kind">Course outline</div>'
+                + '<div class="ams-record-title">' + escapeHtml(row.subject) + '</div>'
+                + '<div class="small text-muted">' + escapeHtml(row.title) + '</div></div>'
+                + '<a class="btn btn-sm btn-outline-primary" href="' + escapeHtml(row.viewUrl) + '">View</a>'
+                + '</div>';
+            html += '<div class="ams-record">'
+                + '<div><div class="ams-record-kind">OPTLB</div>'
+                + '<div class="ams-record-title">' + escapeHtml(row.subject) + '</div>'
+                + '<div class="small text-muted">' + escapeHtml(row.optlbTitle || 'No OPTLB yet') + '</div></div>';
+            if (row.optlbUrl) {
+                html += '<a class="btn btn-sm btn-outline-primary" href="' + escapeHtml(row.optlbUrl) + '">View</a>';
+            }
+            html += '</div>';
+            return html;
         }).join('');
     }
 
     function fillDetailModal() {
         if (!active) return;
         document.getElementById('currModalTitle').textContent = active.grade;
-        document.getElementById('currModalDesc').textContent = active.description || 'No description yet.';
-        document.getElementById('currModalLinked').textContent = active.linked + ' linked';
-        document.getElementById('currModalCatalog').textContent = active.catalog + ' in catalog';
-        document.getElementById('currSyncForm').action = active.syncUrl;
-        document.getElementById('currAssignBtn').href = active.assignUrl;
+        document.getElementById('currModalDesc').textContent = active.description || (active.grade + ' curriculum.');
+        document.getElementById('currCreateBtn').href = active.createUrl;
         renderSubjects(active.subjects || []);
+        renderRecords(active.records || []);
     }
 
     if (detailModalEl) {
@@ -403,10 +429,8 @@
                 linked: btn.getAttribute('data-linked') || '0',
                 catalog: btn.getAttribute('data-catalog') || '0',
                 subjects: subjectsById[id] || subjectsById[String(id)] || [],
-                assignUrl: btn.getAttribute('data-assign-url') || '#',
-                syncUrl: btn.getAttribute('data-sync-url') || '#',
-                updateUrl: btn.getAttribute('data-update-url') || '#',
-                destroyUrl: btn.getAttribute('data-destroy-url') || '#',
+                records: recordsById[id] || recordsById[String(id)] || [],
+                createUrl: btn.getAttribute('data-create-url') || '#',
                 cardBtn: btn
             };
             fillDetailModal();

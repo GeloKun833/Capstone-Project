@@ -142,24 +142,26 @@
         </table>
     </div>
 
-    @if($academicYear && $semester)
+    @if($academicYear)
         <div class="period-info">
-            Academic Period: {{ $academicYear->name }} - {{ $semester->name }}
+            Academic Year: {{ $academicYear->name }}
         </div>
     @endif
 
     @if(count($subjectGrades) > 0)
+        @php
+            $termColumns = $termColumns ?? [];
+        @endphp
         <table>
             <thead>
                 <tr>
                     <th style="width: 5%;">No.</th>
-                    <th style="width: 28%;">Subject</th>
-                    <th style="width: 9%;">Q1</th>
-                    <th style="width: 9%;">Q2</th>
-                    <th style="width: 9%;">Q3</th>
-                    <th style="width: 9%;">Q4</th>
-                    <th style="width: 11%;">Final</th>
-                    <th style="width: 20%;">Remarks</th>
+                    <th>Subject</th>
+                    @foreach($termColumns as $term)
+                        <th style="width: 12%;">{{ $term['label'] }}</th>
+                    @endforeach
+                    <th style="width: 12%;">Final</th>
+                    <th style="width: 18%;">Remarks</th>
                 </tr>
             </thead>
             <tbody>
@@ -168,12 +170,11 @@
                     <tr>
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td><strong>{{ $subjectData['subject']->subject_name }}</strong></td>
-                        <td class="text-center" title="{{ $q->quarterCaption(1) }}">{{ $q->presentQuarter(1, true) }}</td>
-                        <td class="text-center" title="{{ $q->quarterCaption(2) }}">{{ $q->presentQuarter(2, true) }}</td>
-                        <td class="text-center" title="{{ $q->quarterCaption(3) }}">{{ $q->presentQuarter(3, true) }}</td>
-                        <td class="text-center" title="{{ $q->quarterCaption(4) }}">{{ $q->presentQuarter(4, true) }}</td>
-                        <td class="text-center"><strong>{{ ($subjectData['descriptive'] ?? false) || $subjectData['average'] === null ? '—' : number_format($subjectData['average'], 2) }}</strong></td>
-                        <td class="text-center">{{ ($subjectData['descriptive'] ?? false) ? ($subjectData['remarks'] ?: '—') : ($subjectData['remarks'] ?: ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED')) }}</td>
+                        @foreach($termColumns as $term)
+                            <td class="text-center" title="{{ $q->quarterCaption($term['number']) }}">{{ $q->presentQuarter($term['number'], true) }}</td>
+                        @endforeach
+                        <td class="text-center"><strong>{{ $subjectData['final'] ?? '—' }}</strong></td>
+                        <td class="text-center">{{ $subjectData['remarks'] ?: (($subjectData['average'] ?? null) === null ? '—' : ($subjectData['average'] >= 75 ? 'PASSED' : 'FAILED')) }}</td>
                     </tr>
                 @endforeach
             </tbody>

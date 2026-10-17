@@ -157,12 +157,20 @@ class ParentPortalService
 
         $enrolledSubjectIds = $this->getEnrolledSubjectIds($child);
 
+        $sectionIds = $child->sections()->pluck('sections.id');
+
         return Activity::with(['lesson.subject'])
-            ->whereHas('lesson', function ($query) use ($enrolledSubjectIds, $academicYear, $semester) {
+            ->published()
+            ->whereHas('lesson', function ($query) use ($enrolledSubjectIds, $academicYear, $semester, $sectionIds) {
                 $query->whereIn('subject_id', $enrolledSubjectIds)
                     ->where('academic_year_id', $academicYear->id);
                 if ($semester) {
                     $query->where('semester_id', $semester->id);
+                }
+                if ($sectionIds->isNotEmpty()) {
+                    $query->where(function ($sections) use ($sectionIds) {
+                        $sections->whereIn('section_id', $sectionIds)->orWhereNull('section_id');
+                    });
                 }
             })
             ->orderBy('due_date', 'asc')

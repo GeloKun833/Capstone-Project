@@ -730,11 +730,6 @@
                                             <a href="{{ route('student.lessons.show', [$enrollment->id, $lesson->id]) }}" class="btn btn-primary btn-sm">
                                                 <i class="fas fa-eye"></i> View Lesson
                                             </a>
-                                            @if($lesson->file_url)
-                                                <a href="{{ $lesson->file_url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
-                                                    <i class="fas fa-download"></i> Materials
-                                                </a>
-                                            @endif
                                         </div>
                                     </div>
                                 </div>

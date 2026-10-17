@@ -108,6 +108,10 @@ class ClassSubjectController extends Controller
                 }
             }
 
+            $yearSections = $teacher->sections->filter(function ($section) use ($assignmentYearId) {
+                return $assignmentYearId && (int) $section->pivot->academic_year_id === (int) $assignmentYearId;
+            })->values();
+
             return [
                 'id' => $teacher->id,
                 'name' => $teacher->full_name ?: optional($teacher->user)->name ?? 'Unknown',
@@ -119,13 +123,10 @@ class ClassSubjectController extends Controller
                 'experience' => $teacher->experience,
                 'gender' => $teacher->gender,
                 'grades' => $assignedGrades,
-                'sections' => $teacher->sections
-                    ->filter(function ($section) use ($assignmentYearId) {
-                        return $assignmentYearId && (int) $section->pivot->academic_year_id === (int) $assignmentYearId;
-                    })
-                    ->map(function ($section) {
-                        return trim($section->name.' ('.$section->grade_level.')');
-                    })->values()->all(),
+                'section_ids' => $yearSections->map(fn ($section) => (int) $section->id)->values()->all(),
+                'sections' => $yearSections->map(function ($section) {
+                    return trim($section->name.' ('.$section->grade_level.')');
+                })->values()->all(),
             ];
         })->values();
         

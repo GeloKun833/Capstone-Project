@@ -710,7 +710,7 @@ class GradingController extends Controller
                     'method' => $descriptive ? 'Descriptive' : 'Numerical',
                     'done' => $done,
                     'total' => $total,
-                    'status' => $total === 0 ? 'Not Started' : ($done === 0 ? 'Not Started' : ($done >= $total ? 'Complete' : 'In Progress')),
+                    'status' => \App\Services\ReportCardService::reportStatus($done, $total),
                 ]);
             }
         }

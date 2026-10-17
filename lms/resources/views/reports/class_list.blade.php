@@ -63,7 +63,7 @@
             font-weight: bold;
             text-align: center;
         }
-        .student-row:nth-child(even) {
+        .student-row.alt {
             background-color: #f9f9f9;
         }
         .text-center {
@@ -123,7 +123,7 @@
             <tr>
                 <td class="label">Academic Year:</td>
                 <td><strong>{{ $academicYear->name }}</strong></td>
-                <td class="label">Semester:</td>
+                <td class="label">Term:</td>
                 <td><strong>{{ $semester ? $semester->name : 'N/A' }}</strong></td>
             </tr>
             @endif
@@ -151,7 +151,7 @@
             </thead>
             <tbody>
                 @foreach($students as $index => $student)
-                    <tr class="student-row">
+                    <tr class="student-row{{ $index % 2 === 1 ? ' alt' : '' }}">
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td class="text-center">{{ $student->id }}</td>
                         <td>{{ $student->last_name }}</td>

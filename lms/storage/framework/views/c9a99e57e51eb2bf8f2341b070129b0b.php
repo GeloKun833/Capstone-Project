@@ -63,7 +63,7 @@
                         </ul>
                     </li>
 
-                    <li class="<?php echo e($aReports ? 'active' : ''); ?>">
+                    <li class="<?php echo e($aReports || request()->routeIs('reports.school*') ? 'active' : ''); ?>">
                         <a href="<?php echo e(route('reports.index')); ?>"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
                 <?php endif; ?>
@@ -95,6 +95,9 @@
 
                     <li class="<?php echo e($rChat ? 'active' : ''); ?>">
                         <a href="<?php echo e(route('chat.index')); ?>"><i class="fas fa-comments"></i> <span>Chat</span></a>
+                    </li>
+                    <li class="<?php echo e(request()->routeIs('reports.*') ? 'active' : ''); ?>">
+                        <a href="<?php echo e(route('reports.index')); ?>"><i class="fas fa-file-pdf"></i> <span>Reports & Documents</span></a>
                     </li>
                 <?php endif; ?>
 
@@ -151,7 +154,7 @@
                         <a href="<?php echo e(route('announcements.index')); ?>"><i class="fas fa-bullhorn"></i> <span>Announcements</span></a>
                     </li>
 
-                    <li class="<?php echo e($tReports ? 'active' : ''); ?>">
+                    <li class="<?php echo e($tReports || request()->routeIs('reports.school*') ? 'active' : ''); ?>">
                         <a href="<?php echo e(route('reports.index')); ?>"><i class="far fa-file-alt"></i> <span>Reports & Documents</span></a>
                     </li>
                 <?php endif; ?>

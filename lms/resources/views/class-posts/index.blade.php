@@ -29,53 +29,38 @@
         </div>
 
         <div class="asg-card asg-filters">
-            <form method="GET" action="{{ route('class-posts.index') }}">
-                <div class="row g-2 align-items-end">
-                    <div class="col-lg-3 col-md-6">
-                        <label class="form-label">Search</label>
-                        <input type="text" name="search" class="form-control" placeholder="Title or content" value="{{ request('search') }}">
-                    </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label">Subject</label>
-                        <select name="subject_id" class="form-control">
-                            <option value="">All Subjects</option>
-                            @foreach($subjects as $subject)
-                                <option value="{{ $subject->id }}" {{ (string) request('subject_id') === (string) $subject->id ? 'selected' : '' }}>
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label" for="searchPost">Search</label>
+                    <input type="text" id="searchPost" class="form-control" placeholder="Title or content" value="{{ request('search') }}">
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label" for="section_filter">Section</label>
+                    <select id="section_filter" class="form-control">
+                        <option value="">All sections</option>
+                        @foreach($sections as $section)
+                            <option value="{{ $section->id }}" {{ (int) $selectedSection === (int) $section->id ? 'selected' : '' }}>
+                                {{ $section->name }}{{ $section->grade_level ? ' ('.$section->grade_level.')' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label" for="subject_filter">Subject</label>
+                    <select id="subject_filter" class="form-control" @if(! $selectedSection) disabled @endif>
+                        @if(! $selectedSection)
+                            <option value="">Select a section first</option>
+                        @else
+                            <option value="">All subjects</option>
+                            @foreach($subjects->whereIn('id', $subjectsBySection[$selectedSection] ?? [])->sortBy('subject_name') as $subject)
+                                <option value="{{ $subject->id }}" {{ (int) $selectedSubject === (int) $subject->id ? 'selected' : '' }}>
                                     {{ $subject->subject_name }}
                                 </option>
                             @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label">Section</label>
-                        <select name="section_id" class="form-control">
-                            <option value="">All Sections</option>
-                            @foreach($sections as $section)
-                                <option value="{{ $section->id }}" {{ (string) request('section_id') === (string) $section->id ? 'selected' : '' }}>
-                                    {{ $section->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-2 col-md-6">
-                        <label class="form-label">Type</label>
-                        <select name="type" class="form-control">
-                            <option value="">All Types</option>
-                            @foreach(['announcement','resource','discussion','reminder'] as $type)
-                                <option value="{{ $type }}" {{ request('type') == $type ? 'selected' : '' }}>{{ ucfirst($type) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-3 col-md-6 pb-1">
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary dir-btn flex-fill">
-                                <i class="fas fa-filter me-1"></i> Filter
-                            </button>
-                            <a href="{{ route('class-posts.index') }}" class="btn btn-outline-secondary dir-btn">Clear</a>
-                        </div>
-                    </div>
+                        @endif
+                    </select>
                 </div>
-            </form>
+            </div>
         </div>
 
         <div class="asg-card">
@@ -130,7 +115,7 @@
                     @endforeach
                 </div>
                 @if($posts->hasPages())
-                    <div class="p-3 d-flex justify-content-center">{{ $posts->links() }}</div>
+                    <div class="p-3 d-flex justify-content-center">{{ $posts->withQueryString()->links() }}</div>
                 @endif
             @else
                 <div class="dir-empty">
@@ -234,4 +219,66 @@
     .asg-due { text-align: left; }
 }
 </style>
+@endpush
+
+@push('scripts')
+@php
+    $subjectsForFilter = $subjects->keyBy('id');
+    $subjectsBySectionJson = collect($subjectsBySection)->map(function ($ids) use ($subjectsForFilter) {
+        return collect($ids)->map(function ($id) use ($subjectsForFilter) {
+            $subject = $subjectsForFilter->get($id);
+            if (! $subject) {
+                return null;
+            }
+
+            return ['id' => $subject->id, 'name' => $subject->subject_name];
+        })->filter()->sortBy('name')->values();
+    });
+@endphp
+<script>
+$(document).ready(function () {
+    const subjectsBySection = @json($subjectsBySectionJson);
+
+    function fillSubjects(sectionId, selectedId) {
+        const select = $('#subject_filter');
+        select.empty();
+        if (!sectionId) {
+            select.append('<option value="">Select a section first</option>');
+            select.prop('disabled', true);
+            return;
+        }
+        select.prop('disabled', false);
+        select.append('<option value="">All subjects</option>');
+        (subjectsBySection[sectionId] || subjectsBySection[String(sectionId)] || []).forEach(function (subject) {
+            const selected = String(selectedId || '') === String(subject.id) ? ' selected' : '';
+            select.append('<option value="' + subject.id + '"' + selected + '>' + subject.name + '</option>');
+        });
+    }
+
+    function applyPostFilters() {
+        const params = new URLSearchParams();
+        const search = $('#searchPost').val();
+        const sectionId = $('#section_filter').val();
+        const subjectId = $('#subject_filter').val();
+        if (search) params.set('search', search);
+        if (sectionId) params.set('section_id', sectionId);
+        if (sectionId && subjectId) params.set('subject_id', subjectId);
+        const query = params.toString();
+        window.location.href = '{{ route('class-posts.index') }}' + (query ? '?' + query : '');
+    }
+
+    let searchTimeout;
+    $('#searchPost').on('input', function () {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyPostFilters, 400);
+    });
+
+    $('#section_filter').on('change', function () {
+        fillSubjects($(this).val(), '');
+        applyPostFilters();
+    });
+
+    $('#subject_filter').on('change', applyPostFilters);
+});
+</script>
 @endpush

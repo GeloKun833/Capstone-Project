@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicYear;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AcademicYearController extends Controller
 {
@@ -42,24 +45,22 @@ class AcademicYearController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name', 'regex:/^\d{4}-\d{4}$/'],
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'name' => ['required', 'string', 'max:50', 'regex:/^\d{4}-\d{4}$/'],
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
         ], [
             'name.regex' => 'Academic year must look like 2026–2027 (years only).',
+            'start_date.required' => 'Enter the day the school year starts.',
+            'end_date.required' => 'Enter the day the school year ends.',
+            'end_date.after' => 'School year ends must be after school year starts.',
         ]);
 
-        // Derive dates from year label when dates omitted (e.g. 2026-2027)
-        if (empty($data['start_date']) || empty($data['end_date'])) {
-            if (preg_match('/(\d{4})\s*[–\-]\s*(\d{4})/', $data['name'], $m)) {
-                $data['start_date'] = $m[1].'-06-01';
-                $data['end_date'] = $m[2].'-05-31';
-            } else {
-                return back()->withErrors(['name' => 'Invalid academic year format.'])->withInput();
-            }
-        }
-
         $data['name'] = preg_replace('/\s*[–\-]\s*/', '–', $data['name']);
+        if (AcademicYear::findByNameKey($data['name'])) {
+            throw ValidationException::withMessages([
+                'name' => 'This academic year already exists.',
+            ]);
+        }
         $data['status'] = 'upcoming';
         $data['enrollment_open'] = false;
 
@@ -96,33 +97,22 @@ class AcademicYearController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:50', 'unique:academic_years,name,' . $academicYear->id, 'regex:/^\d{4}-\d{4}$/'],
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'name' => ['required', 'string', 'max:50', 'regex:/^\d{4}-\d{4}$/'],
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
         ], [
             'name.regex' => 'Academic year must look like 2026–2027 (years only).',
+            'start_date.required' => 'Enter the day the school year starts.',
+            'end_date.required' => 'Enter the day the school year ends.',
+            'end_date.after' => 'School year ends must be after school year starts.',
         ]);
 
-        if (empty($data['start_date'])) {
-            $data['start_date'] = optional($academicYear->start_date)->format('Y-m-d');
-        }
-        if (empty($data['end_date'])) {
-            $data['end_date'] = optional($academicYear->end_date)->format('Y-m-d');
-        }
-        if ((empty($data['start_date']) || empty($data['end_date'])) && preg_match('/^(\d{4})-(\d{4})$/', $data['name'], $m)) {
-            $data['start_date'] = $data['start_date'] ?: $m[1].'-06-01';
-            $data['end_date'] = $data['end_date'] ?: $m[2].'-05-31';
-        }
-        if (empty($data['start_date']) || empty($data['end_date'])) {
-            $message = 'This academic year needs a start date and an end date.';
-            if ($request->expectsJson() || $request->ajax()) {
-                return response()->json(['success' => false, 'message' => $message], 422);
-            }
-
-            return back()->withErrors(['start_date' => $message])->withInput();
-        }
-
         $data['name'] = preg_replace('/\s*[–\-]\s*/u', '–', $data['name']);
+        if (AcademicYear::findByNameKey($data['name'], $academicYear->id)) {
+            throw ValidationException::withMessages([
+                'name' => 'This academic year already exists.',
+            ]);
+        }
 
         $status = (string) $request->input('status', $academicYear->status);
         $data['status'] = in_array($status, ['upcoming', 'current', 'completed', 'archived'], true)
@@ -180,6 +170,32 @@ class AcademicYearController extends Controller
                 'success' => true,
                 'message' => $message,
             ]);
+        }
+
+        return redirect()->route('academic_years.index')->with('success', $message);
+    }
+
+    public function forceDelete(Request $request, AcademicYear $academicYear)
+    {
+        $name = $academicYear->displayName();
+
+        try {
+            DB::transaction(function () use ($academicYear) {
+                $academicYear->delete();
+            });
+        } catch (QueryException $exception) {
+            $message = 'Academic year '.$name.' could not be deleted because other records still use it.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->route('academic_years.index')->with('error', $message);
+        }
+
+        $this->forgetYearCache();
+        $message = 'Academic year '.$name.' was deleted.';
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => $message]);
         }
 
         return redirect()->route('academic_years.index')->with('success', $message);
@@ -280,14 +296,48 @@ class AcademicYearController extends Controller
         $academicYear->save();
         $this->forgetYearCache();
 
-        $available = $academicYear->fresh()->enrollmentIsOpen();
+        $fresh = $academicYear->fresh();
+        $available = $fresh->enrollmentIsOpen();
         $message = $available
-            ? 'Enrollment is available for Academic Year '.$academicYear->displayName().'.'
+            ? 'Enrollment is available for Academic Year '.$fresh->displayName().'.'
             : ($open
-                ? app(\App\Services\EnrollmentReadiness::class)->studentMessage($academicYear->fresh())
-                : 'Enrollment is currently closed for Academic Year '.$academicYear->displayName().'.');
+                ? app(\App\Services\EnrollmentReadiness::class)->studentMessage($fresh)
+                : 'Enrollment period saved for Academic Year '.$fresh->displayName().'.');
 
-        return redirect()->back()->with($available || ! $open ? 'success' : 'error', $message);
+        $redirect = redirect()->route('academic_years.index')->with($available || ! $open ? 'success' : 'error', $message);
+        if (! $fresh->class_starts_at || ! $fresh->class_ends_at) {
+            $redirect->with('ask_class_start', $fresh->id);
+        }
+
+        return $redirect;
+    }
+
+    public function updateClassStart(Request $request, AcademicYear $academicYear)
+    {
+        $validated = $request->validate([
+            'class_starts_at' => 'required|date',
+            'class_ends_at' => 'required|date|after_or_equal:class_starts_at',
+        ], [
+            'class_ends_at.after_or_equal' => 'End of class must be on or after the start of class.',
+        ]);
+
+        $classStart = \Carbon\Carbon::parse($validated['class_starts_at'], 'Asia/Manila')->startOfDay();
+        $classEnd = \Carbon\Carbon::parse($validated['class_ends_at'], 'Asia/Manila')->startOfDay();
+        if ($academicYear->enrollment_ends_at && $classStart->lte($academicYear->enrollment_ends_at->copy()->startOfDay())) {
+            return redirect()->back()->withInput()->with('error', 'Start of class must be after the enrollment period ends.');
+        }
+        if ($academicYear->end_date && $classEnd->gt($academicYear->end_date->copy()->endOfDay())) {
+            return redirect()->back()->withInput()->with('error', 'End of class must be on or before the end of the school year.');
+        }
+
+        $academicYear->class_starts_at = $classStart->toDateString();
+        $academicYear->class_ends_at = $classEnd->toDateString();
+        $academicYear->save();
+
+        return redirect()->route('academic_years.index')->with(
+            'success',
+            'Classes for '.$academicYear->displayName().' run from '.$classStart->format('M d, Y').' to '.$classEnd->format('M d, Y').'.'
+        );
     }
 
     protected function forgetYearCache(): void

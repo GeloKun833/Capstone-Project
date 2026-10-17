@@ -108,6 +108,37 @@ class QuarterlyGrade extends Model
         return null;
     }
 
+    /**
+     * Final descriptive letter is the average of the quarters that have a level.
+     * A is 5 and E is 1. A halfway average rounds to the higher letter.
+     */
+    public function finalLevel(): ?string
+    {
+        $letters = [];
+        foreach ([1, 2, 3, 4] as $quarter) {
+            $letter = strtoupper(trim((string) $this->{$this->levelField($quarter)}));
+            if (DescriptiveScale::get($letter)) {
+                $letters[] = $letter;
+            }
+        }
+
+        return DescriptiveScale::averageLetter($letters);
+    }
+
+    public function presentFinal(bool $withDescriptor = false): string
+    {
+        if ($this->usesDescriptive()) {
+            return DescriptiveScale::present($this->finalLevel(), $withDescriptor);
+        }
+
+        $final = $this->final_grade ?? $this->calculateFinalGrade();
+        if ($final === null || $final === '') {
+            return '—';
+        }
+
+        return number_format((float) $final, 2);
+    }
+
     public function presentQuarter(int $quarter, bool $withDescriptor = false): string
     {
         $meta = DescriptiveScale::get($this->{$this->levelField($quarter)});

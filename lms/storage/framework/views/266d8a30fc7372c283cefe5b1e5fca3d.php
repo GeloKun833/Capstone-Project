@@ -35,6 +35,11 @@
             <div class="alert alert-success"><?php echo e(session('success')); ?></div>
         <?php endif; ?>
 
+        <div class="alert <?php echo e(\App\Support\GradeEncoding::isWindowOpen() ? 'alert-info' : 'alert-warning'); ?>">
+            <?php echo e(\App\Support\GradeEncoding::windowNote()); ?>
+
+        </div>
+
         <div class="ge-card ge-filters">
             <div class="ge-card-head">
                 <h5>Grade sheet</h5>
@@ -87,7 +92,7 @@
             </form>
         </div>
 
-        <?php if($hasFilters && ! $encodingOpen): ?>
+        <?php if($hasFilters && ! $encodingOpen && \App\Support\GradeEncoding::isWindowOpen()): ?>
             <div class="alert alert-warning">
                 <?php echo e(\App\Support\GradeEncoding::closedMessage(optional($sections->firstWhere('id', (int) $selectedSectionId))->grade_level)); ?>
 
@@ -111,6 +116,8 @@
                         <p>
                             <?php echo e($sectionName); ?> uses the <?php echo e($descriptive ? 'Descriptive' : 'Numerical'); ?> Method
                             · <?php echo e($currentAcademicYear->name); ?>
+
+                            · Report status: <?php echo e(\App\Services\ReportCardService::reportStatus($gradedCount, $expectedCount)); ?>
 
                             · <?php echo e($gradedCount); ?> / <?php echo e($expectedCount); ?> <?php echo e($descriptive ? 'assessed' : 'graded'); ?>
 
@@ -383,7 +390,7 @@
                 <div class="ge-card-head ge-card-head-row">
                     <div>
                         <h5>Step 3 — <?php echo e($quarterLabels[(int) $selectedQuarter]); ?> <?php echo e($descriptive ? 'assessments' : 'average & remarks'); ?></h5>
-                        <p><?php echo e($sectionName); ?> · <?php echo e($currentAcademicYear->name); ?></p>
+                        <p><?php echo e($sectionName); ?> · <?php echo e($currentAcademicYear->name); ?> · Report status: <?php echo e(\App\Services\ReportCardService::reportStatus($gradedCount, $expectedCount)); ?></p>
                     </div>
                     <a class="btn btn-primary dir-btn"
                        href="<?php echo e(route('teacher.grading.quarter-report', ['section_id'=>$selectedSectionId,'quarter'=>$selectedQuarter,'academic_year_id'=>$currentAcademicYear->id])); ?>"
@@ -398,6 +405,7 @@
                                 <th style="width:48px">#</th>
                                 <th>Student</th>
                                 <th class="text-center"><?php echo e($descriptive ? 'Assessed' : 'Quarter average'); ?></th>
+                                <th class="text-center">Report status</th>
                                 <th class="text-center"><?php echo e($descriptive ? 'Missing' : 'Remarks'); ?></th>
                                 <th class="text-end">Print</th>
                             </tr>
@@ -415,6 +423,16 @@
                                         <?php else: ?>
                                             <?php echo e($sum['average'] !== null ? number_format($sum['average'], 2) : '—'); ?>
 
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php $studentStatus = \App\Services\ReportCardService::reportStatus((int) ($sum['filled'] ?? 0), $sectionSubjects->count()); ?>
+                                        <?php if($studentStatus === 'Complete'): ?>
+                                            <span class="dir-badge dir-badge--active">Complete</span>
+                                        <?php elseif($studentStatus === 'Incomplete'): ?>
+                                            <span class="dir-badge dir-badge--disabled">Incomplete</span>
+                                        <?php else: ?>
+                                            <span class="dir-muted">Not started</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-center">

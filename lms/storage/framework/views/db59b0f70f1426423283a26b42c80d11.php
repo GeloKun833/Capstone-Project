@@ -2,9 +2,6 @@
 
 <?php
     $total = $activities->count();
-    $withSubmissions = $activities->where('allows_submission', true)->count();
-    $overdue = $activities->filter(fn ($a) => $a->is_overdue)->count();
-    $upcoming = $activities->filter(fn ($a) => $a->due_date && $a->due_date->isFuture())->count();
 ?>
 
 <div class="page-wrapper">
@@ -59,45 +56,27 @@
             </div>
         </div>
 
-        <div class="row g-3 mb-3">
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">Total</span>
-                    <div class="dir-stat-value"><?php echo e($total); ?></div>
-                </div>
-            </div>
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">With submissions</span>
-                    <div class="dir-stat-value"><?php echo e($withSubmissions); ?></div>
-                </div>
-            </div>
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">Overdue</span>
-                    <div class="dir-stat-value"><?php echo e($overdue); ?></div>
-                </div>
-            </div>
-            <div class="col-xl-3 col-sm-6">
-                <div class="dir-card dir-stat">
-                    <span class="dir-stat-label">Upcoming</span>
-                    <div class="dir-stat-value"><?php echo e($upcoming); ?></div>
-                </div>
-            </div>
-        </div>
-
         <div class="dir-card">
             <div class="dir-toolbar">
                 <div>
                     <h5 class="dir-toolbar-title">Activities</h5>
-                    <span class="dir-count mt-1"><?php echo e($total); ?> activit<?php echo e($total === 1 ? 'y' : 'ies'); ?> for this lesson</span>
+                    <span class="dir-count mt-1"><?php echo e($total); ?> activit<?php echo e($total === 1 ? 'y' : 'ies'); ?></span>
                 </div>
+                <form method="GET" class="d-flex flex-wrap gap-2">
+                    <input type="search" name="q" value="<?php echo e($search); ?>" class="form-control" placeholder="Search title" style="min-width: 180px;">
+                    <select name="status" class="form-control" style="min-width: 140px;">
+                        <option value="">Draft and posted</option>
+                        <option value="draft" <?php if($status === 'draft'): echo 'selected'; endif; ?>>Draft</option>
+                        <option value="published" <?php if($status === 'published'): echo 'selected'; endif; ?>>Posted</option>
+                    </select>
+                    <button class="btn btn-outline-secondary dir-btn" type="submit">Filter</button>
+                </form>
             </div>
 
             <?php $__empty_1 = true; $__currentLoopData = $activities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $activity): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                 <?php
                     $due = $activity->due_date;
-                    $dueLabel = $due ? $due->format('M j, Y') : 'No due date';
+                    $dueLabel = $activity->formattedDue();
                     $dueState = 'muted';
                     $dueHint = '';
                     if ($due) {
@@ -124,30 +103,52 @@
                         <p class="act-copy"><?php echo e(Str::limit(strip_tags((string) $activity->instructions), 140)); ?></p>
                         <div class="act-meta">
                             <span class="act-chip act-chip-<?php echo e($dueState); ?>"><i class="far fa-calendar"></i> <?php echo e($dueLabel); ?><?php if($dueHint): ?> · <?php echo e($dueHint); ?><?php endif; ?></span>
-                            <?php if($activity->allows_submission): ?>
+                            <?php if($activity->isQuiz()): ?>
+                                <span class="act-chip">Quiz · <?php echo e($activity->points ?: 0); ?> points</span>
+                            <?php elseif($activity->allows_submission): ?>
                                 <span class="act-chip"><?php echo e($submitted); ?> submitted · <?php echo e($graded); ?> graded</span>
                                 <span class="act-chip act-chip-ok">Submissions on</span>
                             <?php else: ?>
                                 <span class="act-chip">No file upload</span>
                             <?php endif; ?>
-                            <?php if($activity->is_active): ?>
-                                <span class="act-chip act-chip-ok">Active</span>
+                            <?php if($activity->isPublished()): ?>
+                                <span class="act-chip act-chip-ok">Posted</span>
                             <?php else: ?>
-                                <span class="act-chip act-chip-danger">Inactive</span>
+                                <span class="act-chip act-chip-warn">Draft</span>
+                            <?php endif; ?>
+                            <?php if($activity->points): ?>
+                                <span class="act-chip"><?php echo e($activity->points); ?> points</span>
                             <?php endif; ?>
                         </div>
                     </div>
                     <div class="act-row-actions">
-                        <?php if($activity->allows_submission): ?>
+                        <?php if($activity->isQuiz() && $activity->isPublished()): ?>
+                            <a href="<?php echo e(route('lessons.activities.quiz-results', [$lesson, $activity])); ?>" class="dir-icon-btn" title="Quiz results"><i class="fas fa-check-square"></i></a>
+                        <?php elseif($activity->allows_submission && $activity->isPublished()): ?>
                             <a href="<?php echo e(route('lessons.activities.submissions', [$lesson, $activity])); ?>" class="dir-icon-btn" title="Submissions"><i class="fas fa-upload"></i></a>
                         <?php endif; ?>
+                        <?php if($activity->isPublished()): ?>
+                            <form action="<?php echo e(route('lessons.activities.unpublish', [$lesson, $activity])); ?>" method="POST" <?php if($activity->isQuiz()): ?> onsubmit="return confirm('Unpublish this quiz? Students cannot start a new attempt. Existing results stay.')" <?php endif; ?>>
+                                <?php echo csrf_field(); ?>
+                                <button type="submit" class="dir-icon-btn" title="Move to draft">Draft</button>
+                            </form>
+                        <?php else: ?>
+                            <form action="<?php echo e(route('lessons.activities.publish', [$lesson, $activity])); ?>" method="POST">
+                                <?php echo csrf_field(); ?>
+                                <button type="submit" class="dir-icon-btn" title="Post">Post</button>
+                            </form>
+                        <?php endif; ?>
+                        <form action="<?php echo e(route('lessons.activities.duplicate', [$lesson, $activity])); ?>" method="POST">
+                            <?php echo csrf_field(); ?>
+                            <button type="submit" class="dir-icon-btn" title="Duplicate"><i class="far fa-copy"></i></button>
+                        </form>
                         <a href="<?php echo e(route('lessons.activities.show', [$lesson, $activity])); ?>" class="dir-icon-btn" title="View"><i class="far fa-eye"></i></a>
                         <a href="<?php echo e(route('lessons.activities.edit', [$lesson, $activity])); ?>" class="dir-icon-btn" title="Edit"><i class="far fa-edit"></i></a>
-                        <form action="<?php echo e(route('lessons.activities.destroy', [$lesson, $activity])); ?>" method="POST" onsubmit="return confirm('Delete this activity?');">
-                            <?php echo csrf_field(); ?>
-                            <?php echo method_field('DELETE'); ?>
-                            <button type="submit" class="dir-icon-btn is-danger" title="Delete"><i class="far fa-trash-alt"></i></button>
-                        </form>
+                        <button type="button" class="dir-icon-btn is-danger delete-activity-btn" title="Delete"
+                                data-title="<?php echo e($activity->title); ?>"
+                                data-action="<?php echo e(route('lessons.activities.destroy', [$lesson, $activity])); ?>">
+                            <i class="far fa-trash-alt"></i>
+                        </button>
                     </div>
                 </article>
             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
@@ -164,11 +165,35 @@
     </div>
 </div>
 
+<div class="modal fade dir-modal" id="deleteActivityModal" tabindex="-1" aria-labelledby="deleteActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteActivityModalLabel">Delete activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">Delete “<strong id="deleteActivityTitle"></strong>”?</p>
+                <p class="dir-muted mb-0">The activity and its student submissions will be removed. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary dir-btn" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteActivityForm" method="POST" class="d-inline">
+                    <?php echo csrf_field(); ?>
+                    <?php echo method_field('DELETE'); ?>
+                    <button type="submit" class="btn btn-danger dir-btn">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php $__env->startPush('styles'); ?>
 <link rel="stylesheet" href="<?php echo e(asset('assets/css/directory-modern.css')); ?>?v=20260915b">
 <style>
 .act-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem 1.15rem;
@@ -200,12 +225,24 @@
 .act-chip-ok { background: #ecfdf5; border-color: #d1fae5; color: #047857; }
 .act-chip-warn { background: #fff7ed; border-color: #ffedd5; color: #c2410c; }
 .act-chip-danger { background: #fef2f2; border-color: #fee2e2; color: #b91c1c; }
-.act-row-actions { display: flex; align-items: flex-start; gap: 0.25rem; }
+.act-row-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem; }
 .act-row-actions form { margin: 0; }
 @media (max-width: 700px) {
     .act-row { flex-direction: column; }
 }
 </style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script>
+document.querySelectorAll('.delete-activity-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+        document.getElementById('deleteActivityTitle').textContent = button.dataset.title || 'this activity';
+        document.getElementById('deleteActivityForm').action = button.dataset.action;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteActivityModal')).show();
+    });
+});
+</script>
 <?php $__env->stopPush(); ?>
 
 <?php $__env->stopSection(); ?>

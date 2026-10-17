@@ -78,14 +78,23 @@
                         </div>
 
                         @if($lesson->file_url)
-                            <div class="alert alert-light border d-flex justify-content-between align-items-center">
-                                <div>
-                                    <i class="fas fa-paperclip me-2"></i>
-                                    <strong>{{ $lesson->file_name ?? 'Lesson Materials' }}</strong>
-                                </div>
-                                <a href="{{ $lesson->file_url }}" target="_blank" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-download"></i> Download
-                                </a>
+                            @php
+                                $materialName = $lesson->file_name ?: 'Lesson material';
+                                $materialExt = strtoupper(pathinfo($materialName, PATHINFO_EXTENSION));
+                                $materialKind = $materialExt === 'PDF'
+                                    ? 'pdf'
+                                    : (in_array($materialExt, ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP'], true) ? 'image' : 'file');
+                            @endphp
+                            <div class="mt-3">
+                                <h6 class="mb-2">Lesson Materials</h6>
+                                <p class="mb-2"><strong>{{ $materialName }}</strong></p>
+                                @if($materialKind === 'pdf')
+                                    <iframe class="lesson-material-frame" src="{{ $lesson->file_url }}" title="{{ $materialName }}"></iframe>
+                                @elseif($materialKind === 'image')
+                                    <img class="lesson-material-image" src="{{ $lesson->file_url }}" alt="{{ $materialName }}">
+                                @else
+                                    <p class="text-muted mb-0">{{ $materialName }} is attached to this lesson.</p>
+                                @endif
                             </div>
                         @endif
                     </div>
@@ -106,7 +115,10 @@
                                     <div class="flex-grow-1">
                                         <div class="fw-semibold">{{ $activity->title ?? ('Activity #' . $activity->id) }}</div>
                                         <small class="text-muted d-block mb-2">
-                                            Due: {{ optional($activity->due_date)->format('M d, Y') ?? 'N/A' }}
+                                            Due: {{ $activity->formattedDue() }}
+                                            @if($activity->isQuiz() && $activity->available_at && $activity->available_at->gt(now('Asia/Manila')))
+                                                · Starts {{ $activity->available_at->timezone('Asia/Manila')->format('M j, g:i A') }}
+                                            @endif
                                         </small>
 
                                         @if($isGraded)
@@ -139,9 +151,14 @@
                                         @endif
                                     </div>
                                     <div class="text-nowrap">
+                                        @php
+                                            $quizOpensLater = $activity->isQuiz()
+                                                && $activity->available_at
+                                                && $activity->available_at->gt(now('Asia/Manila'));
+                                        @endphp
                                         @if(Route::has('student.activities.show'))
-                                            <a href="{{ route('student.activities.show', [$lesson->id, $activity->id]) }}" class="btn btn-sm btn-outline-primary">
-                                                Open
+                                            <a href="{{ route('student.activities.show', [$lesson->id, $activity->id]) }}" class="btn btn-sm {{ $quizOpensLater ? 'btn-outline-secondary' : 'btn-outline-primary' }}">
+                                                {{ $quizOpensLater ? 'Starts '.$activity->available_at->timezone('Asia/Manila')->format('g:i A') : 'Open' }}
                                             </a>
                                         @endif
                                     </div>
@@ -156,5 +173,25 @@
         </div>
     </div>
 </div>
+
+@push('styles')
+<style>
+.lesson-material-frame {
+    width: 100%;
+    height: 70vh;
+    min-height: 480px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+.lesson-material-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+</style>
+@endpush
 
 @endsection
