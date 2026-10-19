@@ -117,11 +117,25 @@
                                         </div>
                                     </div>
 
+                                    @php
+                                        $dueDateInput = old('due_date', optional($assignment->due_date)->format('Y-m-d'));
+                                        if ($dueDateInput) {
+                                            try {
+                                                $dueDateInput = \Carbon\Carbon::parse($dueDateInput)->format('Y-m-d');
+                                            } catch (\Throwable $e) {
+                                                $dueDateInput = '';
+                                            }
+                                        }
+                                        $dueTimeInput = (string) (old('due_time') ?: ($assignment->due_time ? substr((string) $assignment->due_time, 0, 5) : ''));
+                                        if (strlen($dueTimeInput) > 5) {
+                                            $dueTimeInput = substr($dueTimeInput, 0, 5);
+                                        }
+                                    @endphp
                                     <div class="row mb-4">
                                         <div class="col-md-6">
                                             <label for="due_date" class="form-label">Due Date <span class="text-danger">*</span></label>
                                             <input type="date" class="form-control @error('due_date') is-invalid @enderror" 
-                                                   id="due_date" name="due_date" value="{{ old('due_date', $assignment->due_date) }}" required>
+                                                   id="due_date" name="due_date" value="{{ $dueDateInput }}" required>
                                             @error('due_date')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
@@ -129,7 +143,7 @@
                                         <div class="col-md-6">
                                             <label for="due_time" class="form-label">Due Time</label>
                                             <input type="time" class="form-control @error('due_time') is-invalid @enderror" 
-                                                   id="due_time" name="due_time" value="{{ old('due_time', $assignment->due_time ? substr($assignment->due_time, 0, 5) : '') }}">
+                                                   id="due_time" name="due_time" value="{{ $dueTimeInput }}">
                                             @error('due_time')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror

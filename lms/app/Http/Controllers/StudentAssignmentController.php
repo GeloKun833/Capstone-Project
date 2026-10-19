@@ -256,6 +256,40 @@ class StudentAssignmentController extends Controller
             ->with('success', 'Assignment submitted successfully.');
     }
 
+    public function removeSubmission(Assignment $assignment)
+    {
+        $student = Auth::user()->student;
+        if (! $student || ! $this->canAccessAssignment($assignment, $student)) {
+            abort(403, 'You do not have access to this assignment.');
+        }
+
+        $submission = $assignment->submissions()
+            ->where('student_id', $student->id)
+            ->first();
+
+        if (! $submission) {
+            return redirect()->route('student.assignments.show', $assignment);
+        }
+
+        if ($submission->score !== null) {
+            return redirect()->route('student.assignments.show', $assignment)
+                ->with('error', 'This file already has a grade, so it cannot be removed.');
+        }
+
+        if (! $assignment->canSubmit()) {
+            return redirect()->route('student.assignments.show', $assignment)
+                ->with('error', 'This assignment is closed, so the file cannot be replaced.');
+        }
+
+        if ($submission->file_path) {
+            Storage::disk('public')->delete($submission->file_path);
+        }
+        $submission->delete();
+
+        return redirect()->route('student.assignments.show', $assignment)
+            ->with('success', 'Uploaded file removed. You can upload a different file.');
+    }
+
     /**
      * View student's submission
      */

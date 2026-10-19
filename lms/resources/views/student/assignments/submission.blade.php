@@ -74,12 +74,18 @@
                             @endif
 
                             <div class="col-md-12">
-                                <h6 class="mb-2"><i class="fas fa-file"></i> Submitted File:</h6>
-                                <div class="d-grid">
-                                    <a href="{{ Storage::url($submission->file_path) }}" target="_blank" class="btn btn-primary">
-                                        <i class="fas fa-download me-2"></i> Download: {{ $submission->file_name }}
-                                    </a>
-                                </div>
+                                @php
+                                    $fileUrl = Storage::url($submission->file_path);
+                                    $fileExt = strtolower(pathinfo($submission->file_name ?: $submission->file_path, PATHINFO_EXTENSION));
+                                    $fileIsImage = in_array($fileExt, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'], true);
+                                @endphp
+                                <h6 class="mb-2"><i class="fas fa-file"></i> Submitted File</h6>
+                                <p class="fw-semibold mb-2">{{ $submission->file_name }}</p>
+                                @if($fileIsImage)
+                                    <img src="{{ $fileUrl }}" alt="{{ $submission->file_name }}" class="submitted-file-preview">
+                                @else
+                                    <iframe class="submitted-file-frame" src="{{ $fileUrl }}" title="{{ $submission->file_name }}"></iframe>
+                                @endif
                             </div>
 
                             @if($submission->comments)
@@ -266,4 +272,26 @@
 }
 </style>
 @endsection
+
+@push('styles')
+<style>
+    .submitted-file-preview {
+        display: block;
+        width: 100%;
+        max-height: 720px;
+        border-radius: 12px;
+        border: 1px solid #e6e8ee;
+        object-fit: contain;
+        background: #f8fafc;
+    }
+    .submitted-file-frame {
+        display: block;
+        width: 100%;
+        height: 720px;
+        border: 1px solid #e6e8ee;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+</style>
+@endpush
 

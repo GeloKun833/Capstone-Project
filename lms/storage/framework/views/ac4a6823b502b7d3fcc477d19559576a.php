@@ -225,6 +225,9 @@ unset($__errorArgs, $__bag); ?>
                 <div class="card">
                     <div class="card-body">
                         <h5 class="mb-3">File submission</h5>
+                        <?php if($activity->isClosed()): ?>
+                            <div class="alert alert-secondary mb-0">This activity is closed.</div>
+                        <?php else: ?>
                         <form action="<?php echo e(route('student.activities.submit', [$lesson, $activity])); ?>" method="POST" enctype="multipart/form-data">
                             <?php echo csrf_field(); ?>
                             <div class="mb-3">
@@ -237,6 +240,7 @@ unset($__errorArgs, $__bag); ?>
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Submit Activity</button>
                         </form>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>

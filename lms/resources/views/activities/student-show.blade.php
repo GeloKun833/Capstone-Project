@@ -209,6 +209,9 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="mb-3">File submission</h5>
+                        @if($activity->isClosed())
+                            <div class="alert alert-secondary mb-0">This activity is closed.</div>
+                        @else
                         <form action="{{ route('student.activities.submit', [$lesson, $activity]) }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="mb-3">
@@ -221,6 +224,7 @@
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Submit Activity</button>
                         </form>
+                        @endif
                     </div>
                 </div>
             @endif

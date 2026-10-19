@@ -64,6 +64,7 @@
                         <option value="">Draft and posted</option>
                         <option value="draft" @selected($status === 'draft')>Draft</option>
                         <option value="published" @selected($status === 'published')>Posted</option>
+                        <option value="closed" @selected($status === 'closed')>Closed</option>
                     </select>
                     <button class="btn btn-outline-secondary dir-btn" type="submit">Filter</button>
                 </form>
@@ -75,7 +76,10 @@
                     $dueLabel = $activity->formattedDue();
                     $dueState = 'muted';
                     $dueHint = '';
-                    if ($due) {
+                    if ($activity->isClosed()) {
+                        $dueState = 'closed';
+                        $dueHint = 'Closed';
+                    } elseif ($due) {
                         if ($activity->is_overdue) {
                             $dueState = 'danger';
                             $dueHint = 'Overdue';
@@ -103,11 +107,15 @@
                                 <span class="act-chip">Quiz · {{ $activity->points ?: 0 }} points</span>
                             @elseif($activity->allows_submission)
                                 <span class="act-chip">{{ $submitted }} submitted · {{ $graded }} graded</span>
-                                <span class="act-chip act-chip-ok">Submissions on</span>
+                                @if(! $activity->isClosed())
+                                    <span class="act-chip act-chip-ok">Submissions on</span>
+                                @endif
                             @else
                                 <span class="act-chip">No file upload</span>
                             @endif
-                            @if($activity->isPublished())
+                            @if($activity->isClosed())
+                                <span class="act-chip act-chip-closed">Closed</span>
+                            @elseif($activity->isPublished())
                                 <span class="act-chip act-chip-ok">Posted</span>
                             @else
                                 <span class="act-chip act-chip-warn">Draft</span>
@@ -118,17 +126,28 @@
                         </div>
                     </div>
                     <div class="act-row-actions">
-                        @if($activity->isQuiz() && $activity->isPublished())
+                        @if($activity->isQuiz() && ($activity->isPublished() || $activity->isClosed()))
                             <a href="{{ route('lessons.activities.quiz-results', [$lesson, $activity]) }}" class="dir-icon-btn" title="Quiz results"><i class="fas fa-check-square"></i></a>
-                        @elseif($activity->allows_submission && $activity->isPublished())
+                        @elseif($activity->allows_submission && ($activity->isPublished() || $activity->isClosed()))
                             <a href="{{ route('lessons.activities.submissions', [$lesson, $activity]) }}" class="dir-icon-btn" title="Submissions"><i class="fas fa-upload"></i></a>
+                        @endif
+                        @if($activity->isPublished())
+                            <form action="{{ route('lessons.activities.close', [$lesson, $activity]) }}" method="POST">
+                                @csrf
+                                <button type="submit" class="dir-icon-btn" title="Close">Close</button>
+                            </form>
+                        @elseif($activity->isClosed())
+                            <form action="{{ route('lessons.activities.reopen', [$lesson, $activity]) }}" method="POST" onsubmit="return confirm('Reopen this activity? Students can submit again.')">
+                                @csrf
+                                <button type="submit" class="dir-icon-btn" title="Reopen">Reopen</button>
+                            </form>
                         @endif
                         @if($activity->isPublished())
                             <form action="{{ route('lessons.activities.unpublish', [$lesson, $activity]) }}" method="POST" @if($activity->isQuiz()) onsubmit="return confirm('Unpublish this quiz? Students cannot start a new attempt. Existing results stay.')" @endif>
                                 @csrf
                                 <button type="submit" class="dir-icon-btn" title="Move to draft">Draft</button>
                             </form>
-                        @else
+                        @elseif(! $activity->isClosed())
                             <form action="{{ route('lessons.activities.publish', [$lesson, $activity]) }}" method="POST">
                                 @csrf
                                 <button type="submit" class="dir-icon-btn" title="Post">Post</button>
@@ -221,6 +240,7 @@
 .act-chip-ok { background: #ecfdf5; border-color: #d1fae5; color: #047857; }
 .act-chip-warn { background: #fff7ed; border-color: #ffedd5; color: #c2410c; }
 .act-chip-danger { background: #fef2f2; border-color: #fee2e2; color: #b91c1c; }
+.act-chip-closed { background: #eef2ff; border-color: #c7d2fe; color: #24356e; }
 .act-row-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem; }
 .act-row-actions form { margin: 0; }
 @media (max-width: 700px) {

@@ -116,6 +116,9 @@
                                         <div class="fw-semibold">{{ $activity->title ?? ('Activity #' . $activity->id) }}</div>
                                         <small class="text-muted d-block mb-2">
                                             Due: {{ $activity->formattedDue() }}
+                                            @if($activity->isClosed())
+                                                · Closed
+                                            @endif
                                             @if($activity->isQuiz() && $activity->available_at && $activity->available_at->gt(now('Asia/Manila')))
                                                 · Starts {{ $activity->available_at->timezone('Asia/Manila')->format('M j, g:i A') }}
                                             @endif

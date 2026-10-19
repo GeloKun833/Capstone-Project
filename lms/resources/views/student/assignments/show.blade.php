@@ -69,6 +69,45 @@
                         @endif
                     </div>
                 </div>
+
+                @php
+                    $canReplaceFile = $assignment->canSubmit() && (! $submission || $submission->score === null);
+                @endphp
+                <div class="card mt-3" id="uploadedFileCard" @if(!$submission) hidden @endif>
+                    <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-file-image"></i> Your uploaded file
+                        </h5>
+                        @if($canReplaceFile)
+                            @if($submission)
+                                <form action="{{ route('student.assignments.remove', $assignment) }}" method="POST" class="mb-0">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                                </form>
+                            @else
+                                <button type="button" class="btn btn-outline-danger btn-sm" id="removeUploadedFile">Remove</button>
+                            @endif
+                        @endif
+                    </div>
+                    <div class="card-body" id="uploadedFileBody">
+                        @if($submission)
+                            @php
+                                $uploadedExt = strtolower(pathinfo($submission->file_name ?: $submission->file_path, PATHINFO_EXTENSION));
+                                $uploadedIsImage = in_array($uploadedExt, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'], true);
+                                $uploadedUrl = Storage::url($submission->file_path);
+                            @endphp
+                            <p class="mb-2 fw-semibold">{{ $submission->file_name }}</p>
+                            @if($uploadedIsImage)
+                                <img src="{{ $uploadedUrl }}" alt="{{ $submission->file_name }}" class="uploaded-file-preview">
+                            @elseif($uploadedExt === 'pdf')
+                                <iframe class="uploaded-file-frame" src="{{ $uploadedUrl }}" title="{{ $submission->file_name }}"></iframe>
+                            @else
+                                <iframe class="uploaded-file-frame" src="{{ $uploadedUrl }}" title="{{ $submission->file_name }}"></iframe>
+                            @endif
+                        @endif
+                    </div>
+                </div>
             </div>
 
             {{-- Submission Section --}}
@@ -220,7 +259,7 @@
                                         </small>
                                         <div id="submissionFileClientError" class="text-danger small mt-1" style="display:none;"></div>
                                         @error('submission_file')
-                                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="serverFileError">{{ $message }}</div>
                                         @enderror
                                     </div>
 
@@ -262,6 +301,22 @@
     </div>
 </div>
 
+<div class="modal fade" id="fileWarningModal" tabindex="-1" aria-labelledby="fileWarningTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content file-warning-modal">
+            <div class="modal-body text-center">
+                <div class="file-warning-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></div>
+                <h5 class="modal-title" id="fileWarningTitle">This file is not allowed</h5>
+                <p class="mb-2">Please submit the proper required file.</p>
+                <p class="file-warning-detail" id="fileWarningDetail"></p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-warning" data-bs-dismiss="modal" id="fileWarningClose">Choose the required file</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Custom Confirmation Modal --}}
 <div class="modal fade" id="submitConfirmationModal" tabindex="-1" aria-labelledby="submitConfirmationModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
@@ -280,7 +335,7 @@
                 </div>
                 <p class="mb-0 text-warning">
                     <i class="fas fa-info-circle me-1"></i>
-                    <strong>You cannot edit it after submission.</strong>
+                    <strong>Check the file below. You can remove it and upload another one while this assignment is open.</strong>
                 </p>
             </div>
             <div class="modal-footer" style="border-top: none; padding-top: 0; justify-content: flex-end; gap: 0.75rem;">
@@ -296,6 +351,43 @@
 </div>
 
 @endsection
+
+@push('styles')
+<style>
+    .uploaded-file-preview {
+        display: block;
+        width: 100%;
+        max-height: 720px;
+        border-radius: 12px;
+        border: 1px solid #e6e8ee;
+        object-fit: contain;
+        background: #f8fafc;
+    }
+    .uploaded-file-frame {
+        display: block;
+        width: 100%;
+        height: 720px;
+        border: 1px solid #e6e8ee;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+    .file-warning-modal { border: 0; border-radius: 18px; }
+    .file-warning-icon {
+        width: 72px;
+        height: 72px;
+        margin: 8px auto 14px;
+        border-radius: 50%;
+        background: #fff7ed;
+        color: #ea580c;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+    }
+    .file-warning-modal .modal-title { font-weight: 700; color: #1f2430; }
+    .file-warning-detail { color: #6b7287; margin-bottom: 0; }
+</style>
+@endpush
 
 @section('script')
 <script>
@@ -354,6 +446,10 @@ function validateSubmissionFile(form) {
     const ext = fileExtension(file.name);
 
     if (rules.allowed.length && !rules.allowed.includes(ext)) {
+        showFileWarning(
+            'Required file: ' + rules.labels + '.',
+            'You selected ' + file.name + ', which is not allowed.'
+        );
         return showError(
             (rules.requires ? 'Teacher requires these file types only: ' : 'Allowed file types: ')
             + rules.labels + '. Your file (.' + ext + ') is not allowed.'
@@ -361,10 +457,32 @@ function validateSubmissionFile(form) {
     }
 
     if (file.size > rules.maxMb * 1024 * 1024) {
+        showFileWarning(
+            'Required file: ' + rules.labels + ', up to ' + rules.maxMb + 'MB.',
+            file.name + ' is too large.'
+        );
         return showError('File is too large. Maximum size is ' + rules.maxMb + 'MB.');
     }
 
     return clearError();
+}
+
+function showFileWarning(detail, selected) {
+    const detailEl = document.getElementById('fileWarningDetail');
+    if (detailEl) {
+        detailEl.textContent = detail + (selected ? ' ' + selected : '');
+    }
+    const modal = document.getElementById('fileWarningModal');
+    if (!modal) {
+        return;
+    }
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modal).show();
+        return;
+    }
+    if (typeof $ !== 'undefined' && $.fn.modal) {
+        $('#fileWarningModal').modal('show');
+    }
 }
 
 function showSubmitConfirmation(event) {
@@ -475,12 +593,92 @@ function closeModal() {
     }
 }
 
+function showChosenFile(file) {
+    const card = document.getElementById('uploadedFileCard');
+    const body = document.getElementById('uploadedFileBody');
+    if (!card || !body || !file) {
+        return;
+    }
+    if (card.dataset.previewUrl) {
+        URL.revokeObjectURL(card.dataset.previewUrl);
+    }
+    card.hidden = false;
+    body.replaceChildren();
+
+    const name = document.createElement('p');
+    name.className = 'mb-2 fw-semibold';
+    name.textContent = file.name;
+    body.appendChild(name);
+
+    const url = URL.createObjectURL(file);
+    card.dataset.previewUrl = url;
+    const type = String(file.type || '');
+    const isImage = type.indexOf('image/') === 0;
+    if (isImage) {
+        const image = document.createElement('img');
+        image.src = url;
+        image.alt = file.name;
+        image.className = 'uploaded-file-preview';
+        body.appendChild(image);
+        return;
+    }
+
+    const frame = document.createElement('iframe');
+    frame.className = 'uploaded-file-frame';
+    frame.title = file.name;
+    frame.src = url;
+    body.appendChild(frame);
+}
+
+function removeChosenFile() {
+    const card = document.getElementById('uploadedFileCard');
+    const body = document.getElementById('uploadedFileBody');
+    const input = document.getElementById('submission_file');
+    if (card && card.dataset.previewUrl) {
+        URL.revokeObjectURL(card.dataset.previewUrl);
+        delete card.dataset.previewUrl;
+    }
+    if (input) {
+        input.value = '';
+    }
+    if (body) {
+        body.replaceChildren();
+    }
+    if (card) {
+        card.hidden = true;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('studentSubmitForm');
     const input = document.getElementById('submission_file');
+    const removeButton = document.getElementById('removeUploadedFile');
     if (form && input) {
         input.addEventListener('change', function () {
-            validateSubmissionFile(form);
+            if (!input.files || !input.files[0]) {
+                return;
+            }
+            if (!validateSubmissionFile(form)) {
+                removeChosenFile();
+                return;
+            }
+            showChosenFile(input.files[0]);
+        });
+    }
+    if (removeButton) {
+        removeButton.addEventListener('click', removeChosenFile);
+    }
+    const warning = document.getElementById('fileWarningModal');
+    const serverError = document.getElementById('serverFileError');
+    if (serverError && serverError.textContent.trim()) {
+        showFileWarning(serverError.textContent.trim(), '');
+    }
+    if (warning) {
+        warning.addEventListener('hidden.bs.modal', function () {
+            const fileInput = document.getElementById('submission_file');
+            if (fileInput) {
+                fileInput.focus();
+            }
         });
     }
 });

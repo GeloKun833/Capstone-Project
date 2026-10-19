@@ -90,8 +90,12 @@
                                         <?php endif; ?>
                                     </div>
                                     <div class="ams-grade-tile-teachers mt-2 <?php echo e($assignedTeachers->isEmpty() ? 'd-none' : ''); ?>" data-role="teacher-count">
-                                        <i class="fas fa-chalkboard-teacher me-1"></i>
-                                        <?php echo e($assignedTeachers->count()); ?> teacher(s)
+                                        <?php $__currentLoopData = $assignedTeachers->take(3); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <span class="ams-teacher-label"><i class="fas fa-chalkboard-teacher"></i> <?php echo e($teacher->full_name ?: ($teacher->user->name ?? 'Teacher')); ?></span>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        <?php if($assignedTeachers->count() > 3): ?>
+                                            <span class="ams-teacher-label">+<?php echo e($assignedTeachers->count() - 3); ?></span>
+                                        <?php endif; ?>
                                     </div>
                                 </button>
                             </div>
@@ -147,8 +151,12 @@
                                     <?php endif; ?>
                                 </div>
                                 <div class="ams-grade-tile-teachers mt-2 <?php echo e($sectionTeachers->isEmpty() ? 'd-none' : ''); ?>" data-role="teacher-count">
-                                    <i class="fas fa-chalkboard-teacher me-1"></i>
-                                    <?php echo e($sectionTeachers->count()); ?> teacher(s)
+                                    <?php $__currentLoopData = $sectionTeachers->take(3); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $teacher): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <span class="ams-teacher-label"><i class="fas fa-chalkboard-teacher"></i> <?php echo e($teacher->full_name ?: ($teacher->user->name ?? 'Teacher')); ?></span>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    <?php if($sectionTeachers->count() > 3): ?>
+                                        <span class="ams-teacher-label">+<?php echo e($sectionTeachers->count() - 3); ?></span>
+                                    <?php endif; ?>
                                 </div>
                             </button>
                         </div>
@@ -216,6 +224,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div id="catalogTeachers" class="mb-3"></div>
                 <div id="catalogSubjectsList" class="mb-4"></div>
 
                 <div class="ams-modal-add">
@@ -656,9 +665,28 @@ unset($__errorArgs, $__bag); ?>
     }
     .ams-grade-tile-meta { font-size: 0.8rem; line-height: 1.35; }
     .ams-grade-tile-teachers {
-        font-size: 0.75rem;
-        color: var(--ams-blue);
-        font-weight: 600;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+    .ams-teacher-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        max-width: 100%;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #1e3a8a;
+        font-size: 0.72rem;
+        font-weight: 650;
+        line-height: 1.3;
+    }
+    .ams-section-chip {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
     }
     .ams-teacher-pick {
         display: flex;
@@ -888,6 +916,7 @@ unset($__errorArgs, $__bag); ?>
 (function () {
     let subjectsByGrade = <?php echo json_encode($subjectsByGradeJson ?? [], 15, 512) ?>;
     let sectionsByGrade = <?php echo json_encode($sectionsByGradeJson ?? [], 15, 512) ?>;
+    let teachersByGrade = <?php echo json_encode($teachersByGradeJson ?? [], 15, 512) ?>;
     const teachersById = {};
     (<?php echo json_encode($teachersJson ?? [], 15, 512) ?>).forEach(function (t) {
         teachersById[String(t.id)] = t;
@@ -895,6 +924,38 @@ unset($__errorArgs, $__bag); ?>
     const defaultPhoto = <?php echo json_encode(asset('images/photo_defaults.jpg'), 15, 512) ?>;
     const listUrlBase = <?php echo json_encode(url('subject/list/page'), 15, 512) ?>;
     const csrfToken = <?php echo json_encode(csrf_token(), 15, 512) ?>;
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function teacherNames(teachers) {
+        return (teachers || []).map(function (teacher) {
+            if (!teacher) return '';
+            return typeof teacher === 'string' ? teacher : (teacher.name || teacher.full_name || '');
+        }).filter(Boolean);
+    }
+
+    function teacherLabels(teachers) {
+        const names = teacherNames(teachers);
+        if (!names.length) return '';
+        const shown = names.slice(0, 3).map(function (name) {
+            return '<span class="ams-teacher-label"><i class="fas fa-chalkboard-teacher"></i> ' + escapeHtml(name) + '</span>';
+        }).join('');
+        const extra = names.length > 3 ? '<span class="ams-teacher-label">+' + (names.length - 3) + '</span>' : '';
+        return shown + extra;
+    }
+
+    function renderGradeTeachers(grade) {
+        const box = document.getElementById('catalogTeachers');
+        if (!box) return;
+        const names = teacherNames(teachersByGrade[grade] || []);
+        box.innerHTML = names.length
+            ? teacherLabels(teachersByGrade[grade])
+            : '<span class="text-muted small">No teacher assigned to this grade yet.</span>';
+    }
 
     function renderSubjectChips(grade, subjects) {
         const list = document.getElementById('catalogSubjectsList');
@@ -1021,9 +1082,13 @@ unset($__errorArgs, $__bag); ?>
             return;
         }
         list.innerHTML = sections.map(function (s) {
-            const adviser = s.adviser ? (' · ' + s.adviser) : '';
-            return '<span class="ams-subject-chip"><i class="fas fa-door-open"></i> ' + s.name +
-                ' <small style="font-weight:500;opacity:.75">(cap ' + (s.capacity || 25) + adviser + ')</small></span>';
+            const names = teacherNames(s.teachers);
+            if (!names.length && s.adviser) names.push(s.adviser);
+            return '<div class="ams-section-chip mb-2">' +
+                '<span class="ams-subject-chip mb-0"><i class="fas fa-door-open"></i> ' + escapeHtml(s.name) +
+                ' <small style="font-weight:500;opacity:.75">(cap ' + (s.capacity || 25) + ')</small></span>' +
+                (names.length ? teacherLabels(names) : '<span class="text-muted small">No teacher assigned</span>') +
+                '</div>';
         }).join('');
     }
 
@@ -1043,7 +1108,7 @@ unset($__errorArgs, $__bag); ?>
             return;
         }
         line.classList.remove('d-none');
-        line.innerHTML = '<i class="fas fa-chalkboard-teacher me-1"></i> ' + count + ' teacher(s)';
+        line.innerHTML = teacherLabels(teachers);
     }
 
     function applyAssignmentResult(res) {
@@ -1066,6 +1131,9 @@ unset($__errorArgs, $__bag); ?>
                 res.section_teachers || []
             );
         }
+
+        teachersByGrade[grade] = res.teachers || [];
+        renderGradeTeachers(grade);
 
         const gradeIds = (res.teachers || []).map(function (t) { return String(t.id); });
         Object.keys(teachersById).forEach(function (id) {
@@ -1128,6 +1196,7 @@ unset($__errorArgs, $__bag); ?>
             name: section.name,
             capacity: section.capacity || 25,
             adviser: section.adviser || null,
+            teachers: section.teachers || [],
             grade_level: section.grade_level || grade
         };
         const idx = list.findIndex(function (s) { return String(s.id) === id; });
@@ -1225,6 +1294,7 @@ unset($__errorArgs, $__bag); ?>
                         name: s.name,
                         capacity: s.capacity,
                         adviser: s.adviser,
+                        teachers: s.teachers || [],
                         grade_level: s.grade_level || grade
                     };
                 });
@@ -1260,6 +1330,7 @@ unset($__errorArgs, $__bag); ?>
             document.getElementById('quickAddName').value = '';
             document.getElementById('quickAddSubjectMsg').textContent = '';
             document.getElementById('catalogSubjectsList').innerHTML = '<div class="text-muted py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading live subjects...</div>';
+            renderGradeTeachers(grade);
 
             refreshSubjectsFromApi(grade).catch(function () {
                 renderSubjectChips(grade, subjectsByGrade[grade] || []);

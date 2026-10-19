@@ -269,7 +269,9 @@
                                                     </td>
                                                     <td>
                                                         <strong><?php echo e($activity->formattedDue()); ?></strong>
-                                                        <?php if($activity->is_overdue): ?>
+                                                        <?php if($activity->isClosed()): ?>
+                                                            <br><span class="badge bg-primary">Closed</span>
+                                                        <?php elseif($activity->is_overdue): ?>
                                                             <br><span class="badge bg-danger">Overdue</span>
                                                         <?php endif; ?>
                                                     </td>

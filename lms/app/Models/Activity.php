@@ -171,6 +171,11 @@ class Activity extends Model
         return $this->status === 'published' && $this->is_active;
     }
 
+    public function isClosed(): bool
+    {
+        return $this->status === 'closed';
+    }
+
     public function formattedDue(): string
     {
         if (! $this->due_date) {

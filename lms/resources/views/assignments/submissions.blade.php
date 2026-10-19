@@ -22,74 +22,58 @@
             </div>
         </div>
 
-        {{-- Assignment Summary --}}
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">Assignment: {{ $assignment->title }}</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h6 class="text-muted">Subject</h6>
-                                    <p class="fw-bold">{{ $assignment->subject->name ?? 'N/A' }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h6 class="text-muted">Section</h6>
-                                    <p class="fw-bold">{{ $assignment->section->name ?? 'N/A' }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h6 class="text-muted">Due Date</h6>
-                                    <p class="fw-bold">{{ $assignment->dueDateTime ? $assignment->dueDateTime->format('M d, Y g:i A') : 'N/A' }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h6 class="text-muted">Max Score</h6>
-                                    <p class="fw-bold">{{ $assignment->max_score }}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        @php
+            $subjectName = $assignment->subject->subject_name ?? null;
+            $gradeLabel = $assignment->section->grade_level ?: ($assignment->subject->class ?? null);
+            $sectionName = $assignment->section->name ?? null;
+        @endphp
+        <div class="gs-head">
+            <div>
+                <p class="gs-kicker">Grade submissions</p>
+                <h1 class="gs-title">{{ $assignment->title }}</h1>
+                <div class="gs-chips">
+                    @if($subjectName)
+                        <span class="gs-chip">{{ $subjectName }}</span>
+                    @endif
+                    @if($gradeLabel)
+                        <span class="gs-chip">{{ $gradeLabel }}</span>
+                    @endif
+                    @if($sectionName && $sectionName !== $gradeLabel)
+                        <span class="gs-chip">{{ $sectionName }}</span>
+                    @endif
+                    @if($assignment->dueDateTime)
+                        <span class="gs-chip">Due {{ $assignment->dueDateTime->format('M j, Y g:i A') }}</span>
+                    @endif
+                    <span class="gs-chip">{{ $assignment->max_score }} points</span>
                 </div>
             </div>
         </div>
 
         <div class="row mb-4">
             <div class="col-lg-7">
-                <div class="card h-100">
+                <div class="card h-100 gs-panel">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Not Submitted ({{ $missingStudents->count() }})</h5>
+                        <h5 class="card-title mb-0">Not submitted ({{ $missingStudents->count() }})</h5>
+                        <p class="gs-list-note mb-0">
+                            {{ trim(($gradeLabel ? $gradeLabel.' · ' : '').($subjectName ?: 'This subject')) }}
+                            students who have not turned this in.
+                        </p>
                     </div>
-                    <div class="card-body">
-                        @if($missingStudents->isNotEmpty())
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Student</th>
-                                            <th>Student ID</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($missingStudents as $student)
-                                            <tr>
-                                                <td>{{ trim($student->first_name.' '.$student->last_name) }}</td>
-                                                <td>{{ $student->admission_id ?: 'STU-'.$student->id }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
+                    <div class="card-body gs-list">
+                        @forelse($missingStudents as $student)
+                            @php
+                                $initials = strtoupper(mb_substr($student->first_name ?? '', 0, 1).mb_substr($student->last_name ?? '', 0, 1)) ?: 'S';
+                            @endphp
+                            <div class="gs-student">
+                                <span class="gs-avatar" aria-hidden="true">{{ $initials }}</span>
+                                <div>
+                                    <strong>{{ trim($student->first_name.' '.$student->last_name) }}</strong>
+                                    <span>{{ $student->admission_id ?: 'STU-'.$student->id }}</span>
+                                </div>
                             </div>
-                        @else
+                        @empty
                             <p class="text-muted mb-0">All eligible students have submitted.</p>
-                        @endif
+                        @endforelse
                     </div>
                 </div>
             </div>
@@ -399,6 +383,25 @@
 </div>
 
 @endsection
+
+@push('styles')
+<style>
+    .gs-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .gs-kicker { margin: 0 0 4px; font-size: 0.75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #3d5ee1; }
+    .gs-title { margin: 0; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em; color: #1f2430; }
+    .gs-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .gs-chip { background: #fff; border: 1px solid #e6e8ee; color: #3c4456; border-radius: 999px; padding: 5px 10px; font-size: 0.78rem; font-weight: 600; }
+    .gs-panel { border: 1px solid #e6e8ee; border-radius: 18px; overflow: hidden; }
+    .gs-list-note { margin-top: 4px; color: #6b7287; font-size: 0.82rem; }
+    .gs-list { max-height: 520px; overflow: auto; padding-top: 8px; }
+    .gs-student { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid #f1f5f9; }
+    .gs-student:last-child { border-bottom: 0; }
+    .gs-avatar { width: 36px; height: 36px; border-radius: 12px; background: #eef2ff; color: #24356e; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex: 0 0 36px; }
+    .gs-student strong, .gs-student span { display: block; }
+    .gs-student strong { color: #1f2430; }
+    .gs-student span { color: #6b7287; font-size: 0.78rem; }
+</style>
+@endpush
 
 @section('script')
 <script>

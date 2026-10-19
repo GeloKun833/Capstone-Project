@@ -319,27 +319,33 @@ class AssignmentController extends Controller
         $teacherOptions = $isTeacher
             ? app(TeacherClassAssignmentService::class)->optionsFor(Auth::user()->teacher)
             : null;
+        $allowedSubjectIds = [];
+        $allowedSectionIds = [];
         if ($isTeacher) {
-            $teacherOptions['subjects'] = $teacherOptions['subjects']
+            $allowedSubjectIds = $teacherOptions['subjects']
                 ->pluck('id')
                 ->push((int) $assignment->subject_id)
+                ->map(fn ($id) => (int) $id)
                 ->unique()
-                ->values();
-            $teacherOptions['sections'] = $teacherOptions['sections']
+                ->values()
+                ->all();
+            $allowedSectionIds = $teacherOptions['sections']
                 ->pluck('id')
                 ->push((int) $assignment->section_id)
+                ->map(fn ($id) => (int) $id)
                 ->unique()
-                ->values();
+                ->values()
+                ->all();
         }
 
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'subject_id' => $isTeacher
-                ? ['required', Rule::in($teacherOptions['subjects']->pluck('id')->all())]
+                ? ['required', Rule::in($allowedSubjectIds)]
                 : 'required|exists:subjects,id',
             'section_id' => $isTeacher
-                ? ['required', Rule::in($teacherOptions['sections']->pluck('id')->all())]
+                ? ['required', Rule::in($allowedSectionIds)]
                 : 'required|exists:sections,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'semester_id' => 'required|exists:semesters,id',
@@ -504,6 +510,8 @@ class AssignmentController extends Controller
     {
         $this->authorizeAssignment($assignment);
         
+        $assignment->load(['subject', 'section']);
+
         $submissions = $assignment->submissions()
             ->with('student')
             ->orderBy('submitted_at', 'desc')
@@ -521,15 +529,25 @@ class AssignmentController extends Controller
     private function missingStudentsQuery(Assignment $assignment)
     {
         $query = Student::query()
-            ->whereHas('enrollments', fn ($enrollments) => $enrollments->where('subject_id', $assignment->subject_id))
+            ->whereHas('enrollments', function ($enrollments) use ($assignment) {
+                $enrollments->where('subject_id', $assignment->subject_id)
+                    ->where(function ($status) {
+                        $status->where('status', 'active')->orWhereNull('status');
+                    });
+                if ($assignment->academic_year_id) {
+                    $enrollments->where('academic_year_id', $assignment->academic_year_id);
+                }
+            })
             ->whereNotIn('students.id', AssignmentSubmission::query()
                 ->select('student_id')
                 ->where('assignment_id', $assignment->id));
 
         if ($assignment->section_id) {
-            $query->where(function ($students) use ($assignment) {
-                $students->whereDoesntHave('sections')
-                    ->orWhereHas('sections', fn ($sections) => $sections->where('sections.id', $assignment->section_id));
+            $query->whereHas('sections', function ($sections) use ($assignment) {
+                $sections->where('sections.id', $assignment->section_id);
+                if ($assignment->academic_year_id) {
+                    $sections->where('student_section_assignments.academic_year_id', $assignment->academic_year_id);
+                }
             });
         }
 

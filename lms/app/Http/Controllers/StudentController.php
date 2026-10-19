@@ -577,7 +577,11 @@ class StudentController extends Controller
 
         $lesson->setRelation(
             'activities',
-            $lesson->activities->filter(fn ($activity) => $activity->isPublished())->values()
+            $lesson->activities
+                ->filter(fn ($activity) => $activity->isPublished() || $activity->isClosed())
+                ->sortByDesc('id')
+                ->sortByDesc(fn ($activity) => optional($activity->created_at)->getTimestamp() ?? 0)
+                ->values()
         );
 
         $activityIds = $lesson->activities->pluck('id');

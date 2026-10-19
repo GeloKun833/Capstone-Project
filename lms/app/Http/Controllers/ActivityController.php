@@ -42,11 +42,11 @@ class ActivityController extends Controller
             ->when($search !== '', function ($query) use ($search) {
                 $query->where('title', 'like', '%'.$search.'%');
             })
-            ->when(in_array($status, ['draft', 'published'], true), function ($query) use ($status) {
+            ->when(in_array($status, ['draft', 'published', 'closed'], true), function ($query) use ($status) {
                 $query->where('status', $status);
             })
-            ->orderByRaw("CASE WHEN status = 'draft' THEN 0 ELSE 1 END")
-            ->orderBy('due_date')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get();
 
         return view('activities.index', compact('lesson', 'activities', 'search', 'status'));
@@ -104,7 +104,8 @@ class ActivityController extends Controller
         $this->authorizeLesson($lesson);
         $this->assertActivityOnLesson($lesson, $activity);
 
-        $activity->load(['submissions.student', 'rubrics']);
+        $activity->load(['submissions.student', 'rubrics', 'quizQuestionItems']);
+        $lesson->loadMissing(['subject', 'section']);
 
         return view('activities.show', compact('lesson', 'activity'));
     }
@@ -317,7 +318,7 @@ class ActivityController extends Controller
     {
         $this->assertActivityOnLesson($lesson, $activity);
 
-        if (! $activity->isPublished()) {
+        if (! $activity->isPublished() && ! $activity->isClosed()) {
             abort(403, 'This activity is not available yet.');
         }
 
@@ -407,6 +408,35 @@ class ActivityController extends Controller
 
         return redirect()->route('lessons.activities.index', $lesson)
             ->with('success', 'Activity moved back to draft. Students can no longer open it.');
+    }
+
+    public function close(Lesson $lesson, Activity $activity)
+    {
+        $this->authorizeLesson($lesson);
+        $this->assertActivityOnLesson($lesson, $activity);
+        if (! $activity->isPublished()) {
+            return redirect()->route('lessons.activities.index', $lesson)
+                ->with('error', 'Post the activity before closing it.');
+        }
+
+        $activity->update(['status' => 'closed']);
+
+        return redirect()->route('lessons.activities.index', $lesson)
+            ->with('success', 'Activity closed. Students can no longer submit.');
+    }
+
+    public function reopen(Lesson $lesson, Activity $activity)
+    {
+        $this->authorizeLesson($lesson);
+        $this->assertActivityOnLesson($lesson, $activity);
+        if (! $activity->isClosed()) {
+            return redirect()->route('lessons.activities.index', $lesson);
+        }
+
+        $activity->update(['status' => 'published']);
+
+        return redirect()->route('lessons.activities.index', $lesson)
+            ->with('success', 'Activity reopened. Students can submit again.');
     }
 
     private function authorizeLesson(Lesson $lesson): void

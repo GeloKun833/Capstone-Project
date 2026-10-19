@@ -224,7 +224,7 @@ class QuizService
     public function studentForLesson(Activity $activity, Student $student): void
     {
         $activity->loadMissing('lesson');
-        if (! $activity->isQuiz() || ! $activity->isPublished()) {
+        if (! $activity->isQuiz() || (! $activity->isPublished() && ! $activity->isClosed())) {
             abort(403, 'This quiz is not available.');
         }
         $enrolled = $student->sections()->where('section_id', $activity->lesson->section_id)->exists();
@@ -235,6 +235,9 @@ class QuizService
 
     public function availabilityMessage(Activity $activity): ?string
     {
+        if ($activity->isClosed()) {
+            return 'This quiz is closed. You can review a submitted attempt, but you cannot start a new one.';
+        }
         $now = now('Asia/Manila');
         if ($activity->available_at && $activity->available_at->timezone('Asia/Manila')->gt($now)) {
             return 'This quiz starts '.$activity->available_at->timezone('Asia/Manila')->format('M j, Y g:i A').'. You can see it now. The questions start at that time.';

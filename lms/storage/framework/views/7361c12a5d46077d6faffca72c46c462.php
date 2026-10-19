@@ -120,6 +120,9 @@
                                         <small class="text-muted d-block mb-2">
                                             Due: <?php echo e($activity->formattedDue()); ?>
 
+                                            <?php if($activity->isClosed()): ?>
+                                                · Closed
+                                            <?php endif; ?>
                                             <?php if($activity->isQuiz() && $activity->available_at && $activity->available_at->gt(now('Asia/Manila'))): ?>
                                                 · Starts <?php echo e($activity->available_at->timezone('Asia/Manila')->format('M j, g:i A')); ?>
 

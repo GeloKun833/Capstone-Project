@@ -2300,6 +2300,12 @@ class EnrollmentPortalController extends Controller
                     'name' => $section->name,
                     'grade_level' => $section->grade_level,
                     'adviser' => $section->adviser ? $section->adviser->full_name : null,
+                    'teachers' => $section->teachers->map(function ($teacher) {
+                        return [
+                            'id' => $teacher->id,
+                            'name' => $teacher->full_name ?: 'Teacher',
+                        ];
+                    })->values()->all(),
                     'capacity' => $capacity,
                     'current_count' => $currentCount,
                     'available_spots' => $availableSpots,

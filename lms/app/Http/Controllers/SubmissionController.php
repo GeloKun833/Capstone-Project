@@ -46,8 +46,10 @@ class SubmissionController extends Controller
             return redirect()->back()->with('error', 'Student profile not found.');
         }
 
-        if ((int) $activity->lesson_id !== (int) $lesson->id || ! $activity->isPublished()) {
-            return redirect()->back()->with('error', 'This activity is not open for submission.');
+        if ((int) $activity->lesson_id !== (int) $lesson->id || ! $activity->isPublished() || $activity->isClosed()) {
+            return redirect()->back()->with('error', $activity->isClosed()
+                ? 'This activity is closed.'
+                : 'This activity is not open for submission.');
         }
 
         if ($activity->isQuiz()) {

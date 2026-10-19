@@ -86,7 +86,7 @@ class QuizController extends Controller
             ->first();
         if ($attempt) {
             $attempt = $this->quizzes->expireIfNeeded($attempt);
-            if ($attempt->status !== 'in_progress') {
+            if ($attempt->status !== 'in_progress' || $activity->isClosed()) {
                 $attempt = null;
             }
         }
@@ -152,6 +152,9 @@ class QuizController extends Controller
 
     public function save(Request $request, Lesson $lesson, Activity $activity)
     {
+        if ($activity->isClosed()) {
+            return response()->json(['saved' => false, 'submitted' => false, 'closed' => true], 403);
+        }
         $student = $this->student($lesson, $activity);
         $attempt = $this->openAttempt($activity, $student->id);
         $answers = $request->input('answers', []);
@@ -169,6 +172,10 @@ class QuizController extends Controller
 
     public function submit(Request $request, Lesson $lesson, Activity $activity)
     {
+        if ($activity->isClosed()) {
+            return redirect()->route('student.quizzes.show', [$lesson, $activity])
+                ->with('error', 'This quiz is closed.');
+        }
         $student = $this->student($lesson, $activity);
         $attempt = $this->openAttempt($activity, $student->id);
         $answers = $request->input('answers', []);

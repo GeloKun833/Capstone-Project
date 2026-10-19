@@ -73,6 +73,15 @@ class ClassSubjectController extends Controller
                 ->all();
             $teachersByGrade[$grade] = $teachers->whereIn('id', $teacherIds)->values();
         }
+        $teachersByGradeJson = [];
+        foreach ($teachersByGrade as $grade => $list) {
+            $teachersByGradeJson[$grade] = $list->map(function ($teacher) {
+                return [
+                    'id' => $teacher->id,
+                    'name' => $teacher->full_name ?: optional($teacher->user)->name ?? 'Teacher',
+                ];
+            })->values()->all();
+        }
 
         // Flat JSON for catalog modal JS (avoid complex @json closures in Blade)
         $subjectsByGradeJson = [];
@@ -96,6 +105,12 @@ class ClassSubjectController extends Controller
                     'adviser' => ($s->adviser && $s->teachers->contains('id', $s->adviser_id))
                         ? $s->adviser->full_name
                         : null,
+                    'teachers' => $s->teachers->map(function ($teacher) {
+                        return [
+                            'id' => $teacher->id,
+                            'name' => $teacher->full_name ?: optional($teacher->user)->name ?? 'Teacher',
+                        ];
+                    })->values()->all(),
                 ];
             })->values()->all();
         }
@@ -139,6 +154,7 @@ class ClassSubjectController extends Controller
             'teachers', 
             'teachersJson',
             'teachersByGrade',
+            'teachersByGradeJson',
             'assignmentYear',
             'semesters', 
             'sections'
@@ -878,6 +894,12 @@ class ClassSubjectController extends Controller
                 'capacity' => $section->capacity ?? 25,
                 'adviser' => optional($section->adviser)->full_name,
                 'grade_level' => $section->grade_level,
+                'teachers' => $section->teachers->map(function ($teacher) {
+                    return [
+                        'id' => $teacher->id,
+                        'name' => $teacher->full_name ?: optional($teacher->user)->name ?? 'Teacher',
+                    ];
+                })->values()->all(),
             ];
         }
 

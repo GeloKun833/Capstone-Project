@@ -393,6 +393,8 @@ Route::group(['middleware' => ['role:Teacher']], function () {
         Route::post('/{lesson}/activities/{activity}/duplicate', [App\Http\Controllers\ActivityController::class, 'duplicate'])->name('lessons.activities.duplicate');
         Route::post('/{lesson}/activities/{activity}/publish', [App\Http\Controllers\ActivityController::class, 'publish'])->name('lessons.activities.publish');
         Route::post('/{lesson}/activities/{activity}/unpublish', [App\Http\Controllers\ActivityController::class, 'unpublish'])->name('lessons.activities.unpublish');
+        Route::post('/{lesson}/activities/{activity}/close', [App\Http\Controllers\ActivityController::class, 'close'])->name('lessons.activities.close');
+        Route::post('/{lesson}/activities/{activity}/reopen', [App\Http\Controllers\ActivityController::class, 'reopen'])->name('lessons.activities.reopen');
         Route::delete('/{lesson}/activities/{activity}', [App\Http\Controllers\ActivityController::class, 'destroy'])->name('lessons.activities.destroy');
         
                         // Activity Rubric Management
@@ -692,6 +694,7 @@ Route::group(['prefix' => 'student', 'middleware' => ['auth', 'role:Student']], 
     Route::get('/assignments', [App\Http\Controllers\StudentAssignmentController::class, 'index'])->name('student.assignments.index');
     Route::get('/assignments/{assignment}', [App\Http\Controllers\StudentAssignmentController::class, 'show'])->name('student.assignments.show');
     Route::post('/assignments/{assignment}/submit', [App\Http\Controllers\StudentAssignmentController::class, 'submit'])->name('student.assignments.submit');
+    Route::delete('/assignments/{assignment}/submission', [App\Http\Controllers\StudentAssignmentController::class, 'removeSubmission'])->name('student.assignments.remove');
     Route::get('/assignments/{assignment}/submission', [App\Http\Controllers\StudentAssignmentController::class, 'submission'])->name('student.assignments.submission');
 });
 

@@ -68,6 +68,7 @@
                         <option value="">Draft and posted</option>
                         <option value="draft" <?php if($status === 'draft'): echo 'selected'; endif; ?>>Draft</option>
                         <option value="published" <?php if($status === 'published'): echo 'selected'; endif; ?>>Posted</option>
+                        <option value="closed" <?php if($status === 'closed'): echo 'selected'; endif; ?>>Closed</option>
                     </select>
                     <button class="btn btn-outline-secondary dir-btn" type="submit">Filter</button>
                 </form>
@@ -79,7 +80,10 @@
                     $dueLabel = $activity->formattedDue();
                     $dueState = 'muted';
                     $dueHint = '';
-                    if ($due) {
+                    if ($activity->isClosed()) {
+                        $dueState = 'closed';
+                        $dueHint = 'Closed';
+                    } elseif ($due) {
                         if ($activity->is_overdue) {
                             $dueState = 'danger';
                             $dueHint = 'Overdue';
@@ -107,11 +111,15 @@
                                 <span class="act-chip">Quiz · <?php echo e($activity->points ?: 0); ?> points</span>
                             <?php elseif($activity->allows_submission): ?>
                                 <span class="act-chip"><?php echo e($submitted); ?> submitted · <?php echo e($graded); ?> graded</span>
-                                <span class="act-chip act-chip-ok">Submissions on</span>
+                                <?php if(! $activity->isClosed()): ?>
+                                    <span class="act-chip act-chip-ok">Submissions on</span>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <span class="act-chip">No file upload</span>
                             <?php endif; ?>
-                            <?php if($activity->isPublished()): ?>
+                            <?php if($activity->isClosed()): ?>
+                                <span class="act-chip act-chip-closed">Closed</span>
+                            <?php elseif($activity->isPublished()): ?>
                                 <span class="act-chip act-chip-ok">Posted</span>
                             <?php else: ?>
                                 <span class="act-chip act-chip-warn">Draft</span>
@@ -122,17 +130,28 @@
                         </div>
                     </div>
                     <div class="act-row-actions">
-                        <?php if($activity->isQuiz() && $activity->isPublished()): ?>
+                        <?php if($activity->isQuiz() && ($activity->isPublished() || $activity->isClosed())): ?>
                             <a href="<?php echo e(route('lessons.activities.quiz-results', [$lesson, $activity])); ?>" class="dir-icon-btn" title="Quiz results"><i class="fas fa-check-square"></i></a>
-                        <?php elseif($activity->allows_submission && $activity->isPublished()): ?>
+                        <?php elseif($activity->allows_submission && ($activity->isPublished() || $activity->isClosed())): ?>
                             <a href="<?php echo e(route('lessons.activities.submissions', [$lesson, $activity])); ?>" class="dir-icon-btn" title="Submissions"><i class="fas fa-upload"></i></a>
+                        <?php endif; ?>
+                        <?php if($activity->isPublished()): ?>
+                            <form action="<?php echo e(route('lessons.activities.close', [$lesson, $activity])); ?>" method="POST">
+                                <?php echo csrf_field(); ?>
+                                <button type="submit" class="dir-icon-btn" title="Close">Close</button>
+                            </form>
+                        <?php elseif($activity->isClosed()): ?>
+                            <form action="<?php echo e(route('lessons.activities.reopen', [$lesson, $activity])); ?>" method="POST" onsubmit="return confirm('Reopen this activity? Students can submit again.')">
+                                <?php echo csrf_field(); ?>
+                                <button type="submit" class="dir-icon-btn" title="Reopen">Reopen</button>
+                            </form>
                         <?php endif; ?>
                         <?php if($activity->isPublished()): ?>
                             <form action="<?php echo e(route('lessons.activities.unpublish', [$lesson, $activity])); ?>" method="POST" <?php if($activity->isQuiz()): ?> onsubmit="return confirm('Unpublish this quiz? Students cannot start a new attempt. Existing results stay.')" <?php endif; ?>>
                                 <?php echo csrf_field(); ?>
                                 <button type="submit" class="dir-icon-btn" title="Move to draft">Draft</button>
                             </form>
-                        <?php else: ?>
+                        <?php elseif(! $activity->isClosed()): ?>
                             <form action="<?php echo e(route('lessons.activities.publish', [$lesson, $activity])); ?>" method="POST">
                                 <?php echo csrf_field(); ?>
                                 <button type="submit" class="dir-icon-btn" title="Post">Post</button>
@@ -225,6 +244,7 @@
 .act-chip-ok { background: #ecfdf5; border-color: #d1fae5; color: #047857; }
 .act-chip-warn { background: #fff7ed; border-color: #ffedd5; color: #c2410c; }
 .act-chip-danger { background: #fef2f2; border-color: #fee2e2; color: #b91c1c; }
+.act-chip-closed { background: #eef2ff; border-color: #c7d2fe; color: #24356e; }
 .act-row-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem; }
 .act-row-actions form { margin: 0; }
 @media (max-width: 700px) {

@@ -59,7 +59,7 @@ class Lesson extends Model
 
     public function activities()
     {
-        return $this->hasMany(Activity::class);
+        return $this->hasMany(Activity::class)->orderByDesc('created_at')->orderByDesc('id');
     }
 
     // Scopes

@@ -89,8 +89,12 @@
                                         @endif
                                     </div>
                                     <div class="ams-grade-tile-teachers mt-2 {{ $assignedTeachers->isEmpty() ? 'd-none' : '' }}" data-role="teacher-count">
-                                        <i class="fas fa-chalkboard-teacher me-1"></i>
-                                        {{ $assignedTeachers->count() }} teacher(s)
+                                        @foreach($assignedTeachers->take(3) as $teacher)
+                                            <span class="ams-teacher-label"><i class="fas fa-chalkboard-teacher"></i> {{ $teacher->full_name ?: ($teacher->user->name ?? 'Teacher') }}</span>
+                                        @endforeach
+                                        @if($assignedTeachers->count() > 3)
+                                            <span class="ams-teacher-label">+{{ $assignedTeachers->count() - 3 }}</span>
+                                        @endif
                                     </div>
                                 </button>
                             </div>
@@ -144,8 +148,12 @@
                                     @endif
                                 </div>
                                 <div class="ams-grade-tile-teachers mt-2 {{ $sectionTeachers->isEmpty() ? 'd-none' : '' }}" data-role="teacher-count">
-                                    <i class="fas fa-chalkboard-teacher me-1"></i>
-                                    {{ $sectionTeachers->count() }} teacher(s)
+                                    @foreach($sectionTeachers->take(3) as $teacher)
+                                        <span class="ams-teacher-label"><i class="fas fa-chalkboard-teacher"></i> {{ $teacher->full_name ?: ($teacher->user->name ?? 'Teacher') }}</span>
+                                    @endforeach
+                                    @if($sectionTeachers->count() > 3)
+                                        <span class="ams-teacher-label">+{{ $sectionTeachers->count() - 3 }}</span>
+                                    @endif
                                 </div>
                             </button>
                         </div>
@@ -213,6 +221,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div id="catalogTeachers" class="mb-3"></div>
                 <div id="catalogSubjectsList" class="mb-4"></div>
 
                 <div class="ams-modal-add">
@@ -630,9 +639,28 @@
     }
     .ams-grade-tile-meta { font-size: 0.8rem; line-height: 1.35; }
     .ams-grade-tile-teachers {
-        font-size: 0.75rem;
-        color: var(--ams-blue);
-        font-weight: 600;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+    .ams-teacher-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        max-width: 100%;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #1e3a8a;
+        font-size: 0.72rem;
+        font-weight: 650;
+        line-height: 1.3;
+    }
+    .ams-section-chip {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
     }
     .ams-teacher-pick {
         display: flex;
@@ -862,6 +890,7 @@
 (function () {
     let subjectsByGrade = @json($subjectsByGradeJson ?? []);
     let sectionsByGrade = @json($sectionsByGradeJson ?? []);
+    let teachersByGrade = @json($teachersByGradeJson ?? []);
     const teachersById = {};
     (@json($teachersJson ?? [])).forEach(function (t) {
         teachersById[String(t.id)] = t;
@@ -869,6 +898,38 @@
     const defaultPhoto = @json(asset('images/photo_defaults.jpg'));
     const listUrlBase = @json(url('subject/list/page'));
     const csrfToken = @json(csrf_token());
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function teacherNames(teachers) {
+        return (teachers || []).map(function (teacher) {
+            if (!teacher) return '';
+            return typeof teacher === 'string' ? teacher : (teacher.name || teacher.full_name || '');
+        }).filter(Boolean);
+    }
+
+    function teacherLabels(teachers) {
+        const names = teacherNames(teachers);
+        if (!names.length) return '';
+        const shown = names.slice(0, 3).map(function (name) {
+            return '<span class="ams-teacher-label"><i class="fas fa-chalkboard-teacher"></i> ' + escapeHtml(name) + '</span>';
+        }).join('');
+        const extra = names.length > 3 ? '<span class="ams-teacher-label">+' + (names.length - 3) + '</span>' : '';
+        return shown + extra;
+    }
+
+    function renderGradeTeachers(grade) {
+        const box = document.getElementById('catalogTeachers');
+        if (!box) return;
+        const names = teacherNames(teachersByGrade[grade] || []);
+        box.innerHTML = names.length
+            ? teacherLabels(teachersByGrade[grade])
+            : '<span class="text-muted small">No teacher assigned to this grade yet.</span>';
+    }
 
     function renderSubjectChips(grade, subjects) {
         const list = document.getElementById('catalogSubjectsList');
@@ -995,9 +1056,13 @@
             return;
         }
         list.innerHTML = sections.map(function (s) {
-            const adviser = s.adviser ? (' · ' + s.adviser) : '';
-            return '<span class="ams-subject-chip"><i class="fas fa-door-open"></i> ' + s.name +
-                ' <small style="font-weight:500;opacity:.75">(cap ' + (s.capacity || 25) + adviser + ')</small></span>';
+            const names = teacherNames(s.teachers);
+            if (!names.length && s.adviser) names.push(s.adviser);
+            return '<div class="ams-section-chip mb-2">' +
+                '<span class="ams-subject-chip mb-0"><i class="fas fa-door-open"></i> ' + escapeHtml(s.name) +
+                ' <small style="font-weight:500;opacity:.75">(cap ' + (s.capacity || 25) + ')</small></span>' +
+                (names.length ? teacherLabels(names) : '<span class="text-muted small">No teacher assigned</span>') +
+                '</div>';
         }).join('');
     }
 
@@ -1017,7 +1082,7 @@
             return;
         }
         line.classList.remove('d-none');
-        line.innerHTML = '<i class="fas fa-chalkboard-teacher me-1"></i> ' + count + ' teacher(s)';
+        line.innerHTML = teacherLabels(teachers);
     }
 
     function applyAssignmentResult(res) {
@@ -1040,6 +1105,9 @@
                 res.section_teachers || []
             );
         }
+
+        teachersByGrade[grade] = res.teachers || [];
+        renderGradeTeachers(grade);
 
         const gradeIds = (res.teachers || []).map(function (t) { return String(t.id); });
         Object.keys(teachersById).forEach(function (id) {
@@ -1102,6 +1170,7 @@
             name: section.name,
             capacity: section.capacity || 25,
             adviser: section.adviser || null,
+            teachers: section.teachers || [],
             grade_level: section.grade_level || grade
         };
         const idx = list.findIndex(function (s) { return String(s.id) === id; });
@@ -1199,6 +1268,7 @@
                         name: s.name,
                         capacity: s.capacity,
                         adviser: s.adviser,
+                        teachers: s.teachers || [],
                         grade_level: s.grade_level || grade
                     };
                 });
@@ -1234,6 +1304,7 @@
             document.getElementById('quickAddName').value = '';
             document.getElementById('quickAddSubjectMsg').textContent = '';
             document.getElementById('catalogSubjectsList').innerHTML = '<div class="text-muted py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading live subjects...</div>';
+            renderGradeTeachers(grade);
 
             refreshSubjectsFromApi(grade).catch(function () {
                 renderSubjectChips(grade, subjectsByGrade[grade] || []);

@@ -270,7 +270,9 @@
                                                     </td>
                                                     <td>
                                                         <strong>{{ $activity->formattedDue() }}</strong>
-                                                        @if($activity->is_overdue)
+                                                        @if($activity->isClosed())
+                                                            <br><span class="badge bg-primary">Closed</span>
+                                                        @elseif($activity->is_overdue)
                                                             <br><span class="badge bg-danger">Overdue</span>
                                                         @endif
                                                     </td>

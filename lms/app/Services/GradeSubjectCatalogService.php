@@ -63,7 +63,14 @@ class GradeSubjectCatalogService
         return \App\Models\Section::query()
             ->whereIn('grade_level', $aliases)
             ->when($yearId, fn ($query) => $query->forAcademicYear($yearId), fn ($query) => $query->whereRaw('1 = 0'))
-            ->with('adviser')
+            ->with([
+                'adviser',
+                'teachers' => function ($query) use ($yearId) {
+                    if ($yearId) {
+                        $query->where('section_teacher.academic_year_id', $yearId);
+                    }
+                },
+            ])
             ->orderBy('name')
             ->get();
     }
