@@ -124,7 +124,9 @@ class AcademicYear extends Model
             return null;
         }
         if ($this->enrollment_ends_at->lt($this->enrollment_starts_at)) {
-            return $this->start_date?->copy()->startOfDay();
+            $fallback = $this->start_date?->copy()->startOfDay();
+
+            return $fallback ? $this->nearestWeekday($fallback, 'forward', $this->end_date, null) : null;
         }
 
         $suggested = $this->enrollment_ends_at->copy()->addDay()->startOfDay();
@@ -135,7 +137,7 @@ class AcademicYear extends Model
             $suggested = $this->end_date->copy()->startOfDay();
         }
 
-        return $suggested;
+        return $this->nearestWeekday($suggested, 'forward', $this->end_date, $this->enrollment_ends_at);
     }
 
     public function suggestedClassStartNote(): ?string
@@ -147,6 +149,9 @@ class AcademicYear extends Model
 
         $label = $suggested->format('M d, Y');
         $dayAfter = $this->enrollment_ends_at->copy()->addDay()->startOfDay();
+        if ($dayAfter->isWeekend() && $suggested->gt($dayAfter)) {
+            return 'Suggested date: '.$label.'. The day after enrollment ends falls on a weekend, so this is the next weekday.';
+        }
         if ($suggested->equalTo($dayAfter)) {
             return 'Suggested date: '.$label.'. This is the day after enrollment ends.';
         }
@@ -163,12 +168,63 @@ class AcademicYear extends Model
             return null;
         }
 
-        $end = $this->end_date->copy()->startOfDay();
+        $end = $this->nearestWeekday($this->end_date->copy()->startOfDay(), 'back', $this->end_date, $this->suggestedClassStart());
         $start = $this->suggestedClassStart();
         if ($start && $end->lt($start)) {
             return $start;
         }
 
         return $end;
+    }
+
+    public function suggestedClassEndNote(): ?string
+    {
+        $suggested = $this->suggestedClassEnd();
+        if (! $suggested || ! $this->end_date) {
+            return null;
+        }
+
+        $label = $suggested->format('M d, Y');
+        $schoolEnd = $this->end_date->copy()->startOfDay();
+        if ($schoolEnd->isWeekend() && $suggested->lt($schoolEnd)) {
+            return 'Suggested end of class: '.$label.'. The last day of the school year falls on a weekend, so this is the weekday before.';
+        }
+
+        return 'Suggested end of class: '.$label.'. This is the last day of the school year.';
+    }
+
+    /**
+     * Move a suggested date off Saturday or Sunday without leaving the school year
+     * or landing on the enrollment period.
+     */
+    private function nearestWeekday(Carbon $date, string $direction, ?Carbon $latest, ?Carbon $earliest): Carbon
+    {
+        $date = $date->copy()->startOfDay();
+        $latestDay = $latest?->copy()->startOfDay();
+        $earliestDay = $earliest?->copy()->startOfDay();
+
+        if (! $date->isWeekend()) {
+            return $date;
+        }
+
+        $forward = $date->copy();
+        while ($forward->isWeekend()) {
+            $forward->addDay();
+        }
+        $back = $date->copy();
+        while ($back->isWeekend()) {
+            $back->subDay();
+        }
+
+        $forwardOk = (! $latestDay || $forward->lte($latestDay))
+            && (! $earliestDay || $forward->gt($earliestDay));
+        $backOk = (! $latestDay || $back->lte($latestDay))
+            && (! $earliestDay || $back->gt($earliestDay));
+
+        if ($direction === 'back') {
+            return $backOk ? $back : ($forwardOk ? $forward : $date);
+        }
+
+        return $forwardOk ? $forward : ($backOk ? $back : $date);
     }
 }

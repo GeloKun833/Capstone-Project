@@ -270,11 +270,12 @@ class AcademicYearController extends Controller
 
         $start = \Carbon\Carbon::parse($validated['enrollment_starts_at'])->startOfDay();
         $end = \Carbon\Carbon::parse($validated['enrollment_ends_at'])->startOfDay();
-        if ($academicYear->start_date && $start->lt($academicYear->start_date->copy()->startOfDay())) {
-            return redirect()->back()->withInput()->with('error', 'The enrollment start date must fall within Academic Year '.$academicYear->displayName().'.');
-        }
-        if ($academicYear->end_date && $end->gt($academicYear->end_date->copy()->endOfDay())) {
-            return redirect()->back()->withInput()->with('error', 'The enrollment end date must fall within Academic Year '.$academicYear->displayName().'.');
+        $yearStart = $academicYear->start_date?->copy()->startOfDay();
+        $yearEnd = $academicYear->end_date?->copy()->startOfDay();
+        $outside = ($yearStart && ($start->lt($yearStart) || $end->lt($yearStart)))
+            || ($yearEnd && ($start->gt($yearEnd) || $end->gt($yearEnd)));
+        if ($outside) {
+            return redirect()->back()->withInput()->with('error', 'Enrollment dates must fall inside Academic Year '.$academicYear->displayName().'.');
         }
 
         $academicYear->enrollment_starts_at = $start->toDateString();

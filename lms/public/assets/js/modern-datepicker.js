@@ -124,6 +124,28 @@
         return false;
     }
 
+    function monthHasAllowedDay(el, year, month) {
+        var days = new Date(year, month + 1, 0).getDate();
+        for (var day = 1; day <= days; day++) {
+            if (!dateOutOfRange(el, year, month, day)) return true;
+        }
+        return false;
+    }
+
+    function clampEventViewMonth() {
+        if (!eventTarget) return;
+        var minDate = fieldMinDate(eventTarget);
+        var maxDate = fieldMaxDate(eventTarget);
+        if (minDate) {
+            var minMonth = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+            if (eventViewMonth < minMonth) eventViewMonth = minMonth;
+        }
+        if (maxDate) {
+            var maxMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+            if (eventViewMonth > maxMonth) eventViewMonth = maxMonth;
+        }
+    }
+
     function enhanceNativeDate(el) {
         bindDateInput(el);
     }
@@ -299,12 +321,20 @@
             var action = btn.getAttribute('data-mdp');
             if (action === 'prev') {
                 eventViewMonth.setMonth(eventViewMonth.getMonth() - 1);
+                clampEventViewMonth();
                 renderEventPopover();
             } else if (action === 'next') {
                 eventViewMonth.setMonth(eventViewMonth.getMonth() + 1);
+                clampEventViewMonth();
                 renderEventPopover();
             } else if (action === 'today') {
-                eventCursor = new Date();
+                var today = new Date();
+                if (eventTarget && dateOutOfRange(eventTarget, today.getFullYear(), today.getMonth(), today.getDate())) {
+                    clampEventViewMonth();
+                    renderEventPopover();
+                    return;
+                }
+                eventCursor = today;
                 eventCursor.setSeconds(0, 0);
                 eventCursor.setMinutes(Math.round(eventCursor.getMinutes() / 5) * 5);
                 eventViewMonth = new Date(eventCursor);
@@ -355,6 +385,7 @@
             var month = parseInt(pop.querySelector('[data-mdp="month"]').value, 10);
             var year = parseInt(pop.querySelector('[data-mdp="year"]').value, 10);
             eventViewMonth = new Date(year, month, 1);
+            clampEventViewMonth();
             renderEventPopover();
         });
 
@@ -404,6 +435,9 @@
 
     function commitEventValue() {
         if (!eventTarget) return;
+        if (!isTimeOnlyField(eventTarget) && dateOutOfRange(eventTarget, eventCursor.getFullYear(), eventCursor.getMonth(), eventCursor.getDate())) {
+            return;
+        }
         var val;
         if (isTimeOnlyField(eventTarget)) {
             val = pad2(eventCursor.getHours()) + ':' + pad2(eventCursor.getMinutes());
@@ -461,8 +495,30 @@
             yearSelect.dataset.minYear = String(minYear);
             yearSelect.dataset.maxYear = String(maxYear);
         }
+        clampEventViewMonth();
+        var viewYear = eventViewMonth.getFullYear();
+        Array.prototype.forEach.call(monthSelect.options, function (option) {
+            var allowed = !eventTarget || monthHasAllowedDay(eventTarget, viewYear, parseInt(option.value, 10));
+            option.disabled = !allowed;
+            option.hidden = !allowed;
+        });
         monthSelect.value = String(eventViewMonth.getMonth());
-        yearSelect.value = String(eventViewMonth.getFullYear());
+        yearSelect.value = String(viewYear);
+        var prevBtn = pop.querySelector('[data-mdp="prev"]');
+        var nextBtn = pop.querySelector('[data-mdp="next"]');
+        var todayBtn = pop.querySelector('[data-mdp="today"]');
+        if (prevBtn) {
+            var prevMonth = new Date(viewYear, eventViewMonth.getMonth() - 1, 1);
+            prevBtn.disabled = eventTarget && !monthHasAllowedDay(eventTarget, prevMonth.getFullYear(), prevMonth.getMonth());
+        }
+        if (nextBtn) {
+            var nextMonth = new Date(viewYear, eventViewMonth.getMonth() + 1, 1);
+            nextBtn.disabled = eventTarget && !monthHasAllowedDay(eventTarget, nextMonth.getFullYear(), nextMonth.getMonth());
+        }
+        if (todayBtn) {
+            var now = new Date();
+            todayBtn.disabled = !!(eventTarget && dateOutOfRange(eventTarget, now.getFullYear(), now.getMonth(), now.getDate()));
+        }
         timeEl.style.display = showTime ? 'flex' : 'none';
         if (ampmWrap) ampmWrap.style.display = timeOnly ? 'flex' : 'none';
         var hour24 = eventCursor.getHours();
@@ -536,6 +592,10 @@
         if (isTimeOnlyField(el) && !String(el.value || '').trim()) {
             eventCursor.setMinutes(Math.round(eventCursor.getMinutes() / 5) * 5);
         }
+        var openMin = fieldMinDate(el);
+        var openMax = fieldMaxDate(el);
+        if (openMin && eventCursor < openMin) eventCursor = new Date(openMin.getTime());
+        if (openMax && eventCursor > openMax) eventCursor = new Date(openMax.getTime());
         eventViewMonth = new Date(eventCursor.getFullYear(), eventCursor.getMonth(), 1);
         var pop = ensureEventPopover();
         var modal = el.closest('.modal');

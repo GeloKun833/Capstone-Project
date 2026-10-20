@@ -132,41 +132,41 @@ class PerformanceHubController extends Controller
                 'open_alerts' => $kpis['open_alerts'],
             ];
 
-            if ($selectedStudentId && ($allowedStudentIds === null || in_array($selectedStudentId, $allowedStudentIds, true))) {
-                $student = Student::find($selectedStudentId);
-                if ($student) {
-                    $analytics = $this->performance->studentAnalytics(
-                        $student,
-                        $selectedAcademicYearId,
-                        $selectedSemesterId
-                    );
-                    $analytics['student'] = $student;
+                if ($selectedStudentId && ($allowedStudentIds === null || in_array($selectedStudentId, $allowedStudentIds, true))) {
+                    $student = Student::find($selectedStudentId);
+                    if ($student) {
+                        $analytics = $this->performance->studentAnalytics(
+                            $student,
+                            $selectedAcademicYearId,
+                            $selectedSemesterId
+                        );
+                        $analytics['student'] = $student;
                 }
             }
 
             $alertsQuery = GradeAlert::with(['student', 'subject', 'resolvedBy'])
-                ->where('academic_year_id', $selectedAcademicYearId)
+                    ->where('academic_year_id', $selectedAcademicYearId)
                 ->where(function ($query) use ($selectedSemesterId) {
                     $query->where('semester_id', $selectedSemesterId)->orWhereNull('semester_id');
                 })
-                ->orderByDesc('created_at');
+                    ->orderByDesc('created_at');
 
-            if ($allowedStudentIds !== null) {
-                $alertsQuery->whereIn('student_id', $allowedStudentIds);
-            }
+                if ($allowedStudentIds !== null) {
+                    $alertsQuery->whereIn('student_id', $allowedStudentIds);
+                }
             if ($hub['studentIds'] !== []) {
                 $alertsQuery->whereIn('student_id', $hub['studentIds']);
             } elseif ($search !== '' || $performanceStatus !== '' || $selectedSubjectId || $selectedGrade !== '') {
                 $alertsQuery->whereRaw('1 = 0');
-            }
-            if ($alertFilter === 'open') {
-                $alertsQuery->where('is_resolved', false);
-            } elseif ($alertFilter === 'resolved') {
-                $alertsQuery->where('is_resolved', true);
-            }
-            if ($alertType) {
-                $alertsQuery->where('alert_type', $alertType);
-            }
+                }
+                if ($alertFilter === 'open') {
+                    $alertsQuery->where('is_resolved', false);
+                } elseif ($alertFilter === 'resolved') {
+                    $alertsQuery->where('is_resolved', true);
+                }
+                if ($alertType) {
+                    $alertsQuery->where('alert_type', $alertType);
+                }
 
             $alerts = $alertsQuery->paginate(15, ['*'], 'alerts_page')->withQueryString();
             } catch (\Throwable $exception) {

@@ -79,7 +79,7 @@
         @elseif($semesters->isEmpty())
             <div class="alert alert-warning">
                 The current academic year has no semester yet, so performance records are not shown.
-            </div>
+                    </div>
         @endif
 
         <form id="hubFilters" method="GET" action="{{ route($hubRoute) }}" class="hub-card hub-toolbar">
@@ -104,10 +104,10 @@
                     <select name="semester_id">
                         @forelse($semesters as $semester)
                             <option value="{{ $semester->id }}" @selected((int) $selectedSemesterId === (int) $semester->id)>{{ $semester->name }}</option>
-                        @empty
-                            <option value="">No semesters</option>
-                        @endforelse
-                    </select>
+                            @empty
+                                <option value="">No semesters</option>
+                            @endforelse
+                        </select>
                 </label>
                 <label>
                     Grade level
@@ -122,10 +122,10 @@
                     Section
                     <select name="section_id" id="hubSection">
                         <option value="">All sections</option>
-                        @foreach($sections as $section)
+                            @foreach($sections as $section)
                             <option value="{{ $section->id }}" data-grade="{{ $section->grade_level }}"
                                 @selected((int) $selectedSectionId === (int) $section->id)>
-                                {{ $section->grade_level ? $section->grade_level.' — ' : '' }}{{ $section->name }}
+                                    {{ $section->grade_level ? $section->grade_level.' — ' : '' }}{{ $section->name }}
                             </option>
                         @endforeach
                     </select>
@@ -266,7 +266,7 @@
                         <h4>Grade distribution</h4>
                         <p>Students grouped by general average.</p>
                     </div>
-                </div>
+            </div>
                 <div class="hub-chart"><canvas id="distributionChart" aria-label="Grade distribution chart"></canvas></div>
             </article>
             <article class="hub-card">
@@ -310,7 +310,7 @@
                     <div class="hub-chart"><canvas id="attendanceChart" aria-label="Attendance trend"></canvas></div>
                 @else
                     <p class="hub-empty">No attendance records fall inside this academic year’s dates.</p>
-                @endif
+        @endif
             </article>
             <article class="hub-card">
                 <div class="hub-card-head">
@@ -340,11 +340,11 @@
                     </p>
                 </div>
             </div>
-            <div class="table-responsive">
+                    <div class="table-responsive">
                 <table class="hub-table">
                     <thead>
-                        <tr>
-                            <th>Student</th>
+                                <tr>
+                                    <th>Student</th>
                             <th>Number</th>
                             <th>Grade</th>
                             <th>Section</th>
@@ -354,9 +354,9 @@
                             <th>Reason</th>
                             <th>Updated</th>
                             <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                                </tr>
+                            </thead>
+                            <tbody>
                         @forelse($monitor ?? [] as $row)
                             <tr>
                                 <td>{{ $row->student->last_name }}, {{ $row->student->first_name }}</td>
@@ -370,10 +370,10 @@
                                 <td>{{ $row->updated_at ? \Carbon\Carbon::parse($row->updated_at)->timezone('Asia/Manila')->format('M j, Y') : '—' }}</td>
                                 <td>
                                     <a class="hub-inline-link" href="{{ route($hubRoute, array_merge(request()->except('page'), ['student_id' => $row->student->id])) }}">View</a>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
                                 <td colspan="10">
                                     <div class="hub-empty">
                                         @if($filtersActive)
@@ -382,12 +382,12 @@
                                             No students are enrolled or graded for this academic year and semester.
                                         @endif
                                     </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
             @if($monitor)
                 <div class="hub-pager">{{ $monitor->links() }}</div>
             @endif
@@ -421,44 +421,44 @@
                     </label>
                 </div>
             </div>
-            <div class="table-responsive">
+                    <div class="table-responsive">
                 <table class="hub-table">
                     <thead>
-                        <tr>
-                            <th>Student</th>
-                            <th>Type</th>
-                            <th>Subject</th>
-                            <th>Message</th>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Type</th>
+                                    <th>Subject</th>
+                                    <th>Message</th>
                             <th>Value</th>
-                            <th>Status</th>
+                                    <th>Status</th>
                             <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($alerts ?? [] as $alert)
-                            <tr>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($alerts ?? [] as $alert)
+                                    <tr>
                                 <td>{{ $alert->student->last_name ?? '' }}, {{ $alert->student->first_name ?? '' }}</td>
                                 <td>{{ str_replace('_', ' ', ucfirst($alert->alert_type)) }}</td>
-                                <td>{{ $alert->subject->subject_name ?? '—' }}</td>
-                                <td>{{ $alert->message }}</td>
+                                        <td>{{ $alert->subject->subject_name ?? '—' }}</td>
+                                        <td>{{ $alert->message }}</td>
                                 <td>{{ $alert->current_value !== null ? number_format((float) $alert->current_value, 2) : '—' }}</td>
                                 <td>{{ $alert->is_resolved ? 'Resolved' : 'Open' }}</td>
                                 <td>
-                                    @if(! $alert->is_resolved)
+                                            @if(! $alert->is_resolved)
                                         <button type="button" class="hub-inline-link hub-resolve" data-action="{{ route($resolveRoute, $alert) }}">Resolve</button>
-                                    @endif
+                                            @endif
                                     <a class="hub-inline-link" href="{{ route($hubRoute, array_merge(request()->except('page'), ['student_id' => $alert->student_id])) }}">View</a>
-                                </td>
-                            </tr>
-                        @empty
+                                        </td>
+                                    </tr>
+                                @empty
                             <tr><td colspan="7"><div class="hub-empty">No alerts match the current year, semester, and filters.</div></td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-            @if($alerts)
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    @if($alerts)
                 <div class="hub-pager">{{ $alerts->links() }}</div>
-            @endif
+                    @endif
         </section>
     </div>
 </div>
@@ -478,7 +478,7 @@
                     <button type="submit" class="btn btn-primary">Resolve</button>
                 </div>
             </form>
-        </div>
+            </div>
     </div>
 </div>
 @endsection

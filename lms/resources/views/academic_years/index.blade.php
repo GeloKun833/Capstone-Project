@@ -97,6 +97,7 @@
                         data-class-suggest-note="{{ $year->suggestedClassStartNote() }}"
                         data-class-end-suggest="{{ optional($suggestedClassEnd)->format('Y-m-d') }}"
                         data-class-end-suggest-label="{{ optional($suggestedClassEnd)->format('M d, Y') }}"
+                        data-class-end-suggest-note="{{ $year->suggestedClassEndNote() }}"
                         data-class-start-url="{{ route('academic_years.class-start', $year) }}"
                         data-status="{{ $status }}"
                         data-enrollment-open="{{ $year->enrollment_open ? '1' : '0' }}"
@@ -456,6 +457,7 @@
             classSuggestNote: btn.getAttribute('data-class-suggest-note') || '',
             classEndSuggest: btn.getAttribute('data-class-end-suggest') || '',
             classEndSuggestLabel: btn.getAttribute('data-class-end-suggest-label') || '',
+            classEndSuggestNote: btn.getAttribute('data-class-end-suggest-note') || '',
             classStartUrl: btn.getAttribute('data-class-start-url') || '',
             status: btn.getAttribute('data-status') || '',
             enrollmentOpen: btn.getAttribute('data-enrollment-open') || '0',
@@ -525,9 +527,7 @@
         }
         if (classHint) {
             const startNote = active.classSuggestNote || '';
-            const endNote = active.classEndSuggestLabel
-                ? 'Suggested end of class: ' + active.classEndSuggestLabel + '. This is the last day of the school year.'
-                : '';
+            const endNote = active.classEndSuggestNote || '';
             classHint.textContent = [startNote, endNote].filter(Boolean).join(' ');
         }
         const datesWrap = document.getElementById('yearEnrollmentDatesWrap');
@@ -537,9 +537,23 @@
             datesWrap.classList.toggle('d-none', !isCurrent);
             datesForm.action = active.enrollmentSettingsUrl;
             document.getElementById('yearEnrollmentDatesOpen').value = active.enrollmentOpen === '1' ? '1' : '0';
-            document.getElementById('yearEnrollmentStart').value = active.enrollmentStart;
-            document.getElementById('yearEnrollmentEnd').value = active.enrollmentEnd;
+            const enrollStart = document.getElementById('yearEnrollmentStart');
+            const enrollEnd = document.getElementById('yearEnrollmentEnd');
+            enrollStart.value = active.enrollmentStart;
+            enrollEnd.value = active.enrollmentEnd;
+            enrollStart.min = active.start || '';
+            enrollStart.max = active.end || '';
+            enrollEnd.min = enrollStart.value || active.start || '';
+            enrollEnd.max = active.end || '';
         }
+    });
+
+    document.getElementById('yearEnrollmentStart')?.addEventListener('change', function () {
+        const end = document.getElementById('yearEnrollmentEnd');
+        if (!end) return;
+        const schoolStart = this.min || '';
+        end.min = (this.value && (!schoolStart || this.value > schoolStart)) ? this.value : schoolStart;
+        if (end.value && end.min && end.value < end.min) end.value = '';
     });
 
     document.getElementById('btnAddYear')?.addEventListener('click', function () {
