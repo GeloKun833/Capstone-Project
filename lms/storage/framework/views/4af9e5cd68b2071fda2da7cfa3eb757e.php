@@ -13,6 +13,15 @@
     $sectionName = optional($reportSection)->name;
     $gradeLevel = $gradeLevel ?? optional($reportSection)->grade_level;
     $descriptive = $descriptive ?? \App\Support\DescriptiveScale::isNurseryOrKindergarten($gradeLevel);
+    $termColumns = \App\Support\SchoolQuarter::periods($academicYear ?? null);
+    if ($termColumns === []) {
+        $termColumns = [
+            ['number' => 1, 'label' => 'Term 1'],
+            ['number' => 2, 'label' => 'Term 2'],
+            ['number' => 3, 'label' => 'Term 3'],
+            ['number' => 4, 'label' => 'Term 4'],
+        ];
+    }
 ?>
 
 <div class="report-sheet">
@@ -33,6 +42,7 @@
         <?php if(!empty($student->admission_id)): ?>
             <div><strong>Student ID:</strong> <?php echo e($student->admission_id); ?></div>
         <?php endif; ?>
+        <div><strong>Report status:</strong> <?php echo e($reportStatus ?? 'Not started'); ?><?php if(!empty($focusQuarter)): ?> (Term <?php echo e($focusQuarter); ?>)<?php endif; ?></div>
     </div>
 
     <div class="two-col">
@@ -44,13 +54,12 @@
                     <tr>
                         <th rowspan="2" style="width:16%">Core Values</th>
                         <th rowspan="2">Behavior Statements</th>
-                        <th colspan="4">Quarter</th>
+                        <th colspan="<?php echo e(count($termColumns)); ?>">Term</th>
                     </tr>
                     <tr>
-                        <th style="width:7%">1</th>
-                        <th style="width:7%">2</th>
-                        <th style="width:7%">3</th>
-                        <th style="width:7%">4</th>
+                        <?php $__currentLoopData = $termColumns; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $term): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <th style="width:7%"><?php echo e($term['number']); ?></th>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -62,7 +71,8 @@
                                     <td class="core" rowspan="<?php echo e($items->count()); ?>"><?php echo e($loop->parent->iteration); ?>. <?php echo e($core); ?></td>
                                 <?php endif; ?>
                                 <td class="left"><?php echo e($indicator->statement); ?></td>
-                                <?php $__currentLoopData = ['quarter_1','quarter_2','quarter_3','quarter_4']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $qf): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $__currentLoopData = $termColumns; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $term): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $qf = 'quarter_'.$term['number']; ?>
                                     <td class="center"><?php echo e(optional($rating)->{$qf} ?: ''); ?></td>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </tr>
@@ -120,15 +130,14 @@
                 <thead>
                     <tr>
                         <th rowspan="2" style="width:34%">Learning Areas</th>
-                        <th colspan="4">Quarter</th>
+                        <th colspan="<?php echo e(count($termColumns)); ?>">Term</th>
                         <th rowspan="2" style="width:11%">Final Grade</th>
                         <th rowspan="2" style="width:12%">Remarks</th>
                     </tr>
                     <tr>
-                        <th style="width:8%">1</th>
-                        <th style="width:8%">2</th>
-                        <th style="width:8%">3</th>
-                        <th style="width:8%">4</th>
+                        <?php $__currentLoopData = $termColumns; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $term): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <th style="width:8%"><?php echo e($term['number']); ?></th>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -140,14 +149,15 @@
                             $remark = $row->remarks ?: ReportCardService::remarkForScore(
                                 $row->final_grade !== null ? (float) $row->final_grade : null
                             );
-                            $latestLetter = $descriptive ? $row->latestLevel() : null;
+                            $latestLetter = $descriptive ? $row->finalLevel() : null;
                             $latestMeta = $latestLetter ? \App\Support\DescriptiveScale::get($latestLetter) : null;
                         ?>
                         <tr>
                             <td class="left <?php echo e($isChild ? 'indent' : ''); ?>">
                                 <?php if($isParent): ?><strong><?php echo e($subjName); ?></strong><?php else: ?><?php echo e($subjName); ?><?php endif; ?>
                             </td>
-                            <?php $__currentLoopData = [1, 2, 3, 4]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $quarter): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $termColumns; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $term): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $quarter = $term['number']; ?>
                                 <?php
                                     if ($descriptive) {
                                         $cell = $row->presentQuarter($quarter);

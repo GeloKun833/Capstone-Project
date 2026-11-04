@@ -626,6 +626,7 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
+                                            <th>Preview</th>
                                             <th>Document Type</th>
                                             <th>File Name</th>
                                             <th>File Size</th>
@@ -636,6 +637,7 @@
                                     <tbody>
                                         <?php $__currentLoopData = $application->documents; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $document): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <tr>
+                                                <td><?php echo $__env->make('enrollment.partials.document-thumb', ['document' => $document], \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?></td>
                                                 <td>
                                                     <strong><?php echo e(\App\Models\EnrollmentDocument::DOCUMENT_TYPES[$document->document_type] ?? $document->document_type); ?></strong>
                                                 </td>
@@ -693,7 +695,7 @@
                                             </tr>
                                             <?php if($document->verification_notes): ?>
                                                 <tr>
-                                                    <td colspan="5">
+                                                    <td colspan="6">
                                                         <small class="text-muted">
                                                             <strong>Verification Notes:</strong> <?php echo e($document->verification_notes); ?>
 

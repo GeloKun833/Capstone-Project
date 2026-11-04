@@ -46,11 +46,11 @@
                 </div>
                 <div class="col-md-3">
                     <label class="ep-label">Enrollment Start Date</label>
-                    <input type="date" class="form-control" name="enrollment_starts_at" value="<?php echo e(old('enrollment_starts_at', optional($readinessYear->enrollment_starts_at)->format('Y-m-d'))); ?>" required>
+                    <input type="date" class="form-control" name="enrollment_starts_at" value="<?php echo e(old('enrollment_starts_at', optional($readinessYear->enrollment_starts_at)->format('Y-m-d'))); ?>" min="<?php echo e(optional($readinessYear->start_date)->format('Y-m-d')); ?>" max="<?php echo e(optional($readinessYear->end_date)->format('Y-m-d')); ?>" required>
                 </div>
                 <div class="col-md-3">
                     <label class="ep-label">Enrollment End Date</label>
-                    <input type="date" class="form-control" name="enrollment_ends_at" value="<?php echo e(old('enrollment_ends_at', optional($readinessYear->enrollment_ends_at)->format('Y-m-d'))); ?>" required>
+                    <input type="date" class="form-control" name="enrollment_ends_at" value="<?php echo e(old('enrollment_ends_at', optional($readinessYear->enrollment_ends_at)->format('Y-m-d'))); ?>" min="<?php echo e(old('enrollment_starts_at', optional($readinessYear->enrollment_starts_at)->format('Y-m-d') ?: optional($readinessYear->start_date)->format('Y-m-d'))); ?>" max="<?php echo e(optional($readinessYear->end_date)->format('Y-m-d')); ?>" required>
                 </div>
                 <div class="col-md-1">
                     <button type="submit" class="ep-btn ep-btn-primary w-100">Save</button>
