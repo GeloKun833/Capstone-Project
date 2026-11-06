@@ -244,12 +244,10 @@ def existing(rel):
     return os.path.isfile(path)
 
 
-def read_source(rel, limit=60):
+def read_source(rel):
     path = os.path.join(ROOT, rel.replace("/", os.sep))
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
-        lines = handle.read().replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    shown = lines[:limit]
-    return "\n".join(shown)
+        return handle.read().replace("\r\n", "\n").replace("\r", "\n")
 
 
 def add_code_block(doc, text):
@@ -275,6 +273,84 @@ def add_code_block(doc, text):
     flush(chunk)
 
 
+MODULE_ORDER = [m["id"] for m in MODULES] + ["Shared", "Other"]
+
+MODULE_TITLES = {m["id"]: m["title"] for m in MODULES}
+MODULE_TITLES["Shared"] = "Application foundation used by every module"
+MODULE_TITLES["Other"] = "Fees, settings, backup, and other project source"
+
+
+def classify(rel):
+    r = rel.replace("\\", "/").lower()
+    base = os.path.basename(r)
+
+    if r.startswith("resources/views/student/assignments/") or "lesson-show" in r or r.startswith("resources/views/student/lesson"):
+        return "1.5"
+    if r.startswith("resources/views/student/") and base in {
+        "grades.blade.php", "my-classes.blade.php", "class-detail.blade.php",
+    }:
+        return "1.7"
+    if "attendance" in r:
+        return "1.3"
+    if any(k in r for k in (
+        "lesson", "activity", "quiz", "assignment", "submission", "safeupload",
+    )):
+        return "1.5"
+    if any(k in r for k in (
+        "grading", "gradecontroller", "grade.php", "gradesexport", "quarterly",
+        "studentgpa", "gradealert", "observed", "weightsetting", "descriptive",
+        "academicthreshold", "gradeencoding", "schoolquarter", "gradenarrative",
+        "gradesubject", "/gpa", "gpaexport", "gpa-pdf", "grades-pdf", "grades.blade",
+    )):
+        return "1.4"
+    if any(k in r for k in ("report", "transcript", "export")):
+        return "1.9"
+    if any(k in r for k in ("analytics", "performancehub", "performance-hub", "performance-analytics", "studentperformance")):
+        return "1.8"
+    if any(k in r for k in (
+        "announcement", "chat", "message", "notification", "consultation",
+        "class-post", "classpost", "calendar",
+    )):
+        return "1.6"
+    if any(k in r for k in (
+        "subject", "section", "curriculum", "schedule", "academicyear", "academic_year",
+        "semester", "teacher", "room.php", "/room", "department", "classsubject", "class-subject",
+    )):
+        return "1.2"
+    if any(k in r for k in (
+        "parent", "sidebar", "dashboard", "homecontroller", "/auth/", "layouts/", "help/",
+    )):
+        return "1.7"
+    if any(k in r for k in (
+        "student", "enrollment", "promotion", "usermanagement", "user.php", "userobserver",
+    )):
+        return "1.1"
+    if any(k in r for k in (
+        "invoice", "fees", "account", "backup", "setting", "menu", "demo", "dummy",
+    )):
+        return "Other"
+    return "Shared"
+
+
+def collect_project_files():
+    groups = {key: [] for key in MODULE_ORDER}
+    skip_dirs = {"vendor", "node_modules", "storage", ".git", "plugins"}
+    exts = (".php", ".js", ".css", ".blade.php")
+    for dirpath, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        for name in files:
+            if not name.endswith(exts):
+                continue
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, ROOT).replace("\\", "/")
+            if rel.startswith("public/assets/plugins/") or "/plugins/" in rel:
+                continue
+            groups[classify(rel)].append(rel)
+    for key in groups:
+        groups[key].sort()
+    return groups
+
+
 def build_listing():
     doc = Document()
     setup(doc)
@@ -287,51 +363,35 @@ def build_listing():
     P(doc, "October 2026", 11, False, False, MUTED, align="center")
     doc.add_page_break()
 
+    groups = collect_project_files()
+    total = sum(len(v) for v in groups.values())
     H(doc, "How to read this listing", 1)
-    P(doc, "Each objective has only the controller that performs that task. Models, screens, routes, and supporting classes are not included. The companion file prints those same controllers.", align="justify")
-    bullets(doc, [
-        "Administrator — year, people, classes, schedules, encoding access, analytics, and school reports.",
-        "Registrar — enrollment applications and enrollment reports.",
-        "Teacher — assigned classes, lessons, activities, attendance, announcements, and grades when encoding is granted.",
-        "Student — Grade 7 to Grade 10 classwork, schedule, grades, and attendance.",
-        "Parent — Nursery to Grade 6 children. Those learners do not have a separate login.",
-    ])
+    P(doc, "Every project source file is listed once, under the module it belongs to. The companion file prints the complete code of each file, module by module. Third-party libraries in vendor and public plugins are not part of this project’s source.", align="justify")
 
     H(doc, "Master list of source file names", 1)
     rows = []
-    seen = set()
     n = 1
-    for module in MODULES:
-        for rel, purpose in module["files"]:
-            if rel in seen or not existing(rel):
-                continue
-            seen.add(rel)
-            rows.append((str(n), os.path.basename(rel), module["id"], rel))
+    for module_id in MODULE_ORDER:
+        for rel in groups[module_id]:
+            rows.append((str(n), os.path.basename(rel), module_id, rel))
             n += 1
-    table(doc, ["No.", "Source file name", "Objective", "Path"], rows)
-    P(doc, f"{len(rows)} source files are listed. Each one is printed in Program Listing Source Code.docx.", 10, False, True, MUTED)
+    table(doc, ["No.", "Source file name", "Module", "Path"], rows)
+    P(doc, f"{total} source files are listed. The complete code of each file is in Program Listing Source Code.docx.", 10, False, True, MUTED)
 
-    for module in MODULES:
-        H(doc, f"Objective {module['id']}", 1)
-        H(doc, module["title"], 2)
-        P(doc, module["roles"], align="justify")
-        P(doc, "Screens", 12, True, False, BLUE, before=4, after=2)
-        P(doc, module["interface"], align="justify")
-        P(doc, "Source files", 12, True, False, BLUE, before=6, after=2)
-        file_rows = []
-        missing = []
-        for i, (rel, purpose) in enumerate(module["files"], 1):
-            name = os.path.basename(rel)
-            if existing(rel):
-                file_rows.append((str(i), name, rel, purpose))
-            else:
-                missing.append(name)
-        table(doc, ["No.", "Source file name", "Path", "What this file does"], file_rows)
-        if missing:
-            P(doc, "Not found in the project and omitted from the source print: " + ", ".join(missing), 10, False, True, MUTED)
+    roles = {m["id"]: m["roles"] for m in MODULES}
+    for module_id in MODULE_ORDER:
+        H(doc, f"Module {module_id}", 1)
+        H(doc, MODULE_TITLES[module_id], 2)
+        if module_id in roles:
+            P(doc, roles[module_id], align="justify")
+        files = groups[module_id]
+        P(doc, f"{len(files)} source files", 11, True, False, BLUE, before=4, after=2)
+        table(doc, ["No.", "Source file name", "Path"], [
+            (str(i), os.path.basename(rel), rel) for i, rel in enumerate(files, 1)
+        ])
 
     H(doc, "Source-code companion", 1)
-    P(doc, "Open Program Listing Source Code.docx for the printed source. Each program shows only the first 60 lines.", align="justify")
+    P(doc, "Open Program Listing Source Code.docx for the complete source of every file in each module.", align="justify")
     doc.core_properties.title = "Program Listing"
     doc.core_properties.subject = "Source file listing for LMS objectives 1.1 to 1.9"
     doc.core_properties.category = "Program Listing"
@@ -346,31 +406,29 @@ def build_source():
     P(doc, "Program Listing", 26, True, False, INK, align="center", after=2)
     P(doc, "Source code", 18, True, False, BLUE, align="center", after=8)
     P(doc, "File name of this document: Program Listing Source Code", 11, align="center")
-    P(doc, "Each program shows the first 60 lines only.", 11, align="center")
-    doc.add_page_break()
+    P(doc, "The source below is the complete code of every project file, grouped by module.", 11, align="center")
 
-    printed = {}
+    groups = collect_project_files()
     count = 0
-    for module in MODULES:
-        for rel, purpose in module["files"]:
-            if not existing(rel):
-                continue
-            if count:
-                doc.add_page_break()
+    for module_id in MODULE_ORDER:
+        files = groups[module_id]
+        if not files:
+            continue
+        doc.add_page_break()
+        H(doc, f"Module {module_id}", 1)
+        H(doc, MODULE_TITLES[module_id], 2)
+        P(doc, f"{len(files)} source files. The complete code of each file follows.", 11)
+        for rel in files:
+            doc.add_page_break()
             count += 1
             name = os.path.basename(rel)
-            H(doc, f"Program Listing {module['id']}  ·  {name}", 1)
+            H(doc, f"Module {module_id}  ·  {name}", 1)
             P(doc, "Source file name: " + name, 11, True, after=1)
-            P(doc, "Path: lms/" + rel, 10, False, False, MUTED, after=1)
-            P(doc, "Objective " + module["id"] + ". " + module["title"], 10, False, False, MUTED, after=1)
-            P(doc, purpose, 11, after=6)
-            if rel in printed:
-                P(doc, "This source is printed in full under Objective " + printed[rel] + ". It is not repeated here.", 11)
-            else:
-                printed[rel] = module["id"]
-                add_code_block(doc, read_source(rel, 60))
-                P(doc, "Listing stops at line 60.", 10, False, True, MUTED, before=6)
-            print("printed", name)
+            P(doc, "Path: lms/" + rel, 10, False, False, MUTED, after=6)
+            add_code_block(doc, read_source(rel))
+            if count % 25 == 0:
+                print("printed", count, name)
+    print("source files", count)
     doc.core_properties.title = "Program Listing Source Code"
     doc.core_properties.subject = "LMS source code for objectives 1.1 to 1.9"
     doc.core_properties.category = "Program Listing"
